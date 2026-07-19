@@ -1,42 +1,48 @@
+import { createElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Matter } from '@/platform/types/matter';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { MeetingEntry } from './MeetingEntry';
 import {
+  createDirectClientMeetingsAdapter,
   createMeetingPopulationService,
+  type DirectClientMeetingTarget,
   type MeetingOpenTarget,
   type SealedMeetingClientBoundary,
 } from './foundation/contract';
-import { resolveMeetingEntryHostIdentity } from './meetingEntryHostIdentity';
+import {
+  meetingEntryHostIdentity,
+  type MeetingEntryTarget,
+} from './meetingEntryHostIdentity';
 
-// A real host-context probe: the MeetingEntry host binds identity through
-// resolveMeetingEntryHostIdentity. This proves that ONLY a target the trusted
-// resolver minted can move the host off its legacy folder props, and that a
-// forged/legacy-conflicting object cannot redirect the host to another client.
+const clientA = {
+  householdRef: 'household-a',
+  matterId: 'matter-shared',
+  displayName: 'Alpha Household',
+} as SealedMeetingClientBoundary;
+const clientB = {
+  householdRef: 'household-b',
+  matterId: 'matter-shared',
+  displayName: 'Beta Household',
+} as SealedMeetingClientBoundary;
+const clientFolder = '/workspace/Clients/Alpha';
+const meetingDir = `${clientFolder}/Meetings/meeting-a`;
 
-function canonicalPort(initial: readonly LiveCrmRecord[] = []) {
-  let canonical = structuredClone(initial) as LiveCrmRecord[];
+function canonicalPort() {
+  let records: LiveCrmRecord[] = [];
   return {
-    records: structuredClone(canonical),
+    records,
     workspaceRoot: '/workspace',
-    error: null as string | null,
-    getActiveClientBoundary: () => ({
-      householdRef: 'household-1',
-      matterId: 'matter-1',
-    }) as SealedMeetingClientBoundary,
+    error: null,
+    getActiveClientBoundary: () => clientA,
     save(record: LiveCrmRecord) {
-      const saved = structuredClone(record);
-      canonical = canonical.some((item) => item.id === saved.id)
-        ? canonical.map((item) => (item.id === saved.id ? saved : item))
-        : [...canonical, saved];
-      return Promise.resolve(structuredClone(saved));
+      records = [...records.filter((candidate) => candidate.id !== record.id), record];
+      return Promise.resolve(structuredClone(record));
     },
-    reloadRecords() {
-      return Promise.resolve(structuredClone(canonical));
-    },
-    readCanonical: () => structuredClone(canonical),
+    reloadRecords: () => Promise.resolve(structuredClone(records)),
   };
 }
 
@@ -44,155 +50,146 @@ function seedTrustedAuthority(): void {
   useMatterStore.setState({
     matters: [
       {
-        id: 'matter-1',
-        name: 'Household One',
-        client: 'Household One',
-        folderPaths: ['/workspace/Clients/Household One'],
-        crmHouseholdKeys: ['household-1'],
+        id: clientA.matterId,
+        name: 'Shared matter',
+        client: 'Alpha Household',
+        folderPaths: [clientFolder],
+        crmHouseholdKeys: [clientA.householdRef, clientB.householdRef],
         createdAt: '2026-07-01T00:00:00.000Z',
       } as Matter,
-    ] as Matter[],
+    ],
   });
   setActiveWorkspaceService({
     getRootPath: () => '/workspace',
     exists: () => Promise.resolve(true),
-    readFile: () => Promise.resolve(JSON.stringify({ matterId: 'matter-1' })),
+    readFile: () => Promise.resolve(JSON.stringify({ matterId: clientA.matterId })),
     isSymlink: () => Promise.resolve(false),
     resolveSymlink: () => Promise.resolve('/workspace'),
   } as unknown as WorkspaceService);
 }
 
-const draft = {
-  workspaceId: 'workspace-1',
-  householdRef: 'household-1',
-  matterId: 'matter-1',
-  typeId: 'review',
-  ownerRef: 'member-1',
-  scheduledStartUtc: '2026-07-20T09:00:00.000Z',
-  scheduledEndUtc: '2026-07-20T10:00:00.000Z',
-  timezone: 'America/Chicago',
-  references: [],
-};
+async function mintCanonicalTarget(): Promise<MeetingOpenTarget> {
+  const service = createMeetingPopulationService(canonicalPort());
+  const meeting = await service.createAndLink(
+    {
+      workspaceId: 'workspace-1',
+      householdRef: clientA.householdRef,
+      matterId: clientA.matterId,
+      typeId: 'review',
+      ownerRef: 'member-1',
+      scheduledStartUtc: '2026-07-20T09:00:00.000Z',
+      scheduledEndUtc: '2026-07-20T10:00:00.000Z',
+      timezone: 'America/Chicago',
+      references: [],
+    },
+    { meetingDir: 'Clients/Alpha/Meetings/meeting-a' }
+  );
+  return service.openTarget(meeting.id);
+}
+
+async function mintDirectTarget(): Promise<DirectClientMeetingTarget> {
+  const adapter = createDirectClientMeetingsAdapter({
+    client: clientA,
+    getActiveClientBoundary: () => clientA,
+    matterFolder: clientFolder,
+    scan: () =>
+      Promise.resolve({
+        meetings: [{ dir: meetingDir, folderName: 'meeting-a' }],
+        scanFailed: false,
+      }),
+  });
+  const result = await adapter.list();
+  const target = adapter.resolveTarget(result, {
+    dir: meetingDir,
+    folderName: 'meeting-a',
+  });
+  if (!target) throw new Error('expected direct target');
+  return target;
+}
 
 afterEach(() => {
   setActiveWorkspaceService(null);
   useMatterStore.setState({ matters: [] });
 });
 
-describe('MeetingEntry host identity binding', () => {
-  it('a genuine sealed target owns identity over conflicting legacy props', async () => {
-    seedTrustedAuthority();
-    const service = createMeetingPopulationService(canonicalPort());
-    const linked = await service.createAndLink(draft, {
-      meetingDir: 'Clients/Household One/Meetings/2026-07-20',
-    });
-    const target = await service.openTarget(linked.id);
-
-    // The host is handed DELIBERATELY conflicting legacy props (a different
-    // matter and folder). The trusted canonical target must win.
-    const identity = resolveMeetingEntryHostIdentity(
-      target,
-      'matter-legacy-attacker',
-      'Clients/Someone Else/legacy'
-    );
-    expect(identity.matterId).toBe('matter-1');
-    expect(identity.meetingDir).toBe(
-      '/workspace/Clients/Household One/Meetings/2026-07-20'
-    );
-    expect(identity.canonicalMeeting?.id).toBe(linked.id);
-    expect(identity.clientBoundary).toMatchObject({
-      householdRef: 'household-1',
-      matterId: 'matter-1',
-    });
-  });
-
-  it('a forged (unsealed) target confers NO identity — host keeps legacy props', async () => {
-    seedTrustedAuthority();
-    const service = createMeetingPopulationService(canonicalPort());
-    const linked = await service.createAndLink(draft, {
-      meetingDir: 'Clients/Household One/Meetings/2026-07-20',
-    });
-    const genuine = await service.openTarget(linked.id);
-
-    // A consumer hand-builds a target pointing at a victim client. It is not in
-    // the trusted seal, so the host ignores it and stays on its legacy props.
-    const forged = {
-      kind: 'linked-legacy-meeting',
-      meeting: { ...genuine.meeting, matterId: 'matter-victim' },
-      client: { householdRef: 'household-victim', matterId: 'matter-victim' },
-      legacyLink: genuine.legacyLink,
-      meetingDir: '/workspace/Clients/Victim/Meetings/secret',
-    } as unknown as MeetingOpenTarget;
-
-    const identity = resolveMeetingEntryHostIdentity(
-      forged,
-      'matter-legacy',
-      'Clients/Legacy/folder'
-    );
-    expect(identity.matterId).toBe('matter-legacy');
-    expect(identity.meetingDir).toBe('Clients/Legacy/folder');
-    expect(identity.canonicalMeeting).toBeNull();
-    expect(identity.clientBoundary).toBeNull();
-  });
-
-  it('a MUTATED genuine target cannot redirect the host — it is deep-frozen', async () => {
-    seedTrustedAuthority();
-    const service = createMeetingPopulationService(canonicalPort());
-    const linked = await service.createAndLink(draft, {
-      meetingDir: 'Clients/Household One/Meetings/2026-07-20',
-    });
-    const genuine = await service.openTarget(linked.id);
-
-    // The sealed target AND every object it reaches are frozen at mint, so a
-    // holder cannot tamper it after it becomes provable-genuine.
-    expect(Object.isFrozen(genuine)).toBe(true);
-    expect(Object.isFrozen(genuine.client)).toBe(true);
-    expect(Object.isFrozen(genuine.meeting)).toBe(true);
-    expect(Object.isFrozen(genuine.legacyLink)).toBe(true);
-
-    // The forge-by-cast + MUTATE attack: keep the genuine (still-sealed) target
-    // — so verifyMeetingOpenTarget stays true — but tamper its identity fields
-    // toward a victim client. In a strict-mode module the writes throw; either
-    // way they must NOT take effect.
-    const tamper = genuine as unknown as {
-      client: { matterId: string };
-      meetingDir: string;
+describe('F11 meeting detail mount identity chokepoint', () => {
+  it('makes matter/folder-only construction and MeetingEntry mounts fail typechecking', () => {
+    const compileNegativeShapes = () => {
+      // @ts-expect-error the constructor requires an F8-minted target too.
+      void meetingEntryHostIdentity({ activeClientBoundary: clientA });
+      void createElement(MeetingEntry, {
+        // @ts-expect-error matter/folder-only JSX-era props cannot mount detail.
+        matterId: clientA.matterId,
+        meetingDir,
+        clientName: 'Alpha Household',
+        workspaceRoot: '/workspace',
+        workspaceService: null,
+        onBack: () => undefined,
+      });
     };
-    expect(() => {
-      tamper.client.matterId = 'matter-victim';
-    }).toThrow();
-    expect(() => {
-      tamper.meetingDir = '/workspace/Clients/Victim/Meetings/secret';
-    }).toThrow();
-    expect(genuine.client.matterId).toBe('matter-1');
-
-    // The REAL host-open binding (MeetingEntry runs resolveMeetingEntryHostIdentity
-    // verbatim) still resolves to the trusted matter and folder, never the
-    // injected victim.
-    const identity = resolveMeetingEntryHostIdentity(
-      genuine,
-      'matter-legacy',
-      'Clients/Legacy/folder'
-    );
-    expect(identity.matterId).toBe('matter-1');
-    expect(identity.meetingDir).toBe(
-      '/workspace/Clients/Household One/Meetings/2026-07-20'
-    );
-    expect(identity.clientBoundary).toMatchObject({
-      householdRef: 'household-1',
-      matterId: 'matter-1',
-    });
-    expect(identity.canonicalMeeting?.id).toBe(linked.id);
+    expect(compileNegativeShapes).toBeTypeOf('function');
   });
 
-  it('no target at all leaves the host on its legacy props', () => {
-    const identity = resolveMeetingEntryHostIdentity(
-      undefined,
-      'matter-legacy',
-      'Clients/Legacy/folder'
-    );
-    expect(identity.matterId).toBe('matter-legacy');
-    expect(identity.meetingDir).toBe('Clients/Legacy/folder');
-    expect(identity.canonicalMeeting).toBeNull();
+  it('accepts a genuine canonical resolver target for the exact pair', async () => {
+    seedTrustedAuthority();
+    const target = await mintCanonicalTarget();
+    expect(
+      meetingEntryHostIdentity({ activeClientBoundary: clientA, target })
+    ).toMatchObject({
+      matterId: clientA.matterId,
+      meetingDir,
+      canonicalMeeting: { householdRef: clientA.householdRef },
+      clientBoundary: clientA,
+    });
+  });
+
+  it('accepts a genuine F8 direct-adapter target for the exact pair', async () => {
+    seedTrustedAuthority();
+    const target = await mintDirectTarget();
+    expect(
+      meetingEntryHostIdentity({ activeClientBoundary: clientA, target })
+    ).toMatchObject({
+      matterId: clientA.matterId,
+      meetingDir,
+      folderName: 'meeting-a',
+      canonicalMeeting: null,
+      clientBoundary: clientA,
+    });
+  });
+
+  it('returns no identity for an absent or forged runtime target', () => {
+    const absent = meetingEntryHostIdentity({
+      activeClientBoundary: clientA,
+      target: undefined as unknown as MeetingEntryTarget,
+    });
+    const forged = meetingEntryHostIdentity({
+      activeClientBoundary: clientA,
+      target: {
+        kind: 'direct-client-meeting',
+        client: clientA,
+        meetingDir,
+        folderName: 'meeting-a',
+      } as unknown as MeetingEntryTarget,
+    });
+    expect(absent).toBeNull();
+    expect(forged).toBeNull();
+  });
+
+  it('returns no identity after a same-matter, different-household switch', async () => {
+    seedTrustedAuthority();
+    const directTarget = await mintDirectTarget();
+    const canonicalTarget = await mintCanonicalTarget();
+    expect(
+      meetingEntryHostIdentity({
+        activeClientBoundary: clientB,
+        target: directTarget,
+      })
+    ).toBeNull();
+    expect(
+      meetingEntryHostIdentity({
+        activeClientBoundary: clientB,
+        target: canonicalTarget,
+      })
+    ).toBeNull();
   });
 });

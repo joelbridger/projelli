@@ -18,6 +18,8 @@ import { needsReview } from './insights/review/meetingReviewArtifactStore';
 import type { MeetingCalendarEventMeta, MeetingMeta } from './meetingStore';
 import { meetingDisplayTitle, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
 import { MeetingEntry } from './MeetingEntry';
+import { meetingEntryHostIdentity } from './meetingEntryHostIdentity';
+import type { MeetingCrmNavigationHandoff } from './meetingDetailHeaderProjection';
 import { ConsentDialog, isMacPermissionError } from './ConsentDialog';
 import { consentModeFor } from './recordingConsentLaw';
 import { makeConsentLedger, type ConsentEntry } from './consentLedger';
@@ -41,7 +43,7 @@ import { deriveNoticeCardEvidence, type NoticeCardEvidence } from './noticeCard/
 import {
   createDirectClientMeetingsAdapter,
   useActiveMeetingClientBoundary,
-  verifyDirectClientMeetingTarget,
+  type DirectClientMeetingTarget,
   type DirectClientMeetingsReadResult,
   type SealedMeetingClientBoundary,
 } from './foundation/contract';
@@ -53,6 +55,21 @@ export interface MeetingSummary {
   hasNotes: boolean;
   hasAudio: boolean;
   hasTranscript: boolean;
+}
+
+function clientPairKey(client: SealedMeetingClientBoundary): string {
+  return JSON.stringify([client.householdRef, client.matterId]);
+}
+
+function meetingSelectionKey(
+  client: SealedMeetingClientBoundary,
+  meetingDir: string
+): string {
+  return JSON.stringify([clientPairKey(client), meetingDir]);
+}
+
+function meetingTargetKey(target: DirectClientMeetingTarget): string {
+  return meetingSelectionKey(target.client, target.meetingDir);
 }
 
 export interface ListableWorkspace {
@@ -210,9 +227,11 @@ export interface ClientMeetingsTabProps {
   /** Optional direct-open request from Client Map source links or Activity rows.
    *  The tab still owns the rail and opens this meeting inside the right pane. */
   initialSelectedMeeting?: { dir: string; folderName: string; startMs?: number };
+  /** Optional CRM receiver for the detail header's sealed-pair client link. */
+  crmNavigation?: MeetingCrmNavigationHandoff;
 }
 
-export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, matterFolder, workspaceService, initialSelectedMeeting }: ClientMeetingsTabProps) {
+export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, matterFolder, workspaceService, initialSelectedMeeting, crmNavigation }: ClientMeetingsTabProps) {
   const { t, i18n } = useTranslation();
   const matterId = clientBoundary.matterId;
   useActiveMeetingClientBoundary();
@@ -221,7 +240,9 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
     activeClientBoundary?.householdRef === clientBoundary.householdRef &&
     activeClientBoundary.matterId === clientBoundary.matterId;
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
-  const [selectedMeetingDir, setSelectedMeetingDir] = useState<string | null>(null);
+  const [selectedMeetingTargetKey, setSelectedMeetingTargetKey] = useState<
+    string | null
+  >(null);
   const [directOpenMeeting, setDirectOpenMeeting] = useState(initialSelectedMeeting ?? null);
   const [directRead, setDirectRead] = useState<DirectClientMeetingsReadResult<MeetingSummary>>({ kind: 'loading' });
   const [meetingSearchQuery, setMeetingSearchQuery] = useState('');
@@ -287,7 +308,7 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
     const ws = workspaceService;
     if (!ws) {
       setMeetings([]);
-      setSelectedMeetingDir(null);
+      setSelectedMeetingTargetKey(null);
       setDirectRead({ kind: 'ready', meetings: [] });
       setScanFailed(false);
       setLoading(false);
@@ -298,19 +319,27 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
     setDirectRead(result);
     if (result.kind !== 'ready') {
       setMeetings([]);
-      setSelectedMeetingDir(null);
+      setSelectedMeetingTargetKey(null);
       setScanFailed(result.kind === 'error');
       setLoading(false);
       return;
     }
     const list = result.meetings.map((entry) => entry.meeting);
     setMeetings(list);
-    setSelectedMeetingDir((current) => {
+    setSelectedMeetingTargetKey((current) => {
       const directTarget = directAdapter.resolveTarget(result, directOpenMeeting);
-      if (directTarget) return directTarget.meetingDir;
-      if (list.length === 0) return null;
-      if (current && list.some((meeting) => meeting.dir === current)) return current;
-      return list[0]?.dir ?? null;
+      if (directTarget) return meetingTargetKey(directTarget);
+      if (result.meetings.length === 0) return null;
+      if (
+        current &&
+        result.meetings.some(
+          (entry) => meetingTargetKey(entry.target) === current
+        )
+      ) {
+        return current;
+      }
+      const first = result.meetings[0];
+      return first ? meetingTargetKey(first.target) : null;
     });
     setScanFailed(false);
     // Recording Notice Kit — one ledger read, grouped by meeting dir, so each
@@ -367,8 +396,12 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
     );
     setRenamingMeetingDir(null);
     setMeetingTitleDraft('');
-    if (selectedMeetingDir === meeting.dir) setSelectedMeetingRevision((revision) => revision + 1);
-  }, [selectedMeetingDir, workspaceService]);
+    if (
+      selectedMeetingTargetKey === meetingSelectionKey(clientBoundary, meeting.dir)
+    ) {
+      setSelectedMeetingRevision((revision) => revision + 1);
+    }
+  }, [clientBoundary, selectedMeetingTargetKey, workspaceService]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -513,17 +546,23 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
   const selectedPairBoundMeeting =
     directRead.kind === 'ready'
       ? directRead.meetings.find(
-          (entry) => entry.target.meetingDir === selectedMeetingDir
+          (entry) =>
+            meetingTargetKey(entry.target) === selectedMeetingTargetKey
         ) ?? null
       : null;
-  const selectedMeeting =
-    selectedPairBoundMeeting &&
-    verifyDirectClientMeetingTarget(
-      selectedPairBoundMeeting.target,
-      activeClientBoundary
-    )
-      ? selectedPairBoundMeeting.meeting
+  const selectedHostIdentity =
+    selectedPairBoundMeeting && activeClientBoundary
+      ? meetingEntryHostIdentity({
+          activeClientBoundary,
+          target: selectedPairBoundMeeting.target,
+        })
       : null;
+  const selectedMeetingTarget = selectedHostIdentity
+    ? selectedPairBoundMeeting?.target ?? null
+    : null;
+  const selectedMeeting = selectedMeetingTarget
+    ? selectedPairBoundMeeting?.meeting ?? null
+    : null;
   const selectedMeetingInitialSeekMs =
     selectedMeeting && directOpenMeeting?.dir === selectedMeeting.dir
       ? directOpenMeeting.startMs
@@ -532,17 +571,45 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
 
   const handleSelectMeeting = useCallback((dir: string) => {
     setDirectOpenMeeting(null);
-    setSelectedMeetingDir(dir);
-  }, []);
+    if (directRead.kind !== 'ready') {
+      setSelectedMeetingTargetKey(null);
+      return;
+    }
+    const match = directRead.meetings.find(
+      (entry) => entry.target.meetingDir === dir
+    );
+    const identity =
+      match && activeClientBoundary
+        ? meetingEntryHostIdentity({
+            activeClientBoundary,
+            target: match.target,
+          })
+        : null;
+    setSelectedMeetingTargetKey(
+      identity && match ? meetingTargetKey(match.target) : null
+    );
+  }, [activeClientBoundary, directRead]);
 
   useEffect(() => {
-    setSelectedMeetingDir((current) => {
-      if (current && directOpenMeeting?.dir === current) return current;
-      if (meetings.length === 0) return null;
-      if (current && meetings.some((meeting) => meeting.dir === current)) return current;
-      return meetings[0]?.dir ?? null;
+    setSelectedMeetingTargetKey((current) => {
+      if (directRead.kind !== 'ready') return null;
+      if (
+        current &&
+        directRead.meetings.some(
+          (entry) => meetingTargetKey(entry.target) === current
+        )
+      ) {
+        return current;
+      }
+      const directTarget = directAdapter.resolveTarget(
+        directRead,
+        directOpenMeeting
+      );
+      if (directTarget) return meetingTargetKey(directTarget);
+      const first = directRead.meetings[0];
+      return first ? meetingTargetKey(first.target) : null;
     });
-  }, [meetings, directOpenMeeting?.dir]);
+  }, [directAdapter, directOpenMeeting, directRead]);
 
   const meetingItems = useMemo<RailShellItem[]>(() => meetings.map((m) => {
     const noticeState = noticeStates[meetingDirKey(m.dir)];
@@ -804,18 +871,18 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
         )}
         className="flex-1"
       >
-        {selectedMeeting ? (
+        {selectedMeeting && selectedMeetingTarget ? (
           <MeetingEntry
-            key={`${selectedMeeting.dir}:${String(selectedMeetingRevision)}`}
-            matterId={matterId}
-            meetingDir={selectedMeeting.dir}
-            folderName={selectedMeeting.folderName}
+            key={`${meetingTargetKey(selectedMeetingTarget)}:${String(selectedMeetingRevision)}`}
+            activeClientBoundary={activeClientBoundary}
+            target={selectedMeetingTarget}
             clientName={clientName}
             workspaceRoot={resolveWorkspaceRoot()}
             workspaceService={workspaceService as WorkspaceService | null}
-            onBack={() => { setSelectedMeetingDir(null); }}
+            onBack={() => { setSelectedMeetingTargetKey(null); }}
             onChanged={handleMeetingChanged}
             showBackButton={false}
+            {...(crmNavigation ? { crmNavigation } : {})}
             {...(selectedMeetingInitialSeekMs !== undefined ? { initialSeekMs: selectedMeetingInitialSeekMs } : {})}
           />
         ) : (

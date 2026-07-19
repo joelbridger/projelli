@@ -17,6 +17,19 @@ export { RecordPill } from './RecordPill';
 export { ClientMeetingsTab, listClientMeetings } from './ClientMeetingsTab';
 export type { MeetingSummary } from './ClientMeetingsTab';
 export { MeetingEntry } from './MeetingEntry';
+export {
+  meetingEntryHostIdentity,
+  type MeetingEntryHostIdentity,
+  type MeetingEntryHostIdentityInput,
+  type MeetingEntryTarget,
+} from './meetingEntryHostIdentity';
+export {
+  projectMeetingDetailHeader,
+  type MeetingCrmNavigationHandoff,
+  type MeetingDetailAudioState,
+  type MeetingDetailHeaderProjection,
+  type MeetingDetailHeaderProjectionInput,
+} from './meetingDetailHeaderProjection';
 export { TranscriptViewer, renderNoteWithCitations } from './TranscriptViewer';
 export { meetingSourceRef, parseMeetingRef, mmss } from './meetingSources';
 export { meetingNoteFromTranscript } from './meetingNoteTemplate';

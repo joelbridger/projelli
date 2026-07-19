@@ -1,37 +1,122 @@
 import {
+  verifyDirectClientMeetingTarget,
   verifyMeetingOpenTarget,
+  type DirectClientMeetingTarget,
   type MeetingOpenTarget,
+  type MeetingProjection,
+  type SealedMeetingClientBoundary,
 } from './foundation/contract';
 
-/** The identity the MeetingEntry host binds to, after weighing an open target. */
+/** The two F8-minted targets that are allowed to reach the detail host. */
+export type MeetingEntryTarget =
+  | MeetingOpenTarget
+  | DirectClientMeetingTarget;
+
+/**
+ * The complete construction input for the one meeting-detail mount doorway.
+ * Neither field is optional: a folder, matter id, or target by itself is not
+ * enough to construct host identity.
+ */
+export interface MeetingEntryHostIdentityInput {
+  readonly activeClientBoundary: SealedMeetingClientBoundary;
+  readonly target: MeetingEntryTarget;
+}
+
+/** Identity the detail host may use after the F8 seal and exact pair agree. */
 export interface MeetingEntryHostIdentity {
   readonly matterId: string;
   readonly meetingDir: string;
-  readonly canonicalMeeting: MeetingOpenTarget['meeting'] | null;
-  readonly clientBoundary: MeetingOpenTarget['client'] | null;
+  readonly folderName: string;
+  readonly canonicalMeeting: MeetingProjection | null;
+  readonly clientBoundary: SealedMeetingClientBoundary;
+  readonly target: MeetingEntryTarget;
+}
+
+function sameClientBoundary(
+  left: SealedMeetingClientBoundary,
+  right: SealedMeetingClientBoundary
+): boolean {
+  return (
+    left.householdRef === right.householdRef &&
+    left.matterId === right.matterId
+  );
+}
+
+function folderNameFor(meetingDir: string): string {
+  const normalized = meetingDir.replace(/\\/g, '/').replace(/\/$/, '');
+  return normalized.split('/').pop() ?? normalized;
 }
 
 /**
- * Resolve the identity MeetingEntry renders through — panel/header/insight
- * composition, canonical projection, client boundary. A canonical opener owns
- * identity ONLY when its target is one the trusted resolver actually minted:
- * `verifyMeetingOpenTarget` is the sole proof. A hand-constructed structural
- * object (even cast to MeetingOpenTarget) is not in the seal, so it confers NO
- * identity and the host falls back to its legacy folder props — a forged target
- * can never redirect this host to another client's matter or folder.
+ * The SINGLE meeting-detail mount identity chokepoint.
+ *
+ * A caller must supply the live sealed household + matter pair and one target
+ * minted by an F8 resolver/adapter for that exact pair. Missing, forged, or
+ * pair-mismatched runtime inputs return `null`; there is deliberately no
+ * matter/folder fallback for a header, panel, read, write, drawer, or utility
+ * to inherit.
  */
-export function resolveMeetingEntryHostIdentity(
-  openTarget: MeetingOpenTarget | undefined,
-  legacyMatterId: string,
-  legacyMeetingDir: string
-): MeetingEntryHostIdentity {
-  const canonical = verifyMeetingOpenTarget(openTarget)
-    ? (openTarget as MeetingOpenTarget)
-    : null;
-  return {
-    matterId: canonical?.client.matterId ?? legacyMatterId,
-    meetingDir: canonical?.meetingDir ?? legacyMeetingDir,
-    canonicalMeeting: canonical?.meeting ?? null,
-    clientBoundary: canonical?.client ?? null,
+export function meetingEntryHostIdentity(
+  input: MeetingEntryHostIdentityInput
+): MeetingEntryHostIdentity | null {
+  // Treat the erased runtime boundary as unknown first: tests and external JS
+  // can still pass absent/forged values even though TypeScript callers cannot.
+  const runtimeInput = input as unknown as {
+    readonly activeClientBoundary?: unknown;
+    readonly target?: unknown;
   };
+  const active = runtimeInput.activeClientBoundary;
+  const runtimeTarget = runtimeInput.target;
+
+  if (
+    !active ||
+    typeof active !== 'object' ||
+    !('householdRef' in active) ||
+    typeof active.householdRef !== 'string' ||
+    !active.householdRef.trim() ||
+    !('matterId' in active) ||
+    typeof active.matterId !== 'string' ||
+    !active.matterId.trim() ||
+    !runtimeTarget ||
+    typeof runtimeTarget !== 'object' ||
+    !('kind' in runtimeTarget)
+  ) {
+    return null;
+  }
+  const activeClientBoundary = active as SealedMeetingClientBoundary;
+
+  if (runtimeTarget.kind === 'direct-client-meeting') {
+    const target = runtimeTarget as DirectClientMeetingTarget;
+    if (!verifyDirectClientMeetingTarget(target, activeClientBoundary)) {
+      return null;
+    }
+    return Object.freeze({
+      matterId: activeClientBoundary.matterId,
+      meetingDir: target.meetingDir,
+      folderName: target.folderName,
+      canonicalMeeting: null,
+      clientBoundary: activeClientBoundary,
+      target,
+    });
+  }
+
+  if (runtimeTarget.kind !== 'linked-legacy-meeting') return null;
+  const target = runtimeTarget as MeetingOpenTarget;
+  if (!verifyMeetingOpenTarget(target)) return null;
+  if (!sameClientBoundary(target.client, activeClientBoundary)) return null;
+  if (
+    target.meeting.householdRef !== activeClientBoundary.householdRef ||
+    target.meeting.matterId !== activeClientBoundary.matterId
+  ) {
+    return null;
+  }
+
+  return Object.freeze({
+    matterId: activeClientBoundary.matterId,
+    meetingDir: target.meetingDir,
+    folderName: folderNameFor(target.meetingDir),
+    canonicalMeeting: target.meeting,
+    clientBoundary: activeClientBoundary,
+    target,
+  });
 }
