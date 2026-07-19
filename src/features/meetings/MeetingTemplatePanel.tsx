@@ -1,10 +1,11 @@
 /**
- * MeetingTemplatePanel — the advisor-only meeting-template workflow.
+ * MeetingTemplatePanel — the advisor-only firm template library.
  *
- * Templates are firm-owned layouts stored in the workspace. A filled internal
- * note never enters the client-facing renderer or a client-facing save path.
+ * The firm library is usable without opening a meeting. Transcript fill is an
+ * optional, separately typed action that can exist only with F11's complete
+ * pair-bound meeting target.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FilePlus2, Pencil, Plus, Sparkles } from 'lucide-react';
 import { Button, Badge } from '@/ui/kp';
@@ -21,6 +22,11 @@ import {
   type MeetingTemplateFillProvider,
   type MeetingTemplateStorageBackend,
 } from '@/platform/meetingTemplates';
+import {
+  meetingEntryHostIdentity,
+  type MeetingEntryHostIdentity,
+  type MeetingEntryHostIdentityInput,
+} from './meetingEntryHostIdentity';
 
 const SAVED_NOTES_PATH = 'template-notes.json';
 
@@ -39,10 +45,21 @@ export interface MeetingTemplatePanelProps {
   workspace: MeetingTemplateStorageBackend;
   firmId: string | null;
   canManageTemplates: boolean;
-  meetingDir: string;
-  transcript: TranscriptFile;
-  clientName: string;
-  getProvider: () => Promise<MeetingTemplateFillProvider>;
+  /** Omit this in the standalone firm-library destination. */
+  fill?: MeetingTemplateFillBinding;
+}
+
+/**
+ * The sole transcript-fill shape exposed by F10. The F11 pair and sealed
+ * target are both required; no matter id, folder, or meetingDir overload
+ * exists. The actual meeting directory is read only from F11's verified
+ * identity.
+ */
+export interface MeetingTemplateFillBinding
+  extends MeetingEntryHostIdentityInput {
+  readonly transcript: TranscriptFile;
+  readonly clientName: string;
+  readonly getProvider: () => Promise<MeetingTemplateFillProvider>;
 }
 
 function makeBlock(index: number): DraftBlock {
@@ -56,6 +73,17 @@ function makeBlock(index: number): DraftBlock {
 
 function emptyNotes(): SavedTemplateNotes {
   return { schemaVersion: 1, internal: {}, clientFacing: {} };
+}
+
+function sameFillIdentity(
+  left: MeetingEntryHostIdentity,
+  right: MeetingEntryHostIdentity | null
+): boolean {
+  return !!right &&
+    right.clientBoundary.householdRef === left.clientBoundary.householdRef &&
+    right.matterId === left.matterId &&
+    right.meetingDir === left.meetingDir &&
+    right.target === left.target;
 }
 
 /** Read saved template results without treating a bad/missing note file as a
@@ -83,10 +111,7 @@ export function MeetingTemplatePanel({
   workspace,
   firmId,
   canManageTemplates,
-  meetingDir,
-  transcript,
-  clientName,
-  getProvider,
+  fill,
 }: MeetingTemplatePanelProps) {
   const { t } = useTranslation();
   const storage = useMemo(
@@ -116,10 +141,30 @@ export function MeetingTemplatePanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const selectedTemplate = templates.find((template) => template.id === selectedId);
+  const fillRef = useRef(fill);
+  const mountedRef = useRef(true);
+  fillRef.current = fill;
 
-  const showUnexpectedError = useCallback((cause: unknown) => {
-    setError(cause instanceof Error ? cause.message : 'Could not complete that meeting-template action.');
-  }, []);
+  const showUnexpectedError = useCallback(() => {
+    setError(t('meetings.templates.action-error'));
+  }, [t]);
+
+  const resolveFillIdentity = useCallback(
+    () => {
+      const currentFill = fillRef.current;
+      return mountedRef.current && currentFill
+        ? meetingEntryHostIdentity({
+            activeClientBoundary: currentFill.activeClientBoundary,
+            target: currentFill.target,
+          })
+        : null;
+    },
+    []
+  );
+  const fillIdentity = resolveFillIdentity();
+  const fillIdentityKey = fillIdentity
+    ? `${fillIdentity.clientBoundary.householdRef}\u0000${fillIdentity.matterId}\u0000${fillIdentity.meetingDir}`
+    : null;
 
   const audienceLabel = (audience: MeetingTemplateAudience): string =>
     audience === 'internal'
@@ -127,6 +172,7 @@ export function MeetingTemplatePanel({
       : t('meetings.templates.audience-client-facing');
 
   const loadTemplates = useCallback(async () => {
+    setError(null);
     if (!firmId) {
       setTemplates([]);
       setLoading(false);
@@ -137,16 +183,24 @@ export function MeetingTemplatePanel({
       const loaded = await storage.listForFirm(firmId);
       setTemplates(loaded);
       setSelectedId((current) => current || loaded[0]?.id || '');
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : 'Could not load meeting templates.'
-      );
+    } catch {
+      setTemplates([]);
+      setError(t('meetings.templates.load-error'));
     } finally {
       setLoading(false);
     }
-  }, [firmId, storage]);
+  }, [firmId, storage, t]);
+
+  useEffect(() => {
+    setDraft(null);
+  }, [fillIdentityKey, fillIdentity?.target]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     void loadTemplates().catch(showUnexpectedError);
@@ -205,13 +259,17 @@ export function MeetingTemplatePanel({
             blocks,
           });
       await storage.save(next);
-      setNotice(existing ? 'Template updated.' : 'Template created.');
+      setNotice(
+        t(
+          existing
+            ? 'meetings.templates.updated'
+            : 'meetings.templates.created'
+        )
+      );
       resetEditor();
       await loadTemplates();
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : 'Could not save this template.'
-      );
+    } catch {
+      setError(t('meetings.templates.save-error'));
     } finally {
       setBusy(false);
     }
@@ -219,36 +277,49 @@ export function MeetingTemplatePanel({
 
   const fillTemplate = async () => {
     const template = templates.find((item) => item.id === selectedId);
-    if (!template) return;
+    const identity = resolveFillIdentity();
+    if (!template || !identity || !fill) {
+      setDraft(null);
+      setError(t('meetings.templates.fill-unavailable'));
+      return;
+    }
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      const provider = await getProvider();
+      const provider = await fill.getProvider();
       const note = await fillMeetingTemplateFromTranscript({
         template,
-        transcript,
+        transcript: fill.transcript,
         provider,
       });
+      const currentIdentity = resolveFillIdentity();
+      if (!sameFillIdentity(identity, currentIdentity)) {
+        setDraft(null);
+        setError(t('meetings.templates.fill-unavailable'));
+        return;
+      }
       setDraft({ template, note });
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : 'Could not fill this template from the transcript.'
-      );
+    } catch {
+      setDraft(null);
+      setError(t('meetings.templates.fill-error'));
     } finally {
       setBusy(false);
     }
   };
 
   const saveReviewedNote = async () => {
-    if (!draft) return;
+    const identity = resolveFillIdentity();
+    if (!draft || !identity || !fill) {
+      setDraft(null);
+      setError(t('meetings.templates.fill-unavailable'));
+      return;
+    }
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      const saved = await loadSavedNotes(workspace, meetingDir);
+      const saved = await loadSavedNotes(workspace, identity.meetingDir);
       if (draft.note.audience === 'internal') {
         // This is deliberately a separate branch from the client renderer.
         saved.internal[draft.template.id] = {
@@ -260,7 +331,7 @@ export function MeetingTemplatePanel({
         // value returned by the client-facing template engine.
         const rendered = renderClientFacingMeetingNote(
           draft.note,
-          `${clientName} meeting recap`
+          `${fill.clientName} meeting recap`
         );
         saved.clientFacing[draft.template.id] = {
           templateVersion: draft.note.templateVersion,
@@ -268,26 +339,29 @@ export function MeetingTemplatePanel({
           sections: [...rendered.sections],
         };
       }
+      if (!sameFillIdentity(identity, resolveFillIdentity())) {
+        setDraft(null);
+        setError(t('meetings.templates.fill-unavailable'));
+        return;
+      }
       await workspace.writeFile(
-        `${meetingDir}/${SAVED_NOTES_PATH}`,
+        `${identity.meetingDir}/${SAVED_NOTES_PATH}`,
         JSON.stringify(saved, null, 2)
       );
       setNotice(
-        draft.note.audience === 'internal'
-          ? 'Internal note saved.'
-          : 'Client-facing note saved for review.'
+        t(
+          draft.note.audience === 'internal'
+            ? 'meetings.templates.internal-saved'
+            : 'meetings.templates.client-saved'
+        )
       );
       setDraft(null);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : 'Could not save this note.'
-      );
+    } catch {
+      setError(t('meetings.templates.note-save-error'));
     } finally {
       setBusy(false);
     }
   };
-
-  if (!firmId) return null;
 
   return (
     <section
@@ -327,7 +401,7 @@ export function MeetingTemplatePanel({
             {t('meetings.templates.description')}
           </div>
         </div>
-        {canManageTemplates && !showEditor && (
+        {canManageTemplates && firmId && !loading && !showEditor && (
           <Button
             data-testid="meeting-template-create"
             size="sm"
@@ -338,12 +412,50 @@ export function MeetingTemplatePanel({
               setError(null);
             }}
           >
-            New template
+            {t('meetings.templates.new')}
           </Button>
         )}
       </div>
 
-      {showEditor && (
+      {loading && (
+        <div
+          data-testid="meeting-template-loading"
+          role="status"
+          style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+        >
+          {t('meetings.templates.loading')}
+        </div>
+      )}
+
+      {!loading && !firmId && (
+        <div
+          data-testid="meeting-template-unavailable"
+          role="status"
+          style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+        >
+          {t('meetings.templates.firm-unavailable')}
+        </div>
+      )}
+
+      {!loading && firmId && error && templates.length === 0 && !showEditor && (
+        <div data-testid="meeting-template-load-error" role="alert">
+          <div style={{ color: 'var(--destructive)', fontSize: 'var(--kp-font-xs)' }}>
+            {error}
+          </div>
+          <Button
+            data-testid="meeting-template-retry"
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              void loadTemplates().catch(showUnexpectedError);
+            }}
+          >
+            {t('meetings.templates.retry')}
+          </Button>
+        </div>
+      )}
+
+      {firmId && showEditor && (
         <div
           data-testid="meeting-template-editor"
           style={{
@@ -357,7 +469,7 @@ export function MeetingTemplatePanel({
           <label
             style={{ display: 'grid', gap: 4, fontSize: 'var(--kp-font-xs)' }}
           >
-            Template name
+            {t('meetings.templates.name-label')}
             <input
               data-testid="meeting-template-name"
               value={form.name}
@@ -369,7 +481,7 @@ export function MeetingTemplatePanel({
           <label
             style={{ display: 'grid', gap: 4, fontSize: 'var(--kp-font-xs)' }}
           >
-            Audience
+            {t('meetings.templates.audience-label')}
             <select
               data-testid="meeting-template-audience"
               disabled={Boolean(form.id)}
@@ -392,9 +504,11 @@ export function MeetingTemplatePanel({
               style={{ display: 'grid', gap: 4, paddingTop: 6 }}
             >
               <input
-                aria-label={`Section ${String(index + 1)} label`}
+                aria-label={t('meetings.templates.section-label-aria', {
+                  index: index + 1,
+                })}
                 data-testid={`meeting-template-block-label-${block.id}`}
-                placeholder="Section title"
+                placeholder={t('meetings.templates.section-title-placeholder')}
                 value={block.label}
                 onChange={(event) => {
                   setForm((current) => ({
@@ -408,9 +522,11 @@ export function MeetingTemplatePanel({
                 }}
               />
               <input
-                aria-label={`Section ${String(index + 1)} instruction`}
+                aria-label={t('meetings.templates.section-instruction-aria', {
+                  index: index + 1,
+                })}
                 data-testid={`meeting-template-block-instruction-${block.id}`}
-                placeholder="What should this section cover?"
+                placeholder={t('meetings.templates.section-instruction-placeholder')}
                 value={block.instruction}
                 onChange={(event) => {
                   setForm((current) => ({
@@ -438,7 +554,7 @@ export function MeetingTemplatePanel({
                     }));
                   }}
                 />{' '}
-                Required
+                {t('meetings.templates.required')}
               </label>
             </div>
           ))}
@@ -454,7 +570,7 @@ export function MeetingTemplatePanel({
                 }));
               }}
             >
-              Add section
+              {t('meetings.templates.add-section')}
             </Button>
             <Button
               data-testid="meeting-template-save"
@@ -465,7 +581,11 @@ export function MeetingTemplatePanel({
                 void saveTemplate().catch(showUnexpectedError);
               }}
             >
-              {form.id ? 'Save changes' : 'Create template'}
+              {t(
+                form.id
+                  ? 'meetings.templates.save-changes'
+                  : 'meetings.templates.create'
+              )}
             </Button>
             <Button
               data-testid="meeting-template-cancel"
@@ -473,7 +593,7 @@ export function MeetingTemplatePanel({
               variant="ghost"
               onClick={resetEditor}
             >
-              Cancel
+              {t('meetings.templates.cancel')}
             </Button>
           </div>
         </div>
@@ -501,17 +621,19 @@ export function MeetingTemplatePanel({
               </option>
             ))}
           </select>
-          <Button
-            data-testid="meeting-template-fill"
-            size="sm"
-            loading={busy}
-            iconLeft={Sparkles}
-            onClick={() => {
-              void fillTemplate().catch(showUnexpectedError);
-            }}
-          >
-            {t('meetings.templates.fill')}
-          </Button>
+          {fill && fillIdentity && (
+            <Button
+              data-testid="meeting-template-fill"
+              size="sm"
+              loading={busy}
+              iconLeft={Sparkles}
+              onClick={() => {
+                void fillTemplate().catch(showUnexpectedError);
+              }}
+            >
+              {t('meetings.templates.fill')}
+            </Button>
+          )}
           {canManageTemplates && selectedTemplate && (
               <Button
                 data-testid="meeting-template-edit"
@@ -522,12 +644,12 @@ export function MeetingTemplatePanel({
                   editTemplate(selectedTemplate);
                 }}
               >
-                Edit
+                {t('meetings.templates.edit')}
               </Button>
             )}
         </div>
       )}
-      {!showEditor && !loading && templates.length === 0 && (
+      {!showEditor && !loading && firmId && !error && templates.length === 0 && (
         <div
           data-testid="meeting-template-empty"
           style={{
@@ -536,12 +658,22 @@ export function MeetingTemplatePanel({
           }}
         >
           {canManageTemplates
-            ? 'Create the first firm meeting template.'
-            : 'Your firm has not added a meeting template yet.'}
+            ? t('meetings.templates.empty-manager')
+            : t('meetings.templates.empty-viewer')}
         </div>
       )}
 
-      {draft && (
+      {fill && !fillIdentity && !loading && templates.length > 0 && (
+        <div
+          data-testid="meeting-template-fill-unavailable"
+          role="status"
+          style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+        >
+          {t('meetings.templates.fill-unavailable')}
+        </div>
+      )}
+
+      {fillIdentity && draft && (
         <div
           data-testid="meeting-template-review"
           style={{
@@ -605,7 +737,7 @@ export function MeetingTemplatePanel({
                 setDraft(null);
               }}
             >
-              Discard
+              {t('meetings.templates.discard')}
             </Button>
           </div>
         </div>
@@ -619,7 +751,7 @@ export function MeetingTemplatePanel({
           {notice}
         </div>
       )}
-      {error && (
+      {error && (templates.length > 0 || showEditor) && (
         <div
           data-testid="meeting-template-error"
           role="alert"

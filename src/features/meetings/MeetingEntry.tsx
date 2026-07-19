@@ -739,6 +739,7 @@ function MeetingEntryHost({
   const panelContext = {
     t,
     matterId,
+    hostIdentity,
     canonicalMeeting: hostIdentity.canonicalMeeting,
     clientBoundary: hostIdentity.clientBoundary,
     meetingDir,

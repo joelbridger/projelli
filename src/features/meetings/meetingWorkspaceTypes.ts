@@ -5,6 +5,7 @@ import type { UseFirmResult } from '@/platform/hooks/useFirm';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import type { DocxTextExtraction } from '@/platform/utils/docx-io';
 import type { MeetingMeta } from './meetingStore';
+import type { MeetingEntryHostIdentity } from './meetingEntryHostIdentity';
 import type {
   MeetingProjection,
   SealedMeetingClientBoundary,
@@ -25,6 +26,8 @@ export type MeetingInsightId = Extract<keyof MeetingInsightIdMap, string>;
 export interface MeetingPanelContext {
   t: TFunction;
   matterId: string;
+  /** Present only when the panel is mounted through F11's guarded detail host. */
+  hostIdentity?: MeetingEntryHostIdentity;
   /** Resolved by the opener; never derived from `meetingDir` by this host. */
   canonicalMeeting?: MeetingProjection | null;
   /** Resolved with the canonical meeting; paths never grant this boundary. */

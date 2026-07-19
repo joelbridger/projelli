@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CalendarClock, ChevronDown, ChevronRight, Video, XCircle } from 'lucide-react';
 import { calendarListEvents, CALENDAR_SYNC_EVENT } from '@/platform/utils/calendar-commands';
 import { useActiveMatters } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
+import { useSelectionOperationDecision } from '@/platform/client-context';
 import { Badge, Button, Card } from '@/ui/kp';
 import {
   AUTO_JOIN_LOOKAHEAD_MS,
@@ -16,6 +17,19 @@ import {
   useAutoJoinCalendarPrefs,
   useDisabledAutoJoinEventKeys,
 } from './autoJoinSettings';
+import {
+  useActiveMeetingClientBoundary,
+} from './foundation/contract';
+import {
+  filterAutoJoinCandidatesForManagement,
+  type AutoJoinManagementScope,
+} from './autoJoinManagementScope';
+
+const AUTOMATIONS_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: true,
+  requireFollowerAgreement: true,
+} as const;
 
 const PROVIDER_LABEL: Record<string, string> = {
   outlook: 'Outlook',
@@ -34,13 +48,66 @@ function formatStart(utc: string): string {
 export function AutoJoinMeetingsPanel() {
   const { t } = useTranslation();
   const matters = useActiveMatters();
+  const selection = useSelectionOperationDecision(
+    AUTOMATIONS_SELECTION_REQUEST
+  );
+  const activeClient = useActiveMeetingClientBoundary();
+  const activeClientRef = useRef(activeClient);
+  const activeClientKey = activeClient
+    ? `${activeClient.householdRef}\u0000${activeClient.matterId}`
+    : '';
+  const previousClient = activeClientRef.current;
+  if (
+    (previousClient
+      ? `${previousClient.householdRef}\u0000${previousClient.matterId}`
+      : '') !== activeClientKey
+  ) {
+    activeClientRef.current = activeClient;
+  }
+  const stableActiveClient = activeClientRef.current;
   const prefs = useAutoJoinCalendarPrefs();
   const disabledKeys = useDisabledAutoJoinEventKeys();
   const [willJoin, setWillJoin] = useState<AutoJoinCandidate[]>([]);
   const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const refreshRequestRef = useRef(0);
+  const mountedRef = useRef(true);
+  const scopeKeyRef = useRef('');
 
-  const refresh = useCallback(async () => {
+  const scope = useMemo<AutoJoinManagementScope | null>(() => {
+    if (selection.kind === 'all-matters') return { kind: 'firm-wide' };
+    if (
+      selection.kind !== 'matter' ||
+      selection.sourceKind !== 'matter' ||
+      !selection.client ||
+      !stableActiveClient ||
+      selection.matter.id !== stableActiveClient.matterId ||
+      selection.client.householdId !== stableActiveClient.householdRef
+    ) {
+      return null;
+    }
+    return { kind: 'selected-client', client: stableActiveClient };
+  }, [selection, stableActiveClient]);
+  const scopeKey = scope?.kind === 'selected-client'
+    ? `selected\u0000${scope.client.householdRef}\u0000${scope.client.matterId}`
+    : scope?.kind ?? 'refused';
+  scopeKeyRef.current = scopeKey;
+
+  const refresh = useCallback(async (showLoading = false) => {
+    const requestId = ++refreshRequestRef.current;
+    const requestedScopeKey = scopeKey;
+    const isCurrentRequest = () =>
+      mountedRef.current &&
+      requestId === refreshRequestRef.current &&
+      requestedScopeKey === scopeKeyRef.current;
+    if (showLoading) setLoading(true);
+    if (!scope) {
+      setWillJoin([]);
+      setError(false);
+      setLoading(false);
+      return;
+    }
     const nowMs = Date.now();
     try {
       const events = await calendarListEvents(
@@ -48,24 +115,38 @@ export function AutoJoinMeetingsPanel() {
         new Date(nowMs + AUTO_JOIN_LOOKAHEAD_MS).toISOString(),
       );
       const discovery = discoverAutoJoinMeetings(events, matters, prefs, disabledKeys, nowMs);
-      setWillJoin(discovery.willJoin);
+      if (!isCurrentRequest()) return;
+      setWillJoin(
+        filterAutoJoinCandidatesForManagement(
+          discovery.willJoin,
+          matters,
+          scope
+        )
+      );
       setError(false);
     } catch {
+      if (!isCurrentRequest()) return;
+      setWillJoin([]);
       setError(true);
+    } finally {
+      if (isCurrentRequest()) setLoading(false);
     }
-  }, [disabledKeys, matters, prefs]);
+  }, [disabledKeys, matters, prefs, scope, scopeKey]);
 
   useEffect(() => {
     markAutoJoinOccurrencesPresented(willJoin.map((candidate) => candidate.key));
   }, [willJoin]);
 
   useEffect(() => {
-    void refresh().catch(() => {
+    mountedRef.current = true;
+    void refresh(true).catch(() => {
       setError(true);
+      setLoading(false);
     });
     const timer = window.setInterval(() => {
       void refresh().catch(() => {
         setError(true);
+        setLoading(false);
       });
     }, 60 * 1000);
     let stop: (() => void) | undefined;
@@ -75,6 +156,7 @@ export function AutoJoinMeetingsPanel() {
         stop = await listen(CALENDAR_SYNC_EVENT, () => {
           void refresh().catch(() => {
             setError(true);
+            setLoading(false);
           });
         });
       } catch (err) {
@@ -84,12 +166,12 @@ export function AutoJoinMeetingsPanel() {
       console.debug('[AutoJoinMeetingsPanel] calendar sync listener setup failed', err);
     });
     return () => {
+      mountedRef.current = false;
+      refreshRequestRef.current += 1;
       window.clearInterval(timer);
       stop?.();
     };
   }, [refresh]);
-
-  if (willJoin.length === 0 && !error) return null;
 
   return (
     <Card
@@ -108,8 +190,13 @@ export function AutoJoinMeetingsPanel() {
         disabled={willJoin.length === 0}
       >
         <CalendarClock aria-hidden="true" style={{ width: 18, height: 18, color: 'var(--kp-accent)', flex: 'none' }} />
-        <div style={{ flex: 1, minWidth: 0, fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-          {willJoin.length > 0
+        <div
+          data-testid={loading ? 'meeting-auto-join-loading' : undefined}
+          style={{ flex: 1, minWidth: 0, fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}
+        >
+          {loading
+            ? t('meetings.auto-join.loading')
+            : willJoin.length > 0
             ? t('meetings.auto-join.summary', { count: willJoin.length })
             : t('meetings.auto-join.heading')}
         </div>
@@ -120,9 +207,48 @@ export function AutoJoinMeetingsPanel() {
         )}
       </button>
 
-      {error && (
+      {!loading && !scope && (
+        <div
+          data-testid="meeting-auto-join-scope-error"
+          role="alert"
+          style={{ marginTop: 'var(--kp-space-sm)', fontSize: 'var(--kp-font-xs)', color: 'var(--color-danger)' }}
+        >
+          {t('meetings.auto-join.scope-error')}
+        </div>
+      )}
+
+      {!loading && error && (
         <div data-testid="meeting-auto-join-error" style={{ marginTop: 'var(--kp-space-sm)', fontSize: 'var(--kp-font-xs)', color: 'var(--color-danger)' }}>
           {t('meetings.auto-join.error')}
+          <div style={{ marginTop: 'var(--kp-space-xs)' }}>
+            <Button
+              size="sm"
+              variant="secondary"
+              data-testid="meeting-auto-join-retry"
+              onClick={() => {
+                void refresh(true).catch(() => {
+                  setError(true);
+                  setLoading(false);
+                });
+              }}
+            >
+              {t('meetings.auto-join.retry')}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!loading && scope && !error && willJoin.length === 0 && (
+        <div
+          data-testid="meeting-auto-join-empty"
+          role="status"
+          style={{ marginTop: 'var(--kp-space-sm)', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+        >
+          {t(
+            scope.kind === 'firm-wide'
+              ? 'meetings.auto-join.empty-firm'
+              : 'meetings.auto-join.empty-client'
+          )}
         </div>
       )}
 
@@ -153,7 +279,11 @@ export function AutoJoinMeetingsPanel() {
                     {candidate.event.title}
                   </div>
                   <div style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', marginTop: 2 }}>
-                    {formatStart(candidate.event.startUtc)} · {matter ? matterLabel(matter) : candidate.matterId} · {PROVIDER_LABEL[candidate.event.provider] ?? candidate.event.provider}
+                    {formatStart(candidate.event.startUtc)}
+                    {scope?.kind === 'firm-wide'
+                      ? ` · ${matter ? matterLabel(matter) : t('meetings.auto-join.client-hidden')}`
+                      : ''}
+                    {' · '}{PROVIDER_LABEL[candidate.event.provider] ?? candidate.event.provider}
                   </div>
                 </div>
                 <Badge variant="success" size="sm">{candidate.platform}</Badge>
