@@ -680,7 +680,7 @@ export function DraftFollowUpModal(props: DraftFollowUpModalProps) {
                   alignItems: 'flex-start',
                   gap: 8,
                   fontSize: 'var(--kp-font-xs)',
-                  color: 'var(--kp-danger, #b91c1c)',
+                  color: 'var(--kp-danger)',
                   padding: '8px 0',
                 }}
               >
@@ -696,7 +696,7 @@ export function DraftFollowUpModal(props: DraftFollowUpModalProps) {
                   style={{
                     border: '1px solid var(--color-border)',
                     borderRadius: 5,
-                    background: '#fff',
+                    background: 'var(--color-background)',
                     padding: '6px 10px',
                     cursor: 'pointer',
                   }}
@@ -706,11 +706,7 @@ export function DraftFollowUpModal(props: DraftFollowUpModalProps) {
               </div>
             ) : (
               <div
-                data-testid={
-                  draftsOnly
-                    ? 'meeting-follow-up-blocked'
-                    : 'followup-no-accounts'
-                }
+                data-testid="followup-no-accounts"
                 style={{
                   fontSize: 'var(--kp-font-xs)',
                   color: 'var(--color-muted-foreground)',
@@ -914,7 +910,7 @@ export function DraftFollowUpModal(props: DraftFollowUpModalProps) {
                   role="alert"
                   style={{
                     fontSize: 'var(--kp-font-xs)',
-                    color: 'var(--kp-danger, #b91c1c)',
+                    color: 'var(--kp-danger)',
                   }}
                 >
                   {error}

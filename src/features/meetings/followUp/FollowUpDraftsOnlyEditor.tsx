@@ -55,7 +55,7 @@ const inputStyle: CSSProperties = {
   padding: '5px 8px',
   fontSize: 'var(--kp-font-sm)',
   fontFamily: 'var(--font-sans)',
-  background: '#fff',
+  background: 'var(--color-background)',
   color: 'var(--color-foreground)',
 };
 
@@ -198,7 +198,7 @@ export function FollowUpDraftsOnlyEditor({
       style={{
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
-        background: '#fff',
+        background: 'var(--color-background)',
         overflow: 'hidden',
       }}
     >
@@ -286,7 +286,7 @@ export function FollowUpDraftsOnlyEditor({
               fontSize: 'var(--kp-font-sm)',
               fontFamily: 'var(--font-sans)',
               lineHeight: 1.6,
-              background: '#fff',
+              background: 'var(--color-background)',
               color: 'var(--color-foreground)',
               resize: 'vertical',
             }}
@@ -298,7 +298,7 @@ export function FollowUpDraftsOnlyEditor({
             role="alert"
             style={{
               fontSize: 'var(--kp-font-xs)',
-              color: 'var(--kp-danger, #b91c1c)',
+              color: 'var(--kp-danger)',
             }}
           >
             {error}
@@ -321,7 +321,7 @@ export function FollowUpDraftsOnlyEditor({
             data-testid="meeting-follow-up-saved"
             style={{
               fontSize: 'var(--kp-font-xs)',
-              color: 'var(--kp-success, #0a4d38)',
+              color: 'var(--kp-success)',
             }}
           >
             Saved to Outlook Drafts. Nothing was sent.
