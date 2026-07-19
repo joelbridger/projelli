@@ -6,6 +6,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
+import { meetingEntryTestMount } from './meetingEntryTestMount';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 
 /** Delete audio now lives in the header `...` menu (meetings audit item 7). */
@@ -53,9 +54,7 @@ function makeWorkspace({ withTranscript = false }: { withTranscript?: boolean } 
 }
 
 const baseProps = {
-  matterId: 'm-1',
-  meetingDir: '/ws/C/Meetings/x',
-  folderName: 'x',
+  ...meetingEntryTestMount(),
   clientName: 'The Hendersons',
   workspaceRoot: '/ws',
   onBack: () => {},

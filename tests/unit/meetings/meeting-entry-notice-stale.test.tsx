@@ -14,6 +14,7 @@ import { describe, it, expect, vi } from 'vitest';
 // parallel-transform contention. Mock it so the import resolves synchronously.
 vi.mock('@/features/documents/media/DocxEditor', () => ({ DocxEditor: () => null }));
 
+import { meetingEntryTestMount } from './meetingEntryTestMount';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import type { NoticeEntry } from '@/features/meetings/noticeLedger';
 
@@ -32,8 +33,7 @@ const LEDGER = JSON.stringify({
 });
 
 const baseProps = {
-  matterId: 'm-1',
-  folderName: 'A',
+  ...meetingEntryTestMount('/ws/C/Meetings/A', 'A'),
   clientName: 'The Hendersons',
   workspaceRoot: '/ws',
   onBack: () => {},
@@ -65,12 +65,12 @@ describe('MeetingEntry — cross-meeting notice staleness (coordinator P2)', () 
     };
 
     const { rerender } = render(
-      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/A" workspaceService={ws as never} />,
+      <MeetingEntry {...baseProps} workspaceService={ws as never} />,
     );
     // A's notice trail read is in flight (held). Switch to meeting B before it lands.
     await waitFor(() => expect(ledgerReadCount).toBeGreaterThanOrEqual(1));
     rerender(
-      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/B" folderName="B" workspaceService={ws as never} />,
+      <MeetingEntry {...baseProps} {...meetingEntryTestMount('/ws/C/Meetings/B', 'B')} workspaceService={ws as never} />,
     );
     // B's (immediate, empty-for-B) read lands: no verified chip.
     await waitFor(() => expect(screen.queryByTestId('meeting-entry')).toBeTruthy());
@@ -98,7 +98,7 @@ describe('MeetingEntry — cross-meeting notice staleness (coordinator P2)', () 
       writeFile: vi.fn(() => Promise.resolve()),
       delete: vi.fn(() => Promise.resolve()),
     };
-    render(<MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/A" workspaceService={ws as never} />);
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
     await waitFor(() => expect(screen.getByTestId('notice-verified-chip')).toBeTruthy());
     expect(screen.getByTestId('notice-verified-chip').textContent).toContain('0:14');
   });

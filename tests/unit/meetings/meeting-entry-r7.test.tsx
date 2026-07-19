@@ -42,6 +42,7 @@ vi.mock('@/platform/fs/tauriFsPlugin', () => ({
   readTauriFile: vi.fn(async () => new Uint8Array([4, 5, 6])),
 }));
 
+import { meetingEntryTestMount } from './meetingEntryTestMount';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { setMeetingsWorkspaceService } from '@/features/meetings/meetingStore';
 import {
@@ -115,9 +116,7 @@ function makeWorkspace(
 }
 
 const baseProps = {
-  matterId: 'm-1',
-  meetingDir: '/ws/C/Meetings/x',
-  folderName: 'x',
+  ...meetingEntryTestMount(),
   clientName: 'The Hendersons',
   workspaceRoot: '/ws',
   onBack: () => {},
@@ -460,8 +459,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     const { rerender } = render(
       <MeetingEntry
         {...baseProps}
-        meetingDir="/ws/C/Meetings/A"
-        folderName="A"
+        {...meetingEntryTestMount('/ws/C/Meetings/A', 'A')}
         workspaceService={ws as never}
       />
     );
@@ -473,8 +471,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     rerender(
       <MeetingEntry
         {...baseProps}
-        meetingDir="/ws/C/Meetings/B"
-        folderName="B"
+        {...meetingEntryTestMount('/ws/C/Meetings/B', 'B')}
         workspaceService={ws as never}
       />
     );
