@@ -12,6 +12,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
+import { meetingEntryTestMount } from './meetingEntryTestMount';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 
 function makeWorkspace(
@@ -34,9 +35,7 @@ function makeWorkspace(
 }
 
 const baseProps = {
-  matterId: 'm-1',
-  meetingDir: '/ws/C/Meetings/x',
-  folderName: 'x',
+  ...meetingEntryTestMount(),
   clientName: 'The Hendersons',
   workspaceRoot: '/ws',
   onBack: () => {},
@@ -78,6 +77,10 @@ describe('MeetingEntry — honest recording-incomplete state (QA-35 review round
     // meeting is the only way forward, which this component has no action for.
     expect(screen.queryByTestId('meeting-entry-retry-notes')).toBeNull();
     expect(screen.queryByTestId('meeting-entry-retry-transcript')).toBeNull();
+    fireEvent.click(screen.getByTestId('meeting-entry-audio-handoff'));
+    expect(
+      screen.getByTestId('meeting-entry-recording-incomplete')
+    ).toBeTruthy();
   });
 
   it('still shows the ordinary "pending" state when a recordingError is set but real audio WAS salvaged (the disk-full-with-partial-audio case, handled by continuing the normal pipeline instead)', async () => {
@@ -113,6 +116,8 @@ describe('MeetingEntry — honest recording-incomplete state (QA-35 review round
     expect(
       screen.queryByTestId('meeting-entry-recording-incomplete-transcript')
     ).toBeNull();
+    fireEvent.click(screen.getByTestId('meeting-entry-audio-handoff'));
+    expect(await screen.findByTestId('audio-player-compact')).toBeTruthy();
   });
 
   it('still shows the plain "pending" state when there is no recordingError at all', async () => {
@@ -135,5 +140,7 @@ describe('MeetingEntry — honest recording-incomplete state (QA-35 review round
     expect(
       screen.queryByTestId('meeting-entry-recording-incomplete')
     ).toBeNull();
+    fireEvent.click(screen.getByTestId('meeting-entry-audio-handoff'));
+    expect(screen.getByTestId('meeting-entry-no-audio')).toBeTruthy();
   });
 });

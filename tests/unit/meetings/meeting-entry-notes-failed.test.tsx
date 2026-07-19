@@ -30,6 +30,7 @@ vi.mock('@/platform/utils/docx-io', () => ({
 // test only exercises the logic it's actually about.
 vi.mock('@/features/documents/media/DocxEditor', () => ({ DocxEditor: () => null }));
 
+import { meetingEntryTestMount } from './meetingEntryTestMount';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 
 function makeWorkspace(meetingJson: Record<string, unknown>) {
@@ -46,9 +47,7 @@ function makeWorkspace(meetingJson: Record<string, unknown>) {
 }
 
 const baseProps = {
-  matterId: 'm-1',
-  meetingDir: '/ws/C/Meetings/x',
-  folderName: 'x',
+  ...meetingEntryTestMount(),
   clientName: 'The Hendersons',
   workspaceRoot: '/ws',
   onBack: () => {},
@@ -203,14 +202,14 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
     };
 
     const { rerender } = render(
-      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/A" folderName="A" workspaceService={ws as never} />,
+      <MeetingEntry {...baseProps} {...meetingEntryTestMount('/ws/C/Meetings/A', 'A')} workspaceService={ws as never} />,
     );
     screen.getByTestId('meeting-subtab-summary').click();
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
 
     screen.getByTestId('meeting-entry-retry-notes').click();
     rerender(
-      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/B" folderName="B" workspaceService={ws as never} />,
+      <MeetingEntry {...baseProps} {...meetingEntryTestMount('/ws/C/Meetings/B', 'B')} workspaceService={ws as never} />,
     );
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
 

@@ -6,6 +6,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
+import { meetingEntryTestMount } from './meetingEntryTestMount';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 
 function makeWorkspace(meetingJson: Record<string, unknown>) {
@@ -24,9 +25,7 @@ function makeWorkspace(meetingJson: Record<string, unknown>) {
 }
 
 const baseProps = {
-  matterId: 'm-1',
-  meetingDir: '/ws/C/Meetings/x',
-  folderName: 'x',
+  ...meetingEntryTestMount(),
   clientName: 'The Hendersons',
   workspaceRoot: '/ws',
   onBack: () => {},

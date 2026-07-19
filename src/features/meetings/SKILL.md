@@ -115,10 +115,11 @@ id, rechecks that local folder every time, and mints an UN-FORGEABLE
 relayed from another device may be valid canonical data but unavailable locally;
 opening it then fails honestly rather than sending a host a made-up client
 identity. `MeetingEntry` binds identity through
-`resolveMeetingEntryHostIdentity`, which believes `openTarget` ONLY when the
-seal verifies — a hand-constructed structural object confers no identity and the
-host stays on its legacy folder props, so a forged target can never redirect
-panel/header/insight identity to another client.
+`meetingEntryHostIdentity`, which requires the live sealed household + matter
+pair together with either this resolver target or an F8 direct-client adapter
+target minted for that exact pair. A missing, hand-constructed, or mismatched
+target produces no host identity and mounts no detail; there is no legacy
+matter/folder fallback that can reach a header, panel, insight, read, or write.
 
 For an authorized cross-client directory, mint an owner-issued grant with
 `grantFirmMeetingDirectoryAccess(...)` — whose allowed-matter set is derived

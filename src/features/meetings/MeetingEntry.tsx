@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, Check, Pencil } from 'lucide-react';
+import { ChevronLeft, Check, Pencil, Volume2 } from 'lucide-react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { arrayBufferToDataUrl } from '@/platform/utils/file-utils';
 import {
@@ -65,21 +65,25 @@ import {
 } from './meetingPanelRegistry';
 import { getMeetingHeaderActionComposition } from './meetingHeaderActionRegistry';
 import { getMeetingInsightComposition } from './meetingInsightRegistry';
-import type { MeetingOpenTarget } from './foundation/contract';
-import { resolveMeetingEntryHostIdentity } from './meetingEntryHostIdentity';
+import type {
+  MeetingEntryTarget,
+  MeetingEntryHostIdentity,
+} from './meetingEntryHostIdentity';
+import { meetingEntryHostIdentity } from './meetingEntryHostIdentity';
+import type { SealedMeetingClientBoundary } from './foundation/contract';
+import {
+  projectMeetingDetailHeader,
+  type MeetingCrmNavigationHandoff,
+  type MeetingDetailHeaderProjection,
+} from './meetingDetailHeaderProjection';
 
 export interface MeetingEntryProps {
-  matterId: string;
-  meetingDir: string;
-  folderName: string;
+  /** The live, complete household + matter pair. */
+  activeClientBoundary: SealedMeetingClientBoundary;
+  /** An F8 resolver/direct-adapter target minted for that exact pair. */
+  target: MeetingEntryTarget;
   clientName: string;
   workspaceRoot: string;
-  /**
-   * Supplied only by the canonical opener after it has resolved the real
-   * meeting projection and client boundary. This host never reconstructs
-   * canonical identity from its legacy folder path.
-   */
-  openTarget?: MeetingOpenTarget;
   onBack: () => void;
   /** Set when opened via a `meeting:<dir>#<ms>` Client Map source link
    *  (Task 11) — seeks the transcript/audio to this moment on open. */
@@ -93,6 +97,8 @@ export interface MeetingEntryProps {
   onChanged?: () => void;
   /** The master-detail meetings rail already provides navigation context. */
   showBackButton?: boolean;
+  /** Optional app/CRM receiver. It receives the complete sealed pair. */
+  crmNavigation?: MeetingCrmNavigationHandoff;
 }
 
 const audit = new AuditService('meetings');
@@ -111,16 +117,42 @@ function consentLabel(
 
 /** "Jun 30, 2026 · 41 min" — the meta the advisor scans for, kept apart from
  *  the human title (the raw folder name never renders; see meetingDisplay). */
-function dateDurationLine(
+function detailDateTimeLine(
+  header: MeetingDetailHeaderProjection,
   meta: MeetingMeta | null,
   t: TFunction
 ): string | null {
-  if (!meta) return null;
-  const parts = [
-    formatMeetingDate(meta.startedAt),
-    formatMeetingDuration(meta.durationMs, t),
-  ].filter(Boolean);
+  if (!header.dateTime) return null;
+  const start = new Date(header.dateTime.startUtc);
+  if (Number.isNaN(start.getTime())) return null;
+  const parts: string[] = [
+    formatMeetingDate(header.dateTime.startUtc),
+    start.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    }),
+  ];
+  const duration = formatMeetingDuration(meta?.durationMs, t);
+  if (duration) parts.push(duration);
   return parts.length ? parts.join(' · ') : null;
+}
+
+function platformLabel(
+  platform: MeetingDetailHeaderProjection['platform'],
+  t: TFunction
+): string | null {
+  switch (platform) {
+    case 'teams':
+      return t('meetings.notice-card.platform-teams');
+    case 'zoom':
+      return t('meetings.notice-card.platform-zoom');
+    case 'meet':
+      return t('meetings.notice-card.platform-meet');
+    case 'other':
+      return t('meetings.notice-card.platform-other');
+    case null:
+      return null;
+  }
 }
 
 function sanitizeFileStem(value: string): string {
@@ -148,34 +180,31 @@ function transcriptToText(transcript: TranscriptFile | null): string {
     .join('\n');
 }
 
-export function MeetingEntry({
-  matterId: legacyMatterId,
-  meetingDir: legacyMeetingDir,
-  folderName,
+export function MeetingEntry(props: MeetingEntryProps) {
+  const hostIdentity = meetingEntryHostIdentity({
+    activeClientBoundary: props.activeClientBoundary,
+    target: props.target,
+  });
+  if (!hostIdentity) return null;
+  return <MeetingEntryHost {...props} hostIdentity={hostIdentity} />;
+}
+
+interface MeetingEntryHostProps extends MeetingEntryProps {
+  readonly hostIdentity: MeetingEntryHostIdentity;
+}
+
+function MeetingEntryHost({
+  hostIdentity,
   clientName,
   workspaceRoot,
-  openTarget,
   onBack,
   initialSeekMs,
   workspaceService,
   onChanged,
   showBackButton = true,
-}: MeetingEntryProps) {
-  // A canonical opener owns identity — but ONLY a target the trusted resolver
-  // actually minted is believed (see resolveMeetingEntryHostIdentity). A forged
-  // target confers no identity and this host falls back to its legacy props.
-  const hostIdentity = resolveMeetingEntryHostIdentity(
-    openTarget,
-    legacyMatterId,
-    legacyMeetingDir
-  );
-  const { matterId, meetingDir } = hostIdentity;
-  const canonicalTarget = hostIdentity.canonicalMeeting
-    ? {
-        meeting: hostIdentity.canonicalMeeting,
-        client: hostIdentity.clientBoundary,
-      }
-    : null;
+  crmNavigation,
+}: MeetingEntryHostProps) {
+  const { matterId, meetingDir, folderName } = hostIdentity;
   const { t } = useTranslation();
   const firm = useFirm();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
@@ -189,6 +218,7 @@ export function MeetingEntry({
   const [seekMs, setSeekMs] = useState<number | undefined>(initialSeekMs);
   const [activeTab, setActiveTab] = useState<MeetingPanelId>('summary');
   const [sendOpen, setSendOpen] = useState(false);
+  const [audioOpen, setAudioOpen] = useState(false);
   const [editingType, setEditingType] = useState(false);
   const [typeInput, setTypeInput] = useState('');
   const [renaming, setRenaming] = useState(false);
@@ -214,6 +244,15 @@ export function MeetingEntry({
     notesError: meta?.notesError,
     noticeStatus: deriveNoticeState(notices).status,
     policy: noticePolicy,
+  });
+  const detailHeader = projectMeetingDetailHeader({
+    identity: hostIdentity,
+    meta,
+    clientName,
+    hasAudio,
+    canEditMeeting: workspaceService !== null,
+    ...(crmNavigation ? { crmNavigation } : {}),
+    t,
   });
 
   useEffect(() => {
@@ -696,8 +735,8 @@ export function MeetingEntry({
   const panelContext = {
     t,
     matterId,
-    canonicalMeeting: canonicalTarget?.meeting ?? null,
-    clientBoundary: canonicalTarget?.client ?? null,
+    canonicalMeeting: hostIdentity.canonicalMeeting,
+    clientBoundary: hostIdentity.clientBoundary,
     meetingDir,
     clientName,
     workspaceRoot,
@@ -736,8 +775,8 @@ export function MeetingEntry({
   };
   const headerActionContext = {
     t,
-    canonicalMeeting: canonicalTarget?.meeting ?? null,
-    clientBoundary: canonicalTarget?.client ?? null,
+    canonicalMeeting: hostIdentity.canonicalMeeting,
+    clientBoundary: hostIdentity.clientBoundary,
     meta,
     transcript,
     summaryText,
@@ -824,8 +863,7 @@ export function MeetingEntry({
               minWidth: 0,
             }}
           >
-            {/* First line: meeting title only (item 8) — the client + Meetings
-                breadcrumb is dropped; the rail already says where you are. */}
+            {/* The header is projected from saved meeting/client facts only. */}
             {renaming ? (
               <span
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
@@ -892,32 +930,34 @@ export function MeetingEntry({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {meetingDisplayTitle(meta, t)}
+                  {detailHeader.meetingName}
                 </span>
-                <button
-                  type="button"
-                  data-testid="meeting-title-rename"
-                  aria-label={t('meetings.entry.rename')}
-                  title={t('meetings.entry.rename')}
-                  onClick={() => {
-                    setTitleInput(meetingDisplayTitle(meta, t));
-                    setRenaming(true);
-                  }}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'var(--color-muted-foreground)',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    padding: 2,
-                    flex: 'none',
-                  }}
-                >
-                  <Pencil style={{ width: 13, height: 13 }} />
-                </button>
+                {detailHeader.actions.renameMeeting && (
+                  <button
+                    type="button"
+                    data-testid="meeting-title-rename"
+                    aria-label={t('meetings.entry.rename')}
+                    title={t('meetings.entry.rename')}
+                    onClick={() => {
+                      setTitleInput(detailHeader.meetingName);
+                      setRenaming(true);
+                    }}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--color-muted-foreground)',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      padding: 2,
+                      flex: 'none',
+                    }}
+                  >
+                    <Pencil style={{ width: 13, height: 13 }} />
+                  </button>
+                )}
               </span>
             )}
-            {/* Second line: date + duration + compact status chips (item 8). */}
+            {/* Exact date/time, linked client, platform, attendees, and type. */}
             <div
               style={{
                 display: 'flex',
@@ -928,15 +968,50 @@ export function MeetingEntry({
                 color: 'var(--color-muted-foreground)',
               }}
             >
-              {dateDurationLine(meta, t) && (
-                <span>{dateDurationLine(meta, t)}</span>
+              {detailDateTimeLine(detailHeader, meta, t) && (
+                <span data-testid="meeting-header-date-time">
+                  {detailDateTimeLine(detailHeader, meta, t)}
+                </span>
+              )}
+              {detailHeader.linkedClient.open ? (
+                <button
+                  type="button"
+                  data-testid="meeting-header-linked-client"
+                  onClick={detailHeader.linkedClient.open}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--kp-accent)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    font: 'inherit',
+                  }}
+                >
+                  {detailHeader.linkedClient.label}
+                </button>
+              ) : (
+                <span data-testid="meeting-header-linked-client">
+                  {detailHeader.linkedClient.label}
+                </span>
+              )}
+              {platformLabel(detailHeader.platform, t) && (
+                <span data-testid="meeting-header-platform">
+                  {platformLabel(detailHeader.platform, t)}
+                </span>
+              )}
+              {detailHeader.attendees.length > 0 && (
+                <span data-testid="meeting-header-attendees">
+                  {detailHeader.attendees
+                    .map((attendee) => attendee.name ?? attendee.email)
+                    .join(', ')}
+                </span>
               )}
               {consentLabel(meta, t) && (
                 <Badge variant="neutral" size="sm">
                   {consentLabel(meta, t)}
                 </Badge>
               )}
-              {meta?.typeId && !editingType && (
+              {detailHeader.type && !editingType && (
                 <span
                   data-testid="meeting-type-chip"
                   style={{
@@ -946,30 +1021,30 @@ export function MeetingEntry({
                   }}
                 >
                   <Badge variant="neutral" size="sm">
-                    {meetingTypeLabel(meta.typeId, t)}
+                    {detailHeader.type.label}
                   </Badge>
-                  <button
-                    type="button"
-                    data-testid="meeting-type-change"
-                    aria-label={t('meetings.entry.type-change')}
-                    title={t('meetings.entry.type-change')}
-                    onClick={() => {
-                      setTypeInput(
-                        meta.typeId ? meetingTypeLabel(meta.typeId, t) : ''
-                      );
-                      setEditingType(true);
-                    }}
-                    style={{
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'var(--color-muted-foreground)',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      padding: 0,
-                    }}
-                  >
-                    <Pencil style={{ width: 11, height: 11 }} />
-                  </button>
+                  {detailHeader.actions.changeMeetingType && (
+                    <button
+                      type="button"
+                      data-testid="meeting-type-change"
+                      aria-label={t('meetings.entry.type-change')}
+                      title={t('meetings.entry.type-change')}
+                      onClick={() => {
+                        setTypeInput(detailHeader.type?.label ?? '');
+                        setEditingType(true);
+                      }}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--color-muted-foreground)',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        padding: 0,
+                      }}
+                    >
+                      <Pencil style={{ width: 11, height: 11 }} />
+                    </button>
+                  )}
                 </span>
               )}
               {editingType && (
@@ -1041,6 +1116,28 @@ export function MeetingEntry({
             flex: 'none',
           }}
         >
+          <button
+            type="button"
+            data-testid="meeting-entry-audio-handoff"
+            onClick={() => {
+              setAudioOpen(true);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              border: '1px solid var(--kp-divider)',
+              background: 'transparent',
+              borderRadius: 'var(--radius-md)',
+              padding: '6px 10px',
+              fontSize: 'var(--kp-font-xs)',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            <Volume2 style={{ width: 13, height: 13 }} />
+            {t('meetings.entry.tab-recording')}
+          </button>
           {meetingHeaderActions.map((descriptor) => (
             <span
               key={descriptor.id}
@@ -1140,8 +1237,8 @@ export function MeetingEntry({
                 <div key={descriptor.id} data-meeting-insight={descriptor.id}>
                   {descriptor.renderMeetingSummary({
                     matterId,
-                    canonicalMeeting: canonicalTarget?.meeting ?? null,
-                    clientBoundary: canonicalTarget?.client ?? null,
+                    canonicalMeeting: hostIdentity.canonicalMeeting,
+                    clientBoundary: hostIdentity.clientBoundary,
                     meetingDir,
                     clientName,
                     workspaceService,
@@ -1152,6 +1249,35 @@ export function MeetingEntry({
           )}
         </div>
       </div>
+
+      {/* F2 retired Recording as a tab. Its player and honest empty/error
+          states remain reachable here as a secondary header action. */}
+      <SlidePanel
+        open={audioOpen}
+        onClose={() => {
+          setAudioOpen(false);
+        }}
+        closeLabel={t('common.actions.cancel')}
+        data-testid="meeting-audio-drawer"
+        title={t('meetings.entry.tab-recording')}
+      >
+        {detailHeader.audio.state === 'available' && audioSrc ? (
+          <AudioPlayer
+            ref={audioRef}
+            audioSrc={audioSrc}
+            filename={detailHeader.meetingName}
+            compact
+          />
+        ) : detailHeader.audio.state === 'recording-incomplete' ? (
+          <div data-testid="meeting-entry-recording-incomplete">
+            {t('meetings.entry.recording-incomplete')}
+          </div>
+        ) : (
+          <div data-testid="meeting-entry-no-audio">
+            {t('meetings.entry.no-audio')}
+          </div>
+        )}
+      </SlidePanel>
 
       {/* Send (item 1) — the merged send surface opens in a right drawer from
           the header Send action, so sending never crowds the review tabs. */}
