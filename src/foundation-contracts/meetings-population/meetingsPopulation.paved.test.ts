@@ -1,11 +1,57 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Matter } from '@/platform/types/matter';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
-import type { ClientScopedLivePort, SealedMeetingClientBoundary } from '@/features/meetings';
+import {
+  readActiveMeetingClientBoundary,
+  type ClientScopedLivePort,
+  type SealedMeetingClientBoundary,
+} from '@/features/meetings';
 import { proveMeetingsPopulationPavedPath } from './meetingsPopulation.import';
+
+const meetingBoundaryMint = vi.hoisted(() => ({
+  selection: null as null | { householdRef: string; matterId: string },
+}));
+
+vi.mock('@/platform/client-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/client-context')>();
+  return {
+    ...actual,
+    readSelectionOperationDecision: (
+      request: Parameters<typeof actual.readSelectionOperationDecision>[0]
+    ) => {
+      const selection = meetingBoundaryMint.selection;
+      return selection
+        ? {
+            kind: 'matter' as const,
+            sourceKind: 'matter' as const,
+            matter: { id: selection.matterId } as Matter,
+            client: {
+              provider: 'wealthbox' as const,
+              householdId: selection.householdRef,
+              displayName: selection.householdRef,
+            },
+          }
+        : actual.readSelectionOperationDecision(request);
+    },
+  };
+});
+
+function mintedBoundary(
+  householdRef: string,
+  matterId: string
+): SealedMeetingClientBoundary {
+  meetingBoundaryMint.selection = { householdRef, matterId };
+  try {
+    const boundary = readActiveMeetingClientBoundary();
+    if (!boundary) throw new Error('expected live-authority meeting boundary');
+    return boundary;
+  } finally {
+    meetingBoundaryMint.selection = null;
+  }
+}
 
 // Executable third-contributor proof: run the WHOLE public population paved path
 // end-to-end. It supplies only a live-record port; the matter set and workspace
@@ -20,10 +66,7 @@ function canonicalPort(): ClientScopedLivePort & {
     records: [],
     workspaceRoot: '/workspace',
     error: null,
-    getActiveClientBoundary: () => ({
-      householdRef: 'household-1',
-      matterId: 'matter-1',
-    }) as SealedMeetingClientBoundary,
+    getActiveClientBoundary: () => mintedBoundary('household-1', 'matter-1'),
     getFirmSelectionError: () => null,
     save(record: LiveCrmRecord) {
       const saved = structuredClone(record);
