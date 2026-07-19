@@ -1,7 +1,7 @@
 import {
   approvedMeetingArtifactsForClient,
   type ApprovedMeetingArtifactReader,
-  type ClientBoundary,
+  type SealedMeetingClientBoundary,
   type MeetingArtifactRequirement,
   type MeetingArtifactStore,
   type MeetingStore,
@@ -15,10 +15,9 @@ import {
 export function readApprovedMeetingArtifacts(
   meetings: MeetingStore,
   artifacts: MeetingArtifactStore,
-  boundary: ClientBoundary | null | undefined,
+  boundary: SealedMeetingClientBoundary,
   requirements: readonly MeetingArtifactRequirement[]
-): ApprovedMeetingArtifactReader | null {
-  if (!boundary?.householdRef.trim() || !boundary.matterId.trim()) return null;
+): ApprovedMeetingArtifactReader {
   return approvedMeetingArtifactsForClient(
     meetings,
     artifacts,
