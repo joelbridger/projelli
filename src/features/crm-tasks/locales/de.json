@@ -1,7 +1,7 @@
 {
   "crmTasks": {
     "workList": {
-      "orderExplanation": "So entsteht die Reihenfolge: zuerst jetzt fällige Arbeit, dann spätere Termine und danach Arbeit ohne Termin. In jeder Gruppe kommt verfügbare Arbeit vor blockierter Arbeit, danach folgen hohe Priorität, das genaue Fälligkeitsdatum und der Titel. Erledigte Arbeit bleibt am Ende.",
+      "orderExplanation": "So entsteht die Reihenfolge: zuerst jetzt fällige Arbeit, dann spätere Termine und danach Arbeit ohne Termin. In jeder Gruppe kommt verfügbare Arbeit vor blockierter Arbeit, danach folgen Priorität, genaues Fälligkeitsdatum, Titel und Datensatz-ID. Erledigte Arbeit bleibt am Ende.",
       "openTask": "Aufgabe {{title}} öffnen. {{reason}}",
       "openWorkflowStep": "Workflow {{workflow}} öffnen. Schritt: {{title}}. {{reason}}",
       "workflowContext": "Workflow: {{workflow}}",
@@ -24,8 +24,10 @@
       },
       "rank": {
         "position": "Rang {{rank}}",
-        "reason": "Darum hier: {{due}} · {{priority}}",
-        "reasonBlocked": "Darum hier: {{due}} · Blockiert · {{priority}}",
+        "reason": "Darum hier: {{due}} · {{availability}} · {{priority}}. Bei Gleichstand zählen {{exactDue}}, Titel „{{title}}“ und dann Datensatz-ID {{id}}.",
+        "available": "Verfügbar",
+        "blocked": "Blockiert",
+        "noExactDate": "kein genaues Datum",
         "closed": "Darum hier: erledigte Arbeit bleibt am Ende"
       }
     }

@@ -30,7 +30,10 @@ import {
   type WorkflowStepOutcomeDraft,
   WorkflowCompletionRefusedError,
 } from '@/features/crm-home/workflowLive';
-import type { CrmFreshnessState } from '@/features/crm-home/types';
+import type {
+  CrmFreshnessState,
+  CrmWorkflowWorkItem,
+} from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import { liveStepTitle } from '@/features/crm-home/shared/workflowDisplay';
 import {
@@ -79,6 +82,7 @@ export function WorkflowsSurface() {
   const {
     adapter,
     navigate,
+    workflowOpenItem,
     workflowData,
     workflowHouseholds,
     saveLiveRecord,
@@ -91,6 +95,7 @@ export function WorkflowsSurface() {
       households={workflowHouseholds}
       onSave={saveLiveRecord}
       onNavigate={navigate}
+      {...(workflowOpenItem ? { openWorkItem: workflowOpenItem } : {})}
       {...(addRequest ? { addRequest } : {})}
       {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}
     />
@@ -117,6 +122,7 @@ export function LiveWorkflows({
   households,
   onSave,
   onNavigate,
+  openWorkItem,
   addRequest,
   onAddRequestConsumed,
 }: {
@@ -124,10 +130,18 @@ export function LiveWorkflows({
   households: readonly HouseholdChoice[];
   onSave: (record: LiveCrmRecord) => Promise<unknown>;
   onNavigate: (route: CrmHomeRoute) => void;
+  openWorkItem?: Pick<CrmWorkflowWorkItem, 'instanceId' | 'stepId'>;
   addRequest?: CrmHouseholdAddRequest;
   onAddRequestConsumed?: () => void;
 }) {
-  const template = data.templates[0];
+  const selectedInstance = openWorkItem
+    ? data.instances.find((instance) => instance.id === openWorkItem.instanceId)
+    : undefined;
+  const template = selectedInstance
+    ? data.templates.find(
+        (candidate) => candidate.id === selectedInstance.templateId
+      )
+    : data.templates[0];
   const startableTemplate = data.templates.find(isStartableTemplate);
   const startUnavailableMessage = template
     ? 'Publish this workflow template before starting it.'
@@ -192,7 +206,11 @@ export function LiveWorkflows({
     let household = households.find((item) => item.id === selectedHouseholdId);
     if (!household) {
       const id = `household-${String(Date.now())}`;
-      household = { id, matterId: id, label: newHousehold.trim() || 'New household' };
+      household = {
+        id,
+        matterId: id,
+        label: newHousehold.trim() || 'New household',
+      };
       await save({
         id,
         kind: 'household',
@@ -277,7 +295,12 @@ export function LiveWorkflows({
           {error}
         </div>
       )}
-      <WorkflowRecordStartSlot {...(addRequest ? { addRequest } : {})} households={households} {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})} {...(template ? { templateId: template.id } : {})} />
+      <WorkflowRecordStartSlot
+        {...(addRequest ? { addRequest } : {})}
+        households={households}
+        {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}
+        {...(template ? { templateId: template.id } : {})}
+      />
       {!template && !creating && (
         <>
           <section style={panelStyle}>
@@ -807,6 +830,9 @@ export function LiveWorkflows({
                   instance={instance}
                   onSave={save}
                   onSaveStepMetadata={saveForStepExtension}
+                  {...(openWorkItem?.instanceId === instance.id
+                    ? { openStepId: openWorkItem.stepId }
+                    : {})}
                 />
               ))
             )}
@@ -898,23 +924,41 @@ function LiveInstanceCard({
   instance,
   onSave,
   onSaveStepMetadata,
+  openStepId,
 }: {
   instance: LiveWorkflowInstance;
   onSave: (record: LiveCrmRecord | (() => LiveCrmRecord)) => Promise<unknown>;
   onSaveStepMetadata: (record: LiveCrmRecord) => Promise<unknown>;
+  openStepId?: string;
 }) {
   const [editingStep, setEditingStep] = useState<string | null>(null);
   const [localTitle, setLocalTitle] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [outcomeIds, setOutcomeIds] = useState<Record<string, string>>({});
-  const [completionRefusal, setCompletionRefusal] = useState<{ stepId: string; message: string } | null>(null);
+  const [completionRefusal, setCompletionRefusal] = useState<{
+    stepId: string;
+    message: string;
+  } | null>(null);
   const completionRefusalRef = useRef<HTMLParagraphElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const openedTargetRef = useRef<string | null>(null);
   const steps = Object.values(instance.snapshot.steps).filter(
     (step) => !step.hiddenByTemplateRemoval
   );
   useEffect(() => {
     completionRefusalRef.current?.focus();
   }, [completionRefusal]);
+  useEffect(() => {
+    if (!openStepId || !instance.snapshot.steps[openStepId]) return;
+    const target = `${instance.id}:${openStepId}`;
+    if (openedTargetRef.current === target) return;
+    openedTargetRef.current = target;
+    setEditingStep(openStepId);
+    setLocalTitle(liveStepTitle(instance, openStepId));
+  }, [instance, openStepId]);
+  useEffect(() => {
+    if (editingStep === openStepId) editInputRef.current?.focus();
+  }, [editingStep, openStepId]);
   return (
     <section
       data-testid={`crm-live-workflow-instance-${instance.id}`}
@@ -951,7 +995,13 @@ function LiveInstanceCard({
             {mountWorkflowStepExtensions({
               instance,
               stepId: step.stepId,
-              saveStepMetadata: (patch) => saveWorkflowStepMetadata(instance, step.stepId, patch, onSaveStepMetadata),
+              saveStepMetadata: (patch) =>
+                saveWorkflowStepMetadata(
+                  instance,
+                  step.stepId,
+                  patch,
+                  onSaveStepMetadata
+                ),
               compatibilityMount: (
                 <>
                   {step.status === 'done' ? (
@@ -982,7 +1032,14 @@ function LiveInstanceCard({
                           </select>
                         )}
                       </>
-                      <div style={{ alignItems: 'center', display: 'inline-flex', flexWrap: 'wrap', gap: 8 }}>
+                      <div
+                        style={{
+                          alignItems: 'center',
+                          display: 'inline-flex',
+                          flexWrap: 'wrap',
+                          gap: 8,
+                        }}
+                      >
                         <Button
                           size="sm"
                           variant="secondary"
@@ -995,21 +1052,36 @@ function LiveInstanceCard({
                                 outcomeIds[step.stepId]
                               );
                               setCompletionRefusal(null);
-                              void onSave(completed).catch((saveReason: unknown) => {
+                              void onSave(completed).catch(
+                                (saveReason: unknown) => {
+                                  setCompletionRefusal({
+                                    stepId: step.stepId,
+                                    message:
+                                      saveReason instanceof Error
+                                        ? saveReason.message
+                                        : String(saveReason),
+                                  });
+                                }
+                              );
+                            } catch (reason) {
+                              if (
+                                reason instanceof WorkflowCompletionRefusedError
+                              ) {
                                 setCompletionRefusal({
                                   stepId: step.stepId,
-                                  message: saveReason instanceof Error ? saveReason.message : String(saveReason),
+                                  message: reason.message,
                                 });
-                              });
-                            } catch (reason) {
-                              if (reason instanceof WorkflowCompletionRefusedError) {
-                                setCompletionRefusal({ stepId: step.stepId, message: reason.message });
                                 return;
                               }
-                              void onSave(() => { throw reason; }).catch((saveReason: unknown) => {
+                              void onSave(() => {
+                                throw reason;
+                              }).catch((saveReason: unknown) => {
                                 setCompletionRefusal({
                                   stepId: step.stepId,
-                                  message: saveReason instanceof Error ? saveReason.message : String(saveReason),
+                                  message:
+                                    saveReason instanceof Error
+                                      ? saveReason.message
+                                      : String(saveReason),
                                 });
                               });
                             }
@@ -1023,7 +1095,11 @@ function LiveInstanceCard({
                             ref={completionRefusalRef}
                             role="alert"
                             tabIndex={-1}
-                            style={{ color: 'var(--kp-danger)', fontWeight: 600, margin: 0 }}
+                            style={{
+                              color: 'var(--kp-danger)',
+                              fontWeight: 600,
+                              margin: 0,
+                            }}
                           >
                             {completionRefusal.message}
                           </p>
@@ -1045,6 +1121,7 @@ function LiveInstanceCard({
                   {editingStep === step.stepId && (
                     <span>
                       <input
+                        ref={editInputRef}
                         data-testid={`crm-live-workflow-local-title-${instance.id}-${step.stepId}`}
                         value={localTitle}
                         onChange={(event) => {

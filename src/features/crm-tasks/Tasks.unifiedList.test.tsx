@@ -126,7 +126,7 @@ describe('unified daily work list', () => {
     expect(
       screen.getByTestId('crm-work-list-order-explanation')
     ).toHaveTextContent(
-      /due now first.*high priority.*closed work stays last/i
+      /due now first.*available work.*priority.*exact due date.*title.*record ID.*closed work stays last/i
     );
     expect(
       screen.getByTestId('crm-workflow-work-due-due-step')
@@ -136,7 +136,12 @@ describe('unified daily work list', () => {
     ).toHaveAccessibleName('Normal priority');
     expect(
       screen.getByTestId('crm-workflow-work-rank-reason-due-step')
-    ).toHaveTextContent(/why here: overdue.*normal priority/i);
+    ).toHaveTextContent(/why here: overdue.*available.*normal priority/i);
+    expect(
+      screen.getByTestId('crm-workflow-work-rank-reason-due-step')
+    ).toHaveTextContent(
+      /ties use.*2000.*prepare annual review.*record ID due-step/i
+    );
     expect(screen.getByTestId('crm-task-due-later-task')).toHaveTextContent(
       '2999-01-01'
     );

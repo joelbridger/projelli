@@ -20,6 +20,7 @@ import type {
   HouseholdChoice,
   LiveWorkflowData,
 } from '@/features/crm-workflows/Workflows';
+import type { CrmWorkflowWorkItem } from './types';
 
 export type { CrmHomeProps, CrmHomeRoute } from './routes';
 
@@ -132,9 +133,16 @@ export function CrmHomeShell({
     adapterProvided?: boolean;
   }) {
   const [route, setRoute] = useState<CrmHomeRoute>(initialRoute);
+  const [workflowOpenItem, setWorkflowOpenItem] =
+    useState<CrmWorkflowWorkItem | null>(null);
   const [undoReport, setUndoReport] = useState<string | null>(null);
   const jump = (next: CrmHomeRoute) => {
+    setWorkflowOpenItem(null);
     setRoute(next);
+  };
+  const openWorkflowWorkItem = (item: CrmWorkflowWorkItem) => {
+    setWorkflowOpenItem(item);
+    setRoute('workflows');
   };
   const reportUndo = useCallback(() => {
     const result = adapter.actions.undoPropagation?.() ?? {
@@ -202,6 +210,8 @@ export function CrmHomeShell({
         navigate: (next) => {
           jump(next as CrmHomeRoute);
         },
+        workflowOpenItem,
+        openWorkflowWorkItem,
         ...(workflowData ? { workflowData } : {}),
         ...(workflowHouseholds ? { workflowHouseholds } : {}),
         ...(saveLiveRecord ? { saveLiveRecord } : {}),
@@ -255,25 +265,27 @@ export function CrmHomeShell({
         }}
       >
         {content}
-        {activeRoute !== 'today' && <button
-          data-testid="crm-notifications-button"
-          aria-label="Open notifications"
-          onClick={() => {
-            jump('activity');
-          }}
-          style={{
-            position: 'absolute',
-            top: 15,
-            right: 18,
-            border: 0,
-            background: 'transparent',
-            cursor: 'pointer',
-            color: 'var(--kp-navy)',
-          }}
-        >
-          <Bell size={20} />{' '}
-          <span aria-label="Open notifications">Notifications</span>
-        </button>}
+        {activeRoute !== 'today' && (
+          <button
+            data-testid="crm-notifications-button"
+            aria-label="Open notifications"
+            onClick={() => {
+              jump('activity');
+            }}
+            style={{
+              position: 'absolute',
+              top: 15,
+              right: 18,
+              border: 0,
+              background: 'transparent',
+              cursor: 'pointer',
+              color: 'var(--kp-navy)',
+            }}
+          >
+            <Bell size={20} />{' '}
+            <span aria-label="Open notifications">Notifications</span>
+          </button>
+        )}
       </div>
     </div>
   );

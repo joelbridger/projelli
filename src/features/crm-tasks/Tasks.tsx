@@ -6,7 +6,7 @@ import { ListChecks, ListTodo, Workflow } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
-import { buildCapacityTriage } from '@/platform/crm/tasks';
+import { buildCapacityTriage, dailyWorkSortFacts } from '@/platform/crm/tasks';
 import {
   AskBar,
   FreshnessBanner,
@@ -112,15 +112,21 @@ function rankReason(
   if (item.status === 'done' || item.status === 'cancelled') {
     return t('crmTasks.workList.rank.closed');
   }
-  return t(
-    item.status === 'blocked'
-      ? 'crmTasks.workList.rank.reasonBlocked'
-      : 'crmTasks.workList.rank.reason',
-    {
-      due: dueFact(item, today, language, t),
-      priority: priorityLabel(item.priority, t),
-    }
-  );
+  const facts = dailyWorkSortFacts(item, today);
+  return t('crmTasks.workList.rank.reason', {
+    due: dueFact(item, today, language, t),
+    availability: t(
+      facts.blocked
+        ? 'crmTasks.workList.rank.blocked'
+        : 'crmTasks.workList.rank.available'
+    ),
+    priority: priorityLabel(facts.priority, t),
+    exactDue: facts.exactDueDay
+      ? formattedDay(facts.exactDueDay, language)
+      : t('crmTasks.workList.rank.noExactDate'),
+    title: facts.title,
+    id: facts.id,
+  });
 }
 
 function duplicateTaskInput(source: TaskRecord): CreateTaskRecordInput {
@@ -605,8 +611,13 @@ export function Tasks({
 }
 
 export function TasksSurface() {
-  const { adapter, addRequest, navigate, onAddRequestConsumed } =
-    useCrmHomeSurfaceContext();
+  const {
+    adapter,
+    addRequest,
+    navigate,
+    openWorkflowWorkItem,
+    onAddRequestConsumed,
+  } = useCrmHomeSurfaceContext();
   return (
     <Tasks
       tasks={adapter.tasks}
@@ -619,8 +630,9 @@ export function TasksSurface() {
       onCompleteWorkflowWorkItem={(item) =>
         adapter.actions.completeWorkflowWorkItem?.(item)
       }
-      onOpenWorkflowWorkItem={() => {
-        navigate('workflows');
+      onOpenWorkflowWorkItem={(item) => {
+        if (openWorkflowWorkItem) openWorkflowWorkItem(item);
+        else navigate('workflows');
       }}
       onSaveView={(view) => adapter.actions.saveTaskView?.(view)}
       {...(addRequest ? { addRequest } : {})}
