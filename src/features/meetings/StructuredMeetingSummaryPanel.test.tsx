@@ -2,6 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import type { TFunction } from 'i18next';
 import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type {
   MeetingProjection,
   SealedMeetingClientBoundary,
@@ -16,6 +17,41 @@ import {
   type StructuredMeetingSummaryPanelLoadResult,
 } from './StructuredMeetingSummaryPanel';
 
+const connectedStores = vi.hoisted(() => ({
+  meetings: { list: [], error: null },
+  artifacts: {
+    readerFor: vi.fn(() => ({
+      listForMeeting: () => [],
+      get: () => null,
+    })),
+  },
+}));
+
+const extractFolderDocx = vi.hoisted(() =>
+  vi.fn(() =>
+    Promise.resolve({
+      plainText: 'Private household A folder recap',
+      html: '<p>Private household A folder recap</p>',
+    })
+  )
+);
+
+vi.mock('./foundation/contract', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./foundation/contract')>();
+  return {
+    ...actual,
+    useMeetingFoundationStore: () => connectedStores.meetings,
+    useMeetingArtifactStore: () => connectedStores.artifacts,
+  };
+});
+
+vi.mock('@/platform/utils/docx-io', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@/platform/utils/docx-io')
+  >();
+  return { ...actual, extractDocxText: extractFolderDocx };
+});
+
 const translations: Record<string, string> = {
   'meetings.entry.structured-summary-loading': 'Loading summary',
   'meetings.entry.structured-summary-read-error': 'Could not load summary',
@@ -27,6 +63,7 @@ const translations: Record<string, string> = {
   'meetings.entry.structured-summary-ready': 'Summary ready',
   'meetings.entry.structured-summary-needs-review': 'Needs review',
   'meetings.entry.reviewed': 'Reviewed',
+  'meetings.entry.summary-not-ready': 'Summary not ready',
 };
 
 function boundary(householdRef: string): SealedMeetingClientBoundary {
@@ -92,8 +129,6 @@ function ready(
     kind: 'ready',
     content: { summary, decisions: [], personalNotes: [] },
     reviewState: 'needs-review',
-    summaryText: '',
-    summaryHtml: '',
     ...overrides,
   };
 }
@@ -175,6 +210,56 @@ describe('StructuredMeetingSummaryPanel', () => {
       await readB.promise;
     });
     expect(screen.getByText('Current B recap')).toBeTruthy();
+  });
+
+  it('fails closed when the folder-only host already extracted a summary', () => {
+    const folderOnly = {
+      ...context('meeting-shared', 'household-b'),
+      canonicalMeeting: null,
+      clientBoundary: null,
+      meetingDir: '/workspace/shared-meeting',
+      hasNotes: true,
+      summaryReady: true,
+      summaryText: 'Private household A folder recap',
+      summaryExtraction: {
+        plainText: 'Private household A folder recap',
+        html: '<p>Private household A folder recap</p>',
+      },
+    } satisfies MeetingPanelContext;
+
+    render(<StructuredMeetingSummaryPanel context={folderOnly} />);
+
+    expect(screen.getByTestId('meeting-entry-summary-not-ready')).toBeTruthy();
+    expect(screen.queryByText('Private household A folder recap')).toBeNull();
+  });
+
+  it('does not give household B household A folder summary when both share a matter and meeting folder', async () => {
+    const readFile = vi
+      .fn()
+      .mockResolvedValue(JSON.stringify({ reviewedAt: '2026-07-20T11:00:00Z' }));
+    const exists = vi.fn().mockResolvedValue(true);
+    const readFileBinary = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
+    const sharedFolder = {
+      readFile,
+      exists,
+      readFileBinary,
+    } as unknown as WorkspaceService;
+    const householdB = {
+      ...context('meeting-shared', 'household-b'),
+      meetingDir: '/workspace/shared-meeting',
+      workspaceService: sharedFolder,
+    } satisfies MeetingPanelContext;
+
+    render(<StructuredMeetingSummaryPanel context={householdB} />);
+
+    expect(
+      await screen.findByTestId('meeting-entry-summary-not-ready')
+    ).toBeTruthy();
+    expect(screen.queryByText('Private household A folder recap')).toBeNull();
+    expect(readFile).not.toHaveBeenCalled();
+    expect(exists).not.toHaveBeenCalled();
+    expect(readFileBinary).not.toHaveBeenCalled();
+    expect(extractFolderDocx).not.toHaveBeenCalled();
   });
 
   it('rebinds the one existing blessed summary descriptor without registering another', () => {

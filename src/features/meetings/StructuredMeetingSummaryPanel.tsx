@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { MeetingNotesReview } from '@/platform/meetingNotesReview/MeetingNotesReview';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import {
-  extractDocxText,
-  type DocxTextExtraction,
-} from '@/platform/utils/docx-io';
 import { Badge } from '@/ui/kp';
 import {
   useMeetingArtifactStore,
@@ -12,7 +7,6 @@ import {
   type MeetingProjection,
   type SealedMeetingClientBoundary,
 } from './foundation/contract';
-import type { MeetingMeta, MeetingNotesError } from './meetingStore';
 import type { MeetingPanelContext } from './meetingWorkspaceTypes';
 import {
   createStructuredMeetingSummaryReader,
@@ -30,11 +24,9 @@ export type StructuredMeetingSummaryPanelLoadResult =
       readonly kind: 'ready';
       readonly content: StructuredMeetingSummaryContent;
       readonly reviewState: 'needs-review' | 'reviewed';
-      readonly summaryText: string;
-      readonly summaryHtml: string;
     }
+  | { readonly kind: 'empty' }
   | { readonly kind: 'not-ready' }
-  | { readonly kind: 'notes-error'; readonly error: MeetingNotesError['kind'] }
   | { readonly kind: 'pending' }
   | { readonly kind: 'refused' }
   | { readonly kind: 'error' };
@@ -54,12 +46,6 @@ export interface StructuredMeetingSummaryPanelProps {
   readonly context: MeetingPanelContext;
   /** Test seam. Production reads through the sealed client artifact store. */
   readonly loadSummary?: StructuredMeetingSummaryLoader;
-}
-
-interface LegacySummaryRead {
-  readonly meta: MeetingMeta | null;
-  readonly hasNotes: boolean;
-  readonly extraction: DocxTextExtraction | null;
 }
 
 const EMPTY_CONTENT: StructuredMeetingSummaryContent = Object.freeze({
@@ -138,43 +124,6 @@ export function structuredSummaryFromText(
   };
 }
 
-async function readLegacySummary(
-  workspace: WorkspaceService | null,
-  meetingDir: string
-): Promise<LegacySummaryRead> {
-  if (!workspace) return { meta: null, hasNotes: false, extraction: null };
-  let meta: MeetingMeta | null = null;
-  try {
-    meta = JSON.parse(
-      await workspace.readFile(`${meetingDir}/meeting.json`)
-    ) as MeetingMeta;
-  } catch {
-    meta = null;
-  }
-
-  let hasNotes = false;
-  try {
-    hasNotes = await workspace.exists(`${meetingDir}/notes.docx`);
-  } catch {
-    return { meta, hasNotes: false, extraction: null };
-  }
-  if (!hasNotes) return { meta, hasNotes, extraction: null };
-  try {
-    const bytes = await workspace.readFileBinary(`${meetingDir}/notes.docx`);
-    const extraction = await extractDocxText(bytes);
-    return {
-      meta,
-      hasNotes,
-      extraction: {
-        ...extraction,
-        plainText: extraction.plainText.trim(),
-      },
-    };
-  } catch {
-    return { meta, hasNotes, extraction: null };
-  }
-}
-
 function contentFromArtifact(
   summary: StructuredMeetingSummary
 ): StructuredMeetingSummaryContent {
@@ -191,8 +140,6 @@ async function loadDefaultSummary(
   {
     meeting,
     boundary,
-    meetingDir,
-    workspaceService,
   }: StructuredMeetingSummaryLoadRequest
 ): Promise<StructuredMeetingSummaryPanelLoadResult> {
   const artifactResult = await createStructuredMeetingSummaryReader(
@@ -202,43 +149,14 @@ async function loadDefaultSummary(
   ).read(meeting);
   if (artifactResult.kind === 'refused') return { kind: 'refused' };
   if (artifactResult.kind === 'error') return { kind: 'error' };
-
-  const legacy = await readLegacySummary(workspaceService, meetingDir);
-  const summaryText = legacy.extraction?.plainText ?? '';
-  const summaryHtml = legacy.extraction?.html ?? '';
   if (artifactResult.kind === 'ready') {
     return {
       kind: 'ready',
       content: contentFromArtifact(artifactResult.summary),
-      reviewState:
-        artifactResult.summary.reviewState === 'reviewed' ||
-        !!legacy.meta?.reviewedAt
-          ? 'reviewed'
-          : 'needs-review',
-      summaryText,
-      summaryHtml,
+      reviewState: artifactResult.summary.reviewState,
     };
   }
-
-  const content = structuredSummaryFromText(summaryText);
-  if (
-    content.summary ||
-    content.decisions.length > 0 ||
-    content.personalNotes.length > 0
-  ) {
-    return {
-      kind: 'ready',
-      content,
-      reviewState: legacy.meta?.reviewedAt ? 'reviewed' : 'needs-review',
-      summaryText,
-      summaryHtml,
-    };
-  }
-  if (legacy.hasNotes) return { kind: 'not-ready' };
-  if (legacy.meta?.notesError) {
-    return { kind: 'notes-error', error: legacy.meta.notesError.kind };
-  }
-  return { kind: 'pending' };
+  return { kind: 'empty' };
 }
 
 function summaryIdentity(context: MeetingPanelContext): string | null {
@@ -278,7 +196,7 @@ function SummaryState({
       </div>
     );
   }
-  if (result.kind === 'not-ready') {
+  if (result.kind === 'empty' || result.kind === 'not-ready') {
     return (
       <div
         data-testid="meeting-entry-summary-not-ready"
@@ -288,37 +206,6 @@ function SummaryState({
         }}
       >
         {context.t('meetings.entry.summary-not-ready')}
-      </div>
-    );
-  }
-  if (result.kind === 'notes-error') {
-    const errorKey =
-      result.error === 'gate-blocked'
-        ? 'meetings.entry.notes-failed-blocked'
-        : `meetings.entry.notes-failed-${result.error}`;
-    return (
-      <div
-        data-testid="meeting-entry-notes-failed"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--kp-space-sm)',
-        }}
-      >
-        <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
-          {context.t(errorKey)}
-        </div>
-        <button
-          type="button"
-          data-testid="meeting-entry-retry-notes"
-          onClick={context.onRetryNotes}
-          disabled={context.retryingNotes}
-          style={quietButtonStyle}
-        >
-          {context.retryingNotes
-            ? context.t('meetings.entry.retrying-notes')
-            : context.t('meetings.tab.retry-button')}
-        </button>
       </div>
     );
   }
@@ -359,22 +246,6 @@ function SummaryState({
         gap: 'var(--kp-space-md)',
       }}
     >
-      {result.summaryText && (
-        <MeetingNotesReview
-          meetingDir={context.meetingDir}
-          matterId={context.matterId}
-          summaryText={result.summaryText}
-          summaryHtml={result.summaryHtml}
-          workspaceService={context.workspaceService}
-          {...(context.crmBlockedReason
-            ? {
-                crmBlockedReason:
-                  'Mark this meeting reviewed before sending a CRM update.',
-              }
-            : {})}
-        />
-      )}
-
       <div
         style={{
           display: 'grid',
@@ -520,37 +391,19 @@ function BoundStructuredSummary({
   );
 }
 
-/** Keeps the old folder-only host usable until F11 removes that compatibility path. */
+/**
+ * F11 still owns removal of the folder-only host. Until then this binding must
+ * stay dark: a folder path and its extracted text never prove a client pair.
+ */
 function LegacySummaryCompatibility({
   context,
 }: {
   context: MeetingPanelContext;
 }) {
-  if (context.summaryReady) {
-    const content = structuredSummaryFromText(context.summaryText);
-    return (
-      <SummaryState
-        context={context}
-        result={{
-          kind: 'ready',
-          content,
-          reviewState: context.meta?.reviewedAt ? 'reviewed' : 'needs-review',
-          summaryText: context.summaryText,
-          summaryHtml: context.summaryExtraction?.html ?? '',
-        }}
-        onRetryRead={() => undefined}
-      />
-    );
-  }
-  const result: StructuredMeetingSummaryPanelLoadResult = context.hasNotes
-    ? { kind: 'not-ready' }
-    : context.meta?.notesError
-      ? { kind: 'notes-error', error: context.meta.notesError.kind }
-      : { kind: 'pending' };
   return (
     <SummaryState
       context={context}
-      result={result}
+      result={{ kind: 'empty' }}
       onRetryRead={() => undefined}
     />
   );
