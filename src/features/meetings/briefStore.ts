@@ -8,6 +8,10 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SK_MEETING_BRIEFS } from '@/config/identity';
 import type { MeetingBriefBullet } from './generateBrief';
+import type {
+  MeetingProjection,
+  SealedMeetingClientBoundary,
+} from './foundation/contract';
 
 export type BriefStatus = 'pending' | 'generating' | 'ready' | 'failed';
 
@@ -45,6 +49,48 @@ export function briefKey(
   matterId: string
 ): string {
   return `${day}:${eventId}:${matterId}`;
+}
+
+export interface ExactMeetingBriefTarget {
+  /** Exact canonical calendar-event reference carried by the meeting. */
+  readonly eventId: string;
+  /** Canonical meeting opened through the sealed Meetings foundation. */
+  readonly meeting: MeetingProjection;
+  /** Sealed household + matter authority minted beside that meeting. */
+  readonly clientBoundary: SealedMeetingClientBoundary;
+}
+
+/**
+ * Select one brief for one canonical event/meeting and one sealed client pair.
+ *
+ * This is deliberately stricter than BeforeYouMeetStrip's matter/day list:
+ * it never chooses the first brief and never falls back to another event for
+ * the same matter. A missing event reference, either pair-field changing, a
+ * malformed persisted key, or duplicate exact matches all fail closed.
+ */
+export function selectExactMeetingBrief(
+  briefs: Readonly<Record<string, MeetingBrief>>,
+  target: ExactMeetingBriefTarget | null
+): MeetingBrief | null {
+  if (!target) return null;
+  const eventId = target.eventId.trim();
+  if (!eventId) return null;
+  const { meeting, clientBoundary } = target;
+  if (
+    meeting.householdRef !== clientBoundary.householdRef ||
+    meeting.matterId !== clientBoundary.matterId ||
+    !meeting.references.includes(eventId)
+  ) {
+    return null;
+  }
+
+  const matches = Object.values(briefs).filter(
+    (brief) =>
+      brief.eventId === eventId &&
+      brief.matterId === clientBoundary.matterId &&
+      brief.key === briefKey(brief.day, eventId, clientBoundary.matterId)
+  );
+  return matches.length === 1 ? (matches[0] ?? null) : null;
 }
 
 interface BriefStoreState {
