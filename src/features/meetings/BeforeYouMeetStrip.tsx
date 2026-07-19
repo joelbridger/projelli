@@ -155,7 +155,9 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
       // enqueueBriefs' own internal upsert transitions it through pending
       // -> generating -> ready once the job actually runs.
       useBriefStore.getState().upsert({ ...brief, stale: true });
-      enqueueBriefs([{ matterId, event }]);
+      if (brief.householdRef) {
+        enqueueBriefs([{ householdRef: brief.householdRef, matterId, event }]);
+      }
     }
   }
 

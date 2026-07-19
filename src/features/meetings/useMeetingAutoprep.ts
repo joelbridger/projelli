@@ -29,7 +29,10 @@ export function jobsForEvents(
   const jobs: BriefJob[] = [];
   for (const event of events) {
     for (const matterId of resolveMattersForCalendarEvent(event, map)) {
-      jobs.push({ matterId, event });
+      const matter = matters.find((candidate) => candidate.id === matterId);
+      for (const householdRef of matter?.crmHouseholdKeys ?? []) {
+        jobs.push({ householdRef, matterId, event });
+      }
     }
   }
   return jobs;

@@ -1,7 +1,9 @@
 /* eslint-disable react-refresh/only-export-components -- This compatibility module intentionally exports the registered descriptor for composition proofs. */
+import { useEffect } from 'react';
 import {
   BLESSED_MEETING_PANEL_IDS,
   detectPlatform,
+  enqueueBriefs,
   MeetingPrepPanel,
   registerMeetingPanel,
   useMeetingStore,
@@ -62,6 +64,21 @@ function BoundMeetingPrepPanel({ context }: { context: MeetingPanelContext }) {
         },
       ]
     : [];
+
+  useEffect(() => {
+    const snapshot = context.meta?.calendarEvent;
+    if (!target || !snapshot) return;
+    const event = {
+      ...snapshot,
+      provider: 'ics' as const,
+      organizerEmail: '',
+    };
+    enqueueBriefs([{
+      householdRef: target.clientBoundary.householdRef,
+      matterId: target.clientBoundary.matterId,
+      event,
+    }]);
+  }, [context.meta?.calendarEvent, target]);
 
   return (
     <MeetingPrepPanel

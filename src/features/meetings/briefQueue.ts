@@ -10,6 +10,7 @@ import { generateMeetingBrief } from './generateBrief';
 import { briefKey, localDay, useBriefStore } from './briefStore';
 
 export interface BriefJob {
+  householdRef: string;
   matterId: string;
   event: CalendarEventDto;
 }
@@ -29,17 +30,26 @@ export function enqueueBriefs(jobs: BriefJob[]): void {
   for (const job of jobs) {
     const key = briefKey(day, job.event.id, job.matterId);
     const existing = store.briefs[key];
-    if (existing && existing.status === 'ready' && !existing.stale) continue;
     if (
       existing &&
+      existing.householdRef === job.householdRef &&
+      existing.status === 'ready' &&
+      !existing.stale
+    ) continue;
+    if (
+      existing && existing.householdRef === job.householdRef &&
       (existing.status === 'pending' || existing.status === 'generating')
     )
       continue;
-    if (pending.some((j) => briefKey(day, j.event.id, j.matterId) === key))
+    if (pending.some((j) =>
+      briefKey(day, j.event.id, j.matterId) === key &&
+      j.householdRef === job.householdRef
+    ))
       continue;
     useBriefStore.getState().upsert({
       key,
       eventId: job.event.id,
+      householdRef: job.householdRef,
       matterId: job.matterId,
       day,
       status: 'pending',
@@ -71,6 +81,7 @@ async function pump(): Promise<void> {
         useBriefStore.getState().upsert({
           key,
           eventId: job.event.id,
+          householdRef: job.householdRef,
           matterId: job.matterId,
           day: localDay(),
           status: 'ready',

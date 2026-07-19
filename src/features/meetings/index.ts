@@ -29,6 +29,7 @@ export {
   type ExactMeetingBriefTarget,
   type MeetingBrief,
 } from './briefStore';
+export { enqueueBriefs } from './briefQueue';
 export { TranscriptViewer, renderNoteWithCitations } from './TranscriptViewer';
 export { meetingSourceRef, parseMeetingRef, mmss } from './meetingSources';
 export { meetingNoteFromTranscript } from './meetingNoteTemplate';
