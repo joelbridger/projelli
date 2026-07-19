@@ -62,6 +62,23 @@
         "all": "Alle Berater",
         "mine": "Meine Besprechungen"
       },
+      "filters": {
+        "view": "Ansicht",
+        "type": "Typ",
+        "owner": "Verantwortlich",
+        "need-attention": "Zu prüfen",
+        "all": "Alle",
+        "archived": "Archiviert",
+        "all-types": "Alle Typen",
+        "tasks": "Aufgabenvorschläge",
+        "crm-updates": "CRM-Änderungsvorschläge",
+        "follow-ups": "Nachfassentwürfe",
+        "speaker-confirmations": "Sprecherbestätigungen",
+        "unmatched-attendees": "Nicht zugeordnete Teilnehmer",
+        "all-owners": "Alle Verantwortlichen",
+        "mine": "Meine",
+        "unassigned": "Nicht zugewiesen"
+      },
       "fixture": {
         "list": "Externe Besprechungsansicht",
         "tool": "Externes Besprechungswerkzeug",

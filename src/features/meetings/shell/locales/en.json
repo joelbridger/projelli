@@ -62,6 +62,23 @@
         "all": "All advisors",
         "mine": "My meetings"
       },
+      "filters": {
+        "view": "View",
+        "type": "Type",
+        "owner": "Owner",
+        "need-attention": "Needs attention",
+        "all": "All",
+        "archived": "Archived",
+        "all-types": "All types",
+        "tasks": "Task proposals",
+        "crm-updates": "CRM update proposals",
+        "follow-ups": "Follow-up drafts",
+        "speaker-confirmations": "Speaker confirmations",
+        "unmatched-attendees": "Unmatched attendees",
+        "all-owners": "All owners",
+        "mine": "Mine",
+        "unassigned": "Unassigned"
+      },
       "fixture": {
         "list": "Outside meeting view",
         "tool": "Outside meeting tool",

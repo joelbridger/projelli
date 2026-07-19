@@ -20,6 +20,14 @@ import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlanc
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import {
+  createMeetingReviewInboxReader,
+  DEFAULT_MEETING_REVIEW_INBOX_FILTER,
+  MEETING_REVIEW_INBOX_LOADING,
+  MEETING_REVIEW_INBOX_REQUIREMENTS,
+  type MeetingReviewInboxFilter,
+  type MeetingReviewInboxResult,
+} from '../meetingReviewInbox';
+import {
   appendNoticeEvidence,
   createFirmMeetingDirectoryReader,
   createMeetingPopulationService,
@@ -31,9 +39,7 @@ import {
   type MeetingArtifactKind,
   type MeetingOpenTarget,
   type MeetingProjection,
-  type ReviewNeededMeetingArtifactsReadResult,
 } from '../foundation/contract';
-import { readReviewNeededMeetingArtifacts } from '../reviewArtifacts';
 import { resolveMatterFolder } from '../meetingStore';
 import { AutoJoinMeetingsPanel } from '../AutoJoinMeetingsPanel';
 import { ClientMeetingsTab } from '../ClientMeetingsTab';
@@ -73,18 +79,15 @@ interface DirectoryLoadState {
 
 interface ReviewLoadState {
   readonly key: string;
-  readonly status: 'loading' | 'ready';
-  readonly result: ReviewNeededMeetingArtifactsReadResult | null;
+  readonly result: MeetingReviewInboxResult;
 }
 
-const REVIEW_REQUIREMENTS = [
-  { kind: 'action-update-proposal', minimumSchemaVersion: 1 },
-  { kind: 'follow-up-draft', minimumSchemaVersion: 1 },
-  { kind: 'diarization', minimumSchemaVersion: 1 },
-] as const satisfies readonly {
-  kind: MeetingArtifactKind;
-  minimumSchemaVersion: number;
-}[];
+const REVIEW_CLIENT_REQUIRED: MeetingReviewInboxResult = Object.freeze({
+  kind: 'refused',
+  reason: 'invalid-client-pair',
+  message: 'Choose one client to review meeting actions.',
+  retry: 'not-available',
+});
 
 const ALL_ARTIFACT_KINDS: readonly MeetingArtifactKind[] = [
   'agenda',
@@ -115,6 +118,12 @@ const CLIENT_MEETING_SELECTION_REQUEST = {
   requireFollowerAgreement: true,
 } as const;
 
+const FIRM_MEETING_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: true,
+  requireFollowerAgreement: true,
+} as const;
+
 const LOCAL_PRACTICE_TEMPLATE_OWNER = 'local-practice';
 
 function currentMeetingMatterId(): string | null {
@@ -127,6 +136,13 @@ function currentMeetingMatterId(): string | null {
 function currentMeetingSelectionError(): string | null {
   const decision = readSelectionOperationDecision(
     CLIENT_MEETING_SELECTION_REQUEST
+  );
+  return decision.kind === 'refused' ? decision.message : null;
+}
+
+function currentFirmMeetingSelectionError(): string | null {
+  const decision = readSelectionOperationDecision(
+    FIRM_MEETING_SELECTION_REQUEST
   );
   return decision.kind === 'refused' ? decision.message : null;
 }
@@ -328,6 +344,10 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
   const calendarEnabled = useFlag('calendar-grid');
   const [view, setView] = useState<ShellView>('upcoming');
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
+  const [reviewFilter, setReviewFilter] = useState<MeetingReviewInboxFilter>(
+    DEFAULT_MEETING_REVIEW_INBOX_FILTER
+  );
+  const [reviewRetry, setReviewRetry] = useState(0);
   const [detailTarget, setDetailTarget] = useState<MeetingOpenTarget | null>(null);
   const [templateTarget, setTemplateTarget] = useState<MeetingOpenTarget | null>(null);
   const [navigationNotice, setNavigationNotice] = useState<
@@ -336,9 +356,13 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
   const [now] = useState(() => Date.now());
   const artifactStore = useMeetingArtifactStore();
   const artifactStoreRef = useRef(artifactStore);
+  const activeClientBoundaryRef = useRef(activeClientBoundary);
   useEffect(() => {
     artifactStoreRef.current = artifactStore;
   }, [artifactStore]);
+  useEffect(() => {
+    activeClientBoundaryRef.current = activeClientBoundary;
+  }, [activeClientBoundary]);
 
   const matterKey = matters.map((matter) => matter.id).sort().join('\u0000');
   const grant = useMemo(() => {
@@ -350,28 +374,30 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
     .sort()
     .join('\u0000');
   const selectionKey = `${selection.scope.kind}:${selection.matterId ?? ''}:${selection.followerStatus}`;
+  const activeClientBoundaryKey = activeClientBoundary
+    ? `${activeClientBoundary.householdRef}\u0000${activeClientBoundary.matterId}`
+    : 'no-active-client';
   const directoryKey = `${selectionKey}:${recordRevision}:${grant ? 'granted' : 'refused'}`;
+  const reviewKey = `${directoryKey}:${JSON.stringify(reviewFilter)}:${String(reviewRetry)}`;
   const [directoryState, setDirectoryState] = useState<DirectoryLoadState>({
     key: directoryKey,
     status: 'loading',
     records: [],
   });
   const [reviewState, setReviewState] = useState<ReviewLoadState>({
-    key: directoryKey,
-    status: 'loading',
-    result: null,
+    key: reviewKey,
+    result: MEETING_REVIEW_INBOX_LOADING,
   });
   const activeDirectoryState = directoryState.key === directoryKey
     ? directoryState
     : { key: directoryKey, status: 'loading' as const, records: [] };
-  const activeReviewState = reviewState.key === directoryKey
+  const activeReviewState = reviewState.key === reviewKey
     ? reviewState
-    : { key: directoryKey, status: 'loading' as const, result: null };
+    : { key: reviewKey, result: MEETING_REVIEW_INBOX_LOADING };
   const records = activeDirectoryState.records;
   const loading = activeDirectoryState.status === 'loading';
   const loadError = activeDirectoryState.status === 'error';
   const reviewResult = activeReviewState.result;
-  const reviewLoading = activeReviewState.status === 'loading';
   const port = useMemo(
     () => ({
       records: live.records,
@@ -381,6 +407,7 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
       reloadRecords: live.reloadRecords,
       getActiveMatterId: currentMeetingMatterId,
       getSelectionError: currentMeetingSelectionError,
+      getFirmSelectionError: currentFirmMeetingSelectionError,
     }),
     [live.error, live.records, live.reloadRecords, live.save, live.workspaceRoot]
   );
@@ -425,35 +452,52 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
 
   useEffect(() => {
     let current = true;
-    if (selection.blocked || !grant) {
+    const boundary = activeClientBoundaryRef.current;
+    if (selection.blocked || !grant || !boundary) {
       queueMicrotask(() => {
         if (!current) return;
-        setReviewState({ key: directoryKey, status: 'ready', result: null });
+        setReviewState({
+          key: reviewKey,
+          result: REVIEW_CLIENT_REQUIRED,
+        });
       });
       return () => { current = false; };
     }
-    const reader = readReviewNeededMeetingArtifacts(
-      artifactStoreRef.current,
+    const directory = createFirmMeetingDirectoryReader(portRef.current, grant);
+    const reviews = artifactStoreRef.current.reviewNeededForFirm(
       grant,
-      REVIEW_REQUIREMENTS
+      MEETING_REVIEW_INBOX_REQUIREMENTS
     );
-    void reader.list().then((next) => {
-      if (!current) return;
-      setReviewState({ key: directoryKey, status: 'ready', result: next });
-    }).catch(() => {
-      if (!current) return;
-      setReviewState({
-        key: directoryKey,
-        status: 'ready',
-        result: {
-          kind: 'refused',
-          reason: 'records-unavailable',
-          message: 'Meeting review records are unavailable.',
-        },
-      });
+    const reader = createMeetingReviewInboxReader({
+      directory,
+      reviews,
+      getMeetingFacts: () => [],
     });
+    void reader
+      .readForClient(boundary, reviewFilter)
+      .then((next) => {
+        if (!current) return;
+        setReviewState({ key: reviewKey, result: next });
+      })
+      .catch(() => {
+        if (!current) return;
+        setReviewState({
+          key: reviewKey,
+          result: {
+            kind: 'error',
+            message: 'Meeting review records could not be loaded.',
+            retry: 'available',
+          },
+        });
+      });
     return () => { current = false; };
-  }, [directoryKey, grant, selection.blocked]);
+  }, [
+    activeClientBoundaryKey,
+    grant,
+    reviewFilter,
+    reviewKey,
+    selection.blocked,
+  ]);
 
   const scopedMeetings = useMemo(
     () => activeClientBoundary
@@ -470,22 +514,9 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
       : [],
     [activeClientBoundary, ownerFilter, records]
   );
-  const scopedReviewResult = useMemo<ReviewNeededMeetingArtifactsReadResult | null>(() => {
-    if (!reviewResult || reviewResult.kind === 'refused' || !activeClientBoundary) {
-      return reviewResult;
-    }
-    return {
-      kind: 'ready',
-      artifacts: reviewResult.artifacts.filter(
-        (artifact) =>
-          artifact.matterId === activeClientBoundary.matterId &&
-          artifact.householdRef === activeClientBoundary.householdRef
-      ),
-    };
-  }, [activeClientBoundary, reviewResult]);
   const reviewMeetingCount =
-    scopedReviewResult?.kind === 'ready'
-      ? new Set(scopedReviewResult.artifacts.map((artifact) => artifact.meetingId)).size
+    reviewResult.kind === 'ready-empty' || reviewResult.kind === 'ready-populated'
+      ? reviewResult.badgeMeetingCount
       : 0;
 
   const safeDetailTarget =
@@ -550,10 +581,13 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
   const listContext: MeetingListContext = {
     client: activeClientBoundary,
     meetings: scopedMeetings,
-    reviewResult: scopedReviewResult,
-    reviewLoading,
+    reviewResult,
+    reviewFilter,
+    currentMemberId,
     now,
     openMeeting,
+    setReviewFilter,
+    retryReview: () => { setReviewRetry((value) => value + 1); },
   };
   const listDescriptors = useMeetingListComposition(listContext);
   const toolContext: MeetingListToolContext = {

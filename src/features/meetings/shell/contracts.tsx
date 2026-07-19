@@ -4,6 +4,14 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  DEFAULT_MEETING_REVIEW_INBOX_FILTER,
+  MEETING_REVIEW_INBOX_LOADING,
+  type MeetingReviewInboxFilter,
+  type MeetingReviewInboxItemKind,
+  type MeetingReviewInboxResult,
+  type MeetingReviewInboxView,
+} from '../meetingReviewInbox';
 import type {
   ClientBoundary,
   MeetingArtifact,
@@ -12,7 +20,6 @@ import type {
   MeetingProjection,
   MeetingRef,
   NoticeEvidenceInput,
-  ReviewNeededMeetingArtifactsReadResult,
 } from '../foundation/contract';
 
 interface BaseDescriptor<Context> {
@@ -119,10 +126,13 @@ function useRegistryVersion<Descriptor extends BaseDescriptor<Context>, Context>
 export interface MeetingListContext {
   readonly client: ClientBoundary | null;
   readonly meetings: readonly MeetingProjection[];
-  readonly reviewResult: ReviewNeededMeetingArtifactsReadResult | null;
-  readonly reviewLoading: boolean;
+  readonly reviewResult: MeetingReviewInboxResult;
+  readonly reviewFilter: MeetingReviewInboxFilter;
+  readonly currentMemberId: string | null;
   readonly now: number;
   openMeeting: (ref: MeetingRef) => Promise<void>;
+  setReviewFilter: (filter: MeetingReviewInboxFilter) => void;
+  retryReview: () => void;
 }
 
 export interface MeetingListDescriptor
@@ -221,36 +231,137 @@ function MeetingsRows({
 
 function ActionsView({ context }: { context: MeetingListContext }) {
   const { t } = useTranslation();
-  if (context.reviewLoading) {
+  const readyResult =
+    context.reviewResult.kind === 'ready-empty' ||
+    context.reviewResult.kind === 'ready-populated'
+      ? context.reviewResult
+      : null;
+  const filter = readyResult?.filter ?? context.reviewFilter;
+  const setView = (view: MeetingReviewInboxView) => {
+    context.setReviewFilter({ ...filter, view });
+  };
+  const setType = (type: MeetingReviewInboxItemKind | 'all') => {
+    context.setReviewFilter({ ...filter, type });
+  };
+  const setOwner = (value: 'all' | 'mine' | 'unassigned') => {
+    context.setReviewFilter({
+      ...filter,
+      owner:
+        value === 'unassigned'
+          ? { kind: 'unassigned' }
+          : value === 'mine' && context.currentMemberId
+            ? { kind: 'owner', ownerRef: context.currentMemberId }
+            : { kind: 'all' },
+    });
+  };
+  const ownerValue =
+    filter.owner.kind === 'unassigned'
+      ? 'unassigned'
+      : filter.owner.kind === 'owner' &&
+          filter.owner.ownerRef === context.currentMemberId
+        ? 'mine'
+        : 'all';
+  const filters = (
+    <div className="meetings-shell-toolbar" data-testid="meetings-actions-filters">
+      <label>
+        <span>{t('meetings.shell.filters.view')}</span>
+        <select
+          data-testid="meetings-actions-view-filter"
+          value={filter.view}
+          onChange={(event) => { setView(event.target.value as MeetingReviewInboxView); }}
+        >
+          <option value="need-attention">{t('meetings.shell.filters.need-attention')}</option>
+          <option value="all">{t('meetings.shell.filters.all')}</option>
+          <option value="archived">{t('meetings.shell.filters.archived')}</option>
+        </select>
+      </label>
+      <label>
+        <span>{t('meetings.shell.filters.type')}</span>
+        <select
+          data-testid="meetings-actions-type-filter"
+          value={filter.type}
+          onChange={(event) => { setType(event.target.value as MeetingReviewInboxItemKind | 'all'); }}
+        >
+          <option value="all">{t('meetings.shell.filters.all-types')}</option>
+          <option value="task-proposal">{t('meetings.shell.filters.tasks')}</option>
+          <option value="crm-update-proposal">{t('meetings.shell.filters.crm-updates')}</option>
+          <option value="follow-up-draft">{t('meetings.shell.filters.follow-ups')}</option>
+          <option value="speaker-confirmation">{t('meetings.shell.filters.speaker-confirmations')}</option>
+          <option value="unmatched-attendee">{t('meetings.shell.filters.unmatched-attendees')}</option>
+        </select>
+      </label>
+      <label>
+        <span>{t('meetings.shell.filters.owner')}</span>
+        <select
+          data-testid="meetings-actions-owner-filter"
+          value={ownerValue}
+          onChange={(event) => { setOwner(event.target.value as 'all' | 'mine' | 'unassigned'); }}
+        >
+          <option value="all">{t('meetings.shell.filters.all-owners')}</option>
+          {context.currentMemberId ? (
+            <option value="mine">{t('meetings.shell.filters.mine')}</option>
+          ) : null}
+          <option value="unassigned">{t('meetings.shell.filters.unassigned')}</option>
+        </select>
+      </label>
+    </div>
+  );
+
+  if (context.reviewResult.kind === 'loading') {
     return (
-      <div className="meetings-shell-local-state" data-testid="meetings-actions-loading">
-        {t('meetings.shell.loading.actions')}
-      </div>
+      <>
+        {filters}
+        <div className="meetings-shell-local-state" data-testid="meetings-actions-loading">
+          {t('meetings.shell.loading.actions')}
+        </div>
+      </>
     );
   }
-  if (context.reviewResult?.kind === 'refused') {
+  if (
+    context.reviewResult.kind === 'refused' ||
+    context.reviewResult.kind === 'error'
+  ) {
     return (
-      <div className="meetings-shell-error" role="alert" data-testid="meetings-actions-error">
-        {t('meetings.shell.errors.actions')}
-      </div>
+      <>
+        {filters}
+        <div className="meetings-shell-error" role="alert" data-testid="meetings-actions-error">
+          <span>{context.reviewResult.message}</span>
+          {context.reviewResult.retry === 'available' ? (
+            <button
+              type="button"
+              className="kp-btn kp-btn--secondary kp-btn--sm"
+              data-testid="meetings-actions-retry"
+              onClick={context.retryReview}
+            >
+              {t('meetings.shell.actions.retry')}
+            </button>
+          ) : null}
+        </div>
+      </>
     );
   }
-  const artifacts = context.reviewResult?.artifacts ?? [];
-  if (artifacts.length === 0) {
+  if (context.reviewResult.kind === 'ready-empty') {
     return (
-      <div className="meetings-shell-empty" data-testid="meetings-actions-empty">
-        {t('meetings.shell.empty.actions')}
-      </div>
+      <>
+        {filters}
+        <div className="meetings-shell-empty" data-testid="meetings-actions-empty">
+          {context.reviewResult.emptyCopy}
+        </div>
+      </>
     );
   }
-  const artifactLabels: Record<string, string> = {
-    'action-update-proposal': 'meetings.shell.artifact.action-update-proposal',
+  const itemLabels: Record<MeetingReviewInboxItemKind, string> = {
+    'task-proposal': 'meetings.shell.filters.tasks',
+    'crm-update-proposal': 'meetings.shell.filters.crm-updates',
     'follow-up-draft': 'meetings.shell.artifact.follow-up-draft',
-    diarization: 'meetings.shell.artifact.diarization',
+    'speaker-confirmation': 'meetings.shell.filters.speaker-confirmations',
+    'unmatched-attendee': 'meetings.shell.filters.unmatched-attendees',
   };
   return (
-    <div className="meetings-shell-table-wrap" data-testid="meetings-actions-rows">
-      <table className="meetings-shell-table">
+    <>
+      {filters}
+      <div className="meetings-shell-table-wrap" data-testid="meetings-actions-rows">
+        <table className="meetings-shell-table">
         <thead>
           <tr>
             <th>{t('meetings.shell.columns.action')}</th>
@@ -261,19 +372,19 @@ function ActionsView({ context }: { context: MeetingListContext }) {
           </tr>
         </thead>
         <tbody>
-          {artifacts.map((artifact) => (
-            <tr key={artifact.id} data-testid={`meetings-action-${artifact.id}`}>
-              <td><strong>{t(artifactLabels[artifact.kind] ?? 'meetings.shell.artifact.action-update-proposal')}</strong></td>
-              <td>{artifact.meetingId}</td>
-              <td>{artifact.householdRef}</td>
+          {context.reviewResult.items.map((item) => (
+            <tr key={item.id} data-testid={`meetings-action-${item.id}`}>
+              <td><strong>{t(itemLabels[item.kind])}</strong></td>
+              <td>{item.meetingLabel}</td>
+              <td>{item.clientLabel}</td>
               <td><span className="meetings-shell-status is-review">{t('meetings.shell.status.needs-review')}</span></td>
               <td>
                 <button
                   type="button"
                   className="kp-btn kp-btn--primary kp-btn--sm"
-                  data-testid={`meetings-review-${artifact.id}`}
+                  data-testid={`meetings-review-${item.id}`}
                   onClick={() => {
-                    void context.openMeeting(artifact.meetingId).catch((error: unknown) => {
+                    void context.openMeeting(item.meetingId).catch((error: unknown) => {
                       console.error('[Meetings] Could not open review item.', error);
                     });
                   }}
@@ -284,8 +395,9 @@ function ActionsView({ context }: { context: MeetingListContext }) {
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -330,10 +442,13 @@ const baseMeetingListDescriptors: readonly MeetingListDescriptor[] = [
 const emptyListContext: MeetingListContext = {
   client: null,
   meetings: [],
-  reviewResult: { kind: 'ready', artifacts: [] },
-  reviewLoading: false,
+  reviewResult: MEETING_REVIEW_INBOX_LOADING,
+  reviewFilter: DEFAULT_MEETING_REVIEW_INBOX_FILTER,
+  currentMemberId: null,
   now: 0,
   openMeeting: () => Promise.resolve(),
+  setReviewFilter: () => undefined,
+  retryReview: () => undefined,
 };
 
 const listStore = createLiveRegistry<MeetingListDescriptor, MeetingListContext>(

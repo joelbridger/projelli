@@ -62,6 +62,23 @@
         "all": "Todos los asesores",
         "mine": "Mis reuniones"
       },
+      "filters": {
+        "view": "Vista",
+        "type": "Tipo",
+        "owner": "Responsable",
+        "need-attention": "Necesita atención",
+        "all": "Todo",
+        "archived": "Archivado",
+        "all-types": "Todos los tipos",
+        "tasks": "Propuestas de tareas",
+        "crm-updates": "Propuestas de actualización del CRM",
+        "follow-ups": "Borradores de seguimiento",
+        "speaker-confirmations": "Confirmaciones de hablantes",
+        "unmatched-attendees": "Asistentes sin identificar",
+        "all-owners": "Todos los responsables",
+        "mine": "Míos",
+        "unassigned": "Sin asignar"
+      },
       "fixture": {
         "list": "Vista externa de reuniones",
         "tool": "Herramienta externa de reuniones",

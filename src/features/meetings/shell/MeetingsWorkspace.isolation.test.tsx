@@ -275,6 +275,40 @@ function meeting(
   };
 }
 
+function taskReviewArtifact(
+  id: string,
+  meetingId: string,
+  matterId: string,
+  householdRef: string
+): LiveCrmRecord {
+  return {
+    id,
+    kind: 'meeting_artifact',
+    matterId,
+    householdRef,
+    createdAt: '2026-07-18T10:00:00.000Z',
+    updatedAt: '2026-07-18T10:00:00.000Z',
+    meetingId,
+    artifactKind: 'action-update-proposal',
+    schemaVersion: 2,
+    producedAt: '2026-07-18T10:00:00.000Z',
+    artifactState: 'produced',
+    sourceRefs: [],
+    provenance: 'local-processing',
+    payload: {
+      proposal: {
+        id: `${id}-proposal`,
+        kind: 'task',
+        title: 'Review beneficiary follow-up',
+        detail: 'Confirm the follow-up task from this meeting.',
+        ownerRef: null,
+        dueDate: null,
+        transcriptRef: `transcript:${meetingId}`,
+      },
+    },
+  };
+}
+
 describe('Meetings cross-client isolation in the mounted shell', () => {
   let service: WorkspaceService;
   const runtime = {
@@ -333,6 +367,18 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
         linkedAt: '2026-07-18T00:00:00.000Z',
       }),
       meeting('meeting-folder-only', 'matter-b', 'household-b'),
+      taskReviewArtifact(
+        'artifact-a',
+        'meeting-a',
+        'matter-a',
+        'household-a'
+      ),
+      taskReviewArtifact(
+        'artifact-b',
+        'meeting-b',
+        'matter-b',
+        'household-b'
+      ),
     ];
   });
 
@@ -368,7 +414,12 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     fireEvent.click(screen.getByTestId('meetings-view-past'));
     expect(await screen.findByTestId('meetings-past-empty')).toBeTruthy();
     fireEvent.click(screen.getByTestId('meetings-view-actions'));
-    expect(await screen.findByTestId('meetings-actions-empty')).toBeTruthy();
+    expect(await screen.findByTestId('meetings-action-artifact-b')).toBeTruthy();
+    expect(screen.queryByTestId('meetings-action-artifact-a')).toBeNull();
+    expect(screen.getByTestId('meetings-actions-badge')).toHaveTextContent('1');
+    expect(screen.getByTestId('meetings-actions-view-filter')).toHaveValue(
+      'need-attention'
+    );
     fireEvent.click(screen.getByTestId('meetings-view-upcoming'));
     fireEvent.click(screen.getByTestId('meetings-owner-all'));
 
