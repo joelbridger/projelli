@@ -1,66 +1,31 @@
 import '@/i18n';
-import { useState } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { FSBackend, FileStat } from '@/platform/fs/types';
 import { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import {
-  OutsideMeetingsShellContributions,
-} from '@/foundation-contracts/meetings-shell/meetingsShellV2.import';
-import '@/app/shell/meetingPrepCompatibility';
-import { registerMeetingNotesReviewCompatibilityPanels } from '@/app/meetingNotesReviewBindings';
+  issueSharedClientSelection,
+  replaceCanonicalHouseholdDirectory,
+  requestClearClientSelection,
+  requestSharedClientSelection,
+} from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags/router';
 
-const seam = vi.hoisted(() => ({
+const nativeRecords = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
-  selected: true,
+  invoke: vi.fn<
+    (command: string, args?: Record<string, unknown>) => Promise<unknown>
+  >(),
 }));
 
-vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
-  useLiveCrmRecords: () => ({
-    records: seam.records,
-    workspaceRoot: '/workspace',
-    error: null,
-    save: vi.fn(),
-    reload: vi.fn(() => Promise.resolve()),
-    reloadRecords: vi.fn(() => Promise.resolve(seam.records)),
-    sharedMatterId: null,
-    sharedLocalMatterId: null,
-    freshness: { kind: 'idle' },
-    publishSavedRecord: vi.fn(),
-  }),
-}));
-
-vi.mock('@/platform/client-context', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/platform/client-context')>()),
-  useSelectionOperationDecision: () =>
-    seam.selected
-      ? {
-          kind: 'matter',
-          sourceKind: 'matter',
-          matter: { id: 'matter-1' },
-          client: {
-            provider: 'wealthbox',
-            householdId: 'household-1',
-            displayName: 'Household One',
-          },
-        }
-      : { kind: 'refused', reason: 'blocked-unresolved', message: 'Blocked.' },
-  readSelectionOperationDecision: () =>
-    seam.selected
-      ? {
-          kind: 'matter',
-          sourceKind: 'matter',
-          matter: { id: 'matter-1' },
-          client: {
-            provider: 'wealthbox',
-            householdId: 'household-1',
-            displayName: 'Household One',
-          },
-        }
-      : { kind: 'refused', reason: 'blocked-unresolved', message: 'Blocked.' },
+vi.mock('@tauri-apps/api/core', () => ({
+  isTauri: () => true,
+  invoke: (command: string, args?: Record<string, unknown>) =>
+    nativeRecords.invoke(command, args),
 }));
 
 import {
@@ -70,9 +35,13 @@ import {
 } from '../foundation/contract';
 import { MeetingsDetailHost } from './MeetingsWorkspace';
 
-registerMeetingNotesReviewCompatibilityPanels();
-
 const MEETING_DIR = 'Clients/Household One/Meetings/2026-07-20';
+const CLIENT = {
+  provider: 'wealthbox' as const,
+  householdId: 'household-1',
+  displayName: 'Household One',
+};
+let records: LiveCrmRecord[] = [];
 
 class DetailHostBackend implements FSBackend {
   private rootPath = '/workspace';
@@ -190,34 +159,38 @@ function DetailHarness({
   target: Awaited<ReturnType<typeof resolveMeetingOpenTarget>>;
   service: WorkspaceService;
 }) {
-  const [withContributions, setWithContributions] = useState(true);
   return (
-    <>
-      <button
-        type="button"
-        data-testid="detail-contributions-toggle"
-        onClick={() => { setWithContributions((current) => !current); }}
-      />
-      {withContributions ? <OutsideMeetingsShellContributions /> : null}
-      <MeetingsDetailHost
-        target={target}
-        runtime={{
-          workspace: {
-            rootPath: '/workspace',
-            serviceRef: { current: service },
-          },
-        }}
-        onBack={vi.fn()}
-      />
-    </>
+    <MeetingsDetailHost
+      target={target}
+      runtime={{
+        workspace: {
+          rootPath: '/workspace',
+          serviceRef: { current: service },
+        },
+      }}
+      onBack={vi.fn()}
+    />
   );
 }
 
-describe('Meetings sealed detail contribution hosts', () => {
+describe('Meetings sealed detail host', () => {
   let service: WorkspaceService;
 
   beforeEach(async () => {
-    seam.selected = true;
+    localStorage.clear();
+    nativeRecords.invoke.mockReset();
+    nativeRecords.invoke.mockImplementation((command) => {
+      if (command === 'crm_set_workspace') return Promise.resolve(null);
+      if (command === 'crm_live_list') {
+        return Promise.resolve(structuredClone(nativeRecords.records));
+      }
+      return Promise.reject(new Error(`Unexpected command ${command}`));
+    });
+    useWorkspaceStore.setState({ rootPath: '/workspace' });
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', true);
     service = new WorkspaceService();
     await service.initialize(new DetailHostBackend(), '/workspace');
     setActiveWorkspaceService(service);
@@ -234,7 +207,11 @@ describe('Meetings sealed detail contribution hosts', () => {
       ],
       activeMatterId: 'matter-1',
     });
-    seam.records = [
+    replaceCanonicalHouseholdDirectory('wealthbox', [CLIENT]);
+    await expect(
+      requestSharedClientSelection(issueSharedClientSelection(CLIENT))
+    ).resolves.toMatchObject({ kind: 'selected' });
+    records = [
       {
         id: 'meeting-a',
         kind: 'meeting',
@@ -256,23 +233,30 @@ describe('Meetings sealed detail contribution hosts', () => {
         updatedAt: '2026-07-18T00:00:00.000Z',
       },
     ];
+    nativeRecords.records = records;
   });
 
   afterEach(() => {
     cleanup();
     setActiveWorkspaceService(null);
+    setDevFlagOverride('selection-authority-boot-gate', false);
     useMatterStore.setState({ matters: [], activeMatterId: null });
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    requestClearClientSelection();
+    useWorkspaceStore.setState({ rootPath: null });
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
+    localStorage.clear();
   });
 
-  it('renders and removes outside artifact and notice contributions in the real sealed detail host', async () => {
+  it('renders the real detail panels from a genuine sealed client target', async () => {
     const port = {
-      records: seam.records,
+      records,
       workspaceRoot: '/workspace',
       error: null,
       getActiveClientBoundary: readActiveMeetingClientBoundary,
       getSelectionError: () => null,
       save: (record: LiveCrmRecord) => Promise.resolve(record),
-      reloadRecords: () => Promise.resolve(seam.records),
+      reloadRecords: () => Promise.resolve(records),
     };
     const target = await resolveMeetingOpenTarget(
       createMeetingStore(port),
@@ -283,56 +267,32 @@ describe('Meetings sealed detail contribution hosts', () => {
     render(<DetailHarness target={target} service={service} />);
 
     expect(await screen.findByTestId('meetings-linked-detail')).toBeTruthy();
-    expect(await screen.findByTestId('outside-meeting-artifact-host')).toHaveAttribute(
-      'data-meeting-id',
-      'meeting-a'
-    );
-    expect(await screen.findByTestId('outside-meeting-notice-host')).toHaveAttribute(
-      'data-meeting-id',
-      'meeting-a'
-    );
 
-    const tabProof = [
-      ['prep', 'meeting-prep-empty'],
-      ['agenda', 'meeting-agenda-empty'],
-      ['summary', 'meeting-summary-tab'],
-      ['transcript', 'meeting-transcript-tab'],
-      ['tasks', 'notes-review-task-empty'],
-      ['crm-update', 'notes-review-crm-update-empty'],
-      ['follow-up', 'meeting-follow-up-not-produced'],
-    ] as const;
-    for (const [tab, panel] of tabProof) {
-      fireEvent.click(await screen.findByTestId(`meeting-subtab-${tab}`));
-      expect(await screen.findByTestId(panel)).toBeTruthy();
+    expect(await screen.findByTestId('meeting-summary-tab')).toBeTruthy();
+    for (const tab of ['summary', 'transcript']) {
+      expect(screen.getByTestId(`meeting-subtab-${tab}`)).toBeTruthy();
     }
-    fireEvent.click(screen.getByTestId('detail-contributions-toggle'));
-    await waitFor(() => {
-      expect(screen.queryByTestId('outside-meeting-artifact-host')).toBeNull();
-      expect(screen.queryByTestId('outside-meeting-notice-host')).toBeNull();
-    });
   });
 
-  it('mounts no detail or extension host after live client authority disappears', async () => {
+  it('mounts no detail after live client authority disappears', async () => {
     const port = {
-      records: seam.records,
+      records,
       workspaceRoot: '/workspace',
       error: null,
       getActiveClientBoundary: readActiveMeetingClientBoundary,
       getSelectionError: () => null,
       save: (record: LiveCrmRecord) => Promise.resolve(record),
-      reloadRecords: () => Promise.resolve(seam.records),
+      reloadRecords: () => Promise.resolve(records),
     };
     const target = await resolveMeetingOpenTarget(
       createMeetingStore(port),
       'meeting-a',
       readActiveMeetingClientBoundary
     );
-    seam.selected = false;
+    useMatterStore.setState({ matters: [], activeMatterId: null });
 
     render(<DetailHarness target={target} service={service} />);
 
     expect(screen.queryByTestId('meetings-linked-detail')).toBeNull();
-    expect(screen.queryByTestId('outside-meeting-artifact-host')).toBeNull();
-    expect(screen.queryByTestId('outside-meeting-notice-host')).toBeNull();
   });
 });

@@ -1,5 +1,4 @@
 import '@/i18n';
-import { useSyncExternalStore } from 'react';
 import {
   act,
   cleanup,
@@ -15,124 +14,18 @@ import { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
-type Presentation = {
-  scope: { kind: 'matter'; matterId: string } | { kind: 'blocked-unresolved' };
-  sourceScope: { kind: 'matter'; matterId: string } | { kind: 'blocked-unresolved' };
-  followerStatus: 'converged';
-  matterId: string | null;
-  blocked: boolean;
-  allMatters: false;
-  stale: false;
-  authorityEnabled: true;
-};
-
-const seam = vi.hoisted(() => {
-  const listeners = new Set<() => void>();
-  const matterPresentation = (matterId: string): Presentation => ({
-    scope: { kind: 'matter', matterId },
-    sourceScope: { kind: 'matter', matterId },
-    followerStatus: 'converged',
-    matterId,
-    blocked: false,
-    allMatters: false,
-    stale: false,
-    authorityEnabled: true,
-  });
-  return {
-    records: [] as LiveCrmRecord[],
-    resolve: vi.fn(),
-    client: {
-      householdId: 'household-b',
-      displayName: 'Client B',
-    } as { householdId: string; displayName: string } | null,
-    presentation: matterPresentation('matter-b'),
-    subscribe(listener: () => void) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    setMatter(matterId: string, householdId: string, displayName: string) {
-      this.client = { householdId, displayName };
-      this.presentation = matterPresentation(matterId);
-      listeners.forEach((listener) => { listener(); });
-    },
-    setBlocked() {
-      this.client = null;
-      this.presentation = {
-        scope: { kind: 'blocked-unresolved' },
-        sourceScope: { kind: 'blocked-unresolved' },
-        followerStatus: 'converged',
-        matterId: null,
-        blocked: true,
-        allMatters: false,
-        stale: false,
-        authorityEnabled: true,
-      };
-      listeners.forEach((listener) => { listener(); });
-    },
-  };
-});
-
-vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
-  useLiveCrmRecords: () => ({
-    records: seam.records,
-    workspaceRoot: '/workspace',
-    error: null,
-    save: vi.fn(),
-    reload: vi.fn(() => Promise.resolve()),
-    reloadRecords: vi.fn(() => Promise.resolve(seam.records)),
-    sharedMatterId: null,
-    sharedLocalMatterId: null,
-    freshness: { kind: 'idle' },
-    publishSavedRecord: vi.fn(),
-  }),
+const nativeRecords = vi.hoisted(() => ({
+  records: [] as LiveCrmRecord[],
+  commands: [] as string[],
+  invoke: vi.fn<
+    (command: string, args?: Record<string, unknown>) => Promise<unknown>
+  >(),
 }));
 
-vi.mock('@/platform/flags', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/platform/flags')>()),
-  useFlag: (id: string) => id === 'calendar-grid',
-}));
-
-vi.mock('@/platform/client-context', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/platform/client-context')>()),
-  useSelectionPresentation: () =>
-    useSyncExternalStore(
-      (listener) => seam.subscribe(listener),
-      () => seam.presentation
-    ),
-  useClientContextStore: <T,>(
-    selector: (state: { client: typeof seam.client }) => T
-  ) =>
-    useSyncExternalStore(
-      (listener) => seam.subscribe(listener),
-      () => selector({ client: seam.client })
-    ),
-  useSelectionOperationDecision: () =>
-    seam.presentation.blocked
-      ? { kind: 'refused', reason: 'blocked-unresolved', message: 'Blocked.' }
-      : {
-          kind: 'matter',
-          sourceKind: 'matter',
-          matter: { id: seam.presentation.matterId },
-          client: seam.client,
-        },
-  readSelectionOperationDecision: () =>
-    seam.presentation.blocked
-      ? { kind: 'refused', reason: 'blocked-unresolved', message: 'Blocked.' }
-      : {
-          kind: 'matter',
-          sourceKind: 'matter',
-          matter: { id: seam.presentation.matterId },
-          client: seam.client,
-        },
-  requestSharedClientSelection: () => {
-    seam.setMatter('matter-a', 'household-a', 'Client A');
-    return Promise.resolve({ kind: 'selected', client: seam.client });
-  },
-}));
-
-vi.mock('../foundation/contract', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../foundation/contract')>()),
-  resolveMeetingNavigation: seam.resolve,
+vi.mock('@tauri-apps/api/core', () => ({
+  isTauri: () => true,
+  invoke: (command: string, args?: Record<string, unknown>) =>
+    nativeRecords.invoke(command, args),
 }));
 
 import {
@@ -140,10 +33,34 @@ import {
   readActiveMeetingClientBoundary,
   resolveMeetingOpenTarget,
 } from '../foundation/contract';
-import { MeetingsWorkspace } from './MeetingsWorkspace';
+import {
+  issueSharedClientSelection,
+  replaceCanonicalHouseholdDirectory,
+  requestClearClientSelection,
+  requestSharedClientSelection,
+} from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags/router';
+import { isEnabled } from '@/platform/flags';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { meetingsSurface } from './appSurface';
 import { resolveMeetingsSurfaceNavigation } from './navigation';
 
 const MEETING_A_DIR = 'Clients/Client A/Meetings/2026-07-20';
+const CLIENT_A = {
+  provider: 'wealthbox' as const,
+  householdId: 'household-a',
+  displayName: 'Client A',
+};
+const CLIENT_B = {
+  provider: 'wealthbox' as const,
+  householdId: 'household-b',
+  displayName: 'Client B',
+};
+
+async function selectClient(client: typeof CLIENT_A | typeof CLIENT_B) {
+  return requestSharedClientSelection(issueSharedClientSelection(client));
+}
 
 class IsolationBackend implements FSBackend {
   private rootPath = '/workspace';
@@ -332,14 +249,44 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
   };
 
   beforeEach(async () => {
+    localStorage.clear();
+    nativeRecords.commands = [];
+    nativeRecords.invoke.mockReset();
+    nativeRecords.invoke.mockImplementation((command) => {
+      nativeRecords.commands.push(command);
+      if (command === 'crm_set_workspace') return Promise.resolve(null);
+      if (command === 'crm_live_list') {
+        return Promise.resolve(structuredClone(nativeRecords.records));
+      }
+      return Promise.reject(new Error(`Unexpected command ${command}`));
+    });
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    setDevFlagOverride('calendar-grid', true);
+    setDevFlagOverride('meetings-shell-v1', true);
+    useFirmStore.setState({
+      session: {
+        userId: 'advisor-1',
+        email: 'advisor@example.com',
+        role: 'member',
+        org: null,
+        seatId: 'seat-1',
+        tier: 'practice',
+        packs: [],
+        seats: 1,
+        lastValidatedAt: null,
+        activated: true,
+      },
+    });
+    useWorkspaceStore.setState({ rootPath: '/workspace' });
     service = new WorkspaceService();
     await service.initialize(new IsolationBackend(), '/workspace');
     setActiveWorkspaceService(service);
     runtime.workspace.serviceRef.current = service;
     runtime.navigation.setSurface.mockReset();
     runtime.navigation.pushSnapshot.mockReset();
-    seam.resolve.mockReset();
-    seam.setMatter('matter-b', 'household-b', 'Client B');
     useMatterStore.setState({
       matters: [
         {
@@ -361,7 +308,11 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
       ],
       activeMatterId: 'matter-b',
     });
-    seam.records = [
+    replaceCanonicalHouseholdDirectory('wealthbox', [CLIENT_A, CLIENT_B]);
+    await expect(selectClient(CLIENT_B)).resolves.toMatchObject({
+      kind: 'selected',
+    });
+    nativeRecords.records = [
       meeting('meeting-a', 'matter-a', 'household-a', {
         meetingDir: MEETING_A_DIR,
         linkedAt: '2026-07-18T00:00:00.000Z',
@@ -389,19 +340,27 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
   afterEach(() => {
     cleanup();
     setActiveWorkspaceService(null);
+    setDevFlagOverride('selection-authority-boot-gate', false);
     useMatterStore.setState({ matters: [], activeMatterId: null });
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    requestClearClientSelection();
+    useFirmStore.setState({ session: null });
+    useWorkspaceStore.setState({ rootPath: null });
+    setDevFlagOverride('calendar-grid', undefined);
+    setDevFlagOverride('meetings-shell-v1', undefined);
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
+    localStorage.clear();
   });
 
   it('selects A before opening, then removes every A detail and row under B and blocked-none', async () => {
     const port = {
-      records: seam.records,
+      records: nativeRecords.records,
       workspaceRoot: '/workspace',
       error: null,
       getActiveClientBoundary: readActiveMeetingClientBoundary,
-      getSelectionError: () =>
-        seam.presentation.blocked ? 'Selection is blocked.' : null,
+      getSelectionError: () => null,
       save: (record: LiveCrmRecord) => Promise.resolve(record),
-      reloadRecords: () => Promise.resolve(seam.records),
+      reloadRecords: () => Promise.resolve(nativeRecords.records),
     };
     await expect(
       resolveMeetingOpenTarget(
@@ -411,9 +370,12 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
       )
     ).rejects.toThrow('unavailable to the active client');
 
-    render(<MeetingsWorkspace runtime={runtime} />);
+    expect(meetingsSurface.availabilityFlag).toBe('meetings-shell-v1');
+    expect(isEnabled('meetings-shell-v1')).toBe(true);
+    render(meetingsSurface.render(runtime));
 
     expect(await screen.findByTestId('meetings-row-meeting-b')).toBeTruthy();
+    expect(screen.getByTestId('meetings-owner-mine')).not.toBeDisabled();
     expect(screen.queryByTestId('meetings-row-meeting-a')).toBeNull();
     expect(
       screen.queryByTestId('meetings-open-meeting-folder-only')
@@ -436,10 +398,6 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     fireEvent.click(screen.getByTestId('meetings-view-upcoming'));
     fireEvent.click(screen.getByTestId('meetings-owner-all'));
 
-    seam.resolve.mockResolvedValue({
-      kind: 'linked',
-      clientBoundary: { sealed: true },
-    });
     await act(async () => {
       await resolveMeetingsSurfaceNavigation('meeting-a', runtime);
     });
@@ -460,8 +418,8 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     });
     expect(await screen.findByTestId('meetings-linked-detail')).toBeTruthy();
 
-    act(() => {
-      seam.setMatter('matter-b', 'household-b', 'Client B');
+    await act(async () => {
+      await selectClient(CLIENT_B);
     });
     await waitFor(() => {
       expect(screen.queryByTestId('meetings-linked-detail')).toBeNull();
@@ -470,7 +428,7 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     });
 
     act(() => {
-      seam.setBlocked();
+      useMatterStore.setState({ matters: [], activeMatterId: null });
     });
     await waitFor(() => {
       expect(screen.getByTestId('meetings-selection-blocked')).toBeTruthy();
@@ -478,5 +436,6 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
       expect(screen.queryByTestId('meetings-row-meeting-a')).toBeNull();
       expect(screen.queryByTestId('meetings-row-meeting-b')).toBeNull();
     });
+    expect(nativeRecords.commands).toContain('crm_live_list');
   });
 });

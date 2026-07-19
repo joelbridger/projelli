@@ -28,7 +28,6 @@ import {
   type MeetingReviewInboxResult,
 } from '../meetingReviewInbox';
 import {
-  appendNoticeEvidence,
   createFirmMeetingDirectoryReader,
   createMeetingArtifactStore,
   createMeetingPopulationService,
@@ -36,9 +35,6 @@ import {
   projectMeetingList,
   readActiveMeetingClientBoundary,
   useActiveMeetingClientBoundary,
-  useMeetingArtifactStore,
-  useMeetingFoundationStore,
-  type MeetingArtifactKind,
   type MeetingOpenTarget,
   type MeetingProjection,
   type SealedMeetingClientBoundary,
@@ -51,18 +47,10 @@ import { meetingEntryHostIdentity } from '../meetingEntryHostIdentity';
 import { MeetingTemplatePanel } from '../MeetingTemplatePanel';
 import { createPreparedMeetingTemplateFillProvider } from '../meetingTemplateAi';
 import {
-  getMeetingArtifactComposition,
-  getNoticeEvidenceProviderComposition,
-  hasMeetingArtifactContributions,
-  hasNoticeEvidenceProviderContributions,
-  useMeetingArtifactRegistryVersion,
   useMeetingListComposition,
   useMeetingListToolComposition,
-  useNoticeEvidenceProviderRegistryVersion,
-  type MeetingArtifactContext,
   type MeetingListContext,
   type MeetingListToolContext,
-  type NoticeEvidenceProviderContext,
 } from './contracts';
 import {
   registerMeetingsNavigationHost,
@@ -93,29 +81,6 @@ const REVIEW_CLIENT_REQUIRED: MeetingReviewInboxResult = Object.freeze({
   retry: 'not-available',
 });
 
-const ALL_ARTIFACT_KINDS: readonly MeetingArtifactKind[] = [
-  'agenda',
-  'pre-meeting-brief',
-  'structured-notes',
-  'summary',
-  'transcript',
-  'diarization',
-  'notice-evidence',
-  'action-update-proposal',
-  'follow-up-draft',
-  'keyword-match',
-  'talk-time-result',
-  'client-signal',
-];
-
-const ALL_ARTIFACT_REQUIREMENTS: readonly {
-  kind: MeetingArtifactKind;
-  minimumSchemaVersion: number;
-}[] = ALL_ARTIFACT_KINDS.map((kind) => ({
-  kind,
-  minimumSchemaVersion: 1,
-}));
-
 const CLIENT_MEETING_SELECTION_REQUEST = {
   operationClass: 'matter-scoped',
   allowAllMatters: false,
@@ -142,68 +107,6 @@ function currentFirmMeetingSelectionError(): string | null {
     FIRM_MEETING_SELECTION_REQUEST
   );
   return decision.kind === 'refused' ? decision.message : null;
-}
-
-function ArtifactHost({ target }: { target: MeetingOpenTarget }) {
-  useMeetingArtifactRegistryVersion();
-  if (!hasMeetingArtifactContributions()) return null;
-  return <ActiveArtifactHost target={target} />;
-}
-
-function ActiveArtifactHost({ target }: { target: MeetingOpenTarget }) {
-  const artifacts = useMeetingArtifactStore();
-  const meetings = useMeetingFoundationStore();
-  const context: MeetingArtifactContext = {
-    meeting: target.meeting,
-    read: artifacts.readerFor(
-      meetings,
-      target.client,
-      ALL_ARTIFACT_REQUIREMENTS
-    ),
-    append: async (input) => {
-      if (input.meetingId !== target.meeting.id) {
-        throw new Error('Artifact belongs to a different meeting.');
-      }
-      return artifacts.append(input);
-    },
-  };
-  return (
-    <div data-testid="meeting-artifact-host" className="meetings-shell-extension-host">
-      {getMeetingArtifactComposition(context).map((descriptor) => (
-        <section key={descriptor.id} data-meeting-artifact={descriptor.id}>
-          {descriptor.render(context)}
-        </section>
-      ))}
-    </div>
-  );
-}
-
-function NoticeEvidenceHost({ target }: { target: MeetingOpenTarget }) {
-  useNoticeEvidenceProviderRegistryVersion();
-  if (!hasNoticeEvidenceProviderContributions()) return null;
-  return <ActiveNoticeEvidenceHost target={target} />;
-}
-
-function ActiveNoticeEvidenceHost({ target }: { target: MeetingOpenTarget }) {
-  const artifacts = useMeetingArtifactStore();
-  const context: NoticeEvidenceProviderContext = {
-    meeting: target.meeting,
-    appendNoticeEvidence: async (input) => {
-      if (input.meetingId !== target.meeting.id) {
-        throw new Error('Notice evidence belongs to a different meeting.');
-      }
-      return appendNoticeEvidence(artifacts, input);
-    },
-  };
-  return (
-    <div data-testid="meeting-notice-evidence-host" className="meetings-shell-extension-host">
-      {getNoticeEvidenceProviderComposition(context).map((descriptor) => (
-        <section key={descriptor.id} data-notice-evidence-provider={descriptor.id}>
-          {descriptor.render(context)}
-        </section>
-      ))}
-    </div>
-  );
 }
 
 /** The production linked-detail composition reached only with a sealed target. */
@@ -234,8 +137,6 @@ export function MeetingsDetailHost({
         workspaceService={runtime.workspace.serviceRef.current}
         onBack={onBack}
       />
-      <ArtifactHost target={target} />
-      <NoticeEvidenceHost target={target} />
     </section>
   );
 }
@@ -257,8 +158,11 @@ function TemplateManagement({
 
   useEffect(() => {
     let current = true;
-    setTranscript(null);
-    setLoading(target !== null);
+    queueMicrotask(() => {
+      if (!current) return;
+      setTranscript(null);
+      setLoading(target !== null);
+    });
     if (!target || !workspace) return () => { current = false; };
     void workspace
       .readFile(`${target.meetingDir}/transcript.json`)

@@ -1,4 +1,7 @@
-export type MeetingFoundationDependentStatus = 'ready' | 'coordinator-blocked';
+export type MeetingFoundationDependentStatus =
+  | 'ready'
+  | 'integrated-dark'
+  | 'coordinator-blocked';
 
 export interface MeetingFoundationDependentManifestEntry {
   readonly consumer: string;
@@ -9,7 +12,9 @@ export interface MeetingFoundationDependentManifestEntry {
 
 /**
  * Complete Part A dispatch manifest. `ready` means the whole named seam can be
- * imported and used. A partial meeting-side type never makes a consumer ready.
+ * imported and used. `integrated-dark` means its real production doorway is
+ * registered but remains unavailable behind its feature flag. A partial
+ * meeting-side type never makes a consumer ready.
  */
 export const meetingFoundationDependentManifest: readonly MeetingFoundationDependentManifestEntry[] =
   [
@@ -31,72 +36,72 @@ export const meetingFoundationDependentManifest: readonly MeetingFoundationDepen
     {
       consumer: 'meetings-shell-v1',
       fixture: null,
-      status: 'coordinator-blocked',
+      status: 'integrated-dark',
       reason:
-        'COORDINATOR: the shell is HELD (bridge-probe ruling D-then-A) pending an honest relaunch. This lane delivers the population/open-target CONTRACT that unblocks it (see meetingsPopulation.import.ts paved-path proof and its boundary probes), but the shell UI relaunch and the advisor-driven bulk legacy-link UI remain the named follow-on; the shell seam itself is not yet importable-and-ready.',
+        'DARK-BUT-INTEGRATED: the real Meetings surface is registered lazily in appSurfaceRegistry and guarded by meetings-shell-v1. The flag remains off until acceptance; the surface is importable and wired, not coordinator-blocked.',
     },
     {
       consumer: 'meeting-spoken-notice',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: the approved base has no real meeting header-action or notice-provider host; the local evidence record contract alone is not a launch seam.',
+        'COORDINATOR: the real meeting header-action host is integrated, but no production spoken-notice descriptor exists and the notice-provider host is deferred until its producer lands; the local evidence record contract alone is not a launch seam.',
     },
     {
       consumer: 'meeting-diarization',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: the approved base has no real artifact contribution host or stable processed-meeting panel host.',
+        'COORDINATOR: the real processed-meeting panel host is integrated, but no production diarization panel descriptor exists and the artifact contribution host is deferred until its producer lands.',
     },
     {
       consumer: 'meeting-notice-evidence',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: the read model is ready, but the required artifact contribution host and durable audit-writer contract are absent.',
+        'COORDINATOR: the shell and read model are integrated, but the artifact contribution host is deliberately deferred and the durable audit-writer contract is absent.',
     },
     {
       consumer: 'meeting-keywords',
       fixture: null,
-      status: 'coordinator-blocked',
+      status: 'integrated-dark',
       reason:
-        'COORDINATOR: the approved base lacks the real insight host and SettingsModuleDescriptor/settingsModuleRegistry owner contract.',
+        'DARK-BUT-INTEGRATED: the production insight is registered in MeetingEntry and its Settings descriptor is registered by Settings; meeting-keywords remains off pending acceptance.',
     },
     {
       consumer: 'meeting-talk-time',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: the approved base lacks stable real insight/panel hosts; compatible diarization records alone are not a launch seam.',
+        'COORDINATOR: the real insight and panel hosts are integrated, but no production talk-time descriptor is registered; compatible diarization records alone are not a launch seam.',
     },
     {
       consumer: 'meeting-signals',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: CRM clients does not export the required ContactRef household-section owner contract, and the real insight host is absent.',
+        'COORDINATOR: the real insight host is integrated, but no production signal descriptor is registered and CRM clients still lacks the required ContactRef household-section owner contract.',
     },
     {
       consumer: 'meeting-intelligence-settings',
       fixture: null,
-      status: 'coordinator-blocked',
+      status: 'integrated-dark',
       reason:
-        'COORDINATOR: the reactive store is ready, but Settings does not export the required SettingsModuleDescriptor/settingsModuleRegistry owner contract.',
+        'DARK-BUT-INTEGRATED: the reactive store and production Settings descriptor are registered through the real settingsModuleRegistry; settings-shell-v1 remains off pending acceptance.',
     },
     {
       consumer: 'meeting-visibility-inheritance',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: the policy record is ready, but the real header/Settings hosts and the P0-M/N enforcement contracts are absent.',
+        'COORDINATOR: the policy record plus real header and Settings hosts are integrated, but no production visibility descriptor is registered and the P0-M/N enforcement contracts are absent.',
     },
     {
       consumer: 'my-meetings-filter',
       fixture: null,
-      status: 'coordinator-blocked',
+      status: 'integrated-dark',
       reason:
-        'COORDINATOR: the approved base has no real meeting-list-tool host or authoritative current-member identity seam.',
+        'DARK-BUT-INTEGRATED: the real list-tool host renders the built-in My Meetings control from the authoritative firm-session member id inside the meetings-shell-v1 surface.',
     },
     {
       consumer: 'crm-client-meetings-tab',
@@ -130,29 +135,29 @@ export const meetingFoundationDependentManifest: readonly MeetingFoundationDepen
     {
       consumer: 'meeting-list-registry',
       fixture: null,
-      status: 'coordinator-blocked',
+      status: 'integrated-dark',
       reason:
-        'COORDINATOR: the Meetings list frame (Upcoming/Past/Actions/Templates/Automations) is owned by meetings-shell-v1, which is blocked — src/app/shell/registry exports no public appSurfaceRegistry/AppSurfaceRouter doorway at base. No empty registry was invented.',
+        'DARK-BUT-INTEGRATED: the real Meetings list frame and registry are mounted by the lazily registered meetings-shell-v1 surface; the production flag remains off pending acceptance.',
     },
     {
       consumer: 'meeting-list-tool-registry',
       fixture: null,
-      status: 'coordinator-blocked',
+      status: 'integrated-dark',
       reason:
-        'COORDINATOR: the My Meetings list-tool bar is owned by meetings-shell-v1, blocked on the absent public appSurfaceRegistry doorway and an authoritative current-member identity seam. No empty registry was invented.',
+        'DARK-BUT-INTEGRATED: the real list-tool bar is mounted by the lazily registered meetings-shell-v1 surface and reads current-member identity from the firm session; the production flag remains off pending acceptance.',
     },
     {
       consumer: 'meeting-artifact-registry',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: the processed-meeting panel slot that would host artifact contributions is owned by meetings-shell-v1 (blocked); the artifact writer and client-bound reader remain usable directly. No empty registry was invented.',
+        'COORDINATOR: the shell is integrated, but no production artifact descriptor producer exists. Its detail host is deliberately deferred instead of mounting an empty doorway backed only by a fixture; the artifact writer and client-bound reader remain usable directly.',
     },
     {
       consumer: 'notice-evidence-provider-registry',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: the notice-evidence provider host lives in meetings-shell-v1 (blocked on the absent public appSurfaceRegistry doorway); the appendNoticeEvidence writer and NoticeEvidenceReadModel remain usable directly. No empty registry was invented.',
+        'COORDINATOR: the shell is integrated, but no production notice-evidence provider exists. Its detail host is deliberately deferred instead of mounting an empty doorway backed only by a fixture; appendNoticeEvidence and NoticeEvidenceReadModel remain usable directly.',
     },
   ];

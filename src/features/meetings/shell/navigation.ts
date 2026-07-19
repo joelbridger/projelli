@@ -1,4 +1,5 @@
 import {
+  readSelectionOperationDecision,
   requestSharedClientSelection,
   type SealedClientBoundary,
 } from '@/platform/client-context';
@@ -20,6 +21,12 @@ type NavigationHost = (notice: MeetingsNavigationNotice) => void;
 
 let host: NavigationHost | null = null;
 let pending: MeetingsNavigationNotice | null = null;
+
+const LINKED_MEETING_SELECTION_REQUEST = {
+  operationClass: 'client-scoped',
+  allowAllMatters: false,
+  requireFollowerAgreement: true,
+} as const;
 
 function publish(notice: MeetingsNavigationNotice): void {
   if (host) host(notice);
@@ -45,7 +52,21 @@ async function selectLinkedBoundary(
   boundary: SealedClientBoundary
 ): Promise<boolean> {
   const selection = await requestSharedClientSelection(boundary);
-  return selection.kind === 'selected';
+  if (selection.kind !== 'selected' || !selection.client) return false;
+
+  // The authority writes its source first, then reconciles the legacy follower
+  // on the next task. Wait for that genuine reconciliation before publishing
+  // an open notice; otherwise the detail store correctly refuses the temporary
+  // disagreement and the first real navigation attempt becomes a dead path.
+  await new Promise<void>((resolve) => { setTimeout(resolve, 0); });
+  const decision = readSelectionOperationDecision(
+    LINKED_MEETING_SELECTION_REQUEST
+  );
+  return (
+    decision.kind === 'matter' &&
+    decision.client?.provider === selection.client.provider &&
+    decision.client.householdId === selection.client.householdId
+  );
 }
 
 /**

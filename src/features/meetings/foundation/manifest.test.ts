@@ -65,4 +65,24 @@ describe('meetings foundation dependent manifest', () => {
       blocked.every((entry) => entry.reason?.startsWith('COORDINATOR:'))
     ).toBe(true);
   });
+
+  it('marks real flag-gated production doorways as integrated but dark', () => {
+    const integratedDark = meetingFoundationDependentManifest.filter(
+      (entry) => entry.status === 'integrated-dark'
+    );
+    expect(integratedDark.map((entry) => entry.consumer).sort()).toEqual([
+      'meeting-intelligence-settings',
+      'meeting-keywords',
+      'meeting-list-registry',
+      'meeting-list-tool-registry',
+      'meetings-shell-v1',
+      'my-meetings-filter',
+    ]);
+    expect(integratedDark.every((entry) => entry.fixture === null)).toBe(true);
+    expect(
+      integratedDark.every((entry) =>
+        entry.reason?.startsWith('DARK-BUT-INTEGRATED:')
+      )
+    ).toBe(true);
+  });
 });
