@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DraftFollowUpModal } from '@/features/email';
 import {
   useMeetingArtifactStore,
   useMeetingFoundationStore,
 } from '../foundation/contract';
 import type { MeetingPanelContext } from '../meetingWorkspaceTypes';
+import { FollowUpDraftsOnlyEditor } from './FollowUpDraftsOnlyEditor';
 import {
   createMeetingFollowUpStore,
   meetingFollowUpTarget,
@@ -192,12 +192,8 @@ export function MeetingFollowUpPanel({
       >
         {context.t('meetings.entry.follow-up.description')}
       </div>
-      <DraftFollowUpModal
+      <FollowUpDraftsOnlyEditor
         key={state.artifactId}
-        mode="outlook-drafts-only"
-        inline
-        open
-        onOpenChange={() => undefined}
         meetingId={state.target.meetingId}
         householdRef={state.target.client.householdRef}
         matterId={state.target.client.matterId}

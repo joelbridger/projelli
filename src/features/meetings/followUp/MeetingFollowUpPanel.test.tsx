@@ -7,7 +7,6 @@ import {
 } from '@testing-library/react';
 import type { TFunction } from 'i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DraftFollowUpModal } from '@/features/email';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type {
   MeetingArtifact,
@@ -30,7 +29,6 @@ import {
 const mail = vi.hoisted(() => ({
   accounts: vi.fn(),
   saveDraft: vi.fn(),
-  send: vi.fn(),
 }));
 
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
@@ -40,15 +38,8 @@ vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
     ...actual,
     mailConnectedAccounts: mail.accounts,
     mailSaveDraft: mail.saveDraft,
-    mailSend: mail.send,
   };
 });
-
-vi.mock('@/features/email/emailAuditLog', () => ({
-  emailMatterScope: (matterId: string) => ({ kind: 'matter', matterId }),
-  effectiveModeForDestination: () => 'direct',
-  logEmailAuditEntry: vi.fn(),
-}));
 
 vi.mock('@/platform/matter/matterStore', () => ({ useMatters: () => [] }));
 
@@ -271,7 +262,6 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       await screen.findByTestId('meeting-follow-up-saved')
     ).toHaveTextContent('Nothing was sent');
     expect(mail.saveDraft).toHaveBeenCalledTimes(1);
-    expect(mail.send).not.toHaveBeenCalled();
     expect(lane.records).toHaveLength(2);
     expect(lane.records[1]).toMatchObject({
       meetingId: 'meeting-a',
@@ -348,7 +338,6 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       'Annual review recap',
       expect.stringContaining('Edited exact-meeting recap.')
     );
-    expect(mail.send).not.toHaveBeenCalled();
     const savedTarget = save.mock.calls[0]?.[0];
     const savedInput = save.mock.calls[0]?.[1];
     expect(savedTarget?.meetingId).toBe('meeting-a');
@@ -380,25 +369,20 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       await screen.findByTestId('meeting-follow-up-blocked')
     ).toHaveTextContent('Connect Outlook');
     expect(screen.queryByTestId('followup-save-drafts')).toBeNull();
-    expect(mail.send).not.toHaveBeenCalled();
   });
 
   it('sanitizes a raw Outlook failure and keeps the explicit save retryable', async () => {
     mail.saveDraft.mockRejectedValueOnce(
       new Error('Graph 401 raw tenant secret detail')
     );
-    render(
-      <DraftFollowUpModal
-        mode="outlook-drafts-only"
-        inline
-        open
-        onOpenChange={() => undefined}
-        meetingId="meeting-a"
-        householdRef="household-a"
-        matterId="matter-shared"
-        draft={recap()}
-      />
-    );
+    const store: MeetingFollowUpStore = {
+      read: vi.fn<MeetingFollowUpStore['read']>(() =>
+        Promise.resolve({ kind: 'ready', recap: recap() })
+      ),
+      start: vi.fn(),
+      save: vi.fn(),
+    };
+    render(<MeetingFollowUpPanel context={context()} store={store} />);
     const save = await screen.findByTestId('followup-save-drafts');
     fireEvent.click(save);
     const alert = await screen.findByRole('alert');
@@ -406,6 +390,29 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
     expect(alert).not.toHaveTextContent('401');
     expect(alert).not.toHaveTextContent('tenant secret');
     expect(save).not.toBeDisabled();
-    expect(mail.send).not.toHaveBeenCalled();
+  });
+
+  it('keeps an Outlook account-check failure generic and retryable', async () => {
+    mail.accounts
+      .mockRejectedValueOnce(new Error('raw account token detail'))
+      .mockResolvedValueOnce([
+        { provider: 'm365', account: 'default', label: 'Outlook' },
+      ]);
+    const store: MeetingFollowUpStore = {
+      read: vi.fn<MeetingFollowUpStore['read']>(() =>
+        Promise.resolve({ kind: 'ready', recap: recap() })
+      ),
+      start: vi.fn(),
+      save: vi.fn(),
+    };
+    render(<MeetingFollowUpPanel context={context()} store={store} />);
+
+    const error = await screen.findByTestId('meeting-follow-up-local-error');
+    expect(error).toHaveTextContent('Outlook could not be checked');
+    expect(error).not.toHaveTextContent('token');
+    fireEvent.click(screen.getByTestId('meeting-follow-up-retry'));
+    expect(await screen.findByTestId('followup-body')).toHaveValue(
+      'Thank you for meeting today.'
+    );
   });
 });

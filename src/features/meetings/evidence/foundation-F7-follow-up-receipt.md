@@ -9,13 +9,15 @@ exact canonical meeting plus the sealed `householdRef + matterId` pair. Its
 opaque recap key is derived from all three values. Empty, partial, mismatched,
 duplicate, malformed, and legacy matter-only records fail closed.
 
-The editable recap uses the existing email draft backend through an Outlook
-Drafts-only capability. That capability lists only Microsoft 365 accounts and
-saves only after the advisor presses **Save to Outlook Drafts**. It has no Send
-or Generate control, its send handler refuses the mode as a second guard, and
-failed saves expose a generic retry message rather than a raw provider error.
-An Outlook success is never made retryable merely because the later local
-status update fails, preventing a duplicate Outlook draft.
+The editable recap uses a dedicated Outlook Drafts-only editor and adapter.
+That narrow path imports only mailbox-account discovery and the Drafts save
+primitive. The full shared mail modal is no longer in the follow-up import
+graph, so real Send and AI content egress are absent rather than hidden behind
+a mode flag. The adapter lists only Microsoft 365 accounts and saves only after
+the advisor presses **Save to Outlook Drafts**. Failed saves expose a generic
+retry message rather than a raw provider error. An Outlook success is never
+made retryable merely because the later local status update fails, preventing
+a duplicate Outlook draft.
 
 The compatibility binding imports the exact Follow-up identifier from F2's
 `BLESSED_MEETING_PANEL_IDS` public Meetings doorway. It registers only for the
@@ -39,8 +41,13 @@ Review these commits in order:
 - The same store test contains `@ts-expect-error` fixtures proving matter-only
   reads and writes cannot typecheck, plus runtime empty/missing-pair cases.
 - `MeetingFollowUpPanel.test.tsx` proves explicit single-draft saving, no Send
-  or Generate control, no call to `mailSend`, no-Outlook blocking, editing and
-  saved states, generic provider failure text, and retry.
+  or Generate control, no-Outlook blocking, editing and saved states, generic
+  account/provider failure text, and retry.
+- `followUpDraftsOnlyEgressBoundary.test.ts` scans the complete production path
+  (panel, narrow editor, and adapter), proves it does not import the shared mail
+  modal, and rejects any reference to the real-send or AI-content-egress
+  primitives. It also allowlists the adapter's three mail imports: the account
+  type, account discovery, and Drafts save.
 - `meetingFollowUpCompatibility.test.tsx` proves the exact blessed ID, one
   host-lifetime registration, and no base Follow-up descriptor.
 - A whole-tree scan of every `MeetingFollowUp` / `meetingFollowUp` source found
@@ -58,6 +65,8 @@ Review these commits in order:
   final attempt. Its test run otherwise passed 1,177 files and 9,282 tests.
 - Focused follow-up, legacy modal, and architecture run — pass: 5 files / 31
   tests.
+- Follow-up fix run — pass: 4 files / 14 tests, including the static egress
+  boundary.
 - `npx tsc --noEmit` — pass.
 - `npx tsc -p tsconfig.test.json --noEmit` — pass, including the negative type
   fixtures.
