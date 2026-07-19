@@ -1,0 +1,33 @@
+{
+  "taskListPrint": {
+    "action": "Print task list",
+    "documentTitle": "Current task list",
+    "heading": "Current task list",
+    "recordCount_one": "1 supplied record",
+    "recordCount_other": "{{count}} supplied records",
+    "empty": "No tasks or workflow steps were supplied for this list.",
+    "kind": {
+      "task": "Task",
+      "workflowStep": "Workflow step"
+    },
+    "label": {
+      "status": "Status",
+      "assignee": "Assignee",
+      "due": "Due"
+    },
+    "status": {
+      "open": "Open",
+      "inProgress": "In progress",
+      "blocked": "Blocked",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    },
+    "unassigned": "Unassigned",
+    "noDueDate": "No due date",
+    "dueAtTime": "{{due}} at {{time}}",
+    "error": {
+      "popup-blocked": "The print window could not open. Allow popups and try again.",
+      "print-failed": "The print dialog could not open. Try again."
+    }
+  }
+}

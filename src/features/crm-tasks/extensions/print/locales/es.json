@@ -1,0 +1,33 @@
+{
+  "taskListPrint": {
+    "action": "Imprimir lista de tareas",
+    "documentTitle": "Lista de tareas actual",
+    "heading": "Lista de tareas actual",
+    "recordCount_one": "1 registro proporcionado",
+    "recordCount_other": "{{count}} registros proporcionados",
+    "empty": "No se proporcionaron tareas ni pasos de flujo de trabajo para esta lista.",
+    "kind": {
+      "task": "Tarea",
+      "workflowStep": "Paso del flujo de trabajo"
+    },
+    "label": {
+      "status": "Estado",
+      "assignee": "Responsable",
+      "due": "Vencimiento"
+    },
+    "status": {
+      "open": "Abierta",
+      "inProgress": "En curso",
+      "blocked": "Bloqueada",
+      "done": "Terminada",
+      "cancelled": "Cancelada"
+    },
+    "unassigned": "Sin asignar",
+    "noDueDate": "Sin fecha de vencimiento",
+    "dueAtTime": "{{due}} a las {{time}}",
+    "error": {
+      "popup-blocked": "No se pudo abrir la ventana de impresión. Permite las ventanas emergentes e inténtalo de nuevo.",
+      "print-failed": "No se pudo abrir el diálogo de impresión. Inténtalo de nuevo."
+    }
+  }
+}

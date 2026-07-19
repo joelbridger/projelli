@@ -1,0 +1,33 @@
+{
+  "taskListPrint": {
+    "action": "Aufgabenliste drucken",
+    "documentTitle": "Aktuelle Aufgabenliste",
+    "heading": "Aktuelle Aufgabenliste",
+    "recordCount_one": "1 bereitgestellter Eintrag",
+    "recordCount_other": "{{count}} bereitgestellte Einträge",
+    "empty": "Für diese Liste wurden keine Aufgaben oder Workflow-Schritte bereitgestellt.",
+    "kind": {
+      "task": "Aufgabe",
+      "workflowStep": "Workflow-Schritt"
+    },
+    "label": {
+      "status": "Status",
+      "assignee": "Zuständig",
+      "due": "Fällig"
+    },
+    "status": {
+      "open": "Offen",
+      "inProgress": "In Bearbeitung",
+      "blocked": "Blockiert",
+      "done": "Erledigt",
+      "cancelled": "Abgebrochen"
+    },
+    "unassigned": "Nicht zugewiesen",
+    "noDueDate": "Kein Fälligkeitsdatum",
+    "dueAtTime": "{{due}} um {{time}}",
+    "error": {
+      "popup-blocked": "Das Druckfenster konnte nicht geöffnet werden. Erlaube Pop-ups und versuche es erneut.",
+      "print-failed": "Der Druckdialog konnte nicht geöffnet werden. Versuche es erneut."
+    }
+  }
+}
