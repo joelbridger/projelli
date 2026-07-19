@@ -205,10 +205,18 @@ function WorkKindBadge({
       data-testid={testId}
       style={{
         alignItems: 'center',
-        background: workflow ? '#f5f3ff' : '#eff6ff',
-        border: `1px solid ${workflow ? '#c4b5fd' : '#bfdbfe'}`,
+        background: workflow
+          ? 'var(--kp-work-kind-workflow-bg)'
+          : 'var(--kp-work-kind-task-bg)',
+        border: `1px solid ${
+          workflow
+            ? 'var(--kp-work-kind-workflow-border)'
+            : 'var(--kp-work-kind-task-border)'
+        }`,
         borderRadius: 6,
-        color: workflow ? '#6d28d9' : '#1d4ed8',
+        color: workflow
+          ? 'var(--kp-work-kind-workflow-text)'
+          : 'var(--kp-work-kind-task-text)',
         display: 'inline-flex',
         fontSize: 12,
         fontWeight: 800,
