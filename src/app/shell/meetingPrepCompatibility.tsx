@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- This compatibility module intentionally exports the registered descriptor for composition proofs. */
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   BLESSED_MEETING_PANEL_IDS,
   detectPlatform,
@@ -34,14 +34,17 @@ function BoundMeetingPrepPanel({ context }: { context: MeetingPanelContext }) {
   const recording = useMeetingStore((state) => state.status.recording);
   const activeMeetingDir = useMeetingStore((state) => state.status.meetingDir);
   const eventId = context.meta?.calendarEvent?.id.trim() ?? '';
-  const target: ExactMeetingBriefTarget | null =
-    context.canonicalMeeting && context.clientBoundary && eventId
-      ? {
-          eventId,
-          meeting: context.canonicalMeeting,
-          clientBoundary: context.clientBoundary,
-        }
-      : null;
+  const target = useMemo<ExactMeetingBriefTarget | null>(
+    () =>
+      context.canonicalMeeting && context.clientBoundary && eventId
+        ? {
+            eventId,
+            meeting: context.canonicalMeeting,
+            clientBoundary: context.clientBoundary,
+          }
+        : null,
+    [context.canonicalMeeting, context.clientBoundary, eventId]
+  );
   const joinUrl = context.meta?.calendarEvent?.joinUrl?.trim() ?? '';
   const detectedPlatform = detectPlatform(joinUrl);
   const platform =
