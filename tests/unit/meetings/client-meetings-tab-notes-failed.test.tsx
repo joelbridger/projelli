@@ -4,15 +4,58 @@
  * for a meeting that's still legitimately queued behind transcription.
  */
 import { render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
-import type { SealedMeetingClientBoundary } from '@/features/meetings';
+import {
+  readActiveMeetingClientBoundary,
+  type SealedMeetingClientBoundary,
+} from '@/features/meetings';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import type { Matter } from '@/platform/types/matter';
 
-const clientBoundary = {
-  householdRef: 'household-acme',
-  matterId: 'm1',
-} as SealedMeetingClientBoundary;
+const meetingBoundaryMint = vi.hoisted(() => ({
+  selection: null as null | { householdRef: string; matterId: string },
+}));
+
+vi.mock('@/platform/client-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/client-context')>();
+  return {
+    ...actual,
+    readSelectionOperationDecision: (
+      request: Parameters<typeof actual.readSelectionOperationDecision>[0]
+    ) => {
+      const selection = meetingBoundaryMint.selection;
+      return selection
+        ? {
+            kind: 'matter' as const,
+            sourceKind: 'matter' as const,
+            matter: { id: selection.matterId } as Matter,
+            client: {
+              provider: 'wealthbox' as const,
+              householdId: selection.householdRef,
+              displayName: selection.householdRef,
+            },
+          }
+        : actual.readSelectionOperationDecision(request);
+    },
+  };
+});
+
+function mintedBoundary(
+  householdRef: string,
+  matterId: string
+): SealedMeetingClientBoundary {
+  meetingBoundaryMint.selection = { householdRef, matterId };
+  try {
+    const boundary = readActiveMeetingClientBoundary();
+    if (!boundary) throw new Error('expected live-authority meeting boundary');
+    return boundary;
+  } finally {
+    meetingBoundaryMint.selection = null;
+  }
+}
+
+const clientBoundary = mintedBoundary('household-acme', 'm1');
 
 beforeEach(() => {
   useMatterStore.setState({
