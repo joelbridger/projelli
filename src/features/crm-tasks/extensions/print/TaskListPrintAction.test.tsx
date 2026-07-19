@@ -161,6 +161,21 @@ describe('task list print action', () => {
     );
   });
 
+  it('shows the popup-blocked error instead of throwing when opening the popup throws', () => {
+    vi.spyOn(window, 'open').mockImplementation(() => {
+      throw new Error('Popup unavailable');
+    });
+
+    renderRegisteredAction();
+    expect(() =>
+      fireEvent.click(screen.getByRole('button', { name: 'Print task list' }))
+    ).not.toThrow();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The print window could not open. Allow popups and try again.'
+    );
+  });
+
   it('shows an honest visible error and closes the popup when printing fails', () => {
     const popup = createPrintPopup();
     popup.print.mockImplementation(() => {

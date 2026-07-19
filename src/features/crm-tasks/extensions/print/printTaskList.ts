@@ -199,7 +199,12 @@ export function printSuppliedTaskList(
   openWindow: () => Window | null = () =>
     window.open('about:blank', '_blank', PRINT_WINDOW_FEATURES)
 ): TaskListPrintResult {
-  const printWindow = openWindow();
+  let printWindow: Window | null;
+  try {
+    printWindow = openWindow();
+  } catch {
+    return { ok: false, reason: 'popup-blocked' };
+  }
   if (!printWindow) return { ok: false, reason: 'popup-blocked' };
 
   try {
