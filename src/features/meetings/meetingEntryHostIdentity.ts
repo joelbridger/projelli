@@ -1,5 +1,6 @@
 import {
   verifyDirectClientMeetingTarget,
+  verifyLiveMeetingClientBoundary,
   verifyMeetingOpenTarget,
   type DirectClientMeetingTarget,
   type MeetingOpenTarget,
@@ -61,7 +62,9 @@ export function meetingEntryHostIdentity(
 ): MeetingEntryHostIdentity | null {
   // Treat the erased runtime boundary as unknown first: tests and external JS
   // can still pass absent/forged values even though TypeScript callers cannot.
-  const runtimeInput = input as unknown as {
+  const unknownInput = input as unknown;
+  if (!unknownInput || typeof unknownInput !== 'object') return null;
+  const runtimeInput = unknownInput as {
     readonly activeClientBoundary?: unknown;
     readonly target?: unknown;
   };
@@ -69,14 +72,9 @@ export function meetingEntryHostIdentity(
   const runtimeTarget = runtimeInput.target;
 
   if (
-    !active ||
-    typeof active !== 'object' ||
-    !('householdRef' in active) ||
-    typeof active.householdRef !== 'string' ||
-    !active.householdRef.trim() ||
-    !('matterId' in active) ||
-    typeof active.matterId !== 'string' ||
-    !active.matterId.trim() ||
+    !verifyLiveMeetingClientBoundary(
+      active as SealedMeetingClientBoundary | null | undefined
+    ) ||
     !runtimeTarget ||
     typeof runtimeTarget !== 'object' ||
     !('kind' in runtimeTarget)

@@ -68,15 +68,49 @@ function readAuthoritativeMeetingSelection() {
   return readSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
 }
 
+/** Runtime provenance for pairs minted from the live selection authority. */
+const liveMeetingClientBoundaries = new WeakSet();
+
+function isCompleteTrimmedString(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value === value.trim()
+  );
+}
+
+/**
+ * Runtime counterpart to the erased TypeScript brand. Shape alone is never
+ * authority: the exact object must have been minted from the live selection.
+ */
+export function verifyLiveMeetingClientBoundary(
+  value: SealedMeetingClientBoundary | null | undefined
+): value is SealedMeetingClientBoundary {
+  if (!value || typeof value !== 'object') return false;
+  return (
+    liveMeetingClientBoundaries.has(value) &&
+    isCompleteTrimmedString(value.householdRef) &&
+    isCompleteTrimmedString(value.matterId)
+  );
+}
+
 function boundaryFromSelection(
   selection: ReturnType<typeof readAuthoritativeMeetingSelection>
 ): SealedMeetingClientBoundary | null {
   if (selection.kind !== 'matter' || !selection.client) return null;
-  return Object.freeze({
+  const boundary = Object.freeze({
     householdRef: selection.client.householdId,
     matterId: selection.matter.id,
     displayName: selection.client.displayName,
   }) as SealedMeetingClientBoundary;
+  if (
+    !isCompleteTrimmedString(boundary.householdRef) ||
+    !isCompleteTrimmedString(boundary.matterId)
+  ) {
+    return null;
+  }
+  liveMeetingClientBoundaries.add(boundary);
+  return boundary;
 }
 
 /** Read the live, authority-proven household + matter pair. */
@@ -802,13 +836,7 @@ function clientScope(port: ClientScopedLivePort): ClientScope {
       const current = port.getActiveClientBoundary();
       // No active client (null, or an invalid runtime value) → fail closed. There is no unscoped
       // escape hatch: a store without a live client resolver cannot be built.
-      if (!current) return null;
-      if (
-        typeof current.householdRef !== 'string' ||
-        !current.householdRef.trim() ||
-        typeof current.matterId !== 'string' ||
-        !current.matterId.trim()
-      ) return null;
+      if (!verifyLiveMeetingClientBoundary(current)) return null;
       return current;
     },
     requireCurrent(subject) {
@@ -1324,7 +1352,7 @@ function activeBoundaryForLegacyLinkStatus(
   port: ClientScopedLivePort
 ): SealedMeetingClientBoundary {
   const boundary = port.getActiveClientBoundary();
-  if (!boundary?.householdRef || !boundary.matterId)
+  if (!verifyLiveMeetingClientBoundary(boundary))
     throw new Error('Active client is required.');
   return boundary;
 }
@@ -2756,6 +2784,10 @@ export function createDirectClientMeetingsAdapter<
 }): DirectClientMeetingsAdapter<Row> {
   const stillAuthorized = (): string | null => {
     const active = input.getActiveClientBoundary();
+    if (
+      !verifyLiveMeetingClientBoundary(input.client) ||
+      !verifyLiveMeetingClientBoundary(active)
+    ) return null;
     if (!sameClientBoundary(active, input.client)) return null;
     return authorizedDirectClientFolder(input.client, input.matterFolder);
   };
