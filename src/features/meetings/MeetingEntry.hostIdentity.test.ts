@@ -1,4 +1,5 @@
 import { createElement } from 'react';
+import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Matter } from '@/platform/types/matter';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -173,6 +174,45 @@ describe('F11 meeting detail mount identity chokepoint', () => {
     });
     expect(absent).toBeNull();
     expect(forged).toBeNull();
+  });
+
+  it('mounts no detail host when the runtime target is absent', () => {
+    render(
+      createElement(MeetingEntry, {
+        activeClientBoundary: clientA,
+        target: undefined as unknown as MeetingEntryTarget,
+        clientName: 'Alpha Household',
+        workspaceRoot: '/workspace',
+        workspaceService: null,
+        onBack: () => undefined,
+      })
+    );
+
+    expect(screen.queryByTestId('meeting-entry')).toBeNull();
+    expect(screen.queryByTestId('meeting-entry-audio-handoff')).toBeNull();
+    expect(screen.queryByTestId('meeting-subtab-summary')).toBeNull();
+  });
+
+  it('mounts no detail host when the runtime target is forged', () => {
+    render(
+      createElement(MeetingEntry, {
+        activeClientBoundary: clientA,
+        target: {
+          kind: 'direct-client-meeting',
+          client: clientA,
+          meetingDir,
+          folderName: 'meeting-a',
+        } as unknown as MeetingEntryTarget,
+        clientName: 'Alpha Household',
+        workspaceRoot: '/workspace',
+        workspaceService: null,
+        onBack: () => undefined,
+      })
+    );
+
+    expect(screen.queryByTestId('meeting-entry')).toBeNull();
+    expect(screen.queryByTestId('meeting-entry-audio-handoff')).toBeNull();
+    expect(screen.queryByTestId('meeting-subtab-summary')).toBeNull();
   });
 
   it('returns no identity after a same-matter, different-household switch', async () => {
