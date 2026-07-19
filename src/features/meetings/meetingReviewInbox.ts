@@ -588,6 +588,7 @@ export function createMeetingReviewInboxReader(
     read: (filter) => read(null, filter),
     readForClient: (client, filter) => {
       if (
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime cast/bridge guard: the type says `client` is a non-null sealed pair, but a caller can cast undefined/partial past the type at runtime (the F9 fail-open class). Fail closed here rather than leak the whole-firm inbox.
         !client ||
         typeof client.householdRef !== 'string' ||
         client.householdRef.trim().length === 0 ||
