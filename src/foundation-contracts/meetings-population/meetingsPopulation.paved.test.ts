@@ -4,7 +4,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
-import type { ClientScopedLivePort } from '@/features/meetings';
+import type { ClientScopedLivePort, SealedMeetingClientBoundary } from '@/features/meetings';
 import { proveMeetingsPopulationPavedPath } from './meetingsPopulation.import';
 
 // Executable third-contributor proof: run the WHOLE public population paved path
@@ -20,7 +20,11 @@ function canonicalPort(): ClientScopedLivePort & {
     records: [],
     workspaceRoot: '/workspace',
     error: null,
-    getActiveMatterId: () => 'matter-1',
+    getActiveClientBoundary: () => ({
+      householdRef: 'household-1',
+      matterId: 'matter-1',
+    }) as SealedMeetingClientBoundary,
+    getFirmSelectionError: () => null,
     save(record: LiveCrmRecord) {
       const saved = structuredClone(record);
       canonical = canonical.some((item) => item.id === saved.id)

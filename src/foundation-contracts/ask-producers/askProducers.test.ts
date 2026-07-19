@@ -10,7 +10,7 @@ import type { AskClientSnapshot } from '@/features/ask';
 import { mintAskClientSnapshotForTest } from '@/features/ask/testing';
 import type { ContactRecord, ContactRef } from '@/features/crm-contacts';
 import type {
-  ClientBoundary,
+  SealedMeetingClientBoundary,
   MeetingArtifact,
   MeetingArtifactRequirement,
   MeetingArtifactStore,
@@ -82,10 +82,13 @@ function artifact(state: MeetingArtifact['state']): MeetingArtifact {
 function meetingReaderFixture(): {
   meetings: MeetingStore;
   artifacts: MeetingArtifactStore;
-  boundary: ClientBoundary;
+  boundary: SealedMeetingClientBoundary;
   requirements: readonly MeetingArtifactRequirement[];
 } {
-  const boundary = { householdRef: 'client-1', matterId: 'matter-1' };
+  const boundary = {
+    householdRef: 'client-1',
+    matterId: 'matter-1',
+  } as SealedMeetingClientBoundary;
   const meetings: MeetingStore = {
     list: [],
     error: null,
@@ -244,20 +247,25 @@ describe('Ask source producer doorways', () => {
       boundary,
       requirements
     );
-    expect(reader?.listApproved('meeting-1')).toEqual([artifact('approved')]);
-    expect(reader?.listApproved('meeting-1', ['transcript'])).toEqual([]);
-    expect(reader?.get('produced-artifact')).toBeNull();
-    expect(reader?.get('approved-artifact')).toEqual(artifact('approved'));
+    expect(reader.listApproved('meeting-1')).toEqual([artifact('approved')]);
+    expect(reader.listApproved('meeting-1', ['transcript'])).toEqual([]);
+    expect(reader.get('produced-artifact')).toBeNull();
+    expect(reader.get('approved-artifact')).toEqual(artifact('approved'));
     expect(
       readApprovedMeetingArtifacts(
         meetings,
         artifacts,
-        { householdRef: 'another-client', matterId: 'matter-1' },
+        {
+          householdRef: 'another-client',
+          matterId: 'matter-1',
+        } as SealedMeetingClientBoundary,
         requirements
-      )?.listApproved('meeting-1')
+      ).listApproved('meeting-1')
     ).toEqual([]);
-    expect(
-      readApprovedMeetingArtifacts(meetings, artifacts, null, requirements)
-    ).toBeNull();
+    const compileNullBoundary = () => {
+      // @ts-expect-error selected meeting readers require the complete pair.
+      void readApprovedMeetingArtifacts(meetings, artifacts, null, requirements);
+    };
+    expect(compileNullBoundary).toBeTypeOf('function');
   });
 });

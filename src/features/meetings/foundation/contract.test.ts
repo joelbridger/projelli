@@ -27,12 +27,27 @@ import {
   verifyMeetingOpenTarget,
   verifyLegacyMeetingLinkStatus,
   validateMeetingKeywordCatalogue,
-  type ClientBoundary,
+  type SealedMeetingClientBoundary,
   type MeetingArtifactRequirement,
   type MeetingOpenTarget,
   type LegacyMeetingLinkStatus,
 } from './contract';
 import { readReviewNeededMeetingArtifacts } from '../reviewArtifacts';
+
+function sealedBoundary(
+  householdRef: string,
+  matterId: string
+): SealedMeetingClientBoundary {
+  return { householdRef, matterId } as SealedMeetingClientBoundary;
+}
+
+function boundaryForMatter(
+  matterId: string | null | undefined
+): SealedMeetingClientBoundary | null {
+  if (matterId === null || matterId === undefined) return null;
+  const suffix = matterId.replace(/^matter-/, '');
+  return sealedBoundary(`household-${suffix}`, matterId);
+}
 
 /**
  * Seed the TRUSTED authority the contract derives from — the platform matter
@@ -96,7 +111,7 @@ function canonicalPort(initial: readonly LiveCrmRecord[] = []) {
     error: null,
     // Client-scoped stores REQUIRE a live resolver; default the active client to
     // matter-1. Cross-matter constructions override this per store.
-    getActiveMatterId: () => 'matter-1' as string | null,
+    getActiveClientBoundary: () => sealedBoundary('household-1', 'matter-1'),
     save(record: LiveCrmRecord) {
       commands.push('crm_live_upsert');
       const saved = structuredClone(record);
@@ -129,10 +144,7 @@ const draft = {
   references: ['existing'],
 };
 
-const client: ClientBoundary = {
-  householdRef: 'household-1',
-  matterId: 'matter-1',
-};
+const client = sealedBoundary('household-1', 'matter-1');
 
 const LEGACY_DIR = 'Clients/Household One/Meetings/2026-07-20';
 
@@ -193,8 +205,12 @@ describe('meetings foundation contract', () => {
         sharedLocalMatterId: 'matter-1',
         // matter-2 is the active client here, so the client check passes and the
         // shared-matter relay check is the one that refuses the mismatch.
-        getActiveMatterId: () => 'matter-2',
-      }).createDraft({ ...draft, matterId: 'matter-2' })
+        getActiveClientBoundary: () => sealedBoundary('household-2', 'matter-2'),
+      }).createDraft({
+        ...draft,
+        householdRef: 'household-2',
+        matterId: 'matter-2',
+      })
     ).rejects.toThrow('active shared client');
   });
 
@@ -370,9 +386,10 @@ describe('meetings foundation contract', () => {
     await createMeetingStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => 'matter-2',
+      getActiveClientBoundary: () => sealedBoundary('household-2', 'matter-2'),
     }).createDraft({
       ...draft,
+      householdRef: 'household-2',
       matterId: 'matter-2',
       scheduledStartUtc: '2026-07-21T09:00:00.000Z',
       scheduledEndUtc: '2026-07-21T10:00:00.000Z',
@@ -394,7 +411,7 @@ describe('meetings foundation contract', () => {
     const second = await createMeetingStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => 'matter-2',
+      getActiveClientBoundary: () => sealedBoundary('household-2', 'matter-2'),
     }).createDraft({
       ...draft,
       householdRef: 'household-2',
@@ -433,7 +450,7 @@ describe('meetings foundation contract', () => {
     artifacts = createMeetingArtifactStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => 'matter-2',
+      getActiveClientBoundary: () => sealedBoundary('household-2', 'matter-2'),
     });
     const otherClient = await artifacts.append({
       meetingId: second.id,
@@ -603,11 +620,11 @@ describe('meetings foundation contract', () => {
     let active: string | null | undefined = 'matter-1';
     const meetings = createMeetingStore({
       ...live,
-      getActiveMatterId: () => active,
+      getActiveClientBoundary: () => boundaryForMatter(active),
     });
     const artifacts = createMeetingArtifactStore({
       ...live,
-      getActiveMatterId: () => active,
+      getActiveClientBoundary: () => boundaryForMatter(active),
     });
     const readerFor = () =>
       artifacts.readerFor(meetings, client, [
@@ -698,18 +715,62 @@ describe('meetings foundation contract', () => {
     ).resolves.toMatchObject({ state: 'approved' });
   });
 
+  it('fails closed when only the household changes and the matter id stays the same', async () => {
+    const live = canonicalPort();
+    let active = sealedBoundary('household-1', 'matter-1');
+    const meetings = createMeetingStore({
+      ...live,
+      getActiveClientBoundary: () => active,
+    });
+    const artifacts = createMeetingArtifactStore({
+      ...live,
+      getActiveClientBoundary: () => active,
+    });
+    const meeting = await meetings.createDraft(draft);
+    const artifact = await artifacts.append({
+      meetingId: meeting.id,
+      kind: 'summary',
+      schemaVersion: 1,
+      producedAt: '2026-07-20T10:00:00.000Z',
+      sourceRefs: [],
+      provenance: 'local-entry',
+      payload: {},
+    });
+
+    active = sealedBoundary('household-2', 'matter-1');
+    expect(meetings.list).toEqual([]);
+    await expect(meetings.get(meeting.id)).resolves.toBeUndefined();
+    await expect(meetings.update(meeting.id, { ownerRef: 'other' })).rejects.toThrow(
+      'different client'
+    );
+    await expect(
+      artifacts.approve(artifact.id, {
+        from: 'produced',
+        to: 'approved',
+        at: '2026-07-20T10:01:00.000Z',
+      })
+    ).rejects.toThrow('different client');
+    expect(
+      artifacts
+        .readerFor(meetings, client, [
+          { kind: 'summary', minimumSchemaVersion: 1 },
+        ])
+        .get(artifact.id)
+    ).toBeNull();
+  });
+
   it('refuses a stale transition or approval whose stated from does not match reality', async () => {
     const live = canonicalPort();
     const store = createMeetingStore({
       ...live,
-      getActiveMatterId: () => 'matter-1',
+      getActiveClientBoundary: () => sealedBoundary('household-1', 'matter-1'),
     });
     const meeting = await store.createDraft(draft);
     // Legitimately advance draft -> scheduled.
     await createMeetingStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => 'matter-1',
+      getActiveClientBoundary: () => sealedBoundary('household-1', 'matter-1'),
     }).transition(meeting.id, {
       from: 'draft',
       to: 'scheduled',
@@ -721,7 +782,7 @@ describe('meetings foundation contract', () => {
       createMeetingStore({
         ...live,
         records: live.readCanonical(),
-        getActiveMatterId: () => 'matter-1',
+        getActiveClientBoundary: () => sealedBoundary('household-1', 'matter-1'),
       }).transition(meeting.id, {
         from: 'draft',
         to: 'cancelled',
@@ -734,7 +795,7 @@ describe('meetings foundation contract', () => {
     let artifacts = createMeetingArtifactStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => 'matter-1',
+      getActiveClientBoundary: () => sealedBoundary('household-1', 'matter-1'),
     });
     const produced = await artifacts.append({
       meetingId: meeting.id,
@@ -748,7 +809,7 @@ describe('meetings foundation contract', () => {
     artifacts = createMeetingArtifactStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => 'matter-1',
+      getActiveClientBoundary: () => sealedBoundary('household-1', 'matter-1'),
     });
     await expect(
       artifacts.approve(produced.id, {
@@ -772,7 +833,7 @@ describe('meetings foundation contract', () => {
     const approver = createMeetingArtifactStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => 'matter-1',
+      getActiveClientBoundary: () => sealedBoundary('household-1', 'matter-1'),
     });
     await approver.approve(produced.id, {
       from: 'produced',
@@ -783,7 +844,7 @@ describe('meetings foundation contract', () => {
       createMeetingArtifactStore({
         ...live,
         records: live.readCanonical(),
-        getActiveMatterId: () => 'matter-1',
+        getActiveClientBoundary: () => sealedBoundary('household-1', 'matter-1'),
       }).approve(produced.id, {
         from: 'produced',
         to: 'approved',
@@ -795,12 +856,12 @@ describe('meetings foundation contract', () => {
   it('cannot construct a client-scoped store without a live resolver, and no-active-client fails closed', async () => {
     const live = canonicalPort();
 
-    // The DOCUMENTED construction (a live getActiveMatterId resolver) is safe:
+    // The documented construction uses one live sealed household + matter pair.
     // this is the only shape the type system permits.
     let active: string | null = 'matter-1';
     const documented = createMeetingStore({
       ...live,
-      getActiveMatterId: () => active,
+      getActiveClientBoundary: () => boundaryForMatter(active),
     });
     const meeting = await documented.createDraft(draft);
     active = 'matter-2';
@@ -809,11 +870,11 @@ describe('meetings foundation contract', () => {
 
     // The isolation-LESS construction is a COMPILE ERROR — a store with no live
     // client resolver cannot be built (this is the pre-fix unsafe shape).
-    const { getActiveMatterId: _dropped, ...portWithoutResolver } = live;
+    const { getActiveClientBoundary: _dropped, ...portWithoutResolver } = live;
     void _dropped;
-    // @ts-expect-error getActiveMatterId is required: the isolation-less store cannot be built.
+    // @ts-expect-error getActiveClientBoundary is required: the isolation-less store cannot be built.
     void createMeetingStore(portWithoutResolver);
-    // @ts-expect-error getActiveMatterId is required for the artifact store too.
+    // @ts-expect-error getActiveClientBoundary is required for the artifact store too.
     void createMeetingArtifactStore(portWithoutResolver);
 
     // A resolver that returns no active client (null or undefined) fails closed
@@ -821,7 +882,7 @@ describe('meetings foundation contract', () => {
     const noneNull = createMeetingStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => null,
+      getActiveClientBoundary: () => null,
     });
     expect(noneNull.list).toEqual([]);
     await expect(noneNull.get(meeting.id)).resolves.toBeUndefined();
@@ -831,7 +892,9 @@ describe('meetings foundation contract', () => {
     const noneUndefined = createMeetingStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => undefined,
+      // Runtime JavaScript can still return a missing value; the public TypeScript
+      // contract deliberately exposes only sealed-pair-or-null.
+      getActiveClientBoundary: () => undefined as never,
     });
     expect(noneUndefined.list).toEqual([]);
   });
@@ -936,7 +999,7 @@ describe('meetings foundation contract', () => {
     if (!grant) throw new Error('expected a genuine grant');
     await expect(
       createFirmMeetingDirectoryReader(reader, grant).list()
-    ).resolves.toHaveLength(1);
+    ).resolves.toMatchObject({ kind: 'ready', meetings: [{ matterId: 'matter-1' }] });
 
     // A grant that names a matter outside owner truth is refused (fail closed):
     // matter-1 is the only owner-truth matter, so asking for matter-2 is null.
@@ -948,10 +1011,10 @@ describe('meetings foundation contract', () => {
     } as unknown as Parameters<typeof createFirmMeetingDirectoryReader>[1];
     await expect(
       createFirmMeetingDirectoryReader(reader, forgedGrant).list()
-    ).resolves.toEqual([]);
+    ).resolves.toMatchObject({ kind: 'refused', reason: 'authority-refused' });
     await expect(
       createFirmMeetingDirectoryReader(reader, forgedGrant).get('anything')
-    ).resolves.toBeUndefined();
+    ).resolves.toMatchObject({ kind: 'refused', reason: 'authority-refused' });
   });
 
   it('reads review-needed artifacts from the fresh canonical store across the sealed firm grant', async () => {
@@ -996,7 +1059,7 @@ describe('meetings foundation contract', () => {
     const meetingTwo = await createMeetingStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => 'matter-2',
+      getActiveClientBoundary: () => sealedBoundary('household-2', 'matter-2'),
     }).createDraft({
       ...draft,
       matterId: 'matter-2',
@@ -1030,7 +1093,7 @@ describe('meetings foundation contract', () => {
     writer = createMeetingArtifactStore({
       ...live,
       records: live.readCanonical(),
-      getActiveMatterId: () => 'matter-2',
+      getActiveClientBoundary: () => sealedBoundary('household-2', 'matter-2'),
     });
     const reviewTwo = await writer.append({
       meetingId: meetingTwo.id,
@@ -1360,7 +1423,7 @@ describe('meetings foundation contract', () => {
       await createMeetingStore(live).createDraft(draft);
       await createMeetingStore({
         ...live,
-        getActiveMatterId: () => 'matter-victim',
+        getActiveClientBoundary: () => sealedBoundary('household-victim', 'matter-victim'),
       }).createDraft({
         ...draft,
         matterId: 'matter-victim',
@@ -1388,10 +1451,10 @@ describe('meetings foundation contract', () => {
         reader,
         grant
       ).list();
-      expect(listed).toHaveLength(1);
-      expect(listed.every((meeting) => meeting.matterId === 'matter-1')).toBe(
-        true
-      );
+      expect(listed.kind).toBe('ready');
+      if (listed.kind !== 'ready') throw new Error('expected ready directory');
+      expect(listed.meetings).toHaveLength(1);
+      expect(listed.meetings.every((meeting) => meeting.matterId === 'matter-1')).toBe(true);
     });
 
     it('probe: with no open workspace, linking and opening fail closed', async () => {
@@ -1416,8 +1479,14 @@ describe('meetings foundation contract', () => {
  */
 function createMeetingStoreReaderLive(
   live: ReturnType<typeof canonicalPort>
-): ReturnType<typeof canonicalPort> {
-  return { ...live, records: live.readCanonical() };
+): ReturnType<typeof canonicalPort> & {
+  readonly getFirmSelectionError: () => string | null;
+} {
+  return {
+    ...live,
+    records: live.readCanonical(),
+    getFirmSelectionError: () => null,
+  };
 }
 
 function linkedStatusRecord(
@@ -1427,6 +1496,7 @@ function linkedStatusRecord(
     id: 'meeting-linked',
     kind: 'meeting',
     matterId: 'matter-1',
+    householdRef: 'household-1',
     legacyMeetingLink: {
       meetingDir: LEGACY_DIR,
       linkedAt: '2026-07-01T00:00:00.000Z',
@@ -1514,7 +1584,7 @@ describe('legacy meeting link-status doorway', () => {
     await expect(
       createLegacyMeetingLinkStatusReader({
         ...canonicalPort(),
-        getActiveMatterId: () => null,
+        getActiveClientBoundary: () => null,
       }).read({ meetingDir: LEGACY_DIR })
     ).rejects.toThrow('Active client');
     await expect(
@@ -1570,7 +1640,7 @@ describe('legacy meeting link-status doorway', () => {
     const live = canonicalPort([linkedStatusRecord()]);
     const reader = createLegacyMeetingLinkStatusReader({
       ...live,
-      getActiveMatterId: () => active,
+      getActiveClientBoundary: () => boundaryForMatter(active),
       reloadRecords: async () => {
         active = 'matter-2';
         return live.reloadRecords();

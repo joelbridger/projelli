@@ -5,8 +5,32 @@
  * transient scan failure, indistinguishable from real emptiness).
  */
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
+import type { SealedMeetingClientBoundary } from '@/features/meetings';
+import { useMatterStore } from '@/platform/matter/matterStore';
+
+const clientBoundary = {
+  householdRef: 'household-acme',
+  matterId: 'm1',
+} as SealedMeetingClientBoundary;
+
+beforeEach(() => {
+  useMatterStore.setState({
+    matters: [{
+      id: 'm1',
+      name: 'Acme',
+      client: 'Acme',
+      folderPaths: ['C:/WS/Clients/Acme'],
+      crmHouseholdKeys: ['household-acme'],
+      createdAt: '2026-07-04T00:00:00.000Z',
+    }],
+  });
+});
+
+afterEach(() => {
+  useMatterStore.setState({ matters: [] });
+});
 
 function makeWorkspace(overrides: {
   list: (path: string) => Promise<{ name: string; path: string; type: 'file' | 'folder' }[]>;
@@ -29,7 +53,8 @@ describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
 
     render(
       <ClientMeetingsTab
-        matterId="m1"
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => clientBoundary}
         matterFolder="C:/WS/Clients/Acme"
         workspaceService={ws}
       />,
@@ -49,7 +74,8 @@ describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
 
     render(
       <ClientMeetingsTab
-        matterId="m1"
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => clientBoundary}
         matterFolder="C:/WS/Clients/Acme"
         workspaceService={ws}
       />,
@@ -68,7 +94,8 @@ describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
 
     render(
       <ClientMeetingsTab
-        matterId="m1"
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => clientBoundary}
         matterFolder="C:/WS/Clients/Acme"
         workspaceService={ws}
       />,
@@ -91,7 +118,8 @@ describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
 
     render(
       <ClientMeetingsTab
-        matterId="m1"
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => clientBoundary}
         matterFolder="C:/WS/Clients/Acme"
         workspaceService={ws}
       />,

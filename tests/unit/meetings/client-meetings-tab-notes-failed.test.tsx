@@ -4,8 +4,32 @@
  * for a meeting that's still legitimately queued behind transcription.
  */
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
+import type { SealedMeetingClientBoundary } from '@/features/meetings';
+import { useMatterStore } from '@/platform/matter/matterStore';
+
+const clientBoundary = {
+  householdRef: 'household-acme',
+  matterId: 'm1',
+} as SealedMeetingClientBoundary;
+
+beforeEach(() => {
+  useMatterStore.setState({
+    matters: [{
+      id: 'm1',
+      name: 'Acme',
+      client: 'Acme',
+      folderPaths: ['C:/WS/Clients/Acme'],
+      crmHouseholdKeys: ['household-acme'],
+      createdAt: '2026-07-04T00:00:00.000Z',
+    }],
+  });
+});
+
+afterEach(() => {
+  useMatterStore.setState({ matters: [] });
+});
 
 const META_OK = {
   matterId: 'm1',
@@ -32,7 +56,8 @@ describe('ClientMeetingsTab — notes-failed row copy (QA-31)', () => {
   it('shows "notes pending" for a meeting still queued behind transcription (no notesError)', async () => {
     render(
       <ClientMeetingsTab
-        matterId="m1"
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => clientBoundary}
         matterFolder="C:/WS/Clients/Acme"
         workspaceService={makeWorkspace(META_OK)}
       />,
@@ -44,7 +69,8 @@ describe('ClientMeetingsTab — notes-failed row copy (QA-31)', () => {
   it('shows the honest "couldn\'t be written" copy for a meeting whose notesError is set', async () => {
     render(
       <ClientMeetingsTab
-        matterId="m1"
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => clientBoundary}
         matterFolder="C:/WS/Clients/Acme"
         workspaceService={makeWorkspace({
           ...META_OK,

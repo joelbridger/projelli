@@ -7,6 +7,7 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
   createMeetingPopulationService,
   type MeetingOpenTarget,
+  type SealedMeetingClientBoundary,
 } from './foundation/contract';
 import { resolveMeetingEntryHostIdentity } from './meetingEntryHostIdentity';
 
@@ -21,7 +22,10 @@ function canonicalPort(initial: readonly LiveCrmRecord[] = []) {
     records: structuredClone(canonical),
     workspaceRoot: '/workspace',
     error: null as string | null,
-    getActiveMatterId: () => 'matter-1' as string | null,
+    getActiveClientBoundary: () => ({
+      householdRef: 'household-1',
+      matterId: 'matter-1',
+    }) as SealedMeetingClientBoundary,
     save(record: LiveCrmRecord) {
       const saved = structuredClone(record);
       canonical = canonical.some((item) => item.id === saved.id)

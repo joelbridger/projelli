@@ -15,15 +15,15 @@ const boundary = vi.hoisted(() => ({
 vi.mock('@/platform/client-context', () => ({
   useSelectionOperationDecision: () => ({
     kind: 'matter',
-    sourceKind: 'matter-only',
+    sourceKind: 'matter',
     matter: { id: 'matter-1' },
-    client: null,
+    client: { provider: 'wealthbox', householdId: 'household-1', displayName: 'Household 1' },
   }),
   readSelectionOperationDecision: () => ({
     kind: 'matter',
-    sourceKind: 'matter-only',
+    sourceKind: 'matter',
     matter: { id: 'matter-1' },
-    client: null,
+    client: { provider: 'wealthbox', householdId: 'household-1', displayName: 'Household 1' },
   }),
 }));
 
@@ -75,6 +75,7 @@ import {
   useMeetingKeywordCatalogueStore,
   useMeetingTemplateStore,
   useMeetingTypeStore,
+  type SealedMeetingClientBoundary,
 } from './contract';
 
 const draft = {
@@ -167,7 +168,7 @@ describe('meetings canonical live-record round trip', () => {
         freshArtifact.result.current
           .readerFor(
             freshMeeting.result.current,
-            { householdRef: 'household-1', matterId: 'matter-1' },
+            { householdRef: 'household-1', matterId: 'matter-1' } as SealedMeetingClientBoundary,
             [{ kind: 'structured-notes', minimumSchemaVersion: 2 }]
           )
           .get(artifact.id)

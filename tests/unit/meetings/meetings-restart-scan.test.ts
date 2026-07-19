@@ -122,6 +122,47 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 import { TauriFSBackend } from '@/platform/fs/TauriFSBackend';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { listClientMeetings } from '@/features/meetings/ClientMeetingsTab';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import type { Matter } from '@/platform/types/matter';
+import type { SealedMeetingClientBoundary } from '@/features/meetings';
+
+async function scanAuthorizedClientMeetings(
+  matterFolder: string,
+  workspaceService: WorkspaceService,
+  opts?: { retryDelayMs?: number }
+) {
+  const clientBoundary = {
+    householdRef: 'household-test',
+    matterId: 'matter-test',
+  } as SealedMeetingClientBoundary;
+  useMatterStore.setState({
+    matters: [
+      {
+        id: clientBoundary.matterId,
+        name: 'Test household',
+        client: 'Test household',
+        folderPaths: matterFolder ? [matterFolder] : [],
+        crmHouseholdKeys: [clientBoundary.householdRef],
+        createdAt: '2026-07-01T00:00:00.000Z',
+      } as Matter,
+    ],
+  });
+  const result = await listClientMeetings({
+    clientBoundary,
+    getActiveClientBoundary: () => clientBoundary,
+    matterFolder,
+    workspaceService,
+    ...(opts?.retryDelayMs !== undefined
+      ? { retryDelayMs: opts.retryDelayMs }
+      : {}),
+  });
+  return result.kind === 'ready'
+    ? {
+        meetings: result.meetings.map((entry) => entry.meeting),
+        scanFailed: false,
+      }
+    : { meetings: [], scanFailed: result.kind === 'error' };
+}
 
 async function openWorkspace(rootPath: string): Promise<WorkspaceService> {
   const backend = new TauriFSBackend();
@@ -154,14 +195,14 @@ describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidat
         consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:47:38.422Z' },
       }),
     );
-    const inSession = await listClientMeetings(matterFolder, svc1);
+    const inSession = await scanAuthorizedClientMeetings(matterFolder, svc1);
     expect(inSession.scanFailed).toBe(false);
     expect(inSession.meetings).toHaveLength(1);
 
     // ── Restart: brand new backend + WorkspaceService + PathValidator, same
     // persisted rootPath string (as `recentWorkspaces[0].path` would supply). ──
     const svc2 = await openWorkspace(rootRaw);
-    const afterRestart = await listClientMeetings(matterFolder, svc2);
+    const afterRestart = await scanAuthorizedClientMeetings(matterFolder, svc2);
     expect(afterRestart.scanFailed).toBe(false);
     expect(afterRestart.meetings).toHaveLength(1);
     expect(afterRestart.meetings[0]?.meta?.matterId).toBe('matter_nc_caldwell_jennifer');
@@ -189,7 +230,7 @@ describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidat
       JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
     );
     const svcC = await openWorkspace(rootRaw);
-    const result = await listClientMeetings(matterFolder, svcC);
+    const result = await scanAuthorizedClientMeetings(matterFolder, svcC);
     expect(result.scanFailed).toBe(false);
     expect(result.meetings).toHaveLength(3);
   });
@@ -210,7 +251,7 @@ describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidat
     );
 
     const svc2 = await openWorkspace(rootRaw);
-    const result = await listClientMeetings(matterFolder, svc2);
+    const result = await scanAuthorizedClientMeetings(matterFolder, svc2);
     expect(result.scanFailed).toBe(false);
     expect(result.meetings).toHaveLength(1);
   });
@@ -230,7 +271,7 @@ describe('listClientMeetings — scan-failure vs genuine-empty distinction', () 
     fakeFs.mkdir(rootRaw);
 
     const svc = await openWorkspace(rootRaw);
-    const result = await listClientMeetings('', svc);
+    const result = await scanAuthorizedClientMeetings('', svc);
     expect(result).toEqual({ meetings: [], scanFailed: false });
   });
 
@@ -241,7 +282,7 @@ describe('listClientMeetings — scan-failure vs genuine-empty distinction', () 
     fakeFs.mkdir(matterFolder); // the client folder exists; it just has no Meetings/ yet
 
     const svc = await openWorkspace(rootRaw);
-    const result = await listClientMeetings(matterFolder, svc);
+    const result = await scanAuthorizedClientMeetings(matterFolder, svc);
     expect(result).toEqual({ meetings: [], scanFailed: false });
   });
 
@@ -265,7 +306,7 @@ describe('listClientMeetings — scan-failure vs genuine-empty distinction', () 
       return realList(p);
     }) as typeof svc.list;
 
-    const result = await listClientMeetings(matterFolder, svc, { retryDelayMs: 1 });
+    const result = await scanAuthorizedClientMeetings(matterFolder, svc, { retryDelayMs: 1 });
     expect(result.scanFailed).toBe(false);
     expect(result.meetings).toHaveLength(1);
   });
@@ -281,7 +322,7 @@ describe('listClientMeetings — scan-failure vs genuine-empty distinction', () 
     );
     svc.list = (async () => { throw new Error('permanently broken'); }) as typeof svc.list;
 
-    const result = await listClientMeetings(matterFolder, svc, { retryDelayMs: 1 });
+    const result = await scanAuthorizedClientMeetings(matterFolder, svc, { retryDelayMs: 1 });
     expect(result).toEqual({ meetings: [], scanFailed: true });
   });
 });

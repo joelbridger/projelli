@@ -7,7 +7,7 @@ import {
   approvedMeetingArtifactsForClient,
   createMeetingArtifactStore,
   createMeetingStore,
-  type ClientBoundary,
+  type SealedMeetingClientBoundary,
   type MeetingKeywordCatalogueStore,
 } from '../../foundation/contract';
 import { getMeetingInsightComposition } from '../../meetingInsightRegistry';
@@ -21,7 +21,13 @@ function livePort() {
   let records: LiveCrmRecord[] = [];
   let activeMatterId: string | null = 'matter-a';
   return {
-    getActiveMatterId: () => activeMatterId,
+    getActiveClientBoundary: () =>
+      activeMatterId
+        ? ({
+            householdRef: `household-${activeMatterId.replace(/^matter-/, '')}`,
+            matterId: activeMatterId,
+          } as SealedMeetingClientBoundary)
+        : null,
     setActiveMatterId: (next: string | null) => {
       activeMatterId = next;
     },
@@ -40,10 +46,10 @@ function livePort() {
   };
 }
 
-const clientA: ClientBoundary = {
+const clientA = {
   householdRef: 'household-a',
   matterId: 'matter-a',
-};
+} as SealedMeetingClientBoundary;
 
 describe('meeting keywords', () => {
   afterEach(() => {

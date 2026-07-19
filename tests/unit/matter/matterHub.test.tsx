@@ -4,7 +4,7 @@
  * Tests for MatterHub component + the list<->hub wiring in MattersHome.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
@@ -12,6 +12,14 @@ import { emptyClientMap } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { type IntakeRecord, useIntakeStore } from '@/platform/intake/intakeStore';
+import {
+  issueSharedClientSelection,
+  readAuthoritativeMatterScope,
+  replaceCanonicalHouseholdDirectory,
+  requestClearClientSelection,
+  requestSharedClientSelection,
+} from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags/router';
 
 const intakeLinkActionSpies = vi.hoisted(() => ({
   loadIntakeLinkSecret: vi.fn(),
@@ -138,6 +146,8 @@ import { b64ToBytes } from '@/platform/intake/pageSeal';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null, pendingMeetingOpen: null });
+  requestClearClientSelection();
+  replaceCanonicalHouseholdDirectory('wealthbox', null);
   useIntakeStore.getState().resetForTests();
   useFirmStore.setState({ seatToken: null, accessToken: null, session: null });
   intakeLinkActionSpies.loadIntakeLinkSecret.mockReset();
@@ -147,6 +157,10 @@ function resetStore() {
   intakeLinkActionSpies.relayRevokeIntake.mockReset();
   intakeLinkActionSpies.relayRegenerateIntake.mockReset();
 }
+
+afterEach(() => {
+  setDevFlagOverride('selection-authority-boot-gate', undefined);
+});
 
 function makeIntakeForMatter(matterId: string): IntakeRecord {
   return {
@@ -480,6 +494,24 @@ describe('MatterHub — sub-tab workspace', () => {
       name: 'Acme Plan',
       client: 'Acme',
       folderPaths: ['C:/WS/Clients/Acme'],
+      crmHouseholdKeys: ['household-acme'],
+    });
+    const client = {
+      provider: 'wealthbox' as const,
+      householdId: 'household-acme',
+      displayName: 'Acme',
+    };
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    readAuthoritativeMatterScope();
+    requestClearClientSelection();
+    replaceCanonicalHouseholdDirectory('wealthbox', [client]);
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    readAuthoritativeMatterScope();
+    await act(async () => {
+      await requestSharedClientSelection(issueSharedClientSelection(client));
+    });
+    await waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe(matter.id);
     });
     useMatterStore.getState().setPendingMeetingOpen({
       meetingDir: 'C:/WS/Clients/Acme/Meetings/direct',
