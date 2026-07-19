@@ -6,9 +6,10 @@ import {
 } from './foundation/contract';
 
 /**
- * The Actions-facing name for the foundation's sealed, firm-wide review
- * reader. It adds no persistence or selection behavior: the store re-checks
- * the owner-issued grant and the activated selection tri-state on every read.
+ * The raw G2 doorway for the sealed, firm-wide review reader. The store
+ * re-checks the owner-issued grant and activated selection tri-state on every
+ * read and archive transition. UI consumers use `MeetingReviewInboxReader`,
+ * which adds the exact selected-client projection and never exposes raw G2.
  */
 export function readReviewNeededMeetingArtifacts(
   artifacts: FirmReadableMeetingArtifactStore,
