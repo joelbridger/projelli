@@ -23,7 +23,17 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const repoRoot = join(__dirname, '..', '..', '..');
-const probeDir = join(repoRoot, 'src', 'platform', '__sink_derivation_probe__');
+// NOT under src/. Several guard suites (brandVisibleCopy, taskRemovalSeam,
+// crm-egress-boundary, network-lockdown, workflowCompletionSeam) walk `src/`
+// from disk, and vitest runs suites in parallel — planting files there made a
+// brand-copy guard red in one full run and pass in isolation. A test that
+// mutates a tree other tests read is a race, and "it passed on my machine" is
+// exactly the evidence that race destroys.
+//
+// `scripts/` is walked by the checker (it already derives members there) and by
+// no test suite, so the probe proves the same thing without the collision. The
+// walk's reach into src/ and src-tauri/ is asserted separately below.
+const probeDir = join(repoRoot, 'scripts', '__sink_derivation_probe__');
 
 const PROBES: Record<string, string> = {
   // A seventh CSV writer. It never says "csvSafe", never imports the
@@ -95,7 +105,7 @@ describe('the derivation discriminates — it finds a NEW sink nobody listed', (
 
     // Prove the premise first: these files really are untracked, so the
     // checker cannot be finding them via the git index.
-    const status = execSync('git status --porcelain -- src/platform/__sink_derivation_probe__', {
+    const status = execSync('git status --porcelain -- scripts/__sink_derivation_probe__', {
       cwd: repoRoot,
       encoding: 'utf8',
     });
@@ -105,18 +115,29 @@ describe('the derivation discriminates — it finds a NEW sink nobody listed', (
     expect(after.status).toBe(1);
 
     for (const name of Object.keys(PROBES)) {
-      expect(after.stdout).toContain(`UNGUARDED src/platform/__sink_derivation_probe__/${name}`);
+      expect(after.stdout).toContain(`UNGUARDED scripts/__sink_derivation_probe__/${name}`);
     }
     // …and each landed in the RIGHT set.
     expect(after.stdout).toMatch(
-      /\[csv][\s\S]*?UNGUARDED src\/platform\/__sink_derivation_probe__\/quarterlyLedger\.ts/,
+      /\[csv][\s\S]*?UNGUARDED scripts\/__sink_derivation_probe__\/quarterlyLedger\.ts/,
     );
     expect(after.stdout).toMatch(
-      /\[html][\s\S]*?UNGUARDED src\/platform\/__sink_derivation_probe__\/ProposalBanner\.tsx/,
+      /\[html][\s\S]*?UNGUARDED scripts\/__sink_derivation_probe__\/ProposalBanner\.tsx/,
     );
     expect(after.stdout).toMatch(
-      /\[archive][\s\S]*?UNGUARDED src\/platform\/__sink_derivation_probe__\/legacyBookImport\.ts/,
+      /\[archive][\s\S]*?UNGUARDED scripts\/__sink_derivation_probe__\/legacyBookImport\.ts/,
     );
+  });
+
+  // The probes live outside src/, so prove separately that the walk actually
+  // reaches the trees that matter — otherwise this whole test could pass over a
+  // scope that stops at scripts/.
+  it('derives members from src/, src-tauri/ and the crates tree', () => {
+    unplant();
+    const { stdout } = runChecker();
+    expect(stdout).toContain('src/platform/export/csvSafe.ts');
+    expect(stdout).toContain('src-tauri/src/safe_csv.rs');
+    expect(stdout).toContain('src-tauri/crates/lantern-docx/src/package.rs');
   });
 
   it('goes GREEN again once the probes are removed', () => {
