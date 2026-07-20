@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { BRAND } from '@/config/brand';
 
 const intakePack = readFileSync(
   resolve(process.cwd(), 'docs/trust/it-pack/INTAKE-IT-PACK.md'),
   'utf8'
 ).toLowerCase();
 
-describe('Lantern Intake IT Gatekeeper Pack claims discipline', () => {
+describe('Advisor Prep Hero Intake IT Gatekeeper Pack claims discipline', () => {
   it('does not use forbidden security overclaims', () => {
     expect(intakePack).not.toContain('military-grade');
     expect(intakePack).not.toContain('unhackable');
@@ -30,7 +31,9 @@ describe('Lantern Intake IT Gatekeeper Pack claims discipline', () => {
       expect(before).toMatch(/not|never/);
     }
 
-    expect(intakePack).toContain('lantern is not soc 2 certified');
+    expect(intakePack).toContain(
+      `${BRAND.name.toLowerCase()} is not soc 2 certified`
+    );
   });
 
   it('keeps email fallback explicitly outside the encrypted-link channel', () => {
