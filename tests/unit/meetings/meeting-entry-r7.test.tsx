@@ -132,7 +132,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     };
   });
 
-  it('does not show Word-native folder content without a sealed summary artifact', async () => {
+  it('delivers Word-native folder content through the sealed direct meeting host', async () => {
     docxExtraction.current = {
       html: [
         '<h2>Action items</h2>',
@@ -162,14 +162,11 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
 
     expect(
-      await screen.findByTestId('meeting-entry-summary-not-ready')
-    ).toBeInTheDocument();
+      await screen.findByTestId('meeting-summary-personal-notes')
+    ).toHaveTextContent('The next review is in fall.');
     expect(screen.queryByTestId('notes-review-panel')).not.toBeInTheDocument();
     expect(
       screen.queryByText('Start the rollover paperwork.')
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('The next review is in fall.')
     ).not.toBeInTheDocument();
   });
 
@@ -397,7 +394,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     );
   });
 
-  it('keeps folder summaries hidden while clearing export state for a different meeting', async () => {
+  it('clears a delivered folder summary and export state for a different meeting', async () => {
     const files = new Map<string, string>();
     files.set(
       '/ws/C/Meetings/A/meeting.json',
@@ -468,9 +465,10 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     );
     fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
     await waitFor(() =>
-      expect(screen.getByTestId('meeting-entry-summary-not-ready')).toBeTruthy()
+      expect(screen.getByTestId('meeting-summary-text')).toHaveTextContent(
+        'Summary body'
+      )
     );
-    expect(screen.queryByTestId('meeting-summary-text')).toBeNull();
 
     rerender(
       <MeetingEntry
@@ -481,7 +479,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     );
 
     // Meeting B has no notes: the summary export in the actions menu is disabled
-    // and writes nothing. Neither meeting's folder summary enters the panel.
+    // and writes nothing. Meeting A's delivered summary never survives the switch.
     await waitFor(() =>
       expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy()
     );

@@ -8,6 +8,7 @@ import type {
   SealedMeetingClientBoundary,
 } from './foundation/contract';
 import { meetingPanelRegistry } from './meetingPanelRegistry';
+import type { MeetingEntryHostIdentity } from './meetingEntryHostIdentity';
 import type { MeetingPanelContext } from './meetingWorkspaceTypes';
 import {
   StructuredMeetingSummaryPanel,
@@ -18,7 +19,7 @@ import {
 } from './StructuredMeetingSummaryPanel';
 
 const connectedStores = vi.hoisted(() => ({
-  meetings: { list: [], error: null },
+  meetings: { list: [] as MeetingProjection[], error: null },
   artifacts: {
     readerFor: vi.fn(() => ({
       listForMeeting: () => [],
@@ -46,9 +47,8 @@ vi.mock('./foundation/contract', async (importOriginal) => {
 });
 
 vi.mock('@/platform/utils/docx-io', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('@/platform/utils/docx-io')
-  >();
+  const actual =
+    await importOriginal<typeof import('@/platform/utils/docx-io')>();
   return { ...actual, extractDocxText: extractFolderDocx };
 });
 
@@ -175,6 +175,46 @@ describe('StructuredMeetingSummaryPanel', () => {
     );
   });
 
+  it('delivers a host-extracted stored note when no canonical summary artifact exists', async () => {
+    const canonical = meeting('meeting-a', 'household-a');
+    connectedStores.meetings.list = [canonical];
+    connectedStores.artifacts.readerFor.mockReturnValue({
+      listForMeeting: () => [],
+      get: () => null,
+    });
+    const hostIdentity = {
+      matterId: 'shared-matter',
+      meetingDir: '/workspace/household-a/meeting-a',
+      folderName: 'meeting-a',
+      canonicalMeeting: canonical,
+      clientBoundary: boundary('household-a'),
+      target: { kind: 'linked-legacy-meeting' },
+    } as unknown as MeetingEntryHostIdentity;
+
+    render(
+      <StructuredMeetingSummaryPanel
+        context={{
+          ...context('meeting-a', 'household-a'),
+          hostIdentity,
+          hasNotes: true,
+          summaryReady: true,
+          summaryExtraction: {
+            plainText:
+              'Summary\nAnnual review recap.\n\nDecisions\n- Complete the Roth conversion.',
+            html: '<p>Annual review recap.</p>',
+          },
+        }}
+      />
+    );
+
+    expect(await screen.findByTestId('meeting-summary-text')).toHaveTextContent(
+      'Annual review recap.'
+    );
+    expect(screen.getByTestId('meeting-summary-decisions')).toHaveTextContent(
+      'Complete the Roth conversion.'
+    );
+  });
+
   it('clears client A synchronously and ignores A when its async read finishes late', async () => {
     const readA = deferred<StructuredMeetingSummaryPanelLoadResult>();
     const readB = deferred<StructuredMeetingSummaryPanelLoadResult>();
@@ -236,7 +276,9 @@ describe('StructuredMeetingSummaryPanel', () => {
   it('does not give household B household A folder summary when both share a matter and meeting folder', async () => {
     const readFile = vi
       .fn()
-      .mockResolvedValue(JSON.stringify({ reviewedAt: '2026-07-20T11:00:00Z' }));
+      .mockResolvedValue(
+        JSON.stringify({ reviewedAt: '2026-07-20T11:00:00Z' })
+      );
     const exists = vi.fn().mockResolvedValue(true);
     const readFileBinary = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
     const sharedFolder = {
