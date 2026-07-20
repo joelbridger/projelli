@@ -1,22 +1,18 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Copy follows the approved alt-familiar CRM record prototype. */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
-import {
-  useContactRecordStore,
-  type ContactChannel,
-  type ContactRecord,
-} from '@/features/crm-contacts';
+import type { ContactChannel, ContactRecord } from '@/features/crm-contacts';
 import {
   useSelectionOperationDecision,
   type SelectionOperationDecision,
 } from '@/platform/client-context';
 import { Badge, Button, Card, SlidePanel } from '@/ui/kp';
 import type { HouseholdSectionContext } from '../../recordRegistry';
+import { useRecordKindsPort } from './recordKindsPort';
 import {
   RecordKindsIsolationError,
   contactKindLabel,
   createEmptyRecordKindsDetails,
-  createRecordKindsRepository,
   sealRecordKindsClientScope,
   type RecordKindsDetails,
   type RecordKindsDraft,
@@ -111,25 +107,20 @@ export function RecordKindsSection({
   context: HouseholdSectionContext;
 }) {
   const decision = useSelectionOperationDecision(recordKindsSelectionRequest);
-  const contactStore = useContactRecordStore();
-  const recordsSignature = contactStore.records
-    .map(
-      (record) =>
-        `${record.kind}:${record.id}:${record.matterId}:${record.updatedAt ?? ''}`
-    )
-    .join('|');
-  const repository = useMemo(
-    () => createRecordKindsRepository(contactStore),
-    // The public contact hook currently returns a new facade each render. The
-    // saved-record signature is its stable reactive value.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- explained above
-    [recordsSignature]
-  );
+  // The reactive port is the ONLY storage surface this component touches. It
+  // never exposes the raw contact store, the whole-firm `records` array, an
+  // id-only writer, or a whole-firm reload signature (Finding #1).
+  const port = useRecordKindsPort();
+  const repository = port.repository;
   const boundary = useMemo(
     () => resolveScope(context, decision),
     [context, decision]
   );
   const activeKey = boundary.kind === 'ready' ? scopeKey(boundary.scope) : '';
+  // Scoped, pair-gated reactive token: changes only when THIS client's records
+  // change. Never encodes the whole-firm array or another client's data.
+  const reloadSignature =
+    boundary.kind === 'ready' ? port.reloadSignatureFor(boundary.scope) : '';
   const [state, setState] = useState<LoadState>({
     kind: 'loading',
     scopeKey: activeKey,
@@ -143,7 +134,12 @@ export function RecordKindsSection({
   // Client-data isolation: an open editor holds one client's full record. When
   // the active client changes, drop any editor or add-panel from the prior
   // client so B never inherits A's open drawer or its half-typed new record.
+  // This is legitimate external-system synchronisation (resetting UI state to
+  // the newly selected client key). The compiler's set-state-in-effect
+  // heuristic only stopped recognising it once the raw contact store moved
+  // behind the reactive port; the effect itself is unchanged and required.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- external-sync reset, see above
     setEditing(null);
     setAddingIndividual(false);
   }, [activeKey]);
@@ -172,7 +168,13 @@ export function RecordKindsSection({
     }
   }, [boundary, repository]);
 
+  // External-system synchronisation: load this client's scoped records from the
+  // reactive contact store whenever the sealed pair or its scoped signature
+  // changes. The state machine (loading → ready/error) is inherent to reading an
+  // async external source; the compiler stopped recognising this as external
+  // sync only because the store now sits behind the port (same reason as above).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- external-sync load, see above
     reload().catch(() => {
       setState({
         kind: 'error',
@@ -180,7 +182,7 @@ export function RecordKindsSection({
         message: 'The saved contact details could not be read.',
       });
     });
-  }, [activeKey, recordsSignature, reload]);
+  }, [activeKey, reloadSignature, reload]);
 
   if (boundary.kind === 'blocked') {
     return (

@@ -130,20 +130,31 @@ async function expectEveryBoundaryToRefuse(
 
 describe('record-kinds paired client repository', () => {
   it('creates, edits, and reopens household and individual details without losing rows', async () => {
-    const persisted = liveFixture();
+    // The selected client's household exists in canonical storage (you are
+    // viewing it) — pair-integrity requires it. Record-kinds adds individuals.
+    const persisted = liveFixture([
+      {
+        id: 'household:selected',
+        kind: 'household',
+        matterId: 'matter-a',
+        name: 'Foster household',
+        lifecycle: 'Active',
+        primaryAdvisor: 'Sarah Morgan',
+        channels: [],
+        contactLinks: [],
+        contextRefs: [],
+        tagIds: [],
+      },
+    ]);
     const firstContacts = createContactRecordStore(persisted.live);
     const first = createRecordKindsRepository(firstContacts);
     const sealed = scope();
+    const householdRef: ContactRef = {
+      kind: 'household',
+      id: 'household:selected',
+      matterId: 'matter-a',
+    };
 
-    const household = await first.create(
-      sealed,
-      {
-        kind: 'household',
-        name: 'Foster household',
-        primaryAdvisor: 'Sarah Morgan',
-      },
-      createEmptyRecordKindsDetails()
-    );
     const person = await first.create(
       sealed,
       {
@@ -155,11 +166,7 @@ describe('record-kinds paired client repository', () => {
       createEmptyRecordKindsDetails()
     );
 
-    await first.update(
-      sealed,
-      household.ref,
-      draftFor('household', 'Foster family')
-    );
+    await first.update(sealed, householdRef, draftFor('household', 'Foster family'));
     await first.update(sealed, person.ref, draftFor('person', 'Robert Foster'));
 
     const reopenedContacts = createContactRecordStore(persisted.live);
@@ -167,7 +174,7 @@ describe('record-kinds paired client repository', () => {
     const records = await reopened.list(sealed);
     expect(records).toHaveLength(2);
 
-    for (const ref of [household.ref, person.ref]) {
+    for (const ref of [householdRef, person.ref]) {
       const saved = await reopened.read(sealed, ref);
       expect(saved).not.toBeNull();
       expect(saved?.record.channels).toEqual(
@@ -180,20 +187,133 @@ describe('record-kinds paired client repository', () => {
     }
   });
 
-  it('returns a real empty result for an empty store', async () => {
+  it('refuses when the selected household is absent from canonical storage (fail closed, never empty)', async () => {
+    // An empty store means the selected household does not exist. Pre-fix this
+    // returned an empty list; that is exactly the boundary Finding #2 closes —
+    // the pair was never proven against canonical storage.
     const persisted = liveFixture();
     const repository = createRecordKindsRepository(
       createContactRecordStore(persisted.live)
     );
     const sealed = scope();
-    await expect(repository.list(sealed)).resolves.toEqual([]);
+    await expect(repository.list(sealed)).rejects.toBeInstanceOf(
+      RecordKindsIsolationError
+    );
     await expect(
       repository.read(sealed, {
         kind: 'household',
         id: 'household:missing',
         matterId: 'matter-a',
       })
+    ).rejects.toBeInstanceOf(RecordKindsIsolationError);
+  });
+
+  it('lists just the household for a client that has no individuals yet', async () => {
+    const persisted = liveFixture([
+      {
+        id: 'household:selected',
+        kind: 'household',
+        matterId: 'matter-a',
+        name: 'Foster household',
+        lifecycle: 'Active',
+        channels: [],
+        contactLinks: [],
+        contextRefs: [],
+        tagIds: [],
+      },
+    ]);
+    const repository = createRecordKindsRepository(
+      createContactRecordStore(persisted.live)
+    );
+    const sealed = scope();
+    const records = await repository.list(sealed);
+    expect(records).toHaveLength(1);
+    expect(records[0]?.record.id).toBe('household:selected');
+    // A missing target inside a verified pair resolves to null, not a refusal.
+    await expect(
+      repository.read(sealed, {
+        kind: 'person',
+        id: 'person:missing',
+        matterId: 'matter-a',
+      })
     ).resolves.toBeNull();
+  });
+
+  it('refuses a forged pair: a mismatched household id aimed at a real matter (Finding #2)', async () => {
+    // Canonical storage: household:x owns matter-a and holds a real individual.
+    const persisted = liveFixture([
+      {
+        id: 'household:x',
+        kind: 'household',
+        matterId: 'matter-a',
+        name: 'Real household',
+        lifecycle: 'Active',
+        channels: [],
+        contactLinks: [{ contactId: 'person:x', kind: 'person' }],
+        contextRefs: [],
+        tagIds: [],
+      },
+      {
+        id: 'person:x',
+        kind: 'person',
+        matterId: 'matter-a',
+        firstName: 'Real',
+        lastName: 'Client',
+        lifecycle: 'Active',
+        channels: [],
+        contactLinks: [],
+        contextRefs: [],
+        tagIds: [],
+      },
+    ]);
+    const repository = createRecordKindsRepository(
+      createContactRecordStore(persisted.live)
+    );
+    // A structurally valid sealed pair for a household id that does NOT own
+    // matter-a, pointed at the real matter-a. Pre-fix, list() leaked every
+    // contact in matter-a. Now the canonical pair cannot be resolved → refuse.
+    const forged = sealRecordKindsClientScope({
+      householdRef: {
+        kind: 'household',
+        id: 'household:forged',
+        matterId: 'matter-a',
+      },
+      matterId: 'matter-a',
+    });
+    await expect(repository.list(forged)).rejects.toBeInstanceOf(
+      RecordKindsIsolationError
+    );
+    await expect(
+      repository.read(forged, {
+        kind: 'person',
+        id: 'person:x',
+        matterId: 'matter-a',
+      })
+    ).rejects.toBeInstanceOf(RecordKindsIsolationError);
+  });
+
+  it('refuses when the household exists but canonically owns a different matter', async () => {
+    const persisted = liveFixture([
+      {
+        id: 'household:selected',
+        kind: 'household',
+        matterId: 'matter-other',
+        name: 'Foster household',
+        lifecycle: 'Active',
+        channels: [],
+        contactLinks: [],
+        contextRefs: [],
+        tagIds: [],
+      },
+    ]);
+    const repository = createRecordKindsRepository(
+      createContactRecordStore(persisted.live)
+    );
+    // scope() aims household:selected at matter-a, but it canonically owns
+    // matter-other — the pair is not owned → refuse before any read.
+    await expect(repository.list(scope())).rejects.toBeInstanceOf(
+      RecordKindsIsolationError
+    );
   });
 
   it('refuses undefined, partial, and mismatched household/matter pairs at every read and write', async () => {
@@ -303,6 +423,17 @@ describe('record-kinds paired client repository', () => {
 
   it('refuses a malformed document that claims this matter rather than dropping it', async () => {
     const persisted = liveFixture([
+      {
+        id: 'household:selected',
+        kind: 'household',
+        matterId: 'matter-a',
+        name: 'Foster household',
+        lifecycle: 'Active',
+        channels: [],
+        contactLinks: [],
+        contextRefs: [],
+        tagIds: [],
+      },
       {
         id: 'person:broken',
         kind: 'person',

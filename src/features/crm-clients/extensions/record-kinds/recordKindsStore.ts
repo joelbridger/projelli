@@ -376,6 +376,44 @@ function assertInScope(
 }
 
 /**
+ * STORE-LEVEL PAIR-INTEGRITY (record-kinds' own permanent responsibility, NOT
+ * authorization). A sealed pair is only internally consistent — it proves the
+ * household ref and matterId agree with each other, not that they agree with
+ * canonical storage. A caller can seal a structurally valid pair for ANY
+ * household id against a REAL matter id and, without this check, read every
+ * contact in that matter.
+ *
+ * This resolves the canonical pair: it loads the household resource by its id
+ * from canonical storage and proves that resource exists AND that its stored
+ * matterId equals the pair's matterId — both fields, exactly. A pair that is not
+ * canonically owned (household absent, legacy/unpaired, or owning a different
+ * matter) FAILS CLOSED and is never served. This is the permissions spec's
+ * labels+boundary step (canonical-pair resolution as a store property), kept
+ * SEPARATE from any advisor/role authorization decision — that is the
+ * permissions engine's turf, layered in front later.
+ */
+function assertCanonicalPairOwnership(
+  scope: RuntimeSealedScope,
+  contacts: ContactRecordStore
+): void {
+  const canonicalHousehold = contacts.records.find(
+    (record) =>
+      record.kind === 'household' && record.id === scope.householdRef.id
+  );
+  if (!canonicalHousehold) {
+    // Household id is not a canonical household (missing, deleted, or legacy/
+    // unpaired so it never parsed into a paired record) → the pair cannot be
+    // owned → refuse.
+    throw new RecordKindsIsolationError();
+  }
+  if (canonicalHousehold.matterId !== scope.matterId) {
+    // Household exists but canonically owns a different matter → the forged
+    // {this household + another matter} pair is not owned → refuse.
+    throw new RecordKindsIsolationError();
+  }
+}
+
+/**
  * Records that look like this client's contacts but cannot be verified against
  * the sealed pair — a legacy household with no `matterId`, an unpaired linked
  * individual, or a malformed document claiming this matter. Their existence must
@@ -421,6 +459,13 @@ interface ScopedContactStore {
   read(ref: ContactRef): Promise<ContactRecord | null>;
   create(input: ContactCreateInput): Promise<ContactRecord>;
   update(ref: ContactRef, patch: ContactPatch): Promise<ContactRecord>;
+  /**
+   * A scoped reactive token derived ONLY from records inside this proven pair.
+   * It never encodes another client's data or the whole-firm array. Reachable
+   * only after the pair is authorized at construction, so the UI can watch it to
+   * reload without ever touching raw storage.
+   */
+  reloadSignature(): string;
 }
 
 function createScopedContactStore(
@@ -428,8 +473,26 @@ function createScopedContactStore(
   untrustedScope: SealedRecordKindsClientScope
 ): ScopedContactStore {
   const scope = assertScope(untrustedScope);
+  // Finding #2: prove the sealed pair against canonical storage BEFORE building
+  // any read/write/reactive accessor. Every scoped operation below is reachable
+  // only past this fail-closed gate.
+  assertCanonicalPairOwnership(scope, contacts);
   return {
     scope,
+    reloadSignature() {
+      const scoped = contacts.records
+        .filter((record) => record.matterId === scope.matterId)
+        .map(
+          (record) =>
+            `${record.kind}:${record.id}:${record.matterId}:${record.updatedAt ?? ''}`
+        );
+      // Include this client's isolation blockers so the fail-closed error state
+      // refreshes if an unpaired sibling appears or is repaired.
+      const blockers = scopedIsolationBlockers(scope, contacts).map((document) =>
+        typeof document['id'] === 'string' ? document['id'] : '?'
+      );
+      return `${scope.matterId} ${scope.householdRef.id}::${scoped.join('|')}::${blockers.join(',')}`;
+    },
     list() {
       if (scopedIsolationBlockers(scope, contacts).length > 0) {
         throw new RecordKindsIsolationError(
@@ -539,6 +602,49 @@ export function createRecordKindsRepository(
       };
       const updated = await store.update(untrustedRef, patch);
       return snapshot(updated);
+    },
+  };
+}
+
+/**
+ * Stable token returned when the sealed pair cannot be verified against
+ * canonical storage. The UI still reloads through it, and the repository refuses
+ * on the same gate — the UI never learns anything about another client's data or
+ * timing from an unverifiable pair.
+ */
+export const RECORD_KINDS_UNVERIFIED_SIGNATURE = 'record-kinds:pair-unverified';
+
+/**
+ * The record-kinds reactive port (Finding #1). This is the ONLY surface the UI
+ * touches. It never hands out the raw contact store, the whole-firm `records`
+ * array, an id-only update, or a whole-firm reload signature: the UI receives
+ * only scoped projections (the pair-taking repository) and a scoped, pair-gated
+ * reload token.
+ */
+export interface RecordKindsPort {
+  readonly repository: RecordKindsRepository;
+  /**
+   * A scoped, pair-gated reactive token for the given sealed pair. It changes
+   * only when THIS client's own records change; it never encodes the whole-firm
+   * array or another client's data. An unverifiable pair collapses to a single
+   * stable token (see {@link RECORD_KINDS_UNVERIFIED_SIGNATURE}).
+   */
+  reloadSignatureFor(scope: SealedRecordKindsClientScope): string;
+}
+
+export function createRecordKindsPort(
+  contacts: ContactRecordStore
+): RecordKindsPort {
+  return {
+    repository: createRecordKindsRepository(contacts),
+    reloadSignatureFor(untrustedScope) {
+      try {
+        // Building the scoped store re-runs the seal check AND canonical
+        // pair-integrity; the signature is computed only past that gate.
+        return createScopedContactStore(contacts, untrustedScope).reloadSignature();
+      } catch {
+        return RECORD_KINDS_UNVERIFIED_SIGNATURE;
+      }
     },
   };
 }

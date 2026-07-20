@@ -212,18 +212,45 @@ describe('record-kinds composed household surface isolation', () => {
     expect(screen.queryByText('Robert Foster')).not.toBeInTheDocument();
   });
 
-  it('shows a valid empty store as empty, not as a read failure', async () => {
+  it('renders a client whose household has no individuals without a read failure', async () => {
+    fixture.records = [
+      {
+        id: 'household:a',
+        kind: 'household',
+        matterId: 'matter-a',
+        name: 'Foster household',
+        lifecycle: 'Active',
+        primaryAdvisor: 'Sarah Morgan',
+        channels: [],
+        contactLinks: [],
+        contextRefs: [],
+        tagIds: [],
+      },
+    ];
+    render(
+      <RecordKindsSection
+        context={context('household:a', 'matter-a', 'Foster household')}
+      />
+    );
+    const section = await screen.findByTestId('record-kinds-section');
+    expect(within(section).getByText('Foster household')).toBeInTheDocument();
+    expect(screen.queryByTestId('record-kinds-error')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('record-kinds-blocked')
+    ).not.toBeInTheDocument();
+  });
+
+  it('fails closed (never empty) when the selected household is absent from storage', async () => {
+    // A raw whole-firm store is no longer reachable from the UI, and an absent
+    // household can no longer resolve to a silent empty list (Findings #1 + #2).
     fixture.records = [];
     render(
       <RecordKindsSection
         context={context('household:a', 'matter-a', 'Foster household')}
       />
     );
-    expect(await screen.findByTestId('record-kinds-empty')).toBeInTheDocument();
-    expect(screen.queryByTestId('record-kinds-error')).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId('record-kinds-blocked')
-    ).not.toBeInTheDocument();
+    expect(await screen.findByTestId('record-kinds-error')).toBeInTheDocument();
+    expect(screen.queryByTestId('record-kinds-empty')).not.toBeInTheDocument();
   });
 
   it('keeps a mismatched active selection on the blocked branch, never the empty branch', async () => {
