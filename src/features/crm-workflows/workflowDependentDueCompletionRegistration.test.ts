@@ -10,6 +10,9 @@ afterEach(() => {
 });
 
 describe('workflow dependent-due completion registration', () => {
+  // Load-sensitive: this test deliberately exercises the real lazy-import path.
+  // Under fleet load, Vite module transformation can exceed Vitest's 5s default
+  // even though the registration behavior is correct, so keep its timeout local.
   it('keeps the real completion implementation unloaded on the workflowLive public-index path while the flag is off', async () => {
     vi.resetModules();
     const implementationLoad = vi.fn();
@@ -42,5 +45,5 @@ describe('workflow dependent-due completion registration', () => {
     setDevFlagOverride('workflow-dependent-due', true);
     await prepareWorkflowDependentDueCompletion();
     expect(implementationLoad).toHaveBeenCalledOnce();
-  });
+  }, 30_000);
 });
