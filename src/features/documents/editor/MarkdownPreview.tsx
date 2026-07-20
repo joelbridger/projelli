@@ -47,6 +47,90 @@ function escapeHtmlString(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Schemes permitted in a rendered href/src. Anything else (javascript:,
+// vbscript:, data:, file:, …) is dropped so a document can never introduce a
+// scriptable or otherwise dangerous URL. Relative URLs (no scheme) are allowed.
+const SAFE_URL_SCHEMES = new Set(['http', 'https', 'mailto', 'tel']);
+
+// Control characters a browser IGNORES while parsing a URL. Matching them is the
+// point (anti-obfuscation), so the no-control-regex lint rule is deliberately
+// disabled here. CONTROL_AND_SPACE (incl. 0x20) is for scheme DETECTION — it
+// collapses split schemes like `java\tscript:` into `javascript:`; CONTROL_CHARS
+// is the hygiene strip applied to a URL we keep.
+// eslint-disable-next-line no-control-regex -- deliberately matches C0/C1 controls + space to defeat obfuscated URL schemes
+const CONTROL_AND_SPACE = /[\u0000-\u0020\u007F-\u009F]+/g;
+// eslint-disable-next-line no-control-regex -- deliberately strips C0/C1 control chars from a kept URL
+const CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/g;
+
+/**
+ * Validate a file/model-derived URL destined for an href/src attribute and
+ * return a value that is safe to place inside a double-quoted attribute.
+ *
+ * SECURITY — inert BY CONSTRUCTION. Markdown link/image URLs are untrusted
+ * (they come from the opened .md/.txt document). This function does NOT depend
+ * on the markdown pipeline's incidental quirks (bold/italic underscore mangling,
+ * the `[^)]+` paren-truncation, or the absence of `unsafe-eval` in the CSP) for
+ * safety — those were only ever accidental barriers.
+ *
+ *  - Control characters and spaces are stripped before scheme detection so a
+ *    split scheme like `java\tscript:` cannot slip past (browsers ignore those
+ *    characters when parsing a URL scheme).
+ *  - An absolute URL must carry an allow-listed scheme. Images may additionally
+ *    use a NON-scriptable raster `data:image/...` URI; `data:image/svg+xml` is
+ *    intentionally excluded because SVG can carry script.
+ *  - Anything rejected returns '' — it renders as an inert empty attribute
+ *    rather than a live link/image, so nothing can execute.
+ *
+ * The returned value still needs escapeHtmlAttrValue() before it lands in the
+ * attribute (this function validates the scheme; that one neutralizes quotes).
+ */
+function sanitizeUrl(rawUrl: string, opts: { allowImageData?: boolean } = {}): string {
+  // The value returned when the URL is permitted: the original with any stray
+  // control characters stripped for hygiene.
+  const clean = rawUrl.replace(CONTROL_CHARS, '');
+
+  // Normalize for scheme matching ONLY: strip the control chars + spaces a
+  // browser ignores while parsing a scheme (defeating split/whitespace tricks
+  // like `java\tscript:` or a leading-space scheme), then lower-case.
+  const normalized = rawUrl.replace(CONTROL_AND_SPACE, '').toLowerCase();
+  const scheme = /^([a-z][a-z0-9+.-]*):/.exec(normalized)?.[1];
+
+  // ALLOW-LIST — deliberately a positive allow-list, NOT a block-list: a
+  // block-list silently admits every scheme it forgot (blob:, filesystem:, and
+  // whatever an attacker finds next). Only the cases below are permitted; the
+  // default is refusal.
+  //   1. No scheme at all → a relative / anchor / query URL → safe.
+  if (scheme === undefined) return clean;
+  //   2. An explicitly permitted navigable scheme.
+  if (SAFE_URL_SCHEMES.has(scheme)) return clean;
+  //   3. Narrow image-only exception: a NON-scriptable raster data: URI
+  //      (data:image/svg+xml is excluded — SVG can carry script).
+  if (
+    opts.allowImageData &&
+    scheme === 'data' &&
+    /^data:image\/(png|jpe?g|gif|webp|avif|bmp);/.test(normalized)
+  ) {
+    return clean;
+  }
+  // Everything else — javascript:, vbscript:, file:, blob:, filesystem:,
+  // data:* not matched above, and any unknown scheme — is refused to a no-op.
+  return '';
+}
+
+/**
+ * Escape a value for insertion inside a DOUBLE-quoted HTML attribute. Escaping
+ * the quote characters is both necessary AND sufficient to prevent attribute
+ * breakout: `<`, `>` and `&` are inert inside a quoted attribute value, and a
+ * literal quote is the only thing that can terminate it early. `&` is
+ * deliberately NOT re-escaped here — the document-wide escape at the top of
+ * markdownToHtml already turned every source `&` into `&amp;`, so re-escaping
+ * would double-encode the `&amp;` in legitimate query strings. Callers place
+ * the result strictly inside `"..."`.
+ */
+function escapeHtmlAttrValue(s: string): string {
+  return s.replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
+
 /**
  * Render a single math expression with KaTeX. Parse errors are rendered
  * through KaTeX's own error fallback (red underlined source) via the
@@ -173,11 +257,22 @@ function markdownToHtml(markdown: string): string {
   html = html.replace(/^---$/gm, '<hr class="my-6 border-t border-border" />');
   html = html.replace(/^\*\*\*$/gm, '<hr class="my-6 border-t border-border" />');
 
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">$1</a>');
+  // Links — the URL is untrusted, so validate its scheme and escape it into the
+  // href attribute (both are required; see sanitizeUrl / escapeHtmlAttrValue).
+  // The link text ($1) is already HTML-escaped by the document-wide pass above
+  // and lands in text (not attribute) context, so it needs no further handling.
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, text: string, url: string) => {
+    const href = escapeHtmlAttrValue(sanitizeUrl(url));
+    return `<a href="${href}" class="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">${text}</a>`;
+  });
 
-  // Images
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="max-w-full h-auto my-4 rounded" />');
+  // Images — same treatment for the src URL (raster data: URIs additionally
+  // allowed), and the alt text lands in an attribute so it is escaped too.
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt: string, url: string) => {
+    const src = escapeHtmlAttrValue(sanitizeUrl(url, { allowImageData: true }));
+    const altAttr = escapeHtmlAttrValue(alt);
+    return `<img src="${src}" alt="${altAttr}" class="max-w-full h-auto my-4 rounded" />`;
+  });
 
   // Task lists (must be before regular lists)
   html = html.replace(/^(\s*)-\s+\[x\]\s+(.*)$/gm, (_match, indent, text) => {
