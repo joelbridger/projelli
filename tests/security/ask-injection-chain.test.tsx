@@ -34,7 +34,7 @@
  * a stubbed __TAURI__.core.invoke canary) confirmed 0/30 Ask injections reached
  * the bridge at runtime. This jsdom test is the permanent CI-runnable guard.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { MessageBubble } from '@/features/ask/chat/MessageBubble';
 import { CitationText } from '@/features/ask/CitationText';
@@ -59,7 +59,8 @@ const ESCAPED_TEXT_PIN_PAYLOAD = `Keep this: <img src=x onerror="${INVOKE}">&`;
 const BRIDGE_PROBE_TAG = 'ask-bridge-invocation-probe';
 const BRIDGE_PROBE_PAYLOAD = `<${BRIDGE_PROBE_TAG} data-command="${INVOKE}"></${BRIDGE_PROBE_TAG}>`;
 
-type BridgeInvoke = ReturnType<typeof vi.fn>;
+type BridgeProcedure = (command: string, args?: { path: string }) => void;
+type BridgeInvoke = Mock<BridgeProcedure>;
 type TauriWindow = Window & { __TAURI__?: { core?: { invoke?: BridgeInvoke } } };
 
 if (!customElements.get(BRIDGE_PROBE_TAG)) {
@@ -76,7 +77,7 @@ if (!customElements.get(BRIDGE_PROBE_TAG)) {
 }
 
 function installBridgeSpy(): BridgeInvoke {
-  const invoke = vi.fn();
+  const invoke = vi.fn<BridgeProcedure>();
   Object.defineProperty(window, '__TAURI__', {
     configurable: true,
     value: { core: { invoke } },
@@ -153,13 +154,19 @@ function assertEscapedTextSurvives(container: HTMLElement, label: string) {
   expect(container.innerHTML, `${label}: ampersand was not escaped`).toContain('&amp;');
 }
 
-/** Prove the injected parser probe never reaches IPC, then prove the spy itself is live. */
+/** Prove the injected parser probe never reaches IPC, then prove the live window bridge reaches the spy. */
 function assertBridgeIsNotInvoked(invoke: BridgeInvoke, label: string) {
   expect(invoke, `${label}: injected payload invoked the Tauri bridge`).not.toHaveBeenCalled();
 
-  // A direct, legitimate control invocation makes a zero count meaningful: the
-  // bridge spy is connected and can observe calls, rather than being a no-op.
-  invoke('test:legitimate-bridge-control');
+  // The legitimate control must use the same window bridge route that injected
+  // code would use. This catches a disconnected spy: calling `invoke` directly
+  // would only prove that vi.fn itself works, not that it is installed on window.
+  const bridgeInvoke = (window as TauriWindow).__TAURI__?.core?.invoke;
+  expect(bridgeInvoke, `${label}: bridge spy is not installed on window`).toBe(invoke);
+  if (!bridgeInvoke) {
+    throw new Error(`${label}: bridge spy is not installed on window`);
+  }
+  bridgeInvoke('test:legitimate-bridge-control');
   expect(invoke, `${label}: bridge spy did not observe the legitimate control`).toHaveBeenCalledTimes(1);
   expect(invoke).toHaveBeenLastCalledWith('test:legitimate-bridge-control');
 }
