@@ -90,6 +90,7 @@ const FIRM_MEETING_SELECTION_REQUEST = {
 } as const;
 
 const LOCAL_PRACTICE_TEMPLATE_OWNER = 'local-practice';
+const MEETING_RELATIVE_TIME_REFRESH_MS = 60_000;
 
 function currentMeetingSelectionError(): string | null {
   const decision = readSelectionOperationDecision(
@@ -285,7 +286,15 @@ export function MeetingsWorkspace({
   const [navigationNotice, setNavigationNotice] = useState<
     'folder-only' | 'refused' | 'open-failed' | null
   >(null);
-  const [now] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+    }, MEETING_RELATIVE_TIME_REFRESH_MS);
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
   const activeClientBoundaryRef = useRef(activeClientBoundary);
   useEffect(() => {
     activeClientBoundaryRef.current = activeClientBoundary;

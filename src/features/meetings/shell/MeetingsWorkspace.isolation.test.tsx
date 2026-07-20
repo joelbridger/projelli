@@ -380,7 +380,7 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     expect(
       screen.queryByTestId('meetings-open-meeting-folder-only')
     ).toBeNull();
-    expect(screen.getByText('Not linked to a client')).toBeTruthy();
+    expect(screen.getByText('No linked meeting folder')).toBeTruthy();
     fireEvent.click(screen.getByTestId('meetings-view-past'));
     expect(await screen.findByTestId('meetings-past-empty')).toBeTruthy();
     fireEvent.click(screen.getByTestId('meetings-view-actions'));
@@ -437,5 +437,48 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
       expect(screen.queryByTestId('meetings-row-meeting-b')).toBeNull();
     });
     expect(nativeRecords.commands).toContain('crm_live_list');
+  });
+
+  it('refreshes a rendered relative-time claim while the workspace stays mounted', async () => {
+    let clockNow = Date.parse('2027-07-20T09:00:00.000Z');
+    const relativeTimeTicks: Array<() => void> = [];
+    const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => clockNow);
+    const setInterval = vi
+      .spyOn(window, 'setInterval')
+      .mockImplementation((handler, timeout) => {
+        if (timeout === 60_000 && typeof handler === 'function') {
+          relativeTimeTicks.push(handler);
+        }
+        return 1 as unknown as ReturnType<typeof window.setInterval>;
+      });
+    nativeRecords.records = [
+      {
+        ...meeting('meeting-b', 'matter-b', 'household-b', {
+          meetingDir: 'Clients/Client B/Meetings/2027-07-20',
+          linkedAt: '2027-07-18T00:00:00.000Z',
+        }),
+        scheduledStartUtc: '2027-07-20T09:30:00.000Z',
+        scheduledEndUtc: '2027-07-20T10:30:00.000Z',
+      },
+    ];
+
+    try {
+      render(meetingsSurface.render(runtime));
+      const row = await screen.findByTestId('meetings-row-meeting-b');
+      expect(row).toHaveTextContent('Starts in 30 minutes');
+      expect(relativeTimeTicks).toHaveLength(1);
+
+      clockNow = Date.parse('2027-07-20T09:45:00.000Z');
+      act(() => {
+        relativeTimeTicks[0]?.();
+      });
+
+      expect(row).toHaveTextContent('In progress · 45 minutes left');
+      expect(row).not.toHaveTextContent('Starts in 30 minutes');
+    } finally {
+      cleanup();
+      setInterval.mockRestore();
+      dateNow.mockRestore();
+    }
   });
 });

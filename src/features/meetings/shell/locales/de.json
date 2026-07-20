@@ -44,7 +44,9 @@
       "status": { "needs-review": "Prüfung nötig" },
       "empty": {
         "upcoming": "Keine bevorstehenden Besprechungen.",
+        "upcoming-client": "Keine bevorstehenden Besprechungen für {{client}}. Diese Ansicht ist auf {{client}} gefiltert.",
         "past": "Noch keine verarbeiteten Besprechungen.",
+        "past-client": "Keine vergangenen Besprechungen für {{client}}. Diese Ansicht ist auf {{client}} gefiltert.",
         "upcoming-filtered": "Keine bevorstehenden Besprechungen entsprechen diesen Filtern.",
         "upcoming-filtered-client": "Keine bevorstehenden Besprechungen für {{client}} entsprechen diesen Filtern.",
         "past-filtered": "Keine vergangenen Besprechungen entsprechen diesen Filtern.",

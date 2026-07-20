@@ -44,7 +44,9 @@
       "status": { "needs-review": "Needs review" },
       "empty": {
         "upcoming": "No upcoming meetings.",
+        "upcoming-client": "No upcoming meetings for {{client}}. This view is filtered to {{client}}.",
         "past": "No processed meetings yet.",
+        "past-client": "No past meetings for {{client}}. This view is filtered to {{client}}.",
         "upcoming-filtered": "No upcoming meetings match these filters.",
         "upcoming-filtered-client": "No upcoming meetings match these filters for {{client}}.",
         "past-filtered": "No past meetings match these filters.",

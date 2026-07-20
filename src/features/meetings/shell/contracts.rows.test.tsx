@@ -1,4 +1,4 @@
-import '@/i18n';
+import i18n from '@/i18n';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -198,6 +198,24 @@ describe('Meetings shell factual rows', () => {
       'No upcoming meetings for Avery Household. This view is filtered to Avery Household.'
     );
     expect(screen.queryByTestId('meetings-upcoming-filtered-empty')).toBeNull();
+  });
+
+  it('gets true-empty selected-client copy from the active translation', async () => {
+    await i18n.changeLanguage('de');
+    try {
+      render(view('upcoming').render(context(readySurface([]))));
+
+      expect(screen.getByTestId('meetings-upcoming-empty')).toHaveTextContent(
+        'Keine bevorstehenden Besprechungen für Avery Household.'
+      );
+      expect(
+        screen.queryByText(
+          'No upcoming meetings for Avery Household. This view is filtered to Avery Household.'
+        )
+      ).toBeNull();
+    } finally {
+      await i18n.changeLanguage('en');
+    }
   });
 
   it('distinguishes an owner-filter miss from a client with no upcoming meetings', () => {

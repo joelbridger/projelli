@@ -44,7 +44,9 @@
       "status": { "needs-review": "Necesita revisión" },
       "empty": {
         "upcoming": "No hay próximas reuniones.",
+        "upcoming-client": "No hay próximas reuniones de {{client}}. Esta vista está filtrada para {{client}}.",
         "past": "Aún no hay reuniones procesadas.",
+        "past-client": "No hay reuniones anteriores de {{client}}. Esta vista está filtrada para {{client}}.",
         "upcoming-filtered": "Ninguna reunión próxima coincide con estos filtros.",
         "upcoming-filtered-client": "Ninguna reunión próxima de {{client}} coincide con estos filtros.",
         "past-filtered": "Ninguna reunión anterior coincide con estos filtros.",

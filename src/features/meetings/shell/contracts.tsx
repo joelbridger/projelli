@@ -408,7 +408,12 @@ function MeetingsRows({
                   : `meetings.shell.empty.${period}-filtered`,
                 { client: clientName }
               )
-            : context.surface.emptyCopy[period]}
+            : t(
+                clientName
+                  ? `meetings.shell.empty.${period}-client`
+                  : `meetings.shell.empty.${period}`,
+                { client: clientName }
+              )}
         </div>
       </>
     );

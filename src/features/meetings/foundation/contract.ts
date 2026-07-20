@@ -2904,7 +2904,16 @@ export interface MeetingSurfaceFacts {
   /** Display-only client label; the household + matter pair remains authority. */
   readonly clientLabel?: string;
   readonly platform?: MeetingPlatform;
+  /**
+   * KNOWN-LATENT (M5 facts-reader follow-up): absent currently means unread,
+   * while a reader may eventually need to report a verified lack of join data.
+   * Add an explicit availability/none distinction before wiring that reader.
+   */
   readonly joinUrl?: string;
+  /**
+   * KNOWN-LATENT (M5 facts-reader follow-up): absent and verified-empty must not
+   * both become `[]`; the future reader needs an explicit availability state.
+   */
   readonly participants?: readonly {
     readonly name?: string;
     readonly email?: string;
@@ -2912,6 +2921,10 @@ export interface MeetingSurfaceFacts {
   readonly briefStatus?: MeetingBriefStatus;
   readonly recordingStatus?: MeetingRecordingStatus;
   readonly processingStatus?: MeetingProcessingStatus;
+  /**
+   * KNOWN-LATENT (M5 facts-reader follow-up): absent and verified-no-outputs
+   * need distinct states before a real facts reader supplies this collection.
+   */
   readonly artifacts?: readonly MeetingArtifact[];
 }
 
