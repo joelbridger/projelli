@@ -4,14 +4,14 @@
  *
  * The runtime registry makes `auth` mandatory in TypeScript. This independent
  * AST check closes the escape hatches TypeScript permits (casts, indirect
- * objects, direct handler dispatch) and derives its scan from git ground truth.
+ * objects, direct handler dispatch) and derives its scan from BUILD ground truth (scripts/lib/gate-scope.mjs), never from the git index.
  */
 
 import ts from 'typescript';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deriveGateScope } from './lib/gate-scope.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const PRIVILEGED_REGISTRY = 'backend/src/routes/privileged.ts';
@@ -147,20 +147,38 @@ export function scanSource(relPath, sourceText) {
   return violations;
 }
 
-/** Every git-tracked TypeScript source under backend/src. */
-export function trackedBackendSources(root = repoRoot) {
-  const out = execFileSync('git', ['ls-files', '-z', '--', 'backend/src'], { cwd: root, encoding: 'utf8' });
-  return out.split('\0').filter((p) => p.endsWith('.ts'));
+/**
+ * Every backend TypeScript source, from build ground truth.
+ *
+ * SCOPE (R-30). This was `git ls-files -z -- backend/src`: the git INDEX. A new
+ * route file that is written but not yet `git add`ed, and any file under a
+ * gitignored path (the root `.gitignore`'s bare `dist` already shadows
+ * `backend/src/dist/`), was invisible — so an unauthenticated privileged route
+ * could be added and this checker would print a green tick AND a scanned-file
+ * count that both looked right. That is the second checker in this repository
+ * found with an index-derived scope, so the derivation was removed from every
+ * checker rather than patched here: scope now comes from
+ * scripts/lib/gate-scope.mjs (filesystem walk of backend/src UNION the backend
+ * TypeScript project's own resolved file list), and no git is consulted.
+ */
+export function backendSources(root = repoRoot) {
+  return deriveGateScope({
+    label: 'check-backend-privileged-routes',
+    root,
+    walkRoots: ['backend/src'],
+    projects: [{ dir: 'backend' }],
+    requireExtensions: TS_SOURCE_EXTENSIONS,
+  });
 }
 
+/** backend/src is declared TypeScript-only; anything else in it THROWS, never skips. */
+const TS_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts']);
+
 function main() {
-  const files = trackedBackendSources();
-  if (files.length === 0) {
-    console.error('check-backend-privileged-routes: found 0 tracked files under backend/src — refusing an empty pass.');
-    process.exit(1);
-  }
+  const scope = backendSources();
+  const files = scope.files;
   if (!files.includes(PRIVILEGED_REGISTRY)) {
-    console.error(`check-backend-privileged-routes: required registry is not git-tracked: ${PRIVILEGED_REGISTRY}`);
+    console.error(`check-backend-privileged-routes: required registry is not in the derived scope: ${PRIVILEGED_REGISTRY}`);
     process.exit(1);
   }
 
@@ -178,7 +196,11 @@ function main() {
     console.error('   so authentication runs before target lookup or request-body reading.');
     process.exit(1);
   }
-  console.log(`✅ check-backend-privileged-routes: ${files.length} tracked backend source files scanned; every privileged registration declares auth.`);
+  console.log(
+    `✅ check-backend-privileged-routes: ${files.length} backend source file(s) scanned ` +
+      `(filesystem walk ${scope.fromWalk.length}, compiler cross-oracle ${scope.fromCompiler.length}; ` +
+      `scope is not derived from git); every privileged registration declares auth.`,
+  );
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) main();

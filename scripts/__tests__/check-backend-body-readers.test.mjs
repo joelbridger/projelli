@@ -174,9 +174,13 @@ test('an empty scan is refused, never reported as a pass', () => {
   const empty = mkdtempSync(resolve(tmpdir(), 'body-readers-empty-'));
   try {
     execFileSync('git', ['init', '-q'], { cwd: empty });
-    assert.deepEqual(trackedBackendSources(empty), []);
+    // R-30: the shared derivation refuses EARLIER than the old per-checker
+    // copy did — a repository with no backend project cannot produce a scope at
+    // all, so it throws on the derivation instead of returning [] and reaching
+    // the empty-scan refusal one step later. Both are refusals; neither is a pass.
+    assert.throws(() => trackedBackendSources(empty), /refusing to derive a file scope/);
     assert.throws(() => runCheck(empty, { log() {}, error() {} }),
-      /refusing to report a pass on an empty scan/);
+      /refusing to derive a file scope|refusing to report a pass on an empty scan/);
   } finally {
     rmSync(empty, { recursive: true, force: true });
   }
@@ -230,7 +234,7 @@ test('a symlink under backend/src is refused, never followed', () => {
   const abs = resolve(repoRoot, rel);
   symlinkSync('/etc/hostname', abs);
   try {
-    assert.throws(() => trackedBackendSources(repoRoot), /refusing symlink under backend\/src/);
+    assert.throws(() => trackedBackendSources(repoRoot), /symlink to a file outside the repository/);
   } finally {
     rmSync(abs, { force: true });
   }

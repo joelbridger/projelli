@@ -43,11 +43,11 @@
  * from the other; there is no exclusion list in either.
  */
 
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, extname, relative, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { deriveGateScope } from './lib/gate-scope.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -381,68 +381,24 @@ export function scanSource(relPath, sourceText) {
 /**
  * Scope, taken from the COMPILER and belted by the filesystem.
  *
- * `tsc --noEmit --listFilesOnly` is the same oracle the self-test uses, so the
- * scan and the ground truth are the same file set by construction rather than
- * two sources that have to be reconciled. The filesystem walk can only ADD:
- * `tsc` does not list a `.txt`/`.js` sitting under `backend/src`, and an
- * unknown extension must still fail closed rather than pass unseen. Symlinks
- * are refused outright — following one leaves the reviewed tree.
- *
- * Every failure of either channel THROWS. A scope that cannot be derived is
- * never read as an empty scope.
+ * R-30: this checker used to carry its OWN copy of that derivation. It was the
+ * correct one — and being the correct one made it the template that the next
+ * checker was written from, which is precisely how a per-checker scope becomes a
+ * per-checker BLIND SPOT one copy later. The logic now lives in exactly one place
+ * (scripts/lib/gate-scope.mjs) and every gate checker calls it, so "index-only"
+ * has no site left to be reintroduced at. The behaviour is unchanged: the
+ * compiler's own file list UNION a direct filesystem walk of backend/src, an
+ * all-TypeScript domain that THROWS on anything else, and every unresolvable
+ * scope throwing rather than narrowing.
  */
 export function trackedBackendSources(root = repoRoot) {
-  const fromCompiler = compilerSources(root);
-  const fromDisk = walkSources(root);
-  const all = [...new Set([...fromCompiler, ...fromDisk])].sort();
-  const unknown = all.filter((path) => !TS_SOURCE_EXTENSIONS.has(extname(path)));
-  if (unknown.length > 0) {
-    throw new Error(`check-backend-body-readers: refusing unknown backend/src file type(s): ${unknown.join(', ')}. Review and scan it, or delete it.`);
-  }
-  return all;
-}
-
-/** The TypeScript project's own file list, filtered to backend/src. */
-function compilerSources(root) {
-  const tsc = resolve(root, 'backend/node_modules/.bin/tsc');
-  const backend = resolve(root, 'backend');
-  // No backend project at this root (the self-test drives a throwaway repo to
-  // prove the empty-scan refusal). Returning [] reaches that refusal; it never
-  // reaches a pass.
-  if (!existsSync(tsc) || !existsSync(resolve(backend, 'tsconfig.json'))) return [];
-  let output;
-  try {
-    output = execFileSync(tsc, ['--noEmit', '--listFilesOnly', '--pretty', 'false'], { cwd: backend, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  } catch (error) {
-    // The compiler is the scope oracle. If it cannot produce a file list — a
-    // syntax error, a broken tsconfig, an unusable toolchain — the scope is
-    // UNKNOWN, and an unknown scope is never an empty one.
-    const detail = [error?.stdout, error?.stderr, error?.message].filter(Boolean).join('\n').trim();
-    throw new Error(`check-backend-body-readers: refusing to derive scope — the TypeScript compiler could not list the backend project's files, so the scan cannot know what it has not seen.\n${detail}`);
-  }
-  const prefix = `${resolve(root, 'backend/src')}/`;
-  return output.split('\n').map((line) => line.trim()).filter(Boolean)
-    .filter((path) => path.startsWith(prefix))
-    .map((path) => relative(root, path).replaceAll('\\', '/'));
-}
-
-/** Everything actually on disk under backend/src. Symlinks fail closed. */
-function walkSources(root) {
-  const base = resolve(root, 'backend/src');
-  if (!existsSync(base)) return [];
-  const out = [];
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const abs = resolve(dir, entry.name);
-      if (entry.isSymbolicLink()) {
-        throw new Error(`check-backend-body-readers: refusing symlink under backend/src: ${relative(root, abs)}. A symlink leaves the reviewed tree.`);
-      }
-      if (entry.isDirectory()) walk(abs);
-      else if (entry.isFile()) out.push(relative(root, abs).replaceAll('\\', '/'));
-    }
-  };
-  walk(base);
-  return out;
+  return deriveGateScope({
+    label: 'check-backend-body-readers',
+    root,
+    walkRoots: ['backend/src'],
+    projects: [{ dir: 'backend' }],
+    requireExtensions: TS_SOURCE_EXTENSIONS,
+  }).files;
 }
 
 /**

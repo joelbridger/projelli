@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { scanSource, trackedBackendSources, PRIVILEGED_REGISTRY } from '../check-backend-privileged-routes.mjs';
+import { scanSource, backendSources, PRIVILEGED_REGISTRY } from '../check-backend-privileged-routes.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const registry = PRIVILEGED_REGISTRY;
@@ -85,18 +85,44 @@ test('reports the correct line for a missing auth declaration', () => {
   assert.equal(v.find((row) => row.rule === 'declared-auth-required').line, 3);
 });
 
-test('scope is every git-tracked backend TypeScript source and is non-empty', () => {
-  const actual = trackedBackendSources(repoRoot).sort();
-  const expected = execFileSync('git', ['ls-files', '--', 'backend/src'], { cwd: repoRoot, encoding: 'utf8' })
+/**
+ * R-30. This test used to assert `scope === git ls-files -- backend/src`. That
+ * assertion did not merely fail to catch the index-scoped blind spot — it
+ * WELDED it in place: any correct fix to the checker made its own self-test
+ * red, so the test was an argument for keeping the defect. The property that
+ * matters is not "the scope equals the index"; it is "the scope is at least
+ * every backend source on disk, INCLUDING the ones git cannot see".
+ */
+test('scope is a strict superset of the git index and covers untracked files', () => {
+  const actual = backendSources(repoRoot).files.sort();
+  const indexed = execFileSync('git', ['ls-files', '--', 'backend/src'], { cwd: repoRoot, encoding: 'utf8' })
     .split('\n').filter((path) => path.endsWith('.ts')).sort();
-  assert.ok(actual.length > 20);
-  assert.deepEqual(actual, expected);
+  assert.ok(actual.length > 20, 'a scope this small is a broken derivation, not a small backend');
+  for (const file of indexed) assert.ok(actual.includes(file), `index-tracked file missing from scope: ${file}`);
   assert.ok(actual.includes(PRIVILEGED_REGISTRY));
+
+  // The blind shape, asserted rather than assumed: a file that exists on disk
+  // and is absent from the git index MUST be in scope.
+  const probe = resolve(repoRoot, 'backend/src/__r30_scope_probe__.ts');
+  writeFileSync(probe, 'export const probe = 1;\n');
+  try {
+    assert.equal(
+      execFileSync('git', ['ls-files', '--', 'backend/src/__r30_scope_probe__.ts'], { cwd: repoRoot, encoding: 'utf8' }).trim(),
+      '',
+      'the probe must be untracked for this assertion to mean anything',
+    );
+    assert.ok(
+      backendSources(repoRoot).files.includes('backend/src/__r30_scope_probe__.ts'),
+      'an untracked backend source must be in scope; a git-index scope would miss it',
+    );
+  } finally {
+    rmSync(probe, { force: true });
+  }
 });
 
 test('the real backend tree has no privileged-route registration violations', () => {
   const dirty = [];
-  for (const rel of trackedBackendSources(repoRoot)) {
+  for (const rel of backendSources(repoRoot).files) {
     for (const v of scanSource(rel, readFileSync(resolve(repoRoot, rel), 'utf8'))) dirty.push(`${rel}:${v.line} [${v.rule}]`);
   }
   assert.deepEqual(dirty, []);
