@@ -5,13 +5,13 @@
 // (SourceFileEditor, S19). This suite SETTLES each BY RUNNING it: it drives
 // fabricated malicious URLs through the REAL components and asserts (a) the
 // scheme that reaches `src` is constrained to a safe set, and (b) the iframe
-// carries a sandbox. Negative controls prove the raw (un-guarded) value is the
-// dangerous one.
+// carries a sandbox. The BrowserPanel negative control temporarily bypasses the
+// shared guard and proves the real safety assertion turns red.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, waitFor, cleanup } from '@testing-library/react';
 
-import { isAllowedUrl, toSafeFrameSrc } from '@/platform/security/urlAllowlist';
+import * as urlAllowlist from '@/platform/security/urlAllowlist';
 import PDFViewer from '@/features/documents/media/PDFViewer';
 import { BrowserPanel } from '@/features/workflows/BrowserPanel';
 import { SourceFileEditor } from '@/features/ask/research/SourceFileEditor';
@@ -49,25 +49,25 @@ describe('toSafeFrameSrc / isAllowedUrl(frame) — scheme allow-list', () => {
 
   for (const url of MALICIOUS) {
     it(`neutralizes to about:blank: ${JSON.stringify(url)}`, () => {
-      expect(toSafeFrameSrc(url)).toBe('about:blank');
-      expect(isAllowedUrl(url, 'frame')).toBe(false);
+      expect(urlAllowlist.toSafeFrameSrc(url)).toBe('about:blank');
+      expect(urlAllowlist.isAllowedUrl(url, 'frame')).toBe(false);
     });
   }
   for (const url of LEGIT) {
     it(`passes through legit: ${JSON.stringify(url)}`, () => {
-      expect(toSafeFrameSrc(url)).toBe(url);
-      expect(isAllowedUrl(url, 'frame')).toBe(true);
+      expect(urlAllowlist.toSafeFrameSrc(url)).toBe(url);
+      expect(urlAllowlist.isAllowedUrl(url, 'frame')).toBe(true);
     });
   }
   it('allows blob: ONLY when allowBlob is set (the PDF viewer)', () => {
     const blob = 'blob:https://app.localhost/uuid';
-    expect(toSafeFrameSrc(blob)).toBe('about:blank'); // default: refused
-    expect(toSafeFrameSrc(blob, { allowBlob: true })).toBe(blob); // PDF viewer
+    expect(urlAllowlist.toSafeFrameSrc(blob)).toBe('about:blank'); // default: refused
+    expect(urlAllowlist.toSafeFrameSrc(blob, { allowBlob: true })).toBe(blob); // PDF viewer
   });
   it('null / empty → about:blank', () => {
-    expect(toSafeFrameSrc(null)).toBe('about:blank');
-    expect(toSafeFrameSrc(undefined)).toBe('about:blank');
-    expect(toSafeFrameSrc('')).toBe('about:blank');
+    expect(urlAllowlist.toSafeFrameSrc(null)).toBe('about:blank');
+    expect(urlAllowlist.toSafeFrameSrc(undefined)).toBe('about:blank');
+    expect(urlAllowlist.toSafeFrameSrc('')).toBe('about:blank');
   });
 });
 
@@ -81,14 +81,31 @@ describe('BrowserPanel (S18) — iframe src is scheme-constrained + sandboxed', 
     return f as HTMLIFrameElement;
   }
 
-  it('a javascript: initialUrl becomes about:blank (NEGATIVE CONTROL: raw value is the payload)', () => {
-    const payload = 'javascript:window.__F__=1';
-    // NEGATIVE CONTROL: without the guard, this exact string would be the src.
-    expect(payload).not.toBe('about:blank');
+  function expectUnsafeInitialUrlBlocked(payload: string): void {
     const { container } = render(<BrowserPanel initialUrl={payload} />);
     const f = iframeOf(container);
     expect(f.getAttribute('src')).toBe('about:blank');
     expect(f.getAttribute('sandbox')).toBeTruthy();
+  }
+
+  it('a javascript: initialUrl becomes about:blank', () => {
+    const payload = 'javascript:window.__F__=1';
+    expectUnsafeInitialUrlBlocked(payload);
+  });
+
+  it('NEGATIVE CONTROL: bypassing the frame guard makes BrowserPanel admit javascript:', () => {
+    const payload = 'javascript:window.__F__=1';
+    vi.spyOn(urlAllowlist, 'toSafeFrameSrc').mockImplementation(
+      (rawUrl) => rawUrl ?? 'about:blank',
+    );
+
+    const { container } = render(<BrowserPanel initialUrl={payload} />);
+    const f = iframeOf(container);
+    // The real rendered path now admits the unsafe source. The ordinary safety
+    // assertion must turn red under this bypass, or it would not catch a lost
+    // scheme gate.
+    expect(f.getAttribute('src')).toBe(payload);
+    expect(() => expect(f.getAttribute('src')).toBe('about:blank')).toThrow();
   });
 
   it('a file:// initialUrl (reachable via the prompt) becomes about:blank', () => {
