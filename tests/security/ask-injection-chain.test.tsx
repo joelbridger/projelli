@@ -34,7 +34,7 @@
  * a stubbed __TAURI__.core.invoke canary) confirmed 0/30 Ask injections reached
  * the bridge at runtime. This jsdom test is the permanent CI-runnable guard.
  */
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { MessageBubble } from '@/features/ask/chat/MessageBubble';
 import { CitationText } from '@/features/ask/CitationText';
@@ -42,6 +42,51 @@ import type { ChatMessage } from '@/platform/types/ai';
 
 // If any of these ran as script it would reach a privileged fs command.
 const INVOKE = "window.__TAURI__.core.invoke('plugin:fs|read_text_file',{path:'CANARY'})";
+
+// This payload is intentionally ordinary text around an injected tag, plus an
+// ampersand.  A no-execution-only check would also pass if a future sanitizer
+// silently stripped it.  The pin below requires the exact attacker string to
+// remain visible as text, with the angle brackets and ampersand encoded in the
+// HTML that reaches the DOM.
+const ESCAPED_TEXT_PIN_PAYLOAD = `Keep this: <img src=x onerror="${INVOKE}">&`;
+
+// jsdom never executes a <script> assigned through innerHTML, so a script tag
+// alone cannot prove the bridge spy is live.  A test-only custom element gives
+// the browser parser an observable execution boundary: if a future raw-HTML
+// renderer parses this payload, connecting the element invokes the same bridge
+// path an injected script would reach.  Correct escaping leaves this as text,
+// so its connectedCallback never runs.
+const BRIDGE_PROBE_TAG = 'ask-bridge-invocation-probe';
+const BRIDGE_PROBE_PAYLOAD = `<${BRIDGE_PROBE_TAG} data-command="${INVOKE}"></${BRIDGE_PROBE_TAG}>`;
+
+type BridgeInvoke = ReturnType<typeof vi.fn>;
+type TauriWindow = Window & { __TAURI__?: { core?: { invoke?: BridgeInvoke } } };
+
+if (!customElements.get(BRIDGE_PROBE_TAG)) {
+  customElements.define(
+    BRIDGE_PROBE_TAG,
+    class AskBridgeInvocationProbe extends HTMLElement {
+      connectedCallback() {
+        (window as TauriWindow).__TAURI__?.core?.invoke?.('plugin:fs|read_text_file', {
+          path: 'CANARY',
+        });
+      }
+    },
+  );
+}
+
+function installBridgeSpy(): BridgeInvoke {
+  const invoke = vi.fn();
+  Object.defineProperty(window, '__TAURI__', {
+    configurable: true,
+    value: { core: { invoke } },
+  });
+  return invoke;
+}
+
+afterEach(() => {
+  delete (window as TauriWindow).__TAURI__;
+});
 
 const PAYLOADS: Record<string, string> = {
   'raw-script-tag': `Answer.<script>${INVOKE}</script>done`,
@@ -98,6 +143,27 @@ function assertInert(container: HTMLElement, label: string) {
   expect(container.innerHTML.toLowerCase(), `${label}: unescaped <script in markup`).not.toContain('<script');
 }
 
+/** The attacker string must survive as visible, safely encoded text — never be silently dropped. */
+function assertEscapedTextSurvives(container: HTMLElement, label: string) {
+  expect(container, `${label}: payload was silently dropped instead of escaped`).toHaveTextContent(
+    ESCAPED_TEXT_PIN_PAYLOAD,
+  );
+  expect(container.innerHTML, `${label}: opening angle bracket was not escaped`).toContain('&lt;img');
+  expect(container.innerHTML, `${label}: closing angle bracket was not escaped`).toContain('&gt;');
+  expect(container.innerHTML, `${label}: ampersand was not escaped`).toContain('&amp;');
+}
+
+/** Prove the injected parser probe never reaches IPC, then prove the spy itself is live. */
+function assertBridgeIsNotInvoked(invoke: BridgeInvoke, label: string) {
+  expect(invoke, `${label}: injected payload invoked the Tauri bridge`).not.toHaveBeenCalled();
+
+  // A direct, legitimate control invocation makes a zero count meaningful: the
+  // bridge spy is connected and can observe calls, rather than being a no-op.
+  invoke('test:legitimate-bridge-control');
+  expect(invoke, `${label}: bridge spy did not observe the legitimate control`).toHaveBeenCalledTimes(1);
+  expect(invoke).toHaveBeenLastCalledWith('test:legitimate-bridge-control');
+}
+
 function assistantMessage(content: string): ChatMessage {
   return {
     id: 'm1',
@@ -127,6 +193,43 @@ describe('Ask prompt-injection → filesystem chain is broken at the render link
         unmount();
       });
     }
+
+    it('keeps an injected payload visible as escaped text', () => {
+      const { container, unmount } = render(
+        <MessageBubble
+          msg={assistantMessage(ESCAPED_TEXT_PIN_PAYLOAD)}
+          idx={0}
+          isLastMessage
+          t={((k: string) => k) as never}
+          entityLabel={{ singular: 'client', plural: 'clients' } as never}
+          handleCitationClick={() => undefined}
+          handleMissingSource={() => undefined}
+          onRetryLastError={() => undefined}
+        />,
+      );
+      assertEscapedTextSurvives(container, 'chat/escaped-text-pin');
+      assertInert(container, 'chat/escaped-text-pin');
+      unmount();
+    });
+
+    it('does not invoke the bridge for an injected parser probe', () => {
+      const invoke = installBridgeSpy();
+      const { container, unmount } = render(
+        <MessageBubble
+          msg={assistantMessage(BRIDGE_PROBE_PAYLOAD)}
+          idx={0}
+          isLastMessage
+          t={((k: string) => k) as never}
+          entityLabel={{ singular: 'client', plural: 'clients' } as never}
+          handleCitationClick={() => undefined}
+          handleMissingSource={() => undefined}
+          onRetryLastError={() => undefined}
+        />,
+      );
+      assertInert(container, 'chat/bridge-probe');
+      assertBridgeIsNotInvoked(invoke, 'chat/bridge-probe');
+      unmount();
+    });
   });
 
   describe('smart-answer path (CitationText, the AnswerBlocks body)', () => {
@@ -139,5 +242,24 @@ describe('Ask prompt-injection → filesystem chain is broken at the render link
         unmount();
       });
     }
+
+    it('keeps an injected payload visible as escaped text', () => {
+      const { container, unmount } = render(
+        <CitationText text={ESCAPED_TEXT_PIN_PAYLOAD} citations={[]} selected={null} onSelect={() => undefined} />,
+      );
+      assertEscapedTextSurvives(container, 'smart/escaped-text-pin');
+      assertInert(container, 'smart/escaped-text-pin');
+      unmount();
+    });
+
+    it('does not invoke the bridge for an injected parser probe', () => {
+      const invoke = installBridgeSpy();
+      const { container, unmount } = render(
+        <CitationText text={BRIDGE_PROBE_PAYLOAD} citations={[]} selected={null} onSelect={() => undefined} />,
+      );
+      assertInert(container, 'smart/bridge-probe');
+      assertBridgeIsNotInvoked(invoke, 'smart/bridge-probe');
+      unmount();
+    });
   });
 });
