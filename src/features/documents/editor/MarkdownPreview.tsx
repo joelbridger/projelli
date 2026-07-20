@@ -257,6 +257,16 @@ function markdownToHtml(markdown: string): string {
   html = html.replace(/^---$/gm, '<hr class="my-6 border-t border-border" />');
   html = html.replace(/^\*\*\*$/gm, '<hr class="my-6 border-t border-border" />');
 
+  // Images — same treatment for the src URL (raster data: URIs additionally
+  // allowed), and the alt text lands in an attribute so it is escaped too.
+  // This MUST run before links: the link regex also matches the `[alt](url)`
+  // portion of image syntax and would otherwise swallow the image.
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt: string, url: string) => {
+    const src = escapeHtmlAttrValue(sanitizeUrl(url, { allowImageData: true }));
+    const altAttr = escapeHtmlAttrValue(alt);
+    return `<img src="${src}" alt="${altAttr}" class="max-w-full h-auto my-4 rounded" />`;
+  });
+
   // Links — the URL is untrusted, so validate its scheme and escape it into the
   // href attribute (both are required; see sanitizeUrl / escapeHtmlAttrValue).
   // The link text ($1) is already HTML-escaped by the document-wide pass above
@@ -264,14 +274,6 @@ function markdownToHtml(markdown: string): string {
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, text: string, url: string) => {
     const href = escapeHtmlAttrValue(sanitizeUrl(url));
     return `<a href="${href}" class="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">${text}</a>`;
-  });
-
-  // Images — same treatment for the src URL (raster data: URIs additionally
-  // allowed), and the alt text lands in an attribute so it is escaped too.
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt: string, url: string) => {
-    const src = escapeHtmlAttrValue(sanitizeUrl(url, { allowImageData: true }));
-    const altAttr = escapeHtmlAttrValue(alt);
-    return `<img src="${src}" alt="${altAttr}" class="max-w-full h-auto my-4 rounded" />`;
   });
 
   // Task lists (must be before regular lists)

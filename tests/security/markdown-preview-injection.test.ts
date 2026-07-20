@@ -192,6 +192,19 @@ describe('MarkdownPreview — legitimate content still renders', () => {
     expect(img!.getAttribute('src')).toBe('https://example.com/logo.png');
   });
 
+  it('escapes a quoted alt value on an actual image element', () => {
+    const alt = '" onerror="imageAltBreakout';
+    const html = renderMarkdownToHtml(`![${alt}](https://example.com/logo.png)`).html;
+    const img = document.createElement('div');
+    img.innerHTML = html;
+    const renderedImage = img.querySelector('img');
+
+    expect(renderedImage).not.toBeNull();
+    expect(renderedImage!.getAttribute('alt')).toBe(alt);
+    expect(renderedImage!.hasAttribute('onerror')).toBe(false);
+    expectHtmlInert(html, 'quoted image alt value on an actual image');
+  });
+
   it('allows a relative image path', () => {
     const img = render('![](./assets/diagram.png)').querySelector('img');
     expect(img).not.toBeNull();
