@@ -5,6 +5,17 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { BRAND } from './brand';
 
+type BrandConfig = {
+  urls: {
+    domain: string;
+    site: string;
+    repository: string;
+    licenseUrl: string;
+    supportUrl: string;
+    supportEmail: string;
+  };
+};
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SOURCE_ROOT = path.join(ROOT, 'src');
 // Product-name text is capitalized in every locale. Domain checks remain
@@ -101,7 +112,7 @@ describe('visible brand copy guard', () => {
   });
 
   it('exposes every public identity and support link through BRAND', () => {
-    const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'brand/brand.config.json'), 'utf8'));
+    const config: BrandConfig = JSON.parse(fs.readFileSync(path.join(ROOT, 'brand/brand.config.json'), 'utf8'));
 
     expect(config.urls).toMatchObject({
       domain: expect.any(String),

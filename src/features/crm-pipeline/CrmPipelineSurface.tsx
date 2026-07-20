@@ -230,7 +230,7 @@ export function PipelineHome({
       workflowStepTitle: action.title,
       action,
       state: 'pending',
-      proposedBy: { userId: 'lantern-ai', display: `${BRAND.name}`, kind: 'ai' },
+      proposedBy: { userId: 'lantern-ai', display: BRAND.name, kind: 'ai' },
       rationale: `${BRAND.name} proposes: ${action.title}. This change is waiting for your approval.`,
       createdAt: now(),
       updatedAt: now(),
@@ -399,7 +399,7 @@ export function PipelineHome({
           kind: 'workflow_launch',
           workflowTemplateId: rule.workflowTemplateId,
         },
-        proposedBy: { userId: 'lantern-ai', display: `${BRAND.name}`, kind: 'ai' },
+        proposedBy: { userId: 'lantern-ai', display: BRAND.name, kind: 'ai' },
         rationale: `Moving “${opportunity.name}” into ${stage.name} suggests “${templateName(rule.workflowTemplateId) ?? 'the linked workflow'}”. It is waiting for your approval.`,
         contextRefs: [
           { kind: 'opportunity', id: opportunity.id, matterId: 'firm_home' },
