@@ -224,20 +224,31 @@ fn protected_scope_roots(app_local_data: Option<PathBuf>) -> Vec<PathBuf> {
 
 /// The protected root that `path` is equal to or nested inside, if any.
 ///
-/// A root that is an ANCESTOR of the user's home directory is skipped: on
-/// layouts where home canonicalises under one of these (`/var/home/<user>`,
-/// `/System/Volumes/Data/Users/<user>`) treating it as protected would refuse
-/// every legitimate workspace. Granting such an ancestor ITSELF is still
+/// A root that is an ancestor of the user's home directory is exempted only
+/// for the home subtree: on layouts where home canonicalises under one of
+/// these (`/var/home/<user>`, `/System/Volumes/Data/Users/<user>`) treating
+/// that subtree as protected would refuse every legitimate workspace. Its
+/// non-home siblings remain protected. Granting the ancestor ITSELF is still
 /// refused — by `is_dangerous_scope_root`, which fires first.
 fn protected_scope_root_for(path: &Path, roots: &[PathBuf]) -> Option<PathBuf> {
     let homes = home_dir_forms();
+    protected_scope_root_for_with_homes(path, roots, &homes)
+}
+
+/// The home-aware portion of [`protected_scope_root_for`], parameterized so
+/// platform layouts can be tested without relying on the host machine.
+fn protected_scope_root_for_with_homes(
+    path: &Path,
+    roots: &[PathBuf],
+    homes: &[PathBuf],
+) -> Option<PathBuf> {
     roots
         .iter()
         .find(|root| {
-            if homes.iter().any(|home| home.starts_with(root)) {
-                return false;
-            }
-            path_is_within(path, root)
+            let root_contains_home = homes.iter().any(|home| path_is_within(home, root));
+            let path_is_in_home = homes.iter().any(|home| path_is_within(path, home));
+
+            path_is_within(path, root) && !(root_contains_home && path_is_in_home)
         })
         .cloned()
 }
@@ -540,8 +551,8 @@ mod workspace_scope_guard_tests {
 #[cfg(test)]
 mod protected_scope_root_tests {
     use super::{
-        normalize_lexically, path_is_within, protected_scope_root_for, protected_scope_roots,
-        workspace_grant_fs_scope,
+        normalize_lexically, path_is_within, protected_scope_root_for,
+        protected_scope_root_for_with_homes, protected_scope_roots, workspace_grant_fs_scope,
     };
     use std::path::{Path, PathBuf};
 
@@ -737,6 +748,44 @@ mod protected_scope_root_tests {
             protected_scope_root_for(&workspace, &ancestors).is_none(),
             "an ancestor of home must be exempted, or no workspace would ever be grantable"
         );
+    }
+
+    /// A protected root that contains home must not lose protection over its
+    /// non-home siblings. This deliberately models a future `/var` root on a
+    /// Silverblue-shaped layout; it must not depend on the host OS providing
+    /// that arrangement.
+    #[test]
+    fn a_home_ancestor_root_keeps_non_home_siblings_protected() {
+        let root = PathBuf::from("/var");
+        let home = PathBuf::from("/var/home/advisor");
+        let protected_sibling = Path::new("/var/lib/lantern/credentials.db");
+
+        assert_eq!(
+            protected_scope_root_for_with_homes(protected_sibling, &[root.clone()], &[home]),
+            Some(root),
+            "a protected root's non-home sibling must remain protected"
+        );
+    }
+
+    /// The narrow exemption must still admit workspaces below home on the two
+    /// layouts that motivated it. These are synthetic so the proof does not
+    /// depend on the operating system that happens to run the test.
+    #[test]
+    fn home_ancestor_exemption_keeps_silverblue_and_macos_workspaces_grantable() {
+        for (root, home) in [
+            (PathBuf::from("/var"), PathBuf::from("/var/home/advisor")),
+            (
+                PathBuf::from("/System/Volumes/Data"),
+                PathBuf::from("/System/Volumes/Data/Users/advisor"),
+            ),
+        ] {
+            let workspace = home.join("Advisor Prep Hero/Coast Wealth");
+            assert_eq!(
+                protected_scope_root_for_with_homes(&workspace, &[root], &[home]),
+                None,
+                "a workspace under home must stay grantable"
+            );
+        }
     }
 
     #[test]
