@@ -10,6 +10,13 @@
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
+import { csvCell, csvDocument, csvFormulaCell, csvVerbatimCell } from '@/platform/export/csvSafe';
+import {
+  assertArchiveWithinBudget,
+  assertInputBytesWithinCap,
+  looksLikeZip,
+} from '@/platform/archive/safeZip';
+
 import {
   evaluateFormulaString,
   extractDependencies,
@@ -356,6 +363,23 @@ export async function parseSpreadsheet(
     buffer = new TextEncoder().encode(source).buffer as ArrayBuffer;
   }
 
+  // R-17 — an `.xlsx` IS a zip. `XLSX.read` unzips it inside SheetJS, out of
+  // our sight, which is why a JSZip-shaped search for "archive readers" never
+  // saw this line. The pre-flight refuses a declared bomb before SheetJS gets
+  // the bytes; see `safeZip.ts` for why that is weaker than the metered read
+  // and what the complete version is. `.xls` is not a zip but the input-size
+  // cap still applies, so it goes through the same door — but as a size cap
+  // only, because a BIFF file has no central directory and pretending to read
+  // one would be a guard that reports on something it cannot see.
+  if (extension !== 'csv') {
+    const label = `spreadsheet .${extension}`;
+    if (looksLikeZip(buffer)) {
+      await assertArchiveWithinBudget(buffer, label);
+    } else {
+      assertInputBytesWithinCap(buffer, label);
+    }
+  }
+
   const model = extension === 'csv' ? parseCsv(buffer) : parseXlsx(buffer, extension);
 
   // Wire the formula engine for the active sheet. Only one engine per
@@ -513,6 +537,37 @@ function sheetCellToXlsxCell(cell: SheetCell): XLSX.CellObject {
   return out;
 }
 
+/**
+ * R-16 — the sixth CSV writer.
+ *
+ * The old body had two branches. The FORMULA branch was deliberate and stayed
+ * deliberate: a cell that carried `SUM(B1:B2)` is written back as `=SUM(B1:B2)`
+ * so re-opening in Excel gives the user their formula. The NON-FORMULA branch
+ * wrote `cell.display` straight out.
+ *
+ * That branch is a privilege elevation across a format conversion. Open an
+ * `.xlsx` whose text cell contains `=cmd|'/c calc'!A1` — SheetJS gives that
+ * cell NO `.f`, because in the workbook it is inert text — then Save As `.csv`.
+ * The old code took the non-formula branch and wrote the payload with no
+ * prefix, and CSV has no notion of "text that looks like a formula": the next
+ * program to open the file executes it. Text went in, a formula came out.
+ *
+ * The fix is not a local `if`. Every cell now leaves through one of three
+ * NAMED doors in `@/platform/export/csvSafe`, and the default door is guarded:
+ *
+ *   formula set          -> csvFormulaCell   (it IS a formula; say so)
+ *   source was a .csv    -> csvVerbatimCell  (round-trip; reason required)
+ *   everything else      -> csvCell          (guarded)
+ *
+ * The middle door needs its reason stated, because it is the one that looks
+ * like a hole: a `.csv` cell whose text starts with `=` was ALREADY a live
+ * formula in the file the user opened — Excel would have executed it there.
+ * Re-emitting it verbatim preserves the user's document; guarding it would
+ * silently rewrite a file we were only asked to save. Nothing is elevated,
+ * because nothing was inert to begin with. The elevation case — inert xlsx
+ * text becoming a csv formula — cannot reach this door, because its model's
+ * `sourceExtension` is `xlsx`/`xls`.
+ */
 function serializeCsv(model: SheetModel): Uint8Array {
   // CSVs carry a single sheet (PapaParse has no concept of tabs). Prefer the
   // active sheet; fall back to the first sheet if no active is set.
@@ -521,19 +576,29 @@ function serializeCsv(model: SheetModel): Uint8Array {
     return new TextEncoder().encode('');
   }
 
-  const rows: string[][] = sheet.rows.map((row) =>
+  const roundTrippingACsv = model.sourceExtension === 'csv';
+
+  const rows = sheet.rows.map((row) =>
     row.map((cell) => {
-      if (!cell) return '';
-      if (cell.formula) {
-        // CSV can't carry formulas — preserve the `=` prefix so re-opening
-        // in Excel re-interprets it as a formula.
-        return `=${cell.formula}`;
+      if (!cell) return csvCell('');
+      if (cell.formula) return csvFormulaCell(cell.formula);
+      const text = cell.display ?? '';
+      if (roundTrippingACsv) {
+        return csvVerbatimCell(
+          text,
+          'csv→csv round-trip: a leading "=" in the source CSV was already a live ' +
+            'formula there, so preserving it changes nothing and guarding it would ' +
+            'rewrite the user’s file',
+        );
       }
-      return cell.display ?? '';
+      return csvCell(text);
     })
   );
 
-  const csv = Papa.unparse(rows);
+  // PapaParse's own quoting is not used any more: it has no opinion about
+  // formulas, and running it AFTER csvSafe would double-quote already-encoded
+  // fields. csvDocument does the RFC 4180 join.
+  const csv = csvDocument(rows, { lineEnding: '\r\n' });
   // UTF-8 bytes for the whole string, newline-terminated so Excel is happy.
   return new TextEncoder().encode(`${csv}\n`);
 }

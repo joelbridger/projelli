@@ -17,7 +17,7 @@
 //     parts) for text extraction. We pick MIT.
 
 import PptxGenJS from 'pptxgenjs';
-import JSZip from 'jszip';
+import { readGuardedZip } from '@/platform/archive/safeZip';
 
 import { dataUrlToArrayBuffer } from './spreadsheet-io';
 import { markdownToHtml } from './docx-io';
@@ -238,18 +238,18 @@ export async function markdownToPptxBytes(markdown: string): Promise<Uint8Array>
  */
 export async function extractPptxText(source: PptxSource): Promise<string> {
   const buffer = typeof source === 'string' ? dataUrlToArrayBuffer(source) : source;
-  const zip = await JSZip.loadAsync(buffer);
+  // R-17 — a .pptx is an untrusted zip from the user's workspace. The guarded
+  // reader meters ACTUAL decompressed bytes per entry and across the deck,
+  // matching the native reader in src-tauri/src/commands/rag/office.rs.
+  const zip = await readGuardedZip(buffer, 'presentation .pptx');
 
   // Collect slide names and sort so the output matches the deck's order.
   // ZIP file order isn't guaranteed to match slide order, and PowerPoint
   // uses `slide1.xml`, `slide2.xml`, ..., so a numeric sort on the stem is
   // sufficient and portable.
-  const slideNames: string[] = [];
-  zip.forEach((relativePath) => {
-    if (/^ppt\/slides\/slide\d+\.xml$/.test(relativePath)) {
-      slideNames.push(relativePath);
-    }
-  });
+  const slideNames = zip
+    .names()
+    .filter((relativePath) => /^ppt\/slides\/slide\d+\.xml$/.test(relativePath));
   slideNames.sort((a, b) => {
     const na = Number.parseInt(a.match(/slide(\d+)/)?.[1] ?? '0', 10);
     const nb = Number.parseInt(b.match(/slide(\d+)/)?.[1] ?? '0', 10);
@@ -261,10 +261,9 @@ export async function extractPptxText(source: PptxSource): Promise<string> {
 
   for (const name of slideNames) {
     slideNumber += 1;
-    const file = zip.file(name);
-    if (!file) continue;
     try {
-      const xml = await file.async('string');
+      const xml = await zip.text(name);
+      if (xml === null) continue;
       const doc = new DOMParser().parseFromString(xml, 'application/xml');
       // DrawingML's `<a:t>` elements contain the runs of visible text. Use
       // a namespaced lookup so we don't match unrelated `<t>` elements that
@@ -312,14 +311,14 @@ export interface SlidePreview {
  */
 export async function extractSlides(source: PptxSource): Promise<SlidePreview[]> {
   const buffer = typeof source === 'string' ? dataUrlToArrayBuffer(source) : source;
-  const zip = await JSZip.loadAsync(buffer);
+  // R-17 — a .pptx is an untrusted zip from the user's workspace. The guarded
+  // reader meters ACTUAL decompressed bytes per entry and across the deck,
+  // matching the native reader in src-tauri/src/commands/rag/office.rs.
+  const zip = await readGuardedZip(buffer, 'presentation .pptx');
 
-  const slideNames: string[] = [];
-  zip.forEach((relativePath) => {
-    if (/^ppt\/slides\/slide\d+\.xml$/.test(relativePath)) {
-      slideNames.push(relativePath);
-    }
-  });
+  const slideNames = zip
+    .names()
+    .filter((relativePath) => /^ppt\/slides\/slide\d+\.xml$/.test(relativePath));
   slideNames.sort((a, b) => {
     const na = Number.parseInt(a.match(/slide(\d+)/)?.[1] ?? '0', 10);
     const nb = Number.parseInt(b.match(/slide(\d+)/)?.[1] ?? '0', 10);
@@ -329,13 +328,12 @@ export async function extractSlides(source: PptxSource): Promise<SlidePreview[]>
   const slides: SlidePreview[] = [];
   for (let i = 0; i < slideNames.length; i++) {
     const name = slideNames[i]!;
-    const file = zip.file(name);
-    if (!file) {
-      slides.push({ number: i + 1, texts: [] });
-      continue;
-    }
     try {
-      const xml = await file.async('string');
+      const xml = await zip.text(name);
+      if (xml === null) {
+        slides.push({ number: i + 1, texts: [] });
+        continue;
+      }
       const doc = new DOMParser().parseFromString(xml, 'application/xml');
       const runs = doc.getElementsByTagNameNS(
         'http://schemas.openxmlformats.org/drawingml/2006/main',

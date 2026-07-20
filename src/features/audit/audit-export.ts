@@ -8,6 +8,7 @@
 
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
+import { csvCell, csvDocument, csvGuardedRow } from '@/platform/export/csvSafe';
 
 /**
  * Columns emitted by the CSV exporter. The final three (`tokens_in`,
@@ -79,15 +80,13 @@ export function entriesToCSV(
   entries: AuditEntry[],
   integrity?: AuditIntegrityVerdict,
 ): string {
-  const header = CSV_COLUMNS.join(',');
-  const rows = entries.map((e) =>
-    CSV_COLUMNS.map((col) => escapeCsvField(extractField(e, col))).join(',')
-  );
+  const header = csvGuardedRow(CSV_COLUMNS);
+  const rows = entries.map((e) => csvGuardedRow(CSV_COLUMNS.map((col) => extractField(e, col))));
   const integrityRows = integrity ? integrityToCsvCommentRows(integrity) : [];
-  return [...integrityRows, header, ...rows].join('\r\n');
+  return csvDocument([...integrityRows, header, ...rows]);
 }
 
-function integrityToCsvCommentRows(integrity: AuditIntegrityVerdict): string[] {
+function integrityToCsvCommentRows(integrity: AuditIntegrityVerdict) {
   const rows: Array<[string, string]> = [['# integrity_status', integrity.status]];
   if (integrity.status === 'sealMissing') {
     // No "checked" count — the seal that would prove completeness is gone.
@@ -105,7 +104,9 @@ function integrityToCsvCommentRows(integrity: AuditIntegrityVerdict): string[] {
       );
     }
   }
-  return rows.map(([key, value]) => `${key},${escapeCsvField(value)}`);
+  // The `# integrity_*` keys are OUR literals, never user data, so they carry
+  // no formula risk; the value beside them is data and is guarded.
+  return rows.map(([key, value]) => [csvCell(key), csvCell(value)]);
 }
 
 /**
@@ -172,22 +173,13 @@ function readNumeric(entry: AuditEntry, keys: string[]): string {
   return '';
 }
 
-/**
- * RFC 4180 field escape. Quotes the field iff it contains a reserved char.
- *
- * BUG-027: also guards against CSV formula injection. A field that starts with
- * `=`, `+`, `-`, `@` (or a tab / carriage-return) is interpreted as a FORMULA by
- * Excel/Google Sheets — a malicious audit field (e.g. an attacker-controlled
- * filename or email subject) could execute on open. Prefix such values with an
- * apostrophe so spreadsheet apps render them as literal text.
+/*
+ * BUG-027's local RFC-4180 + formula escape used to live here. It was correct,
+ * and being correct in ONE of six writers is exactly the failure this class is
+ * about — a per-file guard cannot make a promise about the file that gets
+ * written next week. It now lives in `@/platform/export/csvSafe`, which the
+ * derived-set gate requires every CSV writer to reach.
  */
-function escapeCsvField(value: string): string {
-  if (value === '') return '';
-  const guarded = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  const needsQuotes = /[",\r\n]/.test(guarded);
-  const escaped = guarded.replace(/"/g, '""');
-  return needsQuotes ? `"${escaped}"` : escaped;
-}
 
 /**
  * Build a filename like `aph-audit-2026-04-16T14-32-07.json` using the

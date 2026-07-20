@@ -13,6 +13,8 @@
 import mammoth from 'mammoth';
 import { renderAsync } from 'docx-preview';
 import JSZip from 'jszip';
+import { assertArchiveWithinBudget, readGuardedZip } from '@/platform/archive/safeZip';
+import { safeUrlAttribute } from '@/platform/render/htmlSanitize';
 import {
   AlignmentType,
   BorderStyle,
@@ -58,12 +60,19 @@ export interface DocxTextExtraction {
   plainText: string;
 }
 
-/** Normalize the input into an `ArrayBuffer` that the renderer can consume. */
+/**
+ * Normalize the input into an `ArrayBuffer` that the renderer can consume.
+ *
+ * R-17 — a `.docx` IS a zip, and BOTH readers below unzip it inside a
+ * third-party library (mammoth, docx-preview) where we cannot meter the
+ * decompression. The archive pre-flight runs here, on the single funnel every
+ * `.docx` reader passes through, so a new reader added downstream inherits it
+ * instead of having to remember it.
+ */
 export async function parseDocxForPreview(source: DocxSource): Promise<ArrayBuffer> {
-  if (typeof source === 'string') {
-    return dataUrlToArrayBuffer(source);
-  }
-  return source;
+  const buffer = typeof source === 'string' ? dataUrlToArrayBuffer(source) : source;
+  await assertArchiveWithinBudget(buffer, 'document .docx');
+  return buffer;
 }
 
 /**
@@ -97,6 +106,12 @@ export async function renderDocxPreview(
   bytes: ArrayBuffer,
   container: HTMLElement
 ): Promise<void> {
+  // R-17 — docx-preview unzips internally. Callers may hand us bytes that did
+  // not come through parseDocxForPreview, so the pre-flight runs here too.
+  // Repeating a cheap header check is the correct trade against a caller that
+  // silently skips it.
+  await assertArchiveWithinBudget(bytes, 'document .docx (preview)');
+
   // docx-preview accepts a Blob OR an ArrayBuffer. Wrap to be explicit and
   // because some bundlers strip ArrayBuffer recognition off of typed arrays.
   const blob = new Blob([bytes], {
@@ -700,13 +715,16 @@ function renderInline(line: string): string {
 
   working = escapeHtml(working);
 
-  // Links: [text](url). URL kept raw inside href after quote escaping.
+  // Links: [text](url).
+  //
+  // R-14 — this was the FOURTH markdown→HTML renderer with its own link
+  // handling, and nobody had it on the list. It escaped the quote (which
+  // MarkdownPreview did not) and never checked the scheme (which pdf-export
+  // did). Four hand-rolled sanitizers, four different subsets of the same
+  // three rules. All four now call the one module.
   working = working.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    (_m, text: string, href: string) => {
-      const safeHref = href.replace(/"/g, '&quot;');
-      return `<a href="${safeHref}">${text}</a>`;
-    }
+    (_m, text: string, href: string) => `<a href="${safeUrlAttribute(href, 'link')}">${text}</a>`
   );
 
   working = working.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -969,10 +987,13 @@ import type { RedlineBlock } from './docx-table-utils';
  */
 export async function markdownToRedlineBlocks(markdown: string): Promise<RedlineBlock[]> {
   const bytes = await markdownToDocxBytes(markdown, 'redline-block.docx');
-  const zip = await JSZip.loadAsync(bytes);
-  const file = zip.file('word/document.xml');
-  if (!file) throw new Error('generated .docx is missing word/document.xml');
-  const documentXml = await file.async('string');
+  // The bytes were produced two lines up by our own packer, so this is not an
+  // untrusted archive. It still goes through the guarded reader: a reader that
+  // is exempt "because the input is ours" is one refactor away from being fed
+  // someone else's bytes, and the guard costs nothing here.
+  const zip = await readGuardedZip(bytes, 'generated redline .docx');
+  const documentXml = await zip.text('word/document.xml');
+  if (documentXml === null) throw new Error('generated .docx is missing word/document.xml');
 
   const dom = new DOMParser().parseFromString(documentXml, 'application/xml');
   if (dom.getElementsByTagName('parsererror').length > 0) {

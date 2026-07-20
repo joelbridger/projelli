@@ -25,6 +25,10 @@ step "Meeting voice bundle contract" npm run check:meeting-voice-bundle
 step "Wire-contract suite" npm run test:contracts
 step "Provider front door" node scripts/check-provider-construction.mjs
 step "Consent-gate wiring" node scripts/check-consent-gate-wiring.mjs
+# Derived CSV / markup-sink / archive-reader sets must each reach their
+# chokepoint. Blocking: this is the mechanism that makes the SEVENTH CSV writer
+# red on the commit that adds it instead of on the round that finds it.
+step "Untrusted-sink chokepoints" node scripts/check-untrusted-sink-derivation.mjs
 step "Case-only filename collisions" node scripts/check-case-collisions.mjs
 step "TypeScript"      npm run typecheck
 step "TypeScript (tests)" npm run typecheck:tests

@@ -15,6 +15,7 @@
 // (plugins, TTS, marketplace) is unchanged; desktop encryption is transparent.
 
 import type { AuditEntry, AuditActionType, AuditEvent, AuditQueryOptions } from '@/platform/types/audit';
+import { csvDocument, csvGuardedRow } from '@/platform/export/csvSafe';
 import {
   auditAppend,
   auditList,
@@ -487,28 +488,26 @@ export class AuditService {
   }
 
   /**
-   * Export to CSV
+   * Export to CSV.
+   *
+   * A NINTH CSV writer, and the one that makes the point of this whole class.
+   * Five were found by hand, R-16 was the sixth, the derivation added a
+   * seventh (the native migration rollback CSV) — and this one stayed hidden
+   * one round longer because the FIRST version of the derived-set checker
+   * stripped comments before matching, and stripping ate the block that made
+   * this file visible. A detection mechanism's shape decides what it can find,
+   * including a mechanism written to end exactly this failure.
+   *
+   * It escaped the quote in ONE column and nothing else: a description of
+   * `=cmd|'/c calc'!A1` was written straight into the cell, and an id or an
+   * action containing a comma silently split the row.
    */
   exportCSV(): string {
-    const headers = [
-      'id',
-      'timestamp',
-      'action',
-      'description',
-      'model',
-      'userDecision',
-    ];
+    const headers = ['id', 'timestamp', 'action', 'description', 'model', 'userDecision'];
     const rows = this.entries.map((e) =>
-      [
-        e.id,
-        e.timestamp,
-        e.action,
-        `"${e.description.replace(/"/g, '""')}"`,
-        e.model ?? '',
-        e.userDecision ?? '',
-      ].join(',')
+      csvGuardedRow([e.id, e.timestamp, e.action, e.description, e.model ?? '', e.userDecision ?? ''])
     );
-    return [headers.join(','), ...rows].join('\n');
+    return csvDocument([csvGuardedRow(headers), ...rows], { lineEnding: '\n' });
   }
 
   /**

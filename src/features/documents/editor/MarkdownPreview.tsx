@@ -22,6 +22,7 @@ import mermaid from 'mermaid';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { cn } from '@/lib/utils';
+import { safeUrlAttribute, escapeHtmlText as escapeHtmlAttribute } from '@/platform/render/htmlSanitize';
 
 interface MarkdownPreviewProps {
   content: string;
@@ -43,6 +44,12 @@ function ensureMermaidInit(theme: 'default' | 'dark') {
   lastMermaidTheme = theme;
 }
 
+/**
+ * Element-position escape. Kept for the mermaid error path, which inserts into
+ * element position only. It does NOT escape `"` and must never be used to
+ * build an attribute value — `escapeHtmlAttribute` from the shared sanitizer
+ * is the one that does that, and that distinction is what R-14 turned on.
+ */
 function escapeHtmlString(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -173,11 +180,24 @@ function markdownToHtml(markdown: string): string {
   html = html.replace(/^---$/gm, '<hr class="my-6 border-t border-border" />');
   html = html.replace(/^\*\*\*$/gm, '<hr class="my-6 border-t border-border" />');
 
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">$1</a>');
+  // Images (before links — an image is `![alt](url)`, which the link pattern
+  // would otherwise swallow as a link whose text starts with `!`).
+  //
+  // R-14 FIX. Both of these used to interpolate the RAW capture straight into
+  // an attribute. The escape above handles `& < >` but NOT `"`, so
+  // `[x](" onmouseover="alert(1))` closed the href and opened an event
+  // handler, and `[x](javascript:…)` was never scheme-checked at all. The
+  // output goes to dangerouslySetInnerHTML, and the app's CSP allows
+  // 'unsafe-inline'. safeUrlAttribute() applies the scheme allowlist AND the
+  // attribute escape, so neither hole can be reopened by editing this line.
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt: string, url: string) =>
+    `<img src="${safeUrlAttribute(url, 'image')}" alt="${escapeHtmlAttribute(alt)}" class="max-w-full h-auto my-4 rounded" />`
+  );
 
-  // Images
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="max-w-full h-auto my-4 rounded" />');
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text: string, url: string) =>
+    `<a href="${safeUrlAttribute(url, 'link')}" class="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">${text}</a>`
+  );
 
   // Task lists (must be before regular lists)
   html = html.replace(/^(\s*)-\s+\[x\]\s+(.*)$/gm, (_match, indent, text) => {

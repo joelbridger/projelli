@@ -26,6 +26,10 @@ pub mod generated_brand;
 pub mod sidecars;
 // Cross-cutting utilities (process helpers, etc.).
 pub mod util;
+// The single native CSV encoder. Every Rust path that writes a `.csv` goes
+// through it; the derived-set gate (scripts/check-untrusted-sink-derivation.mjs)
+// reds if a new one does not.
+pub mod safe_csv;
 // The Windows bench's local-only automation bridge. This module is absent from
 // release artifacts, so port 9250 can never be opened by a production build.
 #[cfg(debug_assertions)]
