@@ -26,6 +26,25 @@ step "Wire-contract suite" npm run test:contracts
 step "Provider front door" node scripts/check-provider-construction.mjs
 step "Consent-gate wiring" node scripts/check-consent-gate-wiring.mjs
 step "Case-only filename collisions" node scripts/check-case-collisions.mjs
+# ── Supply chain (F-DENY) ────────────────────────────────────────────────────
+# `cargo deny` was NEVER in this file. It ran only in ci.yml and in
+# scripts/gate-ci-parity.sh — a release-operator pre-flight nobody runs per
+# merge, which additionally prints "⚠️ SKIPPED" and still ends "✅ CI-PARITY
+# GREEN" when the binary is absent. That is a gate OUTSIDE the merge decision
+# surface, and it is why RUSTSEC-2026-0002 sat red and unread for ~3 months.
+# Both steps below are deliberately placed BEFORE the TypeScript/vitest/cargo
+# blocks: they are seconds-cheap and pure-config, and a gate that reports its
+# cheapest blocking failure last is a gate people ctrl-C.
+#
+# check-deny-revisit.sh is the enforcer for the suppressions cargo-deny itself
+# cannot police (cargo-deny 0.19 accepts ONLY ["id","reason"] — an `expires`
+# key fails error[unexpected-keys]), so the owner + revisit date live inside
+# the reason string. It must sit on the SAME decision surface as the gate it
+# enforces, not in the parity script. It proves the fields are PRESENT AND
+# PARSEABLE. It does NOT and cannot judge whether the justification is
+# meaningful — its green must not be read as "the reason is good".
+step "deny.toml suppressions carry an owner + an unexpired revisit date" bash ./scripts/check-deny-revisit.sh
+step "Supply chain (cargo-deny)" bash -c "cd src-tauri && cargo deny check advisories licenses sources bans"
 step "TypeScript"      npm run typecheck
 step "TypeScript (tests)" npm run typecheck:tests
 step "Brand sync"      npm run brand:check

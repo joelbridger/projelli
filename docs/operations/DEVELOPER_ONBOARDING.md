@@ -183,6 +183,24 @@ pushing/tagging instead of after. It degrades gracefully: if `bun` or
 rather than failing. Run both before anything release-shaped:
 `npm run gate && npm run gate:ci-parity`.
 
+⚠️ **That `SKIPPED` is not free.** `cargo deny check advisories` was RED and
+UNREAD for ~3 months on RUSTSEC-2026-0002 (`lru 0.12.5`), because `gate.sh`
+never runs cargo-deny at all and `gate-ci-parity.sh` skipped it on any box
+without the binary installed — a skipped check still prints a green summary.
+If you are making a release decision, confirm cargo-deny actually RAN; a
+`⚠️ SKIPPED` line is an unknown, not a pass.
+
+`gate-ci-parity.sh` also runs **`scripts/check-deny-revisit.sh`**, which is
+deliberately NOT skippable (pure bash + python3). Every entry in
+`[advisories].ignore` of `src-tauri/deny.toml` must carry a `reason`, an
+`OWNER: <name>` and a `REVISIT: YYYY-MM-DD` date, and the gate fails once a
+revisit date has passed. cargo-deny 0.19's ignore entry accepts only the keys
+`["id", "reason"]` — there is no `expires` field — so the owner and the expiry
+live inside the reason string (cargo-deny prints it under
+`note[advisory-ignored]` at `-L info`) and are enforced by that script.
+`bash scripts/check-deny-revisit.sh --self-test` proves the checker can go red
+(10 fixtures: 4 red rules, 4 fail-closed parse cases, 2 green).
+
 Two gotchas:
 
 - **ESLint is a *regression* gate, not a clean-tree gate.** `npm run lint:gate`

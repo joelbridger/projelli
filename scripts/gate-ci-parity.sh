@@ -28,6 +28,14 @@ else
   skip "Backend typecheck + tests (matches ci.yml backend job)" "bun not found on PATH — install from https://bun.sh to run this locally"
 fi
 
+# Governance of the cargo-deny suppression list. Deliberately NOT wrapped in a
+# `command -v` guard and NOT skippable: it is pure bash + python3 and it is the
+# thing that stops an accepted advisory from quietly becoming a permanent one.
+# `cargo deny check advisories` sat RED and UNREAD for ~3 months on
+# RUSTSEC-2026-0002; a suppression with no owner and no expiry is the same
+# failure with a tidier face.
+step "deny.toml suppressions have an owner + an unexpired revisit date" bash ./scripts/check-deny-revisit.sh
+
 if command -v cargo-deny >/dev/null 2>&1; then
   step "cargo-deny (matches ci.yml cargo-deny job)" bash -c "cd src-tauri && cargo deny check advisories licenses sources bans"
 else

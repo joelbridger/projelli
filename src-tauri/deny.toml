@@ -62,9 +62,9 @@ ignore = [
     # is lancedb upgrading its aws-sdk past rustls 0.21, or building lancedb
     # without remote-store features. Tracked for removal when either lands.
     # NOTE: the actively-used rustls-webpki 0.103.x copy IS patched (>=0.103.13).
-    { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Lantern (local-only vector store) never executes; no SemVer fix until lancedb updates aws-sdk past rustls 0.21" },
-    { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Lantern (local-only vector store) never executes; no SemVer fix until lancedb updates aws-sdk past rustls 0.21" },
-    { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Lantern (local-only vector store) never executes; the actively-used 0.103.x copy is patched to >=0.103.13" },
+    { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Lantern (local-only vector store) never executes; no SemVer fix until lancedb updates aws-sdk past rustls 0.21. OWNER: Lantern maintainer (Jameson Daines). REVISIT: 2026-10-19 — re-check whether lancedb has moved its aws-sdk past rustls 0.21." },
+    { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Lantern (local-only vector store) never executes; no SemVer fix until lancedb updates aws-sdk past rustls 0.21. OWNER: Lantern maintainer (Jameson Daines). REVISIT: 2026-10-19 — re-check whether lancedb has moved its aws-sdk past rustls 0.21." },
+    { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Lantern (local-only vector store) never executes; the actively-used 0.103.x copy is patched to >=0.103.13. OWNER: Lantern maintainer (Jameson Daines). REVISIT: 2026-10-19 — re-check whether lancedb has moved its aws-sdk past rustls 0.21." },
 
     # --- quick-xml 0.38.4 / 0.39.4: fixed to >=0.41.0 on the load-bearing path ---
     # The path that actually parses UNTRUSTED input — client .docx/.xlsx/.pptx via
@@ -90,8 +90,73 @@ ignore = [
     # require a crafted, attacker-supplied XML document to trigger; neither
     # reachable path accepts one. Tracked for removal when plist and/or
     # object_store/opendal ship a release requiring quick-xml >=0.41.
-    { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.38.4 (opendal/object_store cloud-list-XML path, unreachable: lancedb is always opened on a local fs path) and 0.39.4 (plist's build-time Info.plist merge, non-attacker-controlled input) are the only remaining unfixed copies; the untrusted-docx-parsing path is bumped to quick-xml 0.41.0" },
-    { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.38.4 (opendal/object_store cloud-list-XML path, unreachable: lancedb is always opened on a local fs path) and 0.39.4 (plist's build-time Info.plist merge, non-attacker-controlled input) are the only remaining unfixed copies; the untrusted-docx-parsing path is bumped to quick-xml 0.41.0" },
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.38.4 (opendal/object_store cloud-list-XML path, unreachable: lancedb is always opened on a local fs path) and 0.39.4 (plist's build-time Info.plist merge, non-attacker-controlled input) are the only remaining unfixed copies; the untrusted-docx-parsing path is bumped to quick-xml 0.41.0. OWNER: Lantern maintainer (Jameson Daines). REVISIT: 2026-10-19 — re-check whether plist and object_store/opendal have released against quick-xml >=0.41." },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.38.4 (opendal/object_store cloud-list-XML path, unreachable: lancedb is always opened on a local fs path) and 0.39.4 (plist's build-time Info.plist merge, non-attacker-controlled input) are the only remaining unfixed copies; the untrusted-docx-parsing path is bumped to quick-xml 0.41.0. OWNER: Lantern maintainer (Jameson Daines). REVISIT: 2026-10-19 — re-check whether plist and object_store/opendal have released against quick-xml >=0.41." },
+
+    # --- lru 0.12.5: IterMut Stacked-Borrows unsoundness; NOT-REACHABLE ---
+    # Verdict: NOT-REACHABLE. Mechanism, derived from the resolved graph and the
+    # checksum-verified crate sources rather than from the advisory summary:
+    #
+    #  1. THE DEFECT IS CONFINED TO ONE TYPE. lru 0.12.5 is a single file
+    #     (src/lib.rs). `IterMut` is constructed at exactly two places:
+    #     `LruCache::iter_mut()` (lib.rs:1434) and `impl IntoIterator for
+    #     &mut LruCache` (lib.rs:1511-1518, which just calls iter_mut).
+    #     The unsound `&mut K` is created only in `IterMut::next` (lib.rs:1636)
+    #     and `IterMut::next_back` (lib.rs:1660). The upstream fix
+    #     (jeromefroe/lru-rs#224) changes only those two methods. `new`, `get`,
+    #     `put`, `len`, `peek_lru` are untouched and unaffected.
+    #     THE TRIGGER IS A CALL, NOT A VALUE: no input, attacker-controlled or
+    #     otherwise, can reach this defect unless `iter_mut` is actually called.
+    #
+    #  2. ONLY TWO CRATES CAN CALL IT. `cargo tree -i lru --target all
+    #     --all-features -e normal,build,dev` resolves lru's reverse deps to
+    #     exactly `lantern` and `tantivy 0.24.2` (cargo-deny's own inclusion
+    #     graph for this advisory prints the same two). Nothing else in the
+    #     ~986-crate tree can name the crate.
+    #
+    #  3. NEITHER CALLS IT, AND NOBODY ELSE CAN.
+    #     - lantern: `lru` appears at src/commands/rag/embedder.rs:66,69,71
+    #       only (private `static QUERY_CACHE` + private `fn query_cache()`),
+    #       and the only methods invoked are `LruCache::new` (:71), `get` (:164)
+    #       and `put` (:185). No iter_mut, no `&mut` iteration.
+    #     - tantivy 0.24.2: `lru` appears in one file, src/store/reader.rs
+    #       (the only other hit crate-wide is a doc comment in
+    #       src/index/segment_reader.rs:136). It is a PRIVATE field
+    #       `cache: Option<Mutex<LruCache<usize, Block>>>` of the PRIVATE struct
+    #       `BlockCache`, itself a private field of `StoreReader`. Every method
+    #       on BlockCache is enumerated at reader.rs:79-119 and calls only
+    #       `new`, `get`, `put`, `len`, and `peek_lru` (the last is
+    #       `#[cfg(test)]`, so not in the shipped binary). Because the field is
+    #       private, no downstream crate can obtain a `&mut LruCache` from
+    #       tantivy at all — the unreachability is enforced by Rust visibility,
+    #       not by our reading of call sites.
+    #     The two `iter_mut` call sites inside lru itself (lib.rs:2287/2327/2366)
+    #     are inside `#[cfg(test)] mod tests` (starts lib.rs:1724) and are never
+    #     compiled into a dependent build.
+    #
+    #  BOUND (what this does NOT prove): this is a source-level enumeration of
+    #  tantivy 0.24.2 and of this workspace, made sound by the fact that Rust
+    #  requires any use of the crate to name `lru` in a path or `use`
+    #  (dependency declared with no rename: `[dependencies.lru] version =
+    #  "0.12.0"`), and both crate sources were verified byte-identical to the
+    #  .crate archives whose sha256 match the Cargo.lock checksums. It would be
+    #  defeated only by a proc macro *outside* tantivy emitting an `lru::` path
+    #  into tantivy's code, which was not separately enumerated. It also does not
+    #  prove absence of UB elsewhere in lru — only that RUSTSEC-2026-0002's
+    #  specific defect (IterMut) has no caller.
+    #
+    #  NO FIX EXISTS AS A BUMP: patched range is >=0.16.3, but tantivy 0.24.2
+    #  requires `lru ^0.12.0`. Raising our own `lru = "0.12"` would ADD a second
+    #  copy and leave 0.12.5 in the lock, so the gate would still fail. The real
+    #  fix is a tantivy release built against lru >=0.16.3.
+    #
+    #  OWNER: Lantern maintainer (Jameson Daines).
+    #  REVISIT: 2026-10-19. cargo-deny 0.19's ignore entry accepts only the keys
+    #  ["id", "reason"] — it has NO `expires` field (verified: adding one fails
+    #  with `error[unexpected-keys] ... expected: ["id", "reason"]`), so the date
+    #  cannot be tool-enforced by cargo-deny. It is enforced instead by
+    #  scripts/check-deny-revisit.sh, which fails once the date passes.
+    { id = "RUSTSEC-2026-0002", reason = "lru 0.12.5 IterMut Stacked-Borrows unsoundness. NOT-REACHABLE: the defect lives only in IterMut::next/next_back (upstream fix lru-rs#224 touches only those two methods), and IterMut can only be created by LruCache::iter_mut / IntoIterator-for-&mut. The resolved graph has exactly two dependents of lru — lantern and tantivy 0.24.2 — and neither ever creates one: lantern uses only new/get/put on a private static QUERY_CACHE (src/commands/rag/embedder.rs:66,164,185); tantivy uses only new/get/put/len (+ cfg(test) peek_lru) on a PRIVATE field of a private struct (src/store/reader.rs:73-119), so no other crate can even obtain a &mut LruCache. The trigger is a CALL, not a value, so no attacker-controlled input reaches it. No SemVer fix exists: tantivy 0.24.2 pins lru ^0.12.0, so bumping our own dep to >=0.16.3 would add a second copy and leave 0.12.5 in the lock. OWNER: Lantern maintainer (Jameson Daines). REVISIT: 2026-10-19 — re-check whether tantivy has released against lru >=0.16.3; enforced by scripts/check-deny-revisit.sh because cargo-deny 0.19 has no expires field." },
 ]
 
 # ---------------------------------------------------------------------------
