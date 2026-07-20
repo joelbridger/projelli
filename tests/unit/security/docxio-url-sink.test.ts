@@ -28,7 +28,7 @@ import { describe, it, expect } from 'vitest';
 import JSZip from 'jszip';
 
 import { markdownToHtml, markdownToDocxBytes } from '@/platform/utils/docx-io';
-import { BLOCKED_URL } from '@/platform/render/htmlSanitize';
+import { BLOCKED_URL, isSafeUrl } from '@/platform/render/htmlSanitize';
 
 /**
  * Render markdown and read the hrefs back the way `docx-io` itself does —
@@ -208,6 +208,95 @@ describe('docx-io — the decode CANNOT WIDEN the allowlist', () => {
     expect(cases.length).toBeGreaterThan(50);
     const allowed = cases.filter((u) => resolvedHrefs(`[x](${u})`)[0] !== BLOCKED_URL);
     expect(allowed).toEqual([]);
+  });
+
+  // ── THE PROPERTY ITSELF, NOT A LIST OF EXAMPLES ─────────────────────────
+  //
+  // I ADDED THIS BECAUSE MY FIRST WIDENING PROOF WAS HOLLOW AND MY OWN FLIP
+  // BATTERY CAUGHT IT. The cases above are all *blocked* payloads dressed in
+  // entities, so they can only ever detect a widening that makes a KNOWN-BAD
+  // scheme allowed. A flip that taught the decode to also undo `&#58;` (a
+  // plausible "let's make the inverse more complete" change) left all of them
+  // GREEN — yet `https&#58;//x`, which the author's own text does NOT put on
+  // the allowlist, would have become an allowed link. A corpus of examples can
+  // only see the widenings someone thought to write down.
+  //
+  // The property is a BICONDITIONAL: the rendered href is allowed IF AND ONLY
+  // IF the URL the AUTHOR TYPED is allowed. That is the whole point of
+  // decoding — the allowlist decision must be taken on exactly the string the
+  // author wrote, never on a re-spelling the pipeline invented and never on a
+  // re-spelling the decode invented. Any decode that reintroduces a character
+  // `escapeHtml` did not remove breaks this, in either direction.
+  //
+  // NOTE for the reader: `isSafeUrl` is the oracle here. It is the same
+  // function `safeUrlAttribute` is built on, so this is not an independent
+  // reimplementation of the allowlist — it deliberately tests the PIPELINE
+  // (escape → decode → re-encode), holding the allowlist fixed. The allowlist
+  // itself is pinned by the DEFECT-2 cases above.
+  const propertyCorpus: string[] = [];
+  {
+    const bases = [
+      'https://example.com/a',
+      'http://example.com/a',
+      'mailto:a@example.com',
+      'tel:+15551234567',
+      '#frag',
+      '/abs/path',
+      './rel',
+      '../up',
+      'javascript:alert',
+      'vbscript:msgbox',
+      'data:text/html,x',
+      'file:///etc/passwd',
+      'about:config',
+      'ftp://example.com',
+      'example.com/no-scheme',
+      'HTTPS://example.com/UPPER',
+    ];
+    // Every transformation a decode could plausibly be asked to undo, plus the
+    // characters `escapeHtml` really does escape.
+    const mutate: ReadonlyArray<(u: string) => string> = [
+      (u) => u,
+      (u) => u.replace(':', '&#58;'),
+      (u) => u.replace(':', '&colon;'),
+      (u) => u.replace(':', '&#x3a;'),
+      (u) => u.replace('/', '&#47;'),
+      (u) => `&lt;${u}`,
+      (u) => `&gt;${u}`,
+      (u) => `&amp;${u}`,
+      (u) => `${u}?a=1&b=2`,
+      (u) => `${u}?a=1&amp;b=2`,
+      (u) => `${u}?q=<x>`,
+      (u) => `${u}?q=&lt;x&gt;`,
+      (u) => ` ${u}`,
+      (u) => `&#104;${u}`,
+    ];
+    for (const b of bases) for (const m of mutate) propertyCorpus.push(m(b));
+  }
+
+  it('WIDENING (PROPERTY): the href is allowed IFF the URL the author typed is allowed', () => {
+    const mismatches: Array<{ url: string; authorAllowed: boolean; renderedAllowed: boolean }> = [];
+    for (const url of propertyCorpus) {
+      const authorAllowed = isSafeUrl(url, 'link');
+      const rendered = resolvedHrefs(`[x](${url})`);
+      const renderedAllowed = rendered.length === 1 && rendered[0] !== BLOCKED_URL;
+      if (authorAllowed !== renderedAllowed) mismatches.push({ url, authorAllowed, renderedAllowed });
+    }
+    expect(mismatches).toEqual([]);
+  });
+
+  it('WIDENING (PROPERTY): the corpus really exercises BOTH verdicts (positive control)', () => {
+    // Without this, a corpus that happened to be all-blocked — or a
+    // `resolvedHrefs` that silently returned nothing — would satisfy the
+    // biconditional vacuously.
+    expect(propertyCorpus.length).toBe(16 * 14);
+    const authorAllowed = propertyCorpus.filter((u) => isSafeUrl(u, 'link'));
+    expect(authorAllowed.length).toBeGreaterThan(20);
+    expect(propertyCorpus.length - authorAllowed.length).toBeGreaterThan(20);
+    // and every case really produced exactly one anchor
+    for (const url of propertyCorpus) {
+      expect(resolvedHrefs(`[x](${url})`)).toHaveLength(1);
+    }
   });
 });
 
