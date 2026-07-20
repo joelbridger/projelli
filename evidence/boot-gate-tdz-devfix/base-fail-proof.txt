@@ -1,0 +1,9 @@
+=== BASE-FAIL PROOF: regression test against buggy base 426a9b951 ===
+     × (a) boots without a temporal-dead-zone error when a rehydration is queued and the flag is on at module init 488ms
+     × (b) fail-closed: a queued persisted specific-matter hint with no live matter boots to BLOCKED, never the phantom selection, routed through the retired-writer bridge 15ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ReferenceError: Cannot access 'useClientContextStore' before initialization
+ ❯ issueRehydratedSelection src/platform/client-context/clientContextStore.ts:1194:34
+    1194|       issuedAtSelectionRevision: useClientContextStore.getState().sele…
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
