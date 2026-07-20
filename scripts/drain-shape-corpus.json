@@ -320,7 +320,8 @@
       "mode": "handler",
       "source": "async function probe(req: HttpRequest){ let n = 0; for await (const c of req.body) { n += c.byteLength } return n }",
       "expectRules": [
-        "handler-request-member"
+        "handler-request-member",
+        "no-stream-iteration"
       ]
     },
     {
@@ -341,7 +342,8 @@
       "mode": "handler",
       "source": "async function probe(req: HttpRequest){ let n = 0; for await (const c of req.body.values()) { n += c.byteLength } return n }",
       "expectRules": [
-        "handler-request-member"
+        "handler-request-member",
+        "no-stream-iteration"
       ]
     },
     {
@@ -619,6 +621,26 @@
       "source": "export const options = { port: 1, fetch: async (rawReq, srv) => undefined }",
       "expectRules": [
         "bun-serve-fetch-confinement"
+      ]
+    },
+    {
+      "id": "c-bun-serve-fetch-assignment",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function build(){ const o: any = {}; o.fetch = async (rawReq: any) => undefined; return o }",
+      "expectRules": [
+        "bun-serve-fetch-assignment"
+      ]
+    },
+    {
+      "id": "c-no-stream-iteration",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export async function h(s: AsyncIterable<Uint8Array>){ let n = 0; for await (const c of s) { n += c.byteLength } return n }",
+      "expectRules": [
+        "no-stream-iteration"
       ]
     },
     {

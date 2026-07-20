@@ -124,9 +124,11 @@ export const RULE_IDS = Object.freeze([
   'handler-request-reflection',
   'handler-request-spread',
   'bun-serve-fetch-confinement',
+  'bun-serve-fetch-assignment',
   'bun-serve-options-confinement',
   'no-raw-body-drain',
   'no-stream-drain',
+  'no-stream-iteration',
 ]);
 
 const RULE_ID_SET = new Set(RULE_IDS);
@@ -320,6 +322,20 @@ export function scanSource(relPath, sourceText) {
           violations.push({ rule: 'bun-serve-fetch-confinement', line: at(node), message: `A server 'fetch' handler must be produced by the seam's ${SEAM_FETCH_FACTORY}(). Declaring it directly would receive Bun's raw Request — contextually typed, so it needs no 'Request' annotation to be drainable.` });
         }
       }
+      // Same rule, the other syntax: `options.fetch = handler`. Without this,
+      // building the options object by assignment instead of as a literal walks
+      // straight past the check above and receives Bun's raw Request.
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        && (ts.isPropertyAccessExpression(node.left) || ts.isElementAccessExpression(node.left))
+        && memberName(node.left) === 'fetch') {
+        const value = node.right;
+        const ok = ts.isCallExpression(value)
+          && ((ts.isIdentifier(value.expression) && value.expression.text === SEAM_FETCH_FACTORY)
+            || (ts.isPropertyAccessExpression(value.expression) && value.expression.name.text === SEAM_FETCH_FACTORY));
+        if (!ok) {
+          violations.push({ rule: 'bun-serve-fetch-assignment', line: at(node), message: `Assigning a 'fetch' handler must use the seam's ${SEAM_FETCH_FACTORY}(). Building the server options by assignment is the same raw-Request exposure as declaring the handler inline.` });
+        }
+      }
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
         && node.expression.name.text === 'serve' && ts.isIdentifier(node.expression.expression)
         && node.expression.expression.text === 'Bun') {
@@ -339,6 +355,12 @@ export function scanSource(relPath, sourceText) {
       if (!streamDrainAllowed && (STREAM_DRAIN_METHODS.has(called) || STREAM_HELPER_CALLS.has(called))) {
         violations.push({ rule: 'no-stream-drain', line: at(node), message: `.${called}() consumes a byte stream. Stream consumption is confined to the seam and the exact reviewed outbound-response readers.` });
       }
+    }
+    // `for await (const chunk of stream)` drains without naming a single method,
+    // so a method denylist never sees it. Async iteration is confined to the same
+    // files as any other stream consumption.
+    if (!streamDrainAllowed && ts.isForOfStatement(node) && node.awaitModifier !== undefined) {
+      violations.push({ rule: 'no-stream-iteration', line: at(node), message: 'Async iteration consumes whatever it is given, including a body stream, without calling a named method. It is confined to the seam and the exact reviewed outbound-response readers.' });
     }
     ts.forEachChild(node, visit);
   };
