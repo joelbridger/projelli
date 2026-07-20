@@ -151,7 +151,7 @@ export function FollowUpDraftsOnlyEditor({
 
   if (status === 'loading') {
     return (
-      <div data-testid="meeting-follow-up-loading" aria-live="polite">
+      <div data-testid="followup-drafts-loading" aria-live="polite">
         Checking Outlook.
       </div>
     );
@@ -160,14 +160,14 @@ export function FollowUpDraftsOnlyEditor({
   if (status === 'load-error') {
     return (
       <div
-        data-testid="meeting-follow-up-local-error"
+        data-testid="followup-drafts-local-error"
         role="alert"
         style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
       >
         <span>{error}</span>
         <button
           type="button"
-          data-testid="meeting-follow-up-retry"
+          data-testid="followup-drafts-retry"
           onClick={() => {
             setStatus('loading');
             setError(null);
@@ -214,7 +214,7 @@ export function FollowUpDraftsOnlyEditor({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={labelStyle}>Account</span>
             <select
-              data-testid="followup-account"
+              data-testid="followup-drafts-account"
               value={accountIndex}
               onChange={(event) => {
                 setAccountIndex(Number(event.target.value));
@@ -235,7 +235,7 @@ export function FollowUpDraftsOnlyEditor({
             <span style={labelStyle}>To</span>
             <input
               type="text"
-              data-testid="followup-to"
+              data-testid="followup-drafts-to"
               placeholder="client@example.com"
               value={draft.to}
               onChange={(event) => {
@@ -261,7 +261,7 @@ export function FollowUpDraftsOnlyEditor({
           <span style={labelStyle}>Subject</span>
           <input
             type="text"
-            data-testid="followup-subject"
+            data-testid="followup-drafts-subject"
             value={draft.subject}
             onChange={(event) => {
               updateDraft({ subject: event.target.value });
@@ -273,7 +273,7 @@ export function FollowUpDraftsOnlyEditor({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           <span style={labelStyle}>Message</span>
           <textarea
-            data-testid="followup-body"
+            data-testid="followup-drafts-body"
             rows={12}
             value={draft.body}
             onChange={(event) => {
@@ -306,7 +306,7 @@ export function FollowUpDraftsOnlyEditor({
         )}
         {(status === 'idle' || status === 'save-error') && (
           <p
-            data-testid="meeting-follow-up-edited"
+            data-testid="followup-drafts-edited"
             aria-live="polite"
             style={{
               fontSize: 'var(--kp-font-xs)',
@@ -349,7 +349,7 @@ export function FollowUpDraftsOnlyEditor({
         </span>
         <button
           type="button"
-          data-testid="followup-save-drafts"
+          data-testid="followup-drafts-save"
           disabled={!canSave}
           onClick={saveToDrafts}
           style={{
