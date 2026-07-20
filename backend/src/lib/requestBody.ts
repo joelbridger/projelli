@@ -148,16 +148,44 @@ export function serveFetch<D>(
 ): (raw: Request, server: RawRequestServer<D>) => Promise<Response | undefined> {
   return async (raw, server) => {
     const cap = capFor(new URL(raw.url).pathname, raw.method);
+    let upgraded = false;
     const bound = {
       peer: () => server.requestIP(raw)?.address ?? undefined,
       // The socket-data type is checked where `upgradeWebSocket` is CALLED (the
       // caller annotates it), then erased through the private WeakMap, which is
       // keyed by envelope and cannot carry `D`. This is the one unchecked hop
       // and it is inside the seam by design.
-      upgrade: (data: unknown) => server.upgrade(raw, { data: data as D }),
+      upgrade: (data: unknown) => {
+        const ok = server.upgrade(raw, { data: data as D });
+        if (ok) upgraded = true;
+        return ok;
+      },
     };
-    return await route(prepareHttpRequest(raw, cap, bound));
+    const safe = prepareHttpRequest(raw, cap, bound);
+    try {
+      return await route(safe);
+    } finally {
+      // R-31 EXPERIMENT: make the seam's consumption UNCONDITIONAL. Without
+      // this the seam only drains when a route asks it to, so on any route that
+      // never reads (404, GET, an early auth refusal) the raw body is still
+      // fully drainable when control leaves the seam.
+      if (!upgraded) sealBody(safe);
+    }
   };
+}
+
+/**
+ * End the raw request's readable lifetime at the seam boundary, whether or not
+ * a route read it. After this the stream is cancelled and the WeakMap entry is
+ * `done`, so nothing can obtain bytes from it.
+ */
+function sealBody(req: HttpRequest): void {
+  const state = bodies.get(req);
+  if (state?.kind !== "pending") return;
+  bodies.set(req, { kind: "done", read: { ok: false, tooLarge: false } });
+  const body = state.request.body;
+  if (body === null || body.locked) return;
+  void body.cancel().catch(() => { /* peer already gone */ });
 }
 
 /**
