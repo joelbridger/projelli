@@ -73,7 +73,7 @@ function email(id: string, subject: string, account: string): MailListItem {
     receivedDateTime: '2026-07-17T00:00:00.000Z',
     provider: 'm365',
     account,
-    folderId: `${BRAND.name} Dropbox`,
+    folderId: 'Lantern Dropbox',
     hasAttachments: false,
   };
 }
@@ -159,6 +159,20 @@ describe('EmailDropboxSurface', () => {
         }
       },
       resolveLateAWrite: async () => { await act(async () => { lateA.resolve({ items: [aEmail] }); await lateA.promise; }); },
+    });
+  });
+
+  it('keeps the legacy default folder for mailbox lookup while showing the public name', async () => {
+    mailMocks.checkFolder.mockResolvedValue({ items: [] });
+    render(<EmailDropboxSurface />);
+
+    expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue(`${BRAND.name} Dropbox`);
+    await waitFor(() => {
+      expect(mailMocks.checkFolder).not.toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByTestId('crm-email-dropbox-check'));
+    await waitFor(() => {
+      expect(mailMocks.checkFolder).toHaveBeenCalledWith({ folderName: 'Lantern Dropbox' });
     });
   });
 
