@@ -17,24 +17,6 @@ import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
 import { handleLogin, handleRefresh, handleLogout, handleMe } from "./routes/auth.ts";
 import { handleActivate, handleSeatValidate, handleSeatHeartbeat } from "./routes/seats.ts";
 import {
-  handleListSeats,
-  handleRevokeSeat,
-  handleDeprovisionUser,
-  handleTransferSeat,
-  handleCreateUser,
-  handleAudit,
-  handleCreateOrg,
-  handleListOrgUsers,
-} from "./routes/admin.ts";
-import {
-  handleCreateMatter,
-  handleListMatters,
-  handleArchiveMatter,
-  handleAddMatterMember,
-  handleRemoveMatterMember,
-  handleListMatterMembers,
-  handleSetWall,
-  handleClearWall,
   handlePushUpdate,
   handlePullUpdates,
   handleSyncTicket,
@@ -62,17 +44,11 @@ import {
 import { fanout, FanoutHub, toUpdateFrame, resolveAccess, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
 import { startSsoStateGc } from "./lib/ssoState.ts";
-import {
-  handleAssuredInfer,
-  handleSetProviderKey,
-  handleListProviderKeys,
-  handleDeleteProviderKey,
-  handleInferenceBilling,
-} from "./routes/assured.ts";
+import { handleAssuredInfer } from "./routes/assured.ts";
 import { handleDeviceRegister, handleListUsersDevices, handleListOrgAdmins } from "./routes/devices.ts";
 import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine } from "./routes/matterKeys.ts";
 import { handleOrgClaim } from "./routes/claim.ts";
-import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete, handleSsoStart, handleSsoCallback, handleSsoExchange } from "./routes/sso.ts";
+import { handleSsoStart, handleSsoCallback, handleSsoExchange } from "./routes/sso.ts";
 import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
 import {
   handleAckSignatureWakeups,
@@ -86,7 +62,8 @@ import {
 } from "./routes/docusignSigning.ts";
 import { handleNotifySend, handleNotifyInbox, handleNotifyAck, handleNotifySyncTicket, authorizeNotifySync, handleNotifyTerminal } from "./routes/notifications.ts";
 import { notificationHub } from "./lib/notifications.ts";
-import { handleCheckpointChunk, handleCheckpointManifest, handleCheckpointReceipt, handleCheckpointPrune } from "./routes/checkpoints.ts";
+import { handleCheckpointReceipt } from "./routes/checkpoints.ts";
+import { createPrivilegedRoutes, dispatchPrivilegedRequest } from "./routes/privileged.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
 import type { UserRole } from "./lib/types.ts";
@@ -218,6 +195,7 @@ const SERVER_MAX_REQUEST_BODY_BYTES =
  * coupling.
  */
 export function buildServeOptions(store: Store, hub: FanoutHub) {
+  const privilegedRoutes = createPrivilegedRoutes(store);
   return {
     hostname: config.host,
     port: config.port,
@@ -242,6 +220,12 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (method === "OPTIONS") return preflight();
 
       try {
+        // Privileged routes are auth-by-construction. This dispatch runs before
+        // every ordinary route and authenticates before a handler can inspect
+        // its target or read/validate its request body.
+        const privileged = await dispatchPrivilegedRequest(privilegedRoutes, req, path, method);
+        if (privileged) return privileged;
+
         // --- Sender-blind sealed notification relay (03 §2) ---
         if (path === "/notify/send" && method === "POST") return await handleNotifySend(req, store, ip, notificationHub);
         if (path === "/notify/inbox" && method === "GET") return handleNotifyInbox(req, store);
@@ -279,28 +263,15 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           // Relay: append / catch-up. Push broadcasts via this server's hub.
           if (mm.rest === "updates" && method === "POST") return await handlePushUpdate(req, store, mm.id, ip, hub);
           if (mm.rest === "updates" && method === "GET") return handlePullUpdates(req, store, mm.id, ip);
-          // Checkpoint chunks are opaque; only control metadata reaches the relay.
-          if (mm.rest === "checkpoints/chunks" && method === "POST") return await handleCheckpointChunk(req, store, mm.id);
-          if (mm.rest === "checkpoints/manifest" && method === "POST") return await handleCheckpointManifest(req, store, mm.id);
+          // Checkpoint receipts are member-authenticated. Admin-only checkpoint
+          // writes/prunes are registered in the privileged route registry.
           if (mm.rest === "checkpoints/receipt" && method === "POST") return await handleCheckpointReceipt(req, store, mm.id);
-          if (mm.rest === "checkpoints/prune" && method === "POST") return await handleCheckpointPrune(req, store, mm.id);
-          // Admin: membership + walls (scoped to :id).
-          if (mm.rest === "members/add" && method === "POST") return await handleAddMatterMember(req, store, mm.id);
-          if (mm.rest === "members/remove" && method === "POST") return await handleRemoveMatterMember(req, store, mm.id);
-          if (mm.rest === "members/list" && method === "POST") return handleListMatterMembers(req, store, mm.id);
-          if (mm.rest === "wall/set" && method === "POST") return await handleSetWall(req, store, mm.id);
-          if (mm.rest === "wall/clear" && method === "POST") return await handleClearWall(req, store, mm.id);
-          if (mm.rest === "archive" && method === "POST") return handleArchiveMatter(req, store, mm.id);
           // Phase 1: wrapped matter-key distribution.
           if (mm.rest === "keys/publish" && method === "POST") return await handlePublishMatterKeys(req, store, mm.id);
           if (mm.rest === "keys/fetch" && method === "POST") return await handleFetchMatterKey(req, store, mm.id);
         }
         // Phase 1: /matter/mine (before the :id match so it doesn't accidentally match).
         if (path === "/matter/mine" && method === "POST") return await handleMatterMine(req, store);
-        // Admin: matter collection.
-        if (path === "/org/matters" && method === "POST") return await handleCreateMatter(req, store);
-        if (path === "/org/matters/list" && method === "POST") return handleListMatters(req, store);
-
         // --- Lantern Intake relay (write-only public mailbox) ---
         if (path === "/intake" && method === "POST") return await handleCreateIntake(req, store);
         if (path === "/intake/granted" && method === "GET") return handleListGrantedIntakes(req, store);
@@ -365,29 +336,11 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/seat/validate" && method === "POST") return await handleSeatValidate(req, store);
         if (path === "/seat/heartbeat" && method === "POST") return await handleSeatHeartbeat(req, store);
 
-        // --- Admin (role=admin) ---
-        if (path === "/org/seats" && method === "POST") return await handleListSeats(req, store);
-        if (path === "/org/seat/revoke" && method === "POST") return await handleRevokeSeat(req, store);
-        if (path === "/org/user/deprovision" && method === "POST") return await handleDeprovisionUser(req, store);
-        if (path === "/org/seats/transfer" && method === "POST") return await handleTransferSeat(req, store);
-        if (path === "/org/users" && method === "POST") return await handleCreateUser(req, store);
-        if (path === "/org/users/list" && method === "POST") return handleListOrgUsers(req, store);
-        if (path === "/org/audit" && (method === "POST" || method === "GET")) return handleAudit(req, store);
-        if (path === "/org/sso/config/set" && method === "POST") return await handleSsoConfigSet(req, store);
-        if (path === "/org/sso/config/get" && method === "POST") return handleSsoConfigGet(req, store);
-        if (path === "/org/sso/config/delete" && method === "POST") return handleSsoConfigDelete(req, store);
-
         // --- Assured zero-retention inference proxy (chunk 3, DECISION.md §5) ---
         // The proxy endpoint takes the request BODY as an opaque stream and pipes
         // it upstream untouched — it is handled directly with `req` and never
         // routed through any body-reading/logging middleware.
         if (path === "/assured/infer" && method === "POST") return await handleAssuredInfer(req, store, ip);
-        // Admin: managed provider keys + metadata-only billing.
-        if (path === "/assured/keys/set" && method === "POST") return await handleSetProviderKey(req, store);
-        if (path === "/assured/keys/list" && method === "POST") return handleListProviderKeys(req, store);
-        if (path === "/assured/keys/delete" && method === "POST") return await handleDeleteProviderKey(req, store);
-        if (path === "/assured/billing" && method === "POST") return handleInferenceBilling(req, store);
-
         // --- Phase 1: device key registration ---
         if (path === "/device/register" && method === "POST") return await handleDeviceRegister(req, store);
         if (path === "/org/users/devices" && method === "POST") return await handleListUsersDevices(req, store);
@@ -399,9 +352,6 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         // --- Phase 1: LemonSqueezy webhook ---
         if (path === "/webhooks/lemonsqueezy" && method === "POST") return await handleLemonSqueezyWebhook(req, store);
         if (path === "/webhooks/docusign-signing" && method === "POST") return await handleDocusignConnectEvent(req);
-
-        // --- Provisioning (billing-driven; protect at network layer) ---
-        if (path === "/admin/org" && method === "POST") return await handleCreateOrg(req, store);
 
         return error("not_found", 404);
       } catch (err) {

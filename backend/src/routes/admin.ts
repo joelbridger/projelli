@@ -15,15 +15,15 @@
  *       -> creates org + admin user + an initial license key. Returns the
  *          plaintext license_key ONCE (never stored in plaintext).
  *
- * /admin/org has no auth gate in this build because in production it is driven
- * by the billing webhook behind the loopback allowlist (same trust model as the
- * legacy validator's /webhook). That is called out in the README as the one
- * endpoint a deployment must protect at the network layer.
+ * /admin/org uses the backend's existing Bearer-header mechanism with a
+ * dedicated global provisioning credential. The edge block remains an
+ * additional outer control.
  */
 
 import { type HttpRequest } from "../lib/requestBody.ts";
-import { json, error, readJson, isNonEmptyString, isEmail, isValidPassword, sanitizePacks, VALID_PLANS, authenticate } from "../lib/http.ts";
-import { hashPassword, generateLicenseKey, hmacHash } from "../lib/crypto.ts";
+import { json, error, readJson, isNonEmptyString, isEmail, isValidPassword, sanitizePacks, VALID_PLANS, authenticate, getBearer } from "../lib/http.ts";
+import { config } from "../lib/config.ts";
+import { hashPassword, generateLicenseKey, hmacEquals, hmacHash } from "../lib/crypto.ts";
 import { publicSeat, publicUser, mintSeatToken } from "../lib/services.ts";
 import type { Store } from "../lib/db.ts";
 import type { AccessTokenClaims, Plan, ProfessionPack } from "../lib/types.ts";
@@ -34,6 +34,15 @@ function requireAdmin(req: HttpRequest): { ok: true; claims: AccessTokenClaims }
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
   return { ok: true, claims: auth.claims };
+}
+
+/** Global provisioning uses the existing Bearer header with a dedicated ops credential. */
+function requireProvisioner(req: HttpRequest): { ok: true } | { ok: false; resp: Response } {
+  const presented = getBearer(req) ?? "";
+  if (!config.adminProvisionSecret || !hmacEquals(presented, hmacHash(config.adminProvisionSecret))) {
+    return { ok: false, resp: error("unauthorized", 401) };
+  }
+  return { ok: true };
 }
 
 export async function handleListSeats(req: HttpRequest, store: Store): Promise<Response> {
@@ -165,11 +174,14 @@ export function handleListOrgUsers(req: HttpRequest, store: Store): Response {
 }
 
 /**
- * Provision a brand-new org + admin + initial license key. Billing-driven in
- * production (protect at the network layer — see README). Returns the license
- * key plaintext exactly once.
+ * Provision a brand-new org + admin + initial license key. The caller must be
+ * the dedicated provisioning Bearer credential; the privileged route registry
+ * also enforces this before dispatch, and this inner check keeps direct handler
+ * calls fail-closed. Returns the license key plaintext exactly once.
  */
 export async function handleCreateOrg(req: HttpRequest, store: Store): Promise<Response> {
+  const a = requireProvisioner(req);
+  if (!a.ok) return a.resp;
   const body = await readJson<{
     name?: unknown;
     plan?: unknown;

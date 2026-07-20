@@ -338,4 +338,9 @@ respond @admin 403
 ```
 Backup: `/etc/caddy/Caddyfile.bak-admin-block-20260611-115444`. Validated + `systemctl reload caddy`. Verified from the edge: `/admin/org` POST → 403, `/admin/seats` → 403, `/healthz` → 200, `/.well-known/seat-pubkey` → 200, `/org/claim` → 400 (reaches app), `/webhooks/lemonsqueezy` → 401 (reaches app). Normal provisioning is unaffected (LS webhook creates unclaimed orgs → buyer self-activates via `/org/claim`).
 
-**Defense-in-depth follow-up (tracked WAVE2-FU-02):** add an in-app guard to `handleCreateOrg` (real loopback-IP assertion or a shared `ADMIN_PROVISION_SECRET` header) so the backend no longer depends solely on the edge rule. The Assured exercise script uses the loopback route and keeps working after that guard lands.
+**Defense in depth added in the application:** `POST /admin/org` now requires
+`Authorization: Bearer <ADMIN_PROVISION_SECRET>` before its body is read. The
+edge 403 remains in place as the outer layer. An empty application secret locks
+the route closed; generate this value independently from `AUTH_SECRET` before a
+future deployment. The Assured exercise reads it from its off-repo credential
+file and sends it only to the loopback route.

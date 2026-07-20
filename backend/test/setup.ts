@@ -14,6 +14,7 @@ import { generateKeyPairSync } from "node:crypto";
 process.env.BUN_TEST = "1";
 process.env.NODE_ENV = "test";
 process.env.AUTH_SECRET = "test-secret-deterministic-please-do-not-use-in-prod-0123456789";
+process.env.ADMIN_PROVISION_SECRET = "test-provision-secret-deterministic-0123456789";
 process.env.DB_PATH = ":memory:";
 process.env.PORT = "0"; // ephemeral port — avoids collisions when the server boots in tests
 process.env.ACCESS_TOKEN_TTL_SECONDS = "3600";

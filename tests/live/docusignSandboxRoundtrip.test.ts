@@ -43,6 +43,8 @@ import { DEFAULT_WELCOME_JOURNEY } from '@/platform/intake/welcomeJourneyDefault
 
 import { loadDocusignSandboxCredentials, type DocusignSandboxCredentials } from './docusignSandboxCreds';
 
+const LOCAL_ADMIN_PROVISION_SECRET = 'docusign-sandbox-provision-secret-0123456789';
+
 const execFileAsync = promisify(execFile);
 const LIVE_OK = process.env['DOCUSIGN_LIVE_SANDBOX_OK'] === '1' && loadDocusignSandboxCredentials() !== null;
 const credentials = LIVE_OK ? loadDocusignSandboxCredentials() : null;
@@ -205,6 +207,7 @@ async function bootBackend(config: DocusignSandboxCredentials): Promise<BackendP
   const { path: _credentialsPath, ...docusignEnvironment } = config;
   Object.assign(environment, docusignEnvironment, {
     NODE_ENV: 'test', BUN_TEST: '1', HOST: '127.0.0.1', PORT: '0', DB_PATH: join(dbDirectory, 'broker.sqlite'),
+    ADMIN_PROVISION_SECRET: LOCAL_ADMIN_PROVISION_SECRET,
     AUTH_RATE_LIMIT_MAX: '1000', RELAY_RATE_LIMIT_MAX: '1000',
   });
   const child = spawn('bun', ['run', 'backend/src/server.ts'], { cwd: process.cwd(), env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -244,7 +247,7 @@ async function provisionSyntheticAdvisor(baseUrl: string): Promise<Authenticated
   const password = 'synthetic-sandbox-password-123';
   const org = await postJson<{ license_key: string }>(baseUrl, '/admin/org', {
     name: `W9 Synthetic Sandbox ${randomUUID()}`, plan: 'personal', packs: ['advisor'], seat_limit: 1, admin_email: email, admin_password: password,
-  });
+  }, LOCAL_ADMIN_PROVISION_SECRET);
   const login = await postJson<{ access_token: string }>(baseUrl, '/auth/login', { email, password });
   const activation = await postJson<{ token: string }>(baseUrl, '/org/activate', { license_key: org.license_key, machine_id: `w9-sandbox-${randomUUID()}`, machine_label: 'W9 synthetic sandbox' }, login.access_token);
   return { accessToken: login.access_token, seatToken: activation.token };

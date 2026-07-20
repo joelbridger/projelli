@@ -256,7 +256,14 @@ export async function handlePushUpdate(req: HttpRequest, store: Store, matterId:
   const rl = rateLimit(ip, "relay_push", { max: config.relayRateLimitMax, windowSeconds: config.relayRateLimitWindowSeconds });
   if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
 
-  // Read body first (we need seat_token from it), with the relay's larger cap.
+  // The access credential is always in a header, so reject a missing or bad
+  // identity before waiting for the legacy body-carried seat token. This keeps
+  // an unauthenticated caller from making the relay read/validate any body.
+  const identity = authenticate(req);
+  if (!identity.ok) return error("unauthorized", 401);
+
+  // The legacy seat token still lives in this request body; after the access
+  // front gate above, the complete seat + matter gate runs below.
   const read = await readUpdateBody(req);
   if (!read.ok) {
     return read.tooLarge

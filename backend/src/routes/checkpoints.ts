@@ -26,10 +26,10 @@ function checkpointGate(req: HttpRequest, store: Store, matterId: string, adminO
 }
 
 export async function handleCheckpointChunk(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
-  const body = await readJson<{ doc_id?: unknown; generation?: unknown; chunk_index?: unknown; ciphertext_b64?: unknown }>(req);
-  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || !isInteger(body.chunk_index) || body.generation < 1 || body.chunk_index < 0) return error("missing_fields", 400);
   const gate = checkpointGate(req, store, matterId, true);
   if (!gate.ok) return gate.resp;
+  const body = await readJson<{ doc_id?: unknown; generation?: unknown; chunk_index?: unknown; ciphertext_b64?: unknown }>(req);
+  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || !isInteger(body.chunk_index) || body.generation < 1 || body.chunk_index < 0) return error("missing_fields", 400);
   const ciphertext = opaque(body.ciphertext_b64);
   if (!ciphertext) return error("invalid_ciphertext", 400);
   if (ciphertext.byteLength > MAX_CHECKPOINT_CHUNK_BYTES) return error("payload_too_large", 413);
@@ -38,10 +38,10 @@ export async function handleCheckpointChunk(req: HttpRequest, store: Store, matt
 }
 
 export async function handleCheckpointManifest(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
-  const body = await readJson<{ doc_id?: unknown; generation?: unknown; frontier?: unknown; retention_eligible?: unknown; manifest_ciphertext_b64?: unknown }>(req);
-  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || !isInteger(body.frontier) || body.generation < 1 || body.frontier < 0 || typeof body.retention_eligible !== "boolean") return error("missing_fields", 400);
   const gate = checkpointGate(req, store, matterId, true);
   if (!gate.ok) return gate.resp;
+  const body = await readJson<{ doc_id?: unknown; generation?: unknown; frontier?: unknown; retention_eligible?: unknown; manifest_ciphertext_b64?: unknown }>(req);
+  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || !isInteger(body.frontier) || body.generation < 1 || body.frontier < 0 || typeof body.retention_eligible !== "boolean") return error("missing_fields", 400);
   const manifest = opaque(body.manifest_ciphertext_b64);
   if (!manifest) return error("invalid_ciphertext", 400);
   if (manifest.byteLength > MAX_CHECKPOINT_CHUNK_BYTES) return error("payload_too_large", 413);
@@ -50,10 +50,10 @@ export async function handleCheckpointManifest(req: HttpRequest, store: Store, m
 }
 
 export async function handleCheckpointReceipt(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
-  const body = await readJson<{ doc_id?: unknown; generation?: unknown; device_id?: unknown; signed_receipt_b64?: unknown }>(req);
-  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || body.generation < 1 || !isNonEmptyString(body.device_id, 128)) return error("missing_fields", 400);
   const gate = checkpointGate(req, store, matterId);
   if (!gate.ok) return gate.resp;
+  const body = await readJson<{ doc_id?: unknown; generation?: unknown; device_id?: unknown; signed_receipt_b64?: unknown }>(req);
+  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || body.generation < 1 || !isNonEmptyString(body.device_id, 128)) return error("missing_fields", 400);
   const device = store.getDevice(body.device_id, gate.userId);
   if (!device || device.org_id !== gate.orgId) return error("device_not_found", 404);
   const receipt = opaque(body.signed_receipt_b64);
@@ -64,10 +64,10 @@ export async function handleCheckpointReceipt(req: HttpRequest, store: Store, ma
 }
 
 export async function handleCheckpointPrune(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
-  const body = await readJson<{ doc_id?: unknown; generation?: unknown }>(req);
-  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || body.generation < 1) return error("missing_fields", 400);
   const gate = checkpointGate(req, store, matterId, true);
   if (!gate.ok) return gate.resp;
+  const body = await readJson<{ doc_id?: unknown; generation?: unknown }>(req);
+  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || body.generation < 1) return error("missing_fields", 400);
   const result = store.pruneCheckpointTail({ matter_id: matterId, org_id: gate.orgId, doc_id: body.doc_id.trim(), generation: body.generation });
   return result.ok ? json({ ok: true, pruned: result.pruned }) : error(result.reason!, 409);
 }

@@ -10,7 +10,7 @@
 import * as Y from 'yjs';
 import { FanoutHub } from '../../../backend/src/lib/matters.ts';
 import { Store } from '../../../backend/src/lib/db.ts';
-import { buildServeOptions, type SyncSocketData } from '../../../backend/src/server.ts';
+import { buildServeOptions, server as importedServer, type SyncSocketData } from '../../../backend/src/server.ts';
 import { ciphertextBand, openEnvelope } from '@/platform/crm/notify/envelopeCrypto';
 import { NotificationClient } from '@/platform/crm/notify/NotificationClient';
 import type {
@@ -91,6 +91,7 @@ async function fixture(): Promise<RelayFixture> {
   const base = `http://${server.hostname}:${server.port}`;
   const adminEmail = `admin-${crypto.randomUUID()}@trust.test`;
   const provision = await request(base, '/admin/org', {
+    access: process.env.ADMIN_PROVISION_SECRET,
     body: { name: 'Trustbreaker RIA', plan: 'practice', packs: ['advisor'], seat_limit: 8, admin_email: adminEmail, admin_password: 'trustbreaker-admin-password' },
   });
   must(provision.status === 201, `fixture organization failed (${provision.status})`);
@@ -316,6 +317,7 @@ async function main(): Promise<void> {
     await attack('egress-honesty/local-only-cloud-send-choke', egressHonesty);
   } finally {
     f.server.stop(true);
+    importedServer.stop(true);
   }
   if (failures.length) {
     console.error(`VULN: ${failures.length} trust-breaker attack(s) succeeded.`);

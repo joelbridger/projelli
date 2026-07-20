@@ -26,6 +26,17 @@ function notifyAuth(req: HttpRequest, store: Store, orgId: string) {
   return { ok: true as const, claims: auth.claims };
 }
 
+/** Authenticate identity + active seat without needing any body-derived org id. */
+function notifyHeaderAuth(req: HttpRequest, store: Store) {
+  const auth = authenticate(req);
+  if (!auth.ok) return { ok: false as const, resp: error("unauthorized", 401) };
+  const user = store.getUser(auth.claims.sub);
+  if (!user || user.status !== "active") return { ok: false as const, resp: error("unauthorized", 401) };
+  const seat = verifyActiveSeat(store, req.headers.get("x-seat-token") ?? "", { user_id: auth.claims.sub, org_id: auth.claims.org_id });
+  if (!seat.ok) return { ok: false as const, resp: error("seat_invalid", 401) };
+  return { ok: true as const, claims: auth.claims };
+}
+
 function scopeMatterId(scope: unknown): string | null {
   if (!scope || typeof scope !== "object") return null;
   const matterId = (scope as Record<string, unknown>).matter_id;
@@ -36,16 +47,17 @@ function scopeMatterId(scope: unknown): string | null {
 export async function handleNotifySend(req: HttpRequest, store: Store, ip: string, hub: NotificationHub = notificationHub): Promise<Response> {
   const limited = rateLimit(ip, "notify_send", { max: 240, windowSeconds: 60 });
   if (!limited.ok) return error("rate_limited", 429);
+  const headerAuth = notifyHeaderAuth(req, store);
+  if (!headerAuth.ok) return headerAuth.resp;
   const body = await readJson<Record<string, unknown>>(req);
   if (!body || !isNonEmptyString(body.org_id, 128) || !isNonEmptyString(body.recipient_user_id, 128) || !isNonEmptyString(body.envelope_id, 128) || !isNonEmptyString(body.key_hint, 1024) || !isNonEmptyString(body.idempotency_key, 256)) return error("missing_fields", 400);
-  const auth = notifyAuth(req, store, body.org_id);
-  if (!auth.ok) return auth.resp;
+  if (body.org_id !== headerAuth.claims.org_id) return error("not_found", 404);
   const recipient = store.getUser(body.recipient_user_id);
   if (!recipient || recipient.org_id !== body.org_id) return error("recipient_not_found", 404);
   if (recipient.status !== "active") return error("recipient_inactive", 403);
   const matterId = scopeMatterId(body.transient_scope);
   if (!matterId) return error("invalid_transient_scope", 400);
-  const senderAccess = resolveAccess(store, { orgId: body.org_id, userId: auth.claims.sub, role: auth.claims.role }, matterId);
+  const senderAccess = resolveAccess(store, { orgId: body.org_id, userId: headerAuth.claims.sub, role: headerAuth.claims.role }, matterId);
   const recipientAccess = resolveAccess(store, { orgId: body.org_id, userId: recipient.user_id, role: recipient.role }, matterId);
   if (!senderAccess.allowed || !recipientAccess.allowed || !store.hasCurrentMatterKeyGrant(matterId, recipient.user_id)) return error("recipient_not_eligible", 403);
   const ciphertext = decodeOpaque(body.ciphertext_b64);
@@ -72,21 +84,23 @@ export function handleNotifyInbox(req: HttpRequest, store: Store): Response {
 }
 
 export async function handleNotifyAck(req: HttpRequest, store: Store): Promise<Response> {
+  const headerAuth = notifyHeaderAuth(req, store);
+  if (!headerAuth.ok) return headerAuth.resp;
   const body = await readJson<{ org_id?: unknown; device_id?: unknown; up_to_cursor?: unknown }>(req);
   if (!body || !isNonEmptyString(body.org_id, 128) || !isNonEmptyString(body.device_id, 128) || typeof body.up_to_cursor !== "number" || !Number.isInteger(body.up_to_cursor) || body.up_to_cursor < 0) return error("missing_fields", 400);
-  const auth = notifyAuth(req, store, body.org_id);
-  if (!auth.ok) return auth.resp;
-  const device = store.getDevice(body.device_id, auth.claims.sub);
-  if (!device || device.org_id !== body.org_id || device.user_id !== auth.claims.sub) return error("device_not_found", 404);
-  return json({ ok: true, acked_through: store.acknowledgeNotify(body.org_id, auth.claims.sub, body.device_id, body.up_to_cursor) });
+  if (body.org_id !== headerAuth.claims.org_id) return error("not_found", 404);
+  const device = store.getDevice(body.device_id, headerAuth.claims.sub);
+  if (!device || device.org_id !== body.org_id || device.user_id !== headerAuth.claims.sub) return error("device_not_found", 404);
+  return json({ ok: true, acked_through: store.acknowledgeNotify(body.org_id, headerAuth.claims.sub, body.device_id, body.up_to_cursor) });
 }
 
 export async function handleNotifySyncTicket(req: HttpRequest, store: Store, tickets: NotifyTicketStore = notifyTickets): Promise<Response> {
+  const headerAuth = notifyHeaderAuth(req, store);
+  if (!headerAuth.ok) return headerAuth.resp;
   const body = await readJson<{ org_id?: unknown }>(req);
   if (!body || !isNonEmptyString(body.org_id, 128)) return error("missing_fields", 400);
-  const auth = notifyAuth(req, store, body.org_id);
-  if (!auth.ok) return auth.resp;
-  return json(tickets.mint({ orgId: body.org_id, userId: auth.claims.sub }));
+  if (body.org_id !== headerAuth.claims.org_id) return error("not_found", 404);
+  return json(tickets.mint({ orgId: body.org_id, userId: headerAuth.claims.sub }));
 }
 
 export function authorizeNotifySync(req: HttpRequest, store: Store, tickets: NotifyTicketStore = notifyTickets): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
@@ -103,10 +117,11 @@ export function authorizeNotifySync(req: HttpRequest, store: Store, tickets: Not
 
 /** Signed terminal notice handler; envelope content and sender identity remain opaque. */
 export async function handleNotifyTerminal(req: HttpRequest, store: Store): Promise<Response> {
+  const headerAuth = notifyHeaderAuth(req, store);
+  if (!headerAuth.ok) return headerAuth.resp;
   const body = await readJson<{ org_id?: unknown; recipient_user_id?: unknown; envelope_id?: unknown; signed_terminal_notice_b64?: unknown }>(req);
   if (!body || !isNonEmptyString(body.org_id, 128) || !isNonEmptyString(body.recipient_user_id, 128) || !isNonEmptyString(body.envelope_id, 128) || !decodeOpaque(body.signed_terminal_notice_b64)) return error("missing_fields", 400);
-  const auth = notifyAuth(req, store, body.org_id);
-  if (!auth.ok) return auth.resp;
+  if (body.org_id !== headerAuth.claims.org_id) return error("not_found", 404);
   // The notice signature is opaque to the relay; client-side verification is the cryptographic authority.
   return store.markNotifyTerminal(body.org_id, body.recipient_user_id, body.envelope_id) ? json({ ok: true }) : error("envelope_not_found", 404);
 }

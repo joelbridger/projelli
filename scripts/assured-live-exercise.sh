@@ -66,6 +66,7 @@ Create it (mode 600 — it holds secrets and must NEVER be committed):
   cat > "$ENV_FILE" <<'ENV'
 ASSURED_TEST_EMAIL=assured-test-admin@keepance.test
 ASSURED_TEST_PASSWORD=<a fresh random >=12-char password you choose>
+ADMIN_PROVISION_SECRET=<the backend's ADMIN_PROVISION_SECRET>
 # The managed Anthropic key comes from a server-side key Jameson already holds
 # (e.g. an Anthropic-consuming service env on this host). NEVER take it from
 # this repo. Paste it as the value below.
@@ -83,6 +84,7 @@ EOF
   set +a
   : "${ASSURED_TEST_EMAIL:?ASSURED_TEST_EMAIL missing in $ENV_FILE}"
   : "${ASSURED_TEST_PASSWORD:?ASSURED_TEST_PASSWORD missing in $ENV_FILE}"
+  : "${ADMIN_PROVISION_SECRET:?ADMIN_PROVISION_SECRET missing in $ENV_FILE}"
   : "${ASSURED_ANTHROPIC_KEY:?ASSURED_ANTHROPIC_KEY missing in $ENV_FILE}"
 }
 
@@ -184,7 +186,8 @@ cmd_run() {
     local raw
     raw="$(post_json "$ADMIN_BASE/admin/org" \
       "$(jq -nc --arg n "$ORG_NAME" --arg e "$ASSURED_TEST_EMAIL" --arg p "$ASSURED_TEST_PASSWORD" \
-        '{name:$n, plan:"practice", packs:["legal"], seat_limit:3, admin_email:$e, admin_password:$p}')")"
+        '{name:$n, plan:"practice", packs:["legal"], seat_limit:3, admin_email:$e, admin_password:$p}')" \
+      -H "Authorization: Bearer $ADMIN_PROVISION_SECRET")"
     split_reply "$raw"
     if [ "$REPLY_CODE" != "201" ]; then
       # email_taken means a prior partial run left the admin user; guide to reset.

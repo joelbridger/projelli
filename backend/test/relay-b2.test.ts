@@ -9,7 +9,7 @@ const base = `http://${server.hostname}:${server.port}`;
 afterAll(() => server.stop(true));
 
 async function call(path: string, body?: unknown, token?: string, seat?: string) {
-  const res = await fetch(`${base}${path}`, { method: body === undefined ? "GET" : "POST", headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...(token ? { authorization: `Bearer ${token}` } : {}), ...(seat ? { "x-seat-token": seat } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const res = await fetch(`${base}${path}`, { method: body === undefined ? "GET" : "POST", headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...(token ? { authorization: `Bearer ${token}` } : path === "/admin/org" ? { authorization: `Bearer ${process.env.ADMIN_PROVISION_SECRET}` } : {}), ...(seat ? { "x-seat-token": seat } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
   return { status: res.status, json: await res.json().catch(() => ({})) as Record<string, any> };
 }
 

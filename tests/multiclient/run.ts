@@ -29,6 +29,7 @@ import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 export const CLIENT_COUNT = 6;
 export const TIMEOUT_MS = 12_000;
 export const POLL_MS = 20;
+const ADMIN_PROVISION_SECRET = 'multiclient-harness-provision-secret-0123456789';
 type RelayProcess = ChildProcessByStdio<null, Readable, Readable>;
 
 export interface JsonResponse {
@@ -218,6 +219,7 @@ export function startRelay(
       HOST: '127.0.0.1',
       DB_PATH: path.join(dataDir, 'relay.sqlite'),
       AUTH_SECRET: 'multiclient-harness-auth-secret-0123456789',
+      ADMIN_PROVISION_SECRET,
       MANAGED_KEY_SECRET: 'multiclient-harness-managed-secret-0123456789',
       AUTH_RATE_LIMIT_MAX: '1000',
       RELAY_RATE_LIMIT_MAX: '1000',
@@ -291,7 +293,7 @@ export async function createFirm(
     seat_limit: CLIENT_COUNT + 1,
     admin_email: `admin-${runId}@harness.test`,
     admin_password: 'harness-admin-password-123',
-  });
+  }, ADMIN_PROVISION_SECRET);
   const licenseKey = assertPresent(
     provision['license_key'] as string | undefined,
     'a license key'

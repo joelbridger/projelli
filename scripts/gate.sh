@@ -34,6 +34,10 @@ step "Case-only filename collisions" node scripts/check-case-collisions.mjs
 # stopped detecting anything can't report a silent pass.
 step "Backend body-reader guard (self-test)" npm run backend:body-readers:test
 step "Backend request-body seam" npm run backend:body-readers:check
+# Privileged endpoints are registered through one auth-declaring front door.
+# The self-test runs first so a hollow checker cannot report a green scan.
+step "Backend privileged-route guard (self-test)" npm run backend:privileged-routes:test
+step "Backend privileged-route declarations" npm run backend:privileged-routes:check
 step "TypeScript"      npm run typecheck
 step "TypeScript (tests)" npm run typecheck:tests
 step "Brand sync"      npm run brand:check

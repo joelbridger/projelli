@@ -131,7 +131,7 @@ afterAll(() => {
 async function post(path: string, body: unknown, bearer?: string) {
   const res = await fetch(`${BASE()}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) },
+    headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : path === "/admin/org" ? { authorization: `Bearer ${process.env.ADMIN_PROVISION_SECRET}` } : {}) },
     body: JSON.stringify(body),
   });
   return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, any> };
@@ -365,7 +365,7 @@ describe("assured proxy — ZERO-RETENTION GUARD (sentinel)", () => {
     const base = `http://${server.hostname}:${server.port}`;
 
     const P = async (path: string, body: unknown, bearer?: string) => {
-      const res = await fetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) }, body: JSON.stringify(body) });
+      const res = await fetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : path === "/admin/org" ? { authorization: `Bearer ${process.env.ADMIN_PROVISION_SECRET}` } : {}) }, body: JSON.stringify(body) });
       return (await res.json().catch(() => ({}))) as Record<string, any>;
     };
 

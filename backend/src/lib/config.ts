@@ -70,6 +70,16 @@ function resolveAuthSecret(): string {
   return randomBytes(48).toString("hex");
 }
 
+/** Empty locks `/admin/*` closed; a configured operations credential must be strong. */
+function resolveAdminProvisionSecret(): string {
+  const value = process.env.ADMIN_PROVISION_SECRET?.trim() ?? "";
+  if (!value) return "";
+  if (value.length < 32) {
+    throw new Error("config: ADMIN_PROVISION_SECRET is set but too short — use at least 32 chars (try `openssl rand -hex 48`).");
+  }
+  return value;
+}
+
 // ---- Seat-token Ed25519 keypair (asymmetric) -------------------------------
 function loadPem(inlineEnv: string, pathEnv: string): string | null {
   const p = process.env[pathEnv];
@@ -335,6 +345,14 @@ export const config = {
   /** JWT issuer claim. Kept identical to the legacy validator's audience so the
    *  client treats tokens uniformly; the seat-token issuer is the firm host. */
   issuer: str("TOKEN_ISSUER", "licenses.lanternplatform.app"),
+
+  /**
+   * Operations credential for the global `/admin/*` provisioning surface.
+   * It travels in the backend's existing `Authorization: Bearer` mechanism but
+   * is deliberately separate from end-user JWTs: an organization admin is not
+   * a platform-wide provisioner. Empty means the route is locked closed.
+   */
+  adminProvisionSecret: resolveAdminProvisionSecret(),
 
   // ---- SSO (OIDC) — Wave 3a -------------------------------------------------
   /** Public base URL the IdP redirects back to: `${ssoCallbackBase}/auth/sso/callback`.

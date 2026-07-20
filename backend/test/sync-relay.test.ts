@@ -63,7 +63,7 @@ afterAll(() => srv.stop(true));
 async function post(path: string, body: unknown, bearer?: string) {
   const res = await fetch(`${BASE()}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) },
+    headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : path === "/admin/org" ? { authorization: `Bearer ${process.env.ADMIN_PROVISION_SECRET}` } : {}) },
     body: JSON.stringify(body),
   });
   return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, any> };
@@ -838,7 +838,7 @@ describe("doc_id stream partitioning — HTTP integration", () => {
     // Provision a fresh org + 2 members for the partitioning tests
     const prov = await fetch(`${BASE()}/admin/org`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", authorization: `Bearer ${process.env.ADMIN_PROVISION_SECRET}` },
       body: JSON.stringify({
         name: `DocId Law ${crypto.randomUUID()}`,
         plan: "practice",

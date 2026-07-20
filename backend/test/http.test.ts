@@ -19,7 +19,7 @@ const BASE = () => `http://${server.hostname}:${server.port}`;
 async function post(path: string, body: unknown, bearer?: string) {
   const res = await fetch(`${BASE()}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) },
+    headers: { "content-type": "application/json", ...(bearer ? { authorization: `Bearer ${bearer}` } : path === "/admin/org" ? { authorization: `Bearer ${process.env.ADMIN_PROVISION_SECRET}` } : {}) },
     body: JSON.stringify(body),
   });
   return { status: res.status, json: (await res.json()) as Record<string, any> };

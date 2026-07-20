@@ -160,7 +160,7 @@ export interface CreateUserRequest {
   role?: UserRole; // default "member"
 }
 
-/** POST /admin/org  — billing-driven provisioning (protect at network layer). */
+/** POST /admin/org — Authorization: Bearer ADMIN_PROVISION_SECRET, plus the edge block. */
 export interface CreateOrgRequest {
   name: string;
   plan: Plan;
