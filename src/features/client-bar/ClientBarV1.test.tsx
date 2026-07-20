@@ -201,7 +201,7 @@ describe('ClientBarV1', () => {
       quickAction({
         id: 'search',
         clientContext: 'shared',
-        labelKey: 'spine.nav.ask',
+        labelKey: 'app-surface.rail.ask',
         order: 30,
       }),
       quickAction({
@@ -225,7 +225,7 @@ describe('ClientBarV1', () => {
       Promise.resolve(
         quickAction({
           id: 'meetings',
-          labelKey: 'meetings.surface.title',
+          labelKey: 'app-surface.rail.meetings',
           order: 40,
         })
       );
@@ -256,7 +256,7 @@ function quickAction({
     id,
     clientContext,
     order,
-    labelKey: 'spine.nav.clients',
+    labelKey: 'app-surface.rail.crm',
     placement: 'primary',
     ...overrides,
   };

@@ -37,7 +37,7 @@ test.describe('Spine nav accessibility', () => {
   });
 
   test('the active destination is marked with aria-current', async ({ page }) => {
-    // The 3-item spine lands on Home.
+    // The 3-item spine lands on Today.
     const home = page.getByTestId('spine-nav-home');
     await expect(home).toHaveAttribute('aria-current', 'page');
 

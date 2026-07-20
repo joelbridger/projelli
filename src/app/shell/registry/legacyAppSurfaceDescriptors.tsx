@@ -56,8 +56,7 @@ function legacySurface(options: LegacyDescriptorOptions): AppSurfaceDescriptor {
  */
 export const legacyHomeSurface = legacySurface({
   id: 'home',
-  labelKey: 'spine.nav.home',
-  legacyLabel: 'Home',
+  labelKey: 'app-surface.rail.today',
   icon: Home,
   placement: 'primary',
   order: 10,
@@ -77,8 +76,7 @@ export const legacyHomeSurface = legacySurface({
 
 export const legacyClientsSurface = legacySurface({
   id: 'matters',
-  labelKey: 'spine.nav.clients',
-  legacyLabel: 'Clients',
+  labelKey: 'app-surface.rail.crm',
   icon: MapIcon,
   placement: 'primary',
   order: 20,
@@ -89,7 +87,7 @@ export const legacyClientsSurface = legacySurface({
 
 export const legacyAskSurface = legacySurface({
   id: 'search',
-  labelKey: 'spine.nav.ask',
+  labelKey: 'app-surface.rail.ask',
   icon: Sparkles,
   placement: 'primary',
   order: 30,

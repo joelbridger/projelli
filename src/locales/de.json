@@ -337,6 +337,18 @@
     "description": "Um Datenverlust zu vermeiden, kann jeweils nur ein Browser-Tab Änderungen speichern. Wechseln Sie zu Ihrem anderen Tab, um dort weiterzuarbeiten, oder verwenden Sie stattdessen diesen Tab.",
     "take-over": "Stattdessen diesen Tab verwenden"
   },
+  "app-surface": {
+    "rail": {
+      "today": "Heute",
+      "today__sourceHash": "2b065c7c9ce466e5ebcad757987d5d660ee4c9ea708bc62c43444b53334738ba",
+      "crm": "CRM",
+      "crm__sourceHash": "130f70ae5b44ed4c645aad5cf7cf18ad2413c48e754dbfdec86cc781a26a5624",
+      "meetings": "Besprechungen",
+      "meetings__sourceHash": "bca705b63a3cf58504af9d281ab45042c0cc234fa8cfe08b6121514270b02c8f",
+      "ask": "Fragen",
+      "ask__sourceHash": "b8c209cdead61a095ec097b7a13c4fc9264c04b3e3bd0fca42ec8dbaeebeeafe"
+    }
+  },
   "spine": {
     "nav": {
       "home": "Startseite",

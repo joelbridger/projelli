@@ -48,7 +48,7 @@ Other routable surfaces still exist, but they are reached through the Client Map
 
 ## CRM And Practice Operations
 
-Advisor Prep Hero now includes a local-first CRM alongside its document workspace. The primary rail is Home, Clients, and Ask; the features below are reached from Home or a client record.
+Advisor Prep Hero now includes a local-first CRM alongside its document workspace. The primary rail is Today, CRM, Meetings, and Ask; the features below are reached from Today or a client record.
 
 | Area | What it does | Current evidence |
 |---|---|---|

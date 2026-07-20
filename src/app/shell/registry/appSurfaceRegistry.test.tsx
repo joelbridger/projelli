@@ -3,7 +3,6 @@ import { Home } from 'lucide-react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   appSurfaceRegistry,
-  BLESSED_APP_RAIL_ITEMS,
   getAvailableAppSurfaceDescriptors,
   getAppSurfaceDescriptors,
   getOrderedAppSurfaces,
@@ -73,17 +72,6 @@ describe('appSurfaceRegistry', () => {
     ]);
   });
 
-  it('keeps the design-reviewed rail labels in one frozen registry-ordered source', () => {
-    expect(BLESSED_APP_RAIL_ITEMS).toEqual([
-      { id: 'home', label: 'Today' },
-      { id: 'matters', label: 'CRM' },
-      { id: 'meetings', label: 'Meetings' },
-      { id: 'search', label: 'Ask' },
-    ]);
-    expect(Object.isFrozen(BLESSED_APP_RAIL_ITEMS)).toBe(true);
-    expect(BLESSED_APP_RAIL_ITEMS.every(Object.isFrozen)).toBe(true);
-  });
-
   it('rejects duplicate ids', () => {
     expect(() => {
       validateAppSurfaceDescriptors([
@@ -130,6 +118,14 @@ describe('appSurfaceRegistry', () => {
       'matters',
       'meetings',
       'search',
+    ]);
+    expect(
+      getOrderedAppSurfaces('primary').map(({ id, labelKey }) => ({ id, labelKey }))
+    ).toEqual([
+      { id: 'home', labelKey: 'app-surface.rail.today' },
+      { id: 'matters', labelKey: 'app-surface.rail.crm' },
+      { id: 'meetings', labelKey: 'app-surface.rail.meetings' },
+      { id: 'search', labelKey: 'app-surface.rail.ask' },
     ]);
   });
 

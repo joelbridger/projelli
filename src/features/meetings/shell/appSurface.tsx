@@ -26,7 +26,7 @@ export interface MeetingsSurfaceRuntime extends MeetingsNavigationRuntime {
 /** The one real Meetings surface descriptor consumed by the app-owned registry. */
 export const meetingsSurface = {
   id: 'meetings',
-  labelKey: 'meetings.shell.title',
+  labelKey: 'app-surface.rail.meetings',
   icon: Mic,
   placement: 'primary',
   order: 25,

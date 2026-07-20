@@ -1,6 +1,6 @@
 /**
- * Spine — the matter-centric navy "Spine" nav, brand-matched to lantern.com.
- * The CRM 3-tab IA: Home · Clients · Ask. Documents, Email, Activity Log,
+ * Spine — the matter-centric navy rail navigation.
+ * The primary rail: Today · CRM · Ask. Documents, Email, Activity Log,
  * Privacy Center, and Settings are reached via the gear menu, the Ask source
  * filter, and Client Map quick actions — they stay routable content surfaces,
  * just not rail tabs. The binder spine of the case file.
@@ -29,10 +29,7 @@ import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { Badge, IconButton } from '@/ui/kp';
-import {
-  getBlessedAppRailLabel,
-  getOrderedAppSurfaces,
-} from '@/app/shell/registry/appSurfaceRegistry';
+import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import {
   DropdownMenu,
@@ -259,7 +256,7 @@ export function Spine({
           }}
         />
         {nav.map(({ id, labelKey, legacyLabel, icon: Icon }) => {
-          const label = getBlessedAppRailLabel(id) ?? legacyLabel ?? t(labelKey);
+          const label = legacyLabel ?? t(labelKey);
           return (
             <button
               key={id}
@@ -345,7 +342,7 @@ export function Spine({
           }}
         >
           {nav.map(({ id, labelKey, legacyLabel, icon: Icon }) => {
-            const label = getBlessedAppRailLabel(id) ?? legacyLabel ?? t(labelKey);
+            const label = legacyLabel ?? t(labelKey);
             // The Client Map tab yields its highlight while All Clients mode is on.
             const on = active === id && !(id === 'matters' && allClientsActive);
             return (

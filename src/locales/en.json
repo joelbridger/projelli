@@ -229,6 +229,14 @@
     "description": "To keep your data safe, only one browser tab can save changes at a time. Switch back to your other tab to keep working there, or use this tab instead.",
     "take-over": "Use this tab instead"
   },
+  "app-surface": {
+    "rail": {
+      "today": "Today",
+      "crm": "CRM",
+      "meetings": "Meetings",
+      "ask": "Ask"
+    }
+  },
   "spine": {
     "nav": {
       "home": "Home",

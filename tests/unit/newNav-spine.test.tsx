@@ -3,7 +3,14 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { Spine } from '@/app/shell/layout/Spine';
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) =>
+      ({
+        'app-surface.rail.today': 'Today',
+        'app-surface.rail.crm': 'CRM',
+        'app-surface.rail.ask': 'Ask',
+      })[key] ?? key,
+  }),
 }));
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatters: () => [],

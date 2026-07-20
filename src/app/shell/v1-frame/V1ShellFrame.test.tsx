@@ -43,6 +43,24 @@ describe('V1ShellFrame', () => {
     ).toHaveAttribute('href', '#main-content');
   });
 
+  it('renders the rail labels from the English locale catalog', () => {
+    render(
+      <V1ShellFrame
+        activeSurface="home"
+        onOpenCommandPalette={vi.fn()}
+        onSurfaceChange={vi.fn()}
+      >
+        <div>Surface</div>
+      </V1ShellFrame>
+    );
+
+    expect(
+      Array.from(
+        screen.getByTestId('v1-shell-primary-nav').querySelectorAll('button')
+      ).map((button) => button.textContent?.trim())
+    ).toEqual(['Today', 'CRM', 'Ask']);
+  });
+
   it('opens the existing command palette through its supplied trigger', () => {
     const onOpenCommandPalette = vi.fn();
     render(

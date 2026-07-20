@@ -31,6 +31,7 @@ describe('feature locale shard inventory', () => {
   it('keeps the base catalog limited to shared shell and cross-feature copy', () => {
     expect(Object.keys(baseEn).sort()).toEqual([
       'app',
+      'app-surface',
       'commands',
       'common',
       'layout',

@@ -15,7 +15,6 @@ import {
 } from '@/app/shell/registry/legacyAppSurfaceDescriptors';
 import type {
   AppSurfaceDescriptor,
-  AppSurfaceId,
   AppSurfaceRegistration,
   AppSurfaceResolution,
 } from '@/app/shell/registry/types';
@@ -44,26 +43,6 @@ export const appSurfaceRegistry: readonly AppSurfaceRegistration[] = [
   legacyResearchSurface,
   legacyTrashSurface,
 ];
-
-/**
- * The design-reviewed primary rail, kept as one ordered value so labels cannot
- * drift between the expanded rail, collapsed tooltips, and registry tests.
- * Surface ids remain the long-lived routing ids.
- */
-export const BLESSED_APP_RAIL_ITEMS = Object.freeze([
-  Object.freeze({ id: 'home' as AppSurfaceId, label: 'Today' }),
-  Object.freeze({ id: 'matters' as AppSurfaceId, label: 'CRM' }),
-  Object.freeze({ id: 'meetings' as AppSurfaceId, label: 'Meetings' }),
-  Object.freeze({ id: 'search' as AppSurfaceId, label: 'Ask' }),
-]);
-
-const blessedAppRailLabelById = new Map(
-  BLESSED_APP_RAIL_ITEMS.map(({ id, label }) => [id, label])
-);
-
-export function getBlessedAppRailLabel(id: AppSurfaceId): string | undefined {
-  return blessedAppRailLabelById.get(id);
-}
 
 function isDescriptor(
   registration: AppSurfaceRegistration
