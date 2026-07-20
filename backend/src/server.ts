@@ -57,6 +57,7 @@ import {
   handleSaveIntakeState,
   handleSubmitIntakeItem,
   handleUploadIntakeChunk,
+  MAX_CHUNK_REQUEST_BYTES,
 } from "./routes/intake.ts";
 import { fanout, FanoutHub, toUpdateFrame, resolveAccess, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
@@ -194,6 +195,22 @@ function subscribeDocument(
 }
 
 /**
+ * Runtime-level ceiling on a Content-Length-declaring request body.
+ *
+ * DERIVED, not invented, so it cannot silently fall below a route that needs it:
+ * it is the largest per-route cap in the service plus 1 MiB of slack. The two
+ * largest are the assured inference prompt (`ASSURED_MAX_REQUEST_BYTES`, 8 MiB
+ * by default) and an intake upload chunk (~5.9 MiB: a 4 MiB ciphertext chunk
+ * base64-inflated plus its JSON envelope). Everything else is far smaller — a
+ * relay update is ~1.5 MiB, the LemonSqueezy webhook 256 KB, the DocuSign
+ * Connect webhook 64 KB, and the whole auth/admin control plane 64 KB — and each
+ * of those keeps enforcing its OWN, tighter cap at its own reader. This value is
+ * only the outer runtime bound; it is deliberately NOT the per-route cap.
+ */
+const SERVER_MAX_REQUEST_BODY_BYTES =
+  Math.max(config.assuredMaxRequestBytes, MAX_CHUNK_REQUEST_BYTES) + 1024 * 1024;
+
+/**
  * Build the Bun.serve options for a given Store + fan-out hub. Factored out (vs.
  * an inline object) so tests can boot an isolated server on an ephemeral port
  * with their own in-memory store + hub, exercising the SAME routes + WebSocket
@@ -207,6 +224,15 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
     // Long-ish idle timeout so a slow bcrypt verify under load never severs the
     // connection (mirrors the Keepance Bun idleTimeout gotcha).
     idleTimeout: 60,
+    // BELT, NOT THE FIX. Bun only enforces `maxRequestBodySize` when the client
+    // sends a Content-Length header; a `Transfer-Encoding: chunked` request has
+    // none, so this setting alone leaves the server unbounded. The real ceiling
+    // is the streaming cap every route reads through (`lib/requestBody.ts`),
+    // which aborts the read mid-stream regardless of framing. We still set this
+    // explicitly — rather than inheriting Bun's 128 MB default, a number nobody
+    // in this project chose — so an honest oversized upload is refused by the
+    // runtime before it reaches a handler at all.
+    maxRequestBodySize: SERVER_MAX_REQUEST_BODY_BYTES,
     async fetch(req: Request, srv: Bun.Server<SyncSocketData>): Promise<Response | undefined> {
       const url = new URL(req.url);
       const path = url.pathname;

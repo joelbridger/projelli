@@ -26,6 +26,14 @@ step "Wire-contract suite" npm run test:contracts
 step "Provider front door" node scripts/check-provider-construction.mjs
 step "Consent-gate wiring" node scripts/check-consent-gate-wiring.mjs
 step "Case-only filename collisions" node scripts/check-case-collisions.mjs
+# The backend request-body seam. Bun's maxRequestBodySize is Content-Length-only,
+# so a chunked POST to an unauthenticated route used to be buffered whole (300 MB
+# in -> RSS 61 MB to 375 MB). Every body read now goes through
+# backend/src/lib/requestBody.ts, which aborts mid-stream at the cap; these two
+# steps are what keep that true. The self-test runs FIRST so a checker that has
+# stopped detecting anything can't report a silent pass.
+step "Backend body-reader guard (self-test)" npm run backend:body-readers:test
+step "Backend request-body seam" npm run backend:body-readers:check
 step "TypeScript"      npm run typecheck
 step "TypeScript (tests)" npm run typecheck:tests
 step "Brand sync"      npm run brand:check

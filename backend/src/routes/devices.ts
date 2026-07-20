@@ -19,6 +19,7 @@
  * crv=P-256, x+y present, no `d` field) — anything else is rejected 400.
  */
 
+import { type HttpRequest } from "../lib/requestBody.ts";
 import { json, error, readJson, isNonEmptyString, authenticate } from "../lib/http.ts";
 import type { Store } from "../lib/db.ts";
 
@@ -44,7 +45,7 @@ function isValidP256PublicJwk(v: unknown): v is { kty: "EC"; crv: "P-256"; x: st
 // ---------------------------------------------------------------------------
 
 /** POST /device/register — upsert this user's device public key. */
-export async function handleDeviceRegister(req: Request, store: Store): Promise<Response> {
+export async function handleDeviceRegister(req: HttpRequest, store: Store): Promise<Response> {
   const auth = authenticate(req);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
@@ -93,7 +94,7 @@ export async function handleDeviceRegister(req: Request, store: Store): Promise<
 }
 
 /** POST /org/users/devices — list devices for a set of users (any org member, same-org). */
-export async function handleListUsersDevices(req: Request, store: Store): Promise<Response> {
+export async function handleListUsersDevices(req: HttpRequest, store: Store): Promise<Response> {
   const auth = authenticate(req);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
@@ -125,7 +126,7 @@ export async function handleListUsersDevices(req: Request, store: Store): Promis
 }
 
 /** POST /org/admins — list the caller's org admins (any org member). */
-export async function handleListOrgAdmins(req: Request, store: Store): Promise<Response> {
+export async function handleListOrgAdmins(req: HttpRequest, store: Store): Promise<Response> {
   const auth = authenticate(req);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 

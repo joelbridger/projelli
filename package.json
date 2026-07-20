@@ -61,6 +61,8 @@
     "boundaries:check": "node scripts/check-boundaries.mjs",
     "boundaries:update-baseline": "node scripts/check-boundaries.mjs --update-baseline",
     "boundaries:test": "node --test scripts/__tests__/check-boundaries.test.mjs",
+    "backend:body-readers:check": "node scripts/check-backend-body-readers.mjs",
+    "backend:body-readers:test": "node --test scripts/__tests__/check-backend-body-readers.test.mjs",
     "crm:active-boundary": "node scripts/check-active-crm-legacy-guard.mjs",
     "crm:active-boundary:test": "node --test scripts/__tests__/check-active-crm-legacy-guard.test.mjs",
     "selection:writers:check": "node scripts/check-selection-writer-retirement.mjs",

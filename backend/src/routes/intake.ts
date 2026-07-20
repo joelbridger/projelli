@@ -1,3 +1,4 @@
+import { readCappedJson, type HttpRequest } from "../lib/requestBody.ts";
 import { randomUUID } from "node:crypto";
 import { hmacHash } from "../lib/crypto.ts";
 import { CORS_HEADERS, error, isNonEmptyString, json } from "../lib/http.ts";
@@ -39,7 +40,7 @@ function isFirmPlan(plan: string): boolean {
  * admin, and no ethical wall. The key-routing row carries only the matter id.
  */
 function authorizeSharedIntakeRead(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   intakeId: string,
 ): { ok: true; userId: string; orgId: string; intake: ReturnType<Store['getIntake']>; matterId: string } | { ok: false; resp: Response } {
@@ -60,7 +61,7 @@ function authorizeSharedIntakeRead(
 }
 
 /** Creator-only legacy/solo access, otherwise the Firm team read gate. */
-function authorizeIntakeRead(req: Request, store: Store, intakeId: string): { ok: true; intake: NonNullable<ReturnType<Store['getIntake']>> } | { ok: false; resp: Response } {
+function authorizeIntakeRead(req: HttpRequest, store: Store, intakeId: string): { ok: true; intake: NonNullable<ReturnType<Store['getIntake']>> } | { ok: false; resp: Response } {
   const creator = authorizeAdvisorIntake(req, store, intakeId);
   if (creator.ok) return { ok: true, intake: creator.intake };
   const shared = authorizeSharedIntakeRead(req, store, intakeId);
@@ -70,43 +71,21 @@ function authorizeIntakeRead(req: Request, store: Store, intakeId: string): { ok
 
 const MAX_CREATE_REQUEST_BYTES = Math.ceil(MAX_INTAKE_CHECKLIST_BYTES * 1.4) + Math.ceil(MAX_INTAKE_STATE_BYTES * 1.4) + 64 * 1024;
 const MAX_STATE_REQUEST_BYTES = Math.ceil(MAX_INTAKE_STATE_BYTES * 1.4) + 8 * 1024;
-const MAX_CHUNK_REQUEST_BYTES = Math.ceil(MAX_INTAKE_CHUNK_BYTES * 1.4) + 64 * 1024;
+/** The largest body any intake route accepts (a base64 upload chunk + envelope). */
+export const MAX_CHUNK_REQUEST_BYTES = Math.ceil(MAX_INTAKE_CHUNK_BYTES * 1.4) + 64 * 1024;
 const MAX_SUBMIT_REQUEST_BYTES = 1024 * 1024;
 const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/u;
 
 type ReadResult<T> = { ok: true; body: T } | { ok: false; tooLarge: boolean };
 
-async function readJsonWithCap<T>(req: Request, maxBytes: number): Promise<ReadResult<T>> {
-  const len = Number(req.headers.get("content-length") ?? "0");
-  if (Number.isFinite(len) && len > maxBytes) return { ok: false, tooLarge: true };
-  try {
-    // Do not use req.text(): a forged/missing Content-Length would make it
-    // buffer the entire body before we noticed the cap. Stop reading as soon
-    // as the byte limit is crossed instead.
-    const reader = req.body?.getReader();
-    if (!reader) return { ok: false, tooLarge: false };
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel();
-        return { ok: false, tooLarge: true };
-      }
-      chunks.push(value);
-    }
-    const bytes = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return { ok: true, body: JSON.parse(new TextDecoder().decode(bytes)) as T };
-  } catch {
-    return { ok: false, tooLarge: false };
-  }
+/**
+ * This is where the streaming-cap technique originated. It now lives in
+ * `lib/requestBody.ts` so every route in the backend gets it, not just intake;
+ * this stays as the intake-shaped adapter (`body` instead of `value`).
+ */
+async function readJsonWithCap<T>(req: HttpRequest, maxBytes: number): Promise<ReadResult<T>> {
+  const read = await readCappedJson<T>(req, maxBytes);
+  return read.ok ? { ok: true, body: read.value } : { ok: false, tooLarge: read.tooLarge };
 }
 
 function decodeB64(value: unknown, maxBytes: number): { ok: true; bytes: Uint8Array } | { ok: false; status: number; code: string } {
@@ -119,7 +98,7 @@ function decodeB64(value: unknown, maxBytes: number): { ok: true; bytes: Uint8Ar
   return { ok: true, bytes };
 }
 
-function parseCursor(req: Request): { ok: true; cursor: number } | { ok: false; resp: Response } {
+function parseCursor(req: HttpRequest): { ok: true; cursor: number } | { ok: false; resp: Response } {
   const raw = new URL(req.url).searchParams.get("cursor") ?? "0";
   const cursor = Number(raw);
   if (!Number.isInteger(cursor) || cursor < 0) return { ok: false, resp: error("invalid_cursor", 400) };
@@ -147,7 +126,7 @@ function b64(bytes: Uint8Array): string {
  * so its 429 response cannot reveal whether a link exists.
  */
 function gatePublicIntake(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   intakeId: string,
   ip: string,
@@ -190,7 +169,7 @@ function submissionEnvelope(store: Store, row: IntakeSubmissionRecord): Submissi
 // Advisor-authenticated endpoints (X-Seat-Token).
 // ---------------------------------------------------------------------------
 
-export async function handleCreateIntake(req: Request, store: Store): Promise<Response> {
+export async function handleCreateIntake(req: HttpRequest, store: Store): Promise<Response> {
   const advisor = verifyAdvisorSeat(req, store);
   if (!advisor.ok) return advisor.resp;
 
@@ -246,7 +225,7 @@ export async function handleCreateIntake(req: Request, store: Store): Promise<Re
 // JWK; it validates routing only and persists opaque per-device ciphertext.
 // ---------------------------------------------------------------------------
 
-export async function handlePublishIntakeKeys(req: Request, store: Store, intakeId: string): Promise<Response> {
+export async function handlePublishIntakeKeys(req: HttpRequest, store: Store, intakeId: string): Promise<Response> {
   const advisor = verifyAdvisorSeat(req, store);
   if (!advisor.ok || !advisor.identity.access) return intakeNotFound();
   const org = store.getOrg(advisor.identity.org_id);
@@ -294,7 +273,7 @@ export async function handlePublishIntakeKeys(req: Request, store: Store, intake
   return json({ ok: true, stored: validated.length });
 }
 
-export function handleFetchIntakeKey(req: Request, store: Store, intakeId: string): Response {
+export function handleFetchIntakeKey(req: HttpRequest, store: Store, intakeId: string): Response {
   const shared = authorizeSharedIntakeRead(req, store, intakeId);
   if (!shared.ok) return shared.resp;
   const deviceId = req.headers.get('x-device-id');
@@ -310,7 +289,7 @@ export function handleFetchIntakeKey(req: Request, store: Store, intakeId: strin
  * device. Each row is re-checked through the normal org, matter-membership,
  * and ethical-wall gate before it is exposed.
  */
-export function handleListGrantedIntakes(req: Request, store: Store): Response {
+export function handleListGrantedIntakes(req: HttpRequest, store: Store): Response {
   const advisor = verifyAdvisorSeat(req, store);
   if (!advisor.ok || !advisor.identity.access) return intakeNotFound();
   const deviceId = req.headers.get('x-device-id');
@@ -326,7 +305,7 @@ export function handleListGrantedIntakes(req: Request, store: Store): Response {
   return json({ intakes });
 }
 
-export async function handleReplaceIntakeChecklist(req: Request, store: Store, intakeId: string): Promise<Response> {
+export async function handleReplaceIntakeChecklist(req: HttpRequest, store: Store, intakeId: string): Promise<Response> {
   const advisor = authorizeAdvisorIntake(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
 
@@ -340,7 +319,7 @@ export async function handleReplaceIntakeChecklist(req: Request, store: Store, i
   return json({ ok: true, intake_id: intakeId, checklist_version: intake.checklist_version });
 }
 
-export async function handleRegenerateIntake(req: Request, store: Store, intakeId: string): Promise<Response> {
+export async function handleRegenerateIntake(req: HttpRequest, store: Store, intakeId: string): Promise<Response> {
   const advisor = authorizeAdvisorIntake(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
 
@@ -375,7 +354,7 @@ export async function handleRegenerateIntake(req: Request, store: Store, intakeI
   return json({ ok: true, intake_id: intakeId, checklist_version: intake.checklist_version });
 }
 
-export function handleIntakeInbox(req: Request, store: Store, intakeId: string): Response {
+export function handleIntakeInbox(req: HttpRequest, store: Store, intakeId: string): Response {
   const advisor = authorizeIntakeRead(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const cursor = parseCursor(req);
@@ -394,7 +373,7 @@ export function handleIntakeInbox(req: Request, store: Store, intakeId: string):
   });
 }
 
-export function handleGetIntakeBlob(req: Request, store: Store, intakeId: string, blobId: string): Response {
+export function handleGetIntakeBlob(req: HttpRequest, store: Store, intakeId: string, blobId: string): Response {
   const advisor = authorizeIntakeRead(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const id = Number(blobId);
@@ -408,7 +387,7 @@ export function handleGetIntakeBlob(req: Request, store: Store, intakeId: string
   });
 }
 
-export async function handleAckIntake(req: Request, store: Store, intakeId: string): Promise<Response> {
+export async function handleAckIntake(req: HttpRequest, store: Store, intakeId: string): Promise<Response> {
   // Acknowledging deletes ciphertext. Read access is shareable, deletion is
   // deliberately creator-only so a teammate cannot erase an offline owner's
   // mailbox before every authorized device has fetched it.
@@ -430,14 +409,14 @@ export async function handleAckIntake(req: Request, store: Store, intakeId: stri
   return json({ ok: true, ...store.ackIntakeCiphertext({ intake_id: intakeId, submission_ids: submissionIds, blob_ids: blobIds }) });
 }
 
-export function handleRevokeIntake(req: Request, store: Store, intakeId: string): Response {
+export function handleRevokeIntake(req: HttpRequest, store: Store, intakeId: string): Response {
   const advisor = authorizeAdvisorIntake(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   store.revokeIntake(intakeId);
   return json({ ok: true, intake_id: intakeId, status: "revoked" });
 }
 
-export async function handleExtendIntake(req: Request, store: Store, intakeId: string): Promise<Response> {
+export async function handleExtendIntake(req: HttpRequest, store: Store, intakeId: string): Promise<Response> {
   const advisor = authorizeAdvisorIntake(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const read = await readJsonWithCap<{ expires_at?: unknown }>(req, 64 * 1024);
@@ -454,7 +433,7 @@ export async function handleExtendIntake(req: Request, store: Store, intakeId: s
 // Public endpoints (Authorization: Bearer t_auth). Body is read only after auth.
 // ---------------------------------------------------------------------------
 
-export function handleIntakeBundle(req: Request, store: Store, intakeId: string, ip: string): Response {
+export function handleIntakeBundle(req: HttpRequest, store: Store, intakeId: string, ip: string): Response {
   const auth = gatePublicIntake(req, store, intakeId, ip, "bundle");
   if (!auth.ok) return auth.resp;
 
@@ -469,7 +448,7 @@ export function handleIntakeBundle(req: Request, store: Store, intakeId: string,
   return json(body);
 }
 
-export async function handleSaveIntakeState(req: Request, store: Store, intakeId: string, ip: string): Promise<Response> {
+export async function handleSaveIntakeState(req: HttpRequest, store: Store, intakeId: string, ip: string): Promise<Response> {
   const auth = gatePublicIntake(req, store, intakeId, ip, "state");
   if (!auth.ok) return auth.resp;
 
@@ -490,7 +469,7 @@ export async function handleSaveIntakeState(req: Request, store: Store, intakeId
 }
 
 export async function handleUploadIntakeChunk(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   intakeId: string,
   itemId: string,
@@ -549,7 +528,7 @@ export async function handleUploadIntakeChunk(
 }
 
 export function handleListUploadedIntakeChunks(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   intakeId: string,
   itemId: string,
@@ -566,7 +545,7 @@ export function handleListUploadedIntakeChunks(
 }
 
 export async function handleSubmitIntakeItem(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   intakeId: string,
   itemId: string,

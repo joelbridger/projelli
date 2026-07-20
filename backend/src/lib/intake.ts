@@ -1,3 +1,4 @@
+import { type HttpRequest } from "./requestBody.ts";
 import { config } from "./config.ts";
 import { hmacEquals, hmacHash, verifySeatToken } from "./crypto.ts";
 import { authenticate, error, getBearer, json, rateLimit } from "./http.ts";
@@ -32,7 +33,7 @@ export interface AdvisorIntakeIdentity {
 }
 
 export function verifyAdvisorSeat(
-  req: Request,
+  req: HttpRequest,
   store: Store,
 ): { ok: true; identity: AdvisorIntakeIdentity } | { ok: false; resp: Response } {
   const seatToken = req.headers.get("x-seat-token");
@@ -76,7 +77,7 @@ export function verifyAdvisorSeat(
 }
 
 export function authorizeAdvisorIntake(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   intakeId: string,
 ): { ok: true; identity: AdvisorIntakeIdentity; intake: IntakeRecord } | { ok: false; resp: Response } {
@@ -98,7 +99,7 @@ export function authorizeAdvisorIntake(
 }
 
 export function authorizePublicIntake(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   intakeId: string,
 ): { ok: true; intake: IntakeRecord; token: string } | { ok: false; resp: Response } {

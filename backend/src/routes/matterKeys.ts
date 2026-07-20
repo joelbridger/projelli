@@ -19,6 +19,7 @@
  * explicit in the test suite.
  */
 
+import { type HttpRequest } from "../lib/requestBody.ts";
 import { json, error, readJson, isNonEmptyString, authenticate } from "../lib/http.ts";
 import { verifyActiveSeat } from "../lib/matters.ts";
 import type { Store } from "../lib/db.ts";
@@ -27,7 +28,7 @@ import type { Store } from "../lib/db.ts";
 // POST /matter/:id/keys/publish
 // ---------------------------------------------------------------------------
 
-export async function handlePublishMatterKeys(req: Request, store: Store, matterId: string): Promise<Response> {
+export async function handlePublishMatterKeys(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
   const auth = authenticate(req);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
@@ -109,7 +110,7 @@ export async function handlePublishMatterKeys(req: Request, store: Store, matter
 // POST /matter/:id/keys/fetch
 // ---------------------------------------------------------------------------
 
-export async function handleFetchMatterKey(req: Request, store: Store, matterId: string): Promise<Response> {
+export async function handleFetchMatterKey(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
   const auth = authenticate(req);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
@@ -151,7 +152,7 @@ export async function handleFetchMatterKey(req: Request, store: Store, matterId:
 // POST /matter/mine
 // ---------------------------------------------------------------------------
 
-export async function handleMatterMine(req: Request, store: Store): Promise<Response> {
+export async function handleMatterMine(req: HttpRequest, store: Store): Promise<Response> {
   const auth = authenticate(req);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 

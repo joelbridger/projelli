@@ -29,6 +29,7 @@
  * never decodes the blob, never logs it. A 1 MiB size cap is the only shape check.
  */
 
+import { readCappedJson, type HttpRequest } from "../lib/requestBody.ts";
 import { json, error, readJson, isNonEmptyString, authenticate, rateLimit } from "../lib/http.ts";
 import { config } from "../lib/config.ts";
 import {
@@ -49,7 +50,7 @@ const VALID_MATTER_ROLES = new Set<MatterRole>(["owner", "editor", "viewer"]);
 // ---------------------------------------------------------------------------
 // Shared admin guard (mirrors routes/admin.ts requireAdmin).
 // ---------------------------------------------------------------------------
-function requireAdmin(req: Request): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
+function requireAdmin(req: HttpRequest): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
   const auth = authenticate(req);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
@@ -74,7 +75,7 @@ function sameOrgMatter(store: Store, orgId: string, matterId: string): { ok: tru
 // ===========================================================================
 // Admin: matter CRUD
 // ===========================================================================
-export async function handleCreateMatter(req: Request, store: Store): Promise<Response> {
+export async function handleCreateMatter(req: HttpRequest, store: Store): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const body = await readJson<{ client_name?: unknown }>(req);
@@ -85,13 +86,13 @@ export async function handleCreateMatter(req: Request, store: Store): Promise<Re
   return json({ matter }, 201);
 }
 
-export function handleListMatters(req: Request, store: Store): Response {
+export function handleListMatters(req: HttpRequest, store: Store): Response {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   return json({ matters: store.listMatters(a.claims.org_id) });
 }
 
-export function handleArchiveMatter(req: Request, store: Store, matterId: string): Response {
+export function handleArchiveMatter(req: HttpRequest, store: Store, matterId: string): Response {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
@@ -104,7 +105,7 @@ export function handleArchiveMatter(req: Request, store: Store, matterId: string
 // ===========================================================================
 // Admin: membership
 // ===========================================================================
-export async function handleAddMatterMember(req: Request, store: Store, matterId: string): Promise<Response> {
+export async function handleAddMatterMember(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
@@ -126,7 +127,7 @@ export async function handleAddMatterMember(req: Request, store: Store, matterId
   return json({ ok: true, matter_id: matterId, user_id: body.user_id, role, key_epoch: m.matter.key_epoch, key_release: walled ? "blocked_walled" : "release_to_member" });
 }
 
-export async function handleRemoveMatterMember(req: Request, store: Store, matterId: string): Promise<Response> {
+export async function handleRemoveMatterMember(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
@@ -155,7 +156,7 @@ export async function handleRemoveMatterMember(req: Request, store: Store, matte
   return json({ ok: true, matter_id: matterId, user_id: body.user_id, removed, key_epoch: newEpoch });
 }
 
-export function handleListMatterMembers(req: Request, store: Store, matterId: string): Response {
+export function handleListMatterMembers(req: HttpRequest, store: Store, matterId: string): Response {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
@@ -171,7 +172,7 @@ export function handleListMatterMembers(req: Request, store: Store, matterId: st
 // ===========================================================================
 // Admin: ethical walls (explicit DENY)
 // ===========================================================================
-export async function handleSetWall(req: Request, store: Store, matterId: string): Promise<Response> {
+export async function handleSetWall(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
@@ -202,7 +203,7 @@ export async function handleSetWall(req: Request, store: Store, matterId: string
   return json({ ok: true, matter_id: matterId, user_id: body.user_id, walled: true, key_epoch: newEpoch });
 }
 
-export async function handleClearWall(req: Request, store: Store, matterId: string): Promise<Response> {
+export async function handleClearWall(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
@@ -228,7 +229,7 @@ export async function handleClearWall(req: Request, store: Store, matterId: stri
  * this gate — it presents a single-use ticket instead (see authorizeSyncConnect).
  */
 function relayGate(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   matterId: string,
   seatToken: string | null,
@@ -250,7 +251,7 @@ function relayGate(
 }
 
 /** POST /matter/:id/updates — append one opaque encrypted CRDT update. */
-export async function handlePushUpdate(req: Request, store: Store, matterId: string, ip: string, hub: FanoutHub = fanout): Promise<Response> {
+export async function handlePushUpdate(req: HttpRequest, store: Store, matterId: string, ip: string, hub: FanoutHub = fanout): Promise<Response> {
   // Per-IP relay write rate limit (generous; sync is chatty but still bounded).
   const rl = rateLimit(ip, "relay_push", { max: config.relayRateLimitMax, windowSeconds: config.relayRateLimitWindowSeconds });
   if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
@@ -317,7 +318,7 @@ export async function handlePushUpdate(req: Request, store: Store, matterId: str
 
 /** GET /matter/:id/updates?since=<cursor> — cursor catch-up. Seat token rides in
  *  the `X-Seat-Token` header (never the query string, so it can't hit a log). */
-export function handlePullUpdates(req: Request, store: Store, matterId: string, ip: string): Response {
+export function handlePullUpdates(req: HttpRequest, store: Store, matterId: string, ip: string): Response {
   const rl = rateLimit(ip, "relay_pull", { max: config.relayRateLimitMax, windowSeconds: config.relayRateLimitWindowSeconds });
   if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
 
@@ -366,7 +367,7 @@ export function handlePullUpdates(req: Request, store: Store, matterId: string, 
  * is ever written to a URL, so nothing sensitive can land in an access log.
  */
 export function handleSyncTicket(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   matterId: string,
   ip: string,
@@ -400,7 +401,7 @@ export function handleSyncTicket(
  * cross-org caller never holds a valid ticket for this matter.
  */
 export function authorizeSyncConnect(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   matterId: string,
   tickets: SyncTicketStore = syncTickets,
@@ -440,20 +441,21 @@ export function authorizeSyncConnect(
 // ---------------------------------------------------------------------------
 const MAX_REQUEST_BYTES = Math.ceil(MAX_UPDATE_BYTES * 1.4) + 64 * 1024;
 
-type ReadResult =
-  | { ok: true; body: { blob_id?: unknown; ciphertext_b64?: unknown; seat_token?: unknown; key_epoch?: unknown; doc_id?: unknown } }
-  | { ok: false; tooLarge: boolean };
+interface UpdateBody {
+  blob_id?: unknown;
+  ciphertext_b64?: unknown;
+  seat_token?: unknown;
+  key_epoch?: unknown;
+  doc_id?: unknown;
+}
 
-async function readUpdateBody(req: Request): Promise<ReadResult> {
-  const len = Number(req.headers.get("content-length") ?? "0");
-  if (Number.isFinite(len) && len > MAX_REQUEST_BYTES) return { ok: false, tooLarge: true };
-  try {
-    const text = await req.text();
-    if (text.length > MAX_REQUEST_BYTES) return { ok: false, tooLarge: true };
-    return { ok: true, body: JSON.parse(text) };
-  } catch {
-    return { ok: false, tooLarge: false };
-  }
+type ReadResult = { ok: true; body: UpdateBody } | { ok: false; tooLarge: boolean };
+
+async function readUpdateBody(req: HttpRequest): Promise<ReadResult> {
+  // Streams and aborts at the cap (lib/requestBody.ts) — a chunked push with no
+  // Content-Length no longer reaches RAM before the size check.
+  const read = await readCappedJson<UpdateBody>(req, MAX_REQUEST_BYTES);
+  return read.ok ? { ok: true, body: read.value } : { ok: false, tooLarge: read.tooLarge };
 }
 
 // Re-export for the access-decision tests.

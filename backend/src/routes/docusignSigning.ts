@@ -6,6 +6,7 @@
  * no document, recipient, envelope-creation, or document-retrieval endpoint.
  */
 
+import { hasRequestBody, readCappedText, type HttpRequest } from "../lib/requestBody.ts";
 import { createHash } from "node:crypto";
 import { hmacEquals, hmacHash, verifySeatToken } from "../lib/crypto.ts";
 import { config } from "../lib/config.ts";
@@ -54,7 +55,7 @@ function safeIntakeId(intakeId: string): boolean {
 }
 
 function authorizeAdvisorSigning(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   intakeId: string,
 ): { ok: true; intake: IntakeRecord; userId: string } | { ok: false; resp: Response } {
@@ -79,7 +80,7 @@ function authorizeAdvisorSigning(
 
 /** Public launch read gate, intentionally independent from intake.ts internals. */
 function authorizePublicSigningLaunch(
-  req: Request,
+  req: HttpRequest,
   store: Store,
   intakeId: string,
   ip: string,
@@ -103,18 +104,16 @@ function authorizePublicSigningLaunch(
   return { ok: true, intake };
 }
 
-async function readStrictJson(req: Request, allowedFields: readonly string[], maxBytes = MAX_JSON_BYTES): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; resp: Response }> {
+async function readStrictJson(req: HttpRequest, allowedFields: readonly string[], maxBytes = MAX_JSON_BYTES): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; resp: Response }> {
   const contentType = req.headers.get("content-type")?.toLowerCase() ?? "";
   if (contentType.includes("multipart/")) return { ok: false, resp: error("multipart_not_allowed", 400) };
   const declaredLength = Number(req.headers.get("content-length") ?? "0");
   if (!Number.isFinite(declaredLength) || declaredLength < 0 || declaredLength > maxBytes) return { ok: false, resp: error("payload_too_large", 413) };
-  let raw: string;
-  try {
-    raw = await req.text();
-  } catch {
-    return { ok: false, resp: error("read_error", 400) };
-  }
-  if (Buffer.byteLength(raw) > maxBytes) return { ok: false, resp: error("payload_too_large", 413) };
+  // Streaming cap (lib/requestBody.ts): aborts at maxBytes even when the client
+  // sends no Content-Length at all, so the check above is a belt, not the fix.
+  const read = await readCappedText(req, maxBytes);
+  if (!read.ok) return { ok: false, resp: read.tooLarge ? error("payload_too_large", 413) : error("read_error", 400) };
+  const raw = read.value;
   let body: unknown;
   try {
     body = raw ? JSON.parse(raw) : {};
@@ -131,11 +130,12 @@ async function readStrictJson(req: Request, allowedFields: readonly string[], ma
   return { ok: true, body: object };
 }
 
-async function rejectUnexpectedBody(req: Request): Promise<Response | null> {
+async function rejectUnexpectedBody(req: HttpRequest): Promise<Response | null> {
   const contentType = req.headers.get("content-type")?.toLowerCase() ?? "";
   if (contentType.includes("multipart/")) return error("multipart_not_allowed", 400);
-  const declaredLength = Number(req.headers.get("content-length") ?? "0");
-  if (declaredLength > 0 || req.body !== null) return error("body_not_allowed", 400);
+  // hasRequestBody is non-draining: it answers from Content-Length or the mere
+  // presence of a stream, so an oversized body is refused without reading a byte.
+  if (hasRequestBody(req)) return error("body_not_allowed", 400);
   return null;
 }
 
@@ -163,7 +163,7 @@ function capabilityError(err: unknown): Response {
 }
 
 /** POST /docusign-signing/:intakeId/capability */
-export async function handleIssueSigningCapability(req: Request, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
+export async function handleIssueSigningCapability(req: HttpRequest, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
   const advisor = authorizeAdvisorSigning(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const parsed = await readStrictJson(req, ["template_id"]);
@@ -197,7 +197,7 @@ export async function handleIssueSigningCapability(req: Request, store: Store, i
 }
 
 /** POST /docusign-signing/:intakeId/envelope */
-export async function handleRegisterEnvelope(req: Request, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
+export async function handleRegisterEnvelope(req: HttpRequest, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
   const advisor = authorizeAdvisorSigning(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const parsed = await readStrictJson(req, ["envelope_id"]);
@@ -212,7 +212,7 @@ export async function handleRegisterEnvelope(req: Request, store: Store, intakeI
 }
 
 /** PUT /docusign-signing/:intakeId/launch */
-export async function handlePutSignatureLaunch(req: Request, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
+export async function handlePutSignatureLaunch(req: HttpRequest, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
   const advisor = authorizeAdvisorSigning(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const parsed = await readStrictJson(req, ["launch_ciphertext_b64"]);
@@ -224,7 +224,7 @@ export async function handlePutSignatureLaunch(req: Request, store: Store, intak
 }
 
 /** GET /docusign-signing/:intakeId/launch */
-export async function handleGetSignatureLaunch(req: Request, store: Store, intakeId: string, ip: string, input?: DocusignSigningDependencies): Promise<Response> {
+export async function handleGetSignatureLaunch(req: HttpRequest, store: Store, intakeId: string, ip: string, input?: DocusignSigningDependencies): Promise<Response> {
   const unexpected = await rejectUnexpectedBody(req);
   if (unexpected) return unexpected;
   const publicGate = authorizePublicSigningLaunch(req, store, intakeId, ip);
@@ -233,7 +233,7 @@ export async function handleGetSignatureLaunch(req: Request, store: Store, intak
 }
 
 /** DELETE /docusign-signing/:intakeId/launch */
-export async function handleDeleteSignatureLaunch(req: Request, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
+export async function handleDeleteSignatureLaunch(req: HttpRequest, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
   const advisor = authorizeAdvisorSigning(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const unexpected = await rejectUnexpectedBody(req);
@@ -243,17 +243,16 @@ export async function handleDeleteSignatureLaunch(req: Request, store: Store, in
 }
 
 /** POST /webhooks/docusign-signing */
-export async function handleDocusignConnectEvent(req: Request, input?: DocusignSigningDependencies): Promise<Response> {
+export async function handleDocusignConnectEvent(req: HttpRequest, input?: DocusignSigningDependencies): Promise<Response> {
   const declaredLength = Number(req.headers.get("content-length") ?? "0");
   if (!Number.isFinite(declaredLength) || declaredLength < 0 || declaredLength > MAX_CONNECT_BYTES) return error("payload_too_large", 413);
-  let rawBody: string;
-  try {
-    rawBody = await req.text();
-  } catch {
-    return error("read_error", 400);
-  }
+  // Unauthenticated route. The streaming cap is the real ceiling: before this
+  // change a chunked 300 MB POST here was buffered whole and *then* answered
+  // 413 (measured: RSS 74.8 MB -> 489.7 MB peak).
+  const read = await readCappedText(req, MAX_CONNECT_BYTES);
+  if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("read_error", 400);
+  const rawBody = read.value;
   if (!rawBody) return error("empty_body", 400);
-  if (Buffer.byteLength(rawBody) > MAX_CONNECT_BYTES) return error("payload_too_large", 413);
   const deps = dependencies(input);
   const signingConfig = deps.signingConfig ?? config.docusignSigning;
   // HMAC verification is deliberately before JSON parsing or schema inspection.
@@ -278,7 +277,7 @@ export async function handleDocusignConnectEvent(req: Request, input?: DocusignS
 }
 
 /** GET /docusign-signing/:intakeId/wakeups */
-export async function handleListSignatureWakeups(req: Request, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
+export async function handleListSignatureWakeups(req: HttpRequest, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
   const advisor = authorizeAdvisorSigning(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const unexpected = await rejectUnexpectedBody(req);
@@ -287,7 +286,7 @@ export async function handleListSignatureWakeups(req: Request, store: Store, int
 }
 
 /** POST /docusign-signing/:intakeId/wakeups/ack */
-export async function handleAckSignatureWakeups(req: Request, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
+export async function handleAckSignatureWakeups(req: HttpRequest, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
   const advisor = authorizeAdvisorSigning(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const parsed = await readStrictJson(req, ["event_ids"]);

@@ -12,6 +12,7 @@
  *   POST /auth/sso/exchange     — desktop swaps one-time sso_code for LoginResponse
  */
 
+import { type HttpRequest } from "../lib/requestBody.ts";
 import { json, error, readJson, authenticate, rateLimit } from "../lib/http.ts";
 import { encryptSecret, decryptSecret, hmacHash, generateSecretToken } from "../lib/crypto.ts";
 import { config } from "../lib/config.ts";
@@ -28,7 +29,7 @@ const VALID_PROVIDERS = new Set<string>(["entra", "google", "generic"]);
 const REDIRECT_URI = `${config.ssoCallbackBase.replace(/\/$/, "")}/auth/sso/callback`;
 
 /** Require admin role; return { orgId, userId } or an error Response. */
-function requireAdminClaims(req: Request): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
+function requireAdminClaims(req: HttpRequest): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
   const auth = authenticate(req);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
@@ -39,7 +40,7 @@ function requireAdminClaims(req: Request): { ok: true; orgId: string; userId: st
 // Admin: set / get / delete SSO config
 // ---------------------------------------------------------------------------
 
-export async function handleSsoConfigSet(req: Request, store: Store): Promise<Response> {
+export async function handleSsoConfigSet(req: HttpRequest, store: Store): Promise<Response> {
   const a = requireAdminClaims(req); if (!a.ok) return a.resp;
   const body = await readJson<{ provider?: unknown; issuer?: unknown; client_id?: unknown; client_secret?: unknown; enabled?: unknown }>(req);
   if (!body) return error("invalid_json", 400);
@@ -77,7 +78,7 @@ export async function handleSsoConfigSet(req: Request, store: Store): Promise<Re
   return json({ ok: true, redirect_uri: REDIRECT_URI });
 }
 
-export function handleSsoConfigGet(req: Request, store: Store): Response {
+export function handleSsoConfigGet(req: HttpRequest, store: Store): Response {
   const a = requireAdminClaims(req); if (!a.ok) return a.resp;
   const cfg = store.getOrgIdpConfig(a.orgId);
   if (!cfg) return json({ configured: false, redirect_uri: REDIRECT_URI });
@@ -88,7 +89,7 @@ export function handleSsoConfigGet(req: Request, store: Store): Response {
   });
 }
 
-export function handleSsoConfigDelete(req: Request, store: Store): Response {
+export function handleSsoConfigDelete(req: HttpRequest, store: Store): Response {
   const a = requireAdminClaims(req); if (!a.ok) return a.resp;
   store.deleteOrgIdpConfig(a.orgId);
   store.audit({ org_id: a.orgId, actor_user_id: a.userId, action: "sso.config.delete", target: a.orgId });
@@ -100,7 +101,7 @@ export function handleSsoConfigDelete(req: Request, store: Store): Response {
 // ---------------------------------------------------------------------------
 
 /** POST /auth/sso/start { email, loopback_port } -> { auth_url, state } */
-export async function handleSsoStart(req: Request, store: Store, ip: string): Promise<Response> {
+export async function handleSsoStart(req: HttpRequest, store: Store, ip: string): Promise<Response> {
   const rl = rateLimit(ip, "sso_start"); if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
   const body = await readJson<any>(req);
   if (!body || typeof body.email !== "string") return error("invalid_request", 400);
@@ -133,7 +134,7 @@ export async function handleSsoStart(req: Request, store: Store, ip: string): Pr
 }
 
 /** GET /auth/sso/callback?code&state -> 302 to the desktop loopback with a one-time sso_code. */
-export async function handleSsoCallback(req: Request, store: Store, ip: string): Promise<Response> {
+export async function handleSsoCallback(req: HttpRequest, store: Store, ip: string): Promise<Response> {
   const rl = rateLimit(ip, "sso_callback"); if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
   const u = new URL(req.url);
   const code = u.searchParams.get("code");
@@ -185,7 +186,7 @@ export async function handleSsoCallback(req: Request, store: Store, ip: string):
 }
 
 /** POST /auth/sso/exchange { sso_code } -> LoginResponse (same shape as /auth/login). */
-export async function handleSsoExchange(req: Request, store: Store, ip: string): Promise<Response> {
+export async function handleSsoExchange(req: HttpRequest, store: Store, ip: string): Promise<Response> {
   const rl = rateLimit(ip, "sso_exchange"); if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
   const body = await readJson<any>(req);
   if (!body || typeof body.sso_code !== "string") return error("invalid_request", 400);

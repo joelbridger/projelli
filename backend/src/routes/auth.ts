@@ -16,12 +16,13 @@
  * admin-driven user creation in routes/admin.ts.
  */
 
+import { type HttpRequest } from "../lib/requestBody.ts";
 import { json, error, readJson, isEmail, rateLimit, authenticate } from "../lib/http.ts";
 import { verifyPassword, hmacHash } from "../lib/crypto.ts";
 import { issueAuthTokens, refreshAuthTokens, publicUser } from "../lib/services.ts";
 import type { Store } from "../lib/db.ts";
 
-export async function handleLogin(req: Request, store: Store, ip: string): Promise<Response> {
+export async function handleLogin(req: HttpRequest, store: Store, ip: string): Promise<Response> {
   const rl = rateLimit(ip, "login");
   if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
 
@@ -43,7 +44,7 @@ export async function handleLogin(req: Request, store: Store, ip: string): Promi
   return json({ user: publicUser(row), ...tokens });
 }
 
-export async function handleRefresh(req: Request, store: Store, ip: string): Promise<Response> {
+export async function handleRefresh(req: HttpRequest, store: Store, ip: string): Promise<Response> {
   const rl = rateLimit(ip, "refresh");
   if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
 
@@ -56,7 +57,7 @@ export async function handleRefresh(req: Request, store: Store, ip: string): Pro
   return json(res.tokens);
 }
 
-export async function handleLogout(req: Request, store: Store): Promise<Response> {
+export async function handleLogout(req: HttpRequest, store: Store): Promise<Response> {
   const body = await readJson<{ refresh_token?: unknown }>(req);
   if (!body || typeof body.refresh_token !== "string") return error("invalid_request", 400);
   const row = store.getRefreshTokenByHash(hmacHash(body.refresh_token));
@@ -65,7 +66,7 @@ export async function handleLogout(req: Request, store: Store): Promise<Response
   return json({ ok: true });
 }
 
-export function handleMe(req: Request, store: Store): Response {
+export function handleMe(req: HttpRequest, store: Store): Response {
   const auth = authenticate(req);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
   const user = store.getUser(auth.claims.sub);

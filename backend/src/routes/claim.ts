@@ -21,12 +21,13 @@
  *   - 400 for missing / invalid fields.
  */
 
+import { type HttpRequest } from "../lib/requestBody.ts";
 import { json, error, readJson, isEmail, isValidPassword } from "../lib/http.ts";
 import { hashPassword, hmacHash } from "../lib/crypto.ts";
 import { issueAuthTokens, publicUser } from "../lib/services.ts";
 import type { Store } from "../lib/db.ts";
 
-export async function handleOrgClaim(req: Request, store: Store): Promise<Response> {
+export async function handleOrgClaim(req: HttpRequest, store: Store): Promise<Response> {
   const body = await readJson<{
     license_key?: unknown;
     email?: unknown;

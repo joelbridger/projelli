@@ -17,6 +17,7 @@
  */
 
 import { json, error } from "../lib/http.ts";
+import { readCappedText, type HttpRequest } from "../lib/requestBody.ts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { randomBytes } from "node:crypto";
 import { hmacHash } from "../lib/crypto.ts";
@@ -25,6 +26,23 @@ import type { Store } from "../lib/db.ts";
 import type { ProfessionPack } from "../lib/types.ts";
 
 const DEFAULT_FIRM_PACKS: ProfessionPack[] = ["advisor"];
+
+/**
+ * 256 KB cap on a LemonSqueezy webhook delivery.
+ *
+ * WHY THIS NUMBER: a real `subscription_created` payload is a single order +
+ * subscription object — a few KB; the largest LS event documented (an order
+ * with many line items) is still well under 100 KB. 256 KB is ~30x the
+ * realistic payload, so no legitimate delivery is ever refused, while a hostile
+ * caller is cut off at a quarter of a megabyte instead of Bun's 128 MB default
+ * (which, being Content-Length-only, was in practice unbounded here).
+ *
+ * Deliberately NOT the same number as the intake upload or assured prompt caps:
+ * a webhook has no reason to carry megabytes, and a shared global cap would
+ * have to be sized for the largest consumer, handing this unauthenticated route
+ * a ceiling it does not need.
+ */
+const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 
 // ---------------------------------------------------------------------------
 // HMAC-SHA256 signature verification
@@ -80,14 +98,16 @@ function isFirmVariant(variantId: string | number | null, variantName: string | 
 // Main handler
 // ---------------------------------------------------------------------------
 
-export async function handleLemonSqueezyWebhook(req: Request, store: Store): Promise<Response> {
+export async function handleLemonSqueezyWebhook(req: HttpRequest, store: Store): Promise<Response> {
   // Read the raw body (needed for HMAC verification before any parsing).
-  let rawBody: string;
-  try {
-    rawBody = await req.text();
-  } catch {
-    return error("read_error", 400);
-  }
+  //
+  // This route is UNAUTHENTICATED and has no rate limit, and until this change
+  // it had no body cap of ANY kind — not even a Content-Length check. A 300 MB
+  // chunked POST was buffered whole and only then answered 401 (measured: RSS
+  // 61.0 MB -> 375.6 MB peak). The read now streams and aborts at the cap.
+  const read = await readCappedText(req, MAX_WEBHOOK_BODY_BYTES);
+  if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("read_error", 400);
+  const rawBody = read.value;
   if (!rawBody) return error("empty_body", 400);
 
   // Verify signature.

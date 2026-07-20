@@ -25,6 +25,7 @@
  * This is the structural core of the zero-retention guarantee.
  */
 
+import { readCappedBytes, type HttpRequest } from "../lib/requestBody.ts";
 import { json, error, readJson, authenticate, rateLimit } from "../lib/http.ts";
 import { config } from "../lib/config.ts";
 import { verifyActiveSeat } from "../lib/matters.ts";
@@ -38,7 +39,7 @@ import { randomUUID } from "node:crypto";
 // ---------------------------------------------------------------------------
 // Admin guard (mirrors routes/admin.ts + routes/matters.ts requireAdmin).
 // ---------------------------------------------------------------------------
-function requireAdmin(req: Request): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
+function requireAdmin(req: HttpRequest): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
   const auth = authenticate(req);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
@@ -54,7 +55,7 @@ function parseProvider(v: unknown): AssuredProvider | null {
 // ===========================================================================
 
 /** POST /assured/keys/set { provider, api_key } — store/rotate an org managed key. */
-export async function handleSetProviderKey(req: Request, store: Store): Promise<Response> {
+export async function handleSetProviderKey(req: HttpRequest, store: Store): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
 
@@ -88,14 +89,14 @@ export async function handleSetProviderKey(req: Request, store: Store): Promise<
 }
 
 /** POST /assured/keys/list — which providers the org has a key for (no secrets). */
-export function handleListProviderKeys(req: Request, store: Store): Response {
+export function handleListProviderKeys(req: HttpRequest, store: Store): Response {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   return json({ keys: store.listOrgProviderKeys(a.claims.org_id) });
 }
 
 /** POST /assured/keys/delete { provider } — remove an org managed key. */
-export async function handleDeleteProviderKey(req: Request, store: Store): Promise<Response> {
+export async function handleDeleteProviderKey(req: HttpRequest, store: Store): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const body = await readJson<{ provider?: unknown }>(req);
@@ -107,7 +108,7 @@ export async function handleDeleteProviderKey(req: Request, store: Store): Promi
 }
 
 /** POST /assured/billing — the org's metadata-only inference billing rows. */
-export function handleInferenceBilling(req: Request, store: Store): Response {
+export function handleInferenceBilling(req: HttpRequest, store: Store): Response {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   return json({ rows: store.listInferenceBilling(a.claims.org_id, 500) });
@@ -126,7 +127,7 @@ export function handleInferenceBilling(req: Request, store: Store): Response {
  * stream is tee'd: one half streams to the client; the other is consumed only
  * by `scanUsage` to extract integer token counts. No body text is retained.
  */
-export async function handleAssuredInfer(req: Request, store: Store, ip: string): Promise<Response> {
+export async function handleAssuredInfer(req: HttpRequest, store: Store, ip: string): Promise<Response> {
   const started = Date.now();
 
   // Per-IP rate limit (bounds abuse; inference is expensive upstream).
@@ -177,20 +178,17 @@ export async function handleAssuredInfer(req: Request, store: Store, ip: string)
   // Bun runtime. Buffering fully consumes the inbound request up front so the
   // response — itself a true pass-through stream — always flushes cleanly. No
   // retention difference: it's the same transient RAM, just drained at once.)
-  const lenHeader = Number(req.headers.get("content-length") ?? "0");
-  if (Number.isFinite(lenHeader) && lenHeader > config.assuredMaxRequestBytes) {
-    return error("payload_too_large", 413, `Request exceeds ${config.assuredMaxRequestBytes} bytes.`);
+  // The cap is enforced BY THE STREAM (lib/requestBody.ts). The old code checked
+  // Content-Length and then called `req.arrayBuffer()`, so a chunked prompt with
+  // no Content-Length was buffered in full before the size check ran — the same
+  // defect the webhooks had, behind an auth gate.
+  const read = await readCappedBytes(req, config.assuredMaxRequestBytes);
+  if (!read.ok) {
+    return read.tooLarge
+      ? error("payload_too_large", 413, `Request exceeds ${config.assuredMaxRequestBytes} bytes.`)
+      : error("invalid_request", 400, "could not read request body");
   }
-  let promptBytes: Uint8Array | null;
-  try {
-    const ab = await req.arrayBuffer();
-    if (ab.byteLength > config.assuredMaxRequestBytes) {
-      return error("payload_too_large", 413, `Request exceeds ${config.assuredMaxRequestBytes} bytes.`);
-    }
-    promptBytes = ab.byteLength > 0 ? new Uint8Array(ab) : null;
-  } catch {
-    return error("invalid_request", 400, "could not read request body");
-  }
+  const promptBytes: Uint8Array | null = read.value.byteLength > 0 ? read.value : null;
   const promptBody = new OpaqueBody(promptBytes);
 
   const requestId = randomUUID();

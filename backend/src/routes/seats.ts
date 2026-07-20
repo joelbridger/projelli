@@ -14,11 +14,12 @@
  * access JWT. They reveal only entitlement metadata, never secrets.
  */
 
+import { type HttpRequest } from "../lib/requestBody.ts";
 import { json, error, readJson, isNonEmptyString, authenticate } from "../lib/http.ts";
 import { activateSeatForUser, validateSeatToken, heartbeatSeat } from "../lib/services.ts";
 import type { Store } from "../lib/db.ts";
 
-export async function handleActivate(req: Request, store: Store): Promise<Response> {
+export async function handleActivate(req: HttpRequest, store: Store): Promise<Response> {
   const auth = authenticate(req);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
@@ -41,7 +42,7 @@ export async function handleActivate(req: Request, store: Store): Promise<Respon
   return json(result.body, result.http);
 }
 
-export async function handleSeatValidate(req: Request, store: Store): Promise<Response> {
+export async function handleSeatValidate(req: HttpRequest, store: Store): Promise<Response> {
   const body = await readJson<{ seat_token?: unknown; token?: unknown }>(req);
   if (!body) return error("invalid_json", 400);
   // Accept both `seat_token` (new contract) and `token` (legacy /validate field).
@@ -53,7 +54,7 @@ export async function handleSeatValidate(req: Request, store: Store): Promise<Re
   return json(res.body);
 }
 
-export async function handleSeatHeartbeat(req: Request, store: Store): Promise<Response> {
+export async function handleSeatHeartbeat(req: HttpRequest, store: Store): Promise<Response> {
   const body = await readJson<{ seat_token?: unknown; token?: unknown }>(req);
   if (!body) return error("invalid_json", 400);
   const tok = typeof body.seat_token === "string" ? body.seat_token : typeof body.token === "string" ? body.token : null;

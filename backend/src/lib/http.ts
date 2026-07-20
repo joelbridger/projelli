@@ -7,9 +7,19 @@
 
 import { config } from "./config.ts";
 import { verifyAccessJwt } from "./crypto.ts";
+import { readCappedJson, type HttpRequest } from "./requestBody.ts";
 import type { AccessTokenClaims } from "./types.ts";
 
-const MAX_BODY_BYTES = 64 * 1024; // 64 KB — generous for our small JSON bodies.
+/**
+ * 64 KB — the control-plane cap. Every route that reads its body through
+ * `readJson` (auth, seats, admin, SSO, devices, matter ACL, notifications,
+ * checkpoint control frames) sends small JSON: a handful of ids, an email, a
+ * base64 wrapped key. The largest realistic body here is a checkpoint manifest
+ * frame at a few KB, so 64 KB is roughly an order of magnitude of headroom and
+ * still 2000x below Bun's 128 MB default. Bigger payloads have their OWN caps
+ * on their own readers (relay updates, intake uploads, the assured prompt).
+ */
+const MAX_BODY_BYTES = 64 * 1024;
 
 // CORS: the desktop webview calls from `tauri://localhost`. Origin:* is safe
 // because real deployment puts this behind a loopback-only reverse proxy and
@@ -38,17 +48,16 @@ export function preflight(): Response {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
-/** Parse a JSON body with a hard size cap. Returns null on any failure. */
-export async function readJson<T = Record<string, unknown>>(req: Request): Promise<T | null> {
-  const len = Number(req.headers.get("content-length") ?? "0");
-  if (len > MAX_BODY_BYTES) return null;
-  try {
-    const text = await req.text();
-    if (text.length > MAX_BODY_BYTES) return null;
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
-  }
+/**
+ * Parse a JSON body with a hard size cap. Returns null on any failure.
+ *
+ * The cap is enforced BY THE STREAM (see `lib/requestBody.ts`), so a body with
+ * no Content-Length — a chunked upload — is aborted at 64 KB instead of being
+ * buffered whole and measured afterwards.
+ */
+export async function readJson<T = Record<string, unknown>>(req: HttpRequest): Promise<T | null> {
+  const read = await readCappedJson<T>(req, MAX_BODY_BYTES);
+  return read.ok ? read.value : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +128,7 @@ export function startRateLimitGc(): ReturnType<typeof setInterval> {
 // ---------------------------------------------------------------------------
 // Auth: extract + verify a bearer access token
 // ---------------------------------------------------------------------------
-export function getBearer(req: Request): string | null {
+export function getBearer(req: HttpRequest): string | null {
   const h = req.headers.get("authorization");
   if (!h) return null;
   const m = h.match(/^Bearer\s+(.+)$/i);
@@ -139,7 +148,7 @@ function verifyAccess(token: string): AuthResult {
 }
 
 /** Verify the request carries a valid access JWT (Authorization: Bearer). Does NOT check role. */
-export function authenticate(req: Request): AuthResult {
+export function authenticate(req: HttpRequest): AuthResult {
   const token = getBearer(req);
   if (!token) return { ok: false, reason: "missing_token" };
   return verifyAccess(token);

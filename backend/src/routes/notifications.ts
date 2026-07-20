@@ -1,3 +1,4 @@
+import { type HttpRequest } from "../lib/requestBody.ts";
 import { authenticate, error, isNonEmptyString, json, rateLimit, readJson } from "../lib/http.ts";
 import { resolveAccess, verifyActiveSeat } from "../lib/matters.ts";
 import { notificationHub, type NotificationHub } from "../lib/notifications.ts";
@@ -14,7 +15,7 @@ function decodeOpaque(value: unknown): Uint8Array | null {
   } catch { return null; }
 }
 
-function notifyAuth(req: Request, store: Store, orgId: string) {
+function notifyAuth(req: HttpRequest, store: Store, orgId: string) {
   const auth = authenticate(req);
   if (!auth.ok) return { ok: false as const, resp: error("unauthorized", 401) };
   if (auth.claims.org_id !== orgId) return { ok: false as const, resp: error("not_found", 404) };
@@ -32,7 +33,7 @@ function scopeMatterId(scope: unknown): string | null {
 }
 
 /** POST /notify/send — sender-blind sealed-envelope routing. */
-export async function handleNotifySend(req: Request, store: Store, ip: string, hub: NotificationHub = notificationHub): Promise<Response> {
+export async function handleNotifySend(req: HttpRequest, store: Store, ip: string, hub: NotificationHub = notificationHub): Promise<Response> {
   const limited = rateLimit(ip, "notify_send", { max: 240, windowSeconds: 60 });
   if (!limited.ok) return error("rate_limited", 429);
   const body = await readJson<Record<string, unknown>>(req);
@@ -59,7 +60,7 @@ export async function handleNotifySend(req: Request, store: Store, ip: string, h
 }
 
 /** GET /notify/inbox?org_id=&since= — the source of truth; live WS is only a wake-up. */
-export function handleNotifyInbox(req: Request, store: Store): Response {
+export function handleNotifyInbox(req: HttpRequest, store: Store): Response {
   const url = new URL(req.url);
   const orgId = url.searchParams.get("org_id");
   const since = Number(url.searchParams.get("since") ?? "0");
@@ -70,7 +71,7 @@ export function handleNotifyInbox(req: Request, store: Store): Response {
   return json({ org_id: orgId, since, cursor: rows.length ? rows[rows.length - 1]!.seq : since, latest_cursor: store.latestNotifyCursor(orgId, auth.claims.sub), has_more: rows.length === 500, envelopes: rows.map((row) => ({ seq: row.seq, envelope_id: row.envelope_id, created_at: row.created_at, expires_at: row.expires_at, key_hint: row.key_hint, ciphertext_b64: Buffer.from(row.ciphertext).toString("base64") })) });
 }
 
-export async function handleNotifyAck(req: Request, store: Store): Promise<Response> {
+export async function handleNotifyAck(req: HttpRequest, store: Store): Promise<Response> {
   const body = await readJson<{ org_id?: unknown; device_id?: unknown; up_to_cursor?: unknown }>(req);
   if (!body || !isNonEmptyString(body.org_id, 128) || !isNonEmptyString(body.device_id, 128) || typeof body.up_to_cursor !== "number" || !Number.isInteger(body.up_to_cursor) || body.up_to_cursor < 0) return error("missing_fields", 400);
   const auth = notifyAuth(req, store, body.org_id);
@@ -80,7 +81,7 @@ export async function handleNotifyAck(req: Request, store: Store): Promise<Respo
   return json({ ok: true, acked_through: store.acknowledgeNotify(body.org_id, auth.claims.sub, body.device_id, body.up_to_cursor) });
 }
 
-export async function handleNotifySyncTicket(req: Request, store: Store, tickets: NotifyTicketStore = notifyTickets): Promise<Response> {
+export async function handleNotifySyncTicket(req: HttpRequest, store: Store, tickets: NotifyTicketStore = notifyTickets): Promise<Response> {
   const body = await readJson<{ org_id?: unknown }>(req);
   if (!body || !isNonEmptyString(body.org_id, 128)) return error("missing_fields", 400);
   const auth = notifyAuth(req, store, body.org_id);
@@ -88,7 +89,7 @@ export async function handleNotifySyncTicket(req: Request, store: Store, tickets
   return json(tickets.mint({ orgId: body.org_id, userId: auth.claims.sub }));
 }
 
-export function authorizeNotifySync(req: Request, store: Store, tickets: NotifyTicketStore = notifyTickets): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
+export function authorizeNotifySync(req: HttpRequest, store: Store, tickets: NotifyTicketStore = notifyTickets): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
   const url = new URL(req.url);
   const orgId = url.searchParams.get("org_id");
   const ticket = url.searchParams.get("ticket");
@@ -101,7 +102,7 @@ export function authorizeNotifySync(req: Request, store: Store, tickets: NotifyT
 }
 
 /** Signed terminal notice handler; envelope content and sender identity remain opaque. */
-export async function handleNotifyTerminal(req: Request, store: Store): Promise<Response> {
+export async function handleNotifyTerminal(req: HttpRequest, store: Store): Promise<Response> {
   const body = await readJson<{ org_id?: unknown; recipient_user_id?: unknown; envelope_id?: unknown; signed_terminal_notice_b64?: unknown }>(req);
   if (!body || !isNonEmptyString(body.org_id, 128) || !isNonEmptyString(body.recipient_user_id, 128) || !isNonEmptyString(body.envelope_id, 128) || !decodeOpaque(body.signed_terminal_notice_b64)) return error("missing_fields", 400);
   const auth = notifyAuth(req, store, body.org_id);

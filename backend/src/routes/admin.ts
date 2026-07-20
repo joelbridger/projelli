@@ -21,6 +21,7 @@
  * endpoint a deployment must protect at the network layer.
  */
 
+import { type HttpRequest } from "../lib/requestBody.ts";
 import { json, error, readJson, isNonEmptyString, isEmail, isValidPassword, sanitizePacks, VALID_PLANS, authenticate } from "../lib/http.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "../lib/crypto.ts";
 import { publicSeat, publicUser, mintSeatToken } from "../lib/services.ts";
@@ -28,14 +29,14 @@ import type { Store } from "../lib/db.ts";
 import type { AccessTokenClaims, Plan, ProfessionPack } from "../lib/types.ts";
 
 /** Require admin role + return the verified claims, or an error Response. */
-function requireAdmin(req: Request): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
+function requireAdmin(req: HttpRequest): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
   const auth = authenticate(req);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
   return { ok: true, claims: auth.claims };
 }
 
-export async function handleListSeats(req: Request, store: Store): Promise<Response> {
+export async function handleListSeats(req: HttpRequest, store: Store): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const org = store.getOrg(a.claims.org_id);
@@ -51,7 +52,7 @@ export async function handleListSeats(req: Request, store: Store): Promise<Respo
   });
 }
 
-export async function handleRevokeSeat(req: Request, store: Store): Promise<Response> {
+export async function handleRevokeSeat(req: HttpRequest, store: Store): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const body = await readJson<{ seat_id?: unknown; reason?: unknown }>(req);
@@ -69,7 +70,7 @@ export async function handleRevokeSeat(req: Request, store: Store): Promise<Resp
   return json({ ok: true, seat_id: seat.seat_id, revoked: done });
 }
 
-export async function handleDeprovisionUser(req: Request, store: Store): Promise<Response> {
+export async function handleDeprovisionUser(req: HttpRequest, store: Store): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const body = await readJson<{ user_id?: unknown }>(req);
@@ -90,7 +91,7 @@ export async function handleDeprovisionUser(req: Request, store: Store): Promise
   return json({ ok: true, user_id: target.user_id, seats_revoked: seatsRevoked });
 }
 
-export async function handleTransferSeat(req: Request, store: Store): Promise<Response> {
+export async function handleTransferSeat(req: HttpRequest, store: Store): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const body = await readJson<{ from_seat_id?: unknown; to_user_id?: unknown; to_machine_id?: unknown; to_machine_label?: unknown }>(req);
@@ -124,7 +125,7 @@ export async function handleTransferSeat(req: Request, store: Store): Promise<Re
   return json({ ok: true, seat: publicSeat(res.seat), seat_token: minted.token, expires_at: minted.expiresAt });
 }
 
-export async function handleCreateUser(req: Request, store: Store): Promise<Response> {
+export async function handleCreateUser(req: HttpRequest, store: Store): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const body = await readJson<{ email?: unknown; password?: unknown; role?: unknown }>(req);
@@ -142,7 +143,7 @@ export async function handleCreateUser(req: Request, store: Store): Promise<Resp
   return json({ user: publicUser(user) }, 201);
 }
 
-export function handleAudit(req: Request, store: Store): Response {
+export function handleAudit(req: HttpRequest, store: Store): Response {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   return json({ events: store.listAudit(a.claims.org_id) });
@@ -156,7 +157,7 @@ export function handleAudit(req: Request, store: Store): Response {
  *
  * Access: role=admin in the same org. Never crosses org boundaries.
  */
-export function handleListOrgUsers(req: Request, store: Store): Response {
+export function handleListOrgUsers(req: HttpRequest, store: Store): Response {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const users = store.listOrgUsers(a.claims.org_id);
@@ -168,7 +169,7 @@ export function handleListOrgUsers(req: Request, store: Store): Response {
  * production (protect at the network layer — see README). Returns the license
  * key plaintext exactly once.
  */
-export async function handleCreateOrg(req: Request, store: Store): Promise<Response> {
+export async function handleCreateOrg(req: HttpRequest, store: Store): Promise<Response> {
   const body = await readJson<{
     name?: unknown;
     plan?: unknown;
