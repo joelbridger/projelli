@@ -6,6 +6,7 @@ import { chromium } from 'playwright';
 import { withBrowserLaunchOptions } from '../../scripts/browser-launch.mjs';
 
 describe('global table cell spacing', () => {
+  // Load-sensitive: compiling Tailwind and launching Chromium can exceed 5s under fleet load.
   it('restores readable padding after Tailwind Preflight resets plain table cells', async () => {
     const source = await readFile(
       path.resolve(process.cwd(), 'src/styles/globals.css'),
@@ -45,5 +46,5 @@ describe('global table cell spacing', () => {
     } finally {
       await browser.close();
     }
-  });
+  }, 30_000);
 });
