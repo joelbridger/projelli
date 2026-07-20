@@ -85,6 +85,31 @@ export class TauriFSBackend implements FSBackend {
 
     console.log('[TauriFSBackend] Normalized path:', normalizedPath);
 
+    // Runtime filesystem scope. The capability file no longer grants whole-disk
+    // access (`fs:scope` starts empty — see src-tauri/capabilities/default.json),
+    // so the native layer must be told which directory THIS workspace occupies
+    // before ANY fs-plugin call touches it — including the `fs.exists()` probe
+    // just below. Files the user picks through a native dialog are granted by
+    // the dialog plugin itself; this call covers the workspace tree and the
+    // non-dialog open paths (recent list, typed path, create-new).
+    //
+    // Gated on `__TAURI_INTERNALS__` (the real IPC channel) rather than
+    // `__TAURI__` so unit tests that only stub `window.__TAURI__` don't attempt
+    // a live invoke. A failure here is NOT swallowed silently: if the grant does
+    // not land, the `fs.exists()` / read calls that follow surface a clear
+    // "cannot access the workspace folder" error, and we log the root cause.
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('workspace_grant_fs_scope', { path: normalizedPath });
+      } catch (err) {
+        console.error(
+          '[TauriFSBackend] workspace_grant_fs_scope failed — workspace fs access may be refused:',
+          err,
+        );
+      }
+    }
+
     // Verify the path exists. In the create-new-workspace flow
     // (createIfMissing), create the directory instead of throwing — this is the
     // step that actually brings a brand-new workspace folder into being, and it

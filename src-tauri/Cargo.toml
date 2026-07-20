@@ -73,7 +73,13 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 # Wave 1 calendar connector — TZID/DST-correct ICS + Graph timezone-name expansion.
 chrono-tz = "0.10"
 log = "0.4"
-tauri = { version = "~2.11.3", features = ["devtools"] }
+# devtools is intentionally NOT enabled here. Tauri already compiles the
+# devtools/inspector into DEBUG builds via `#[cfg(debug_assertions)]`, so dev
+# keeps its console; enabling the `devtools` feature would additionally compile
+# `internal_toggle_devtools` into RELEASE (signed) builds, handing any script on
+# the page an authorised inspector inside the trusted origin. Leaving it off
+# makes devtools debug-only (c34 capability-surface narrowing).
+tauri = { version = "~2.11.3" }
 tauri-plugin-log = "2"
 tauri-plugin-fs = "=2.5.1"
 tauri-plugin-dialog = "=2.7.1"
