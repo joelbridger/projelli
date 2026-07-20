@@ -2,6 +2,7 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -110,7 +111,7 @@ Note the interrogatory limit for {{jurisdiction}} if known. Flag any jurisdictio
 
 ---
 
-*This discovery draft was produced by Lantern AI and requires attorney review before serving. Verify compliance with all applicable court rules, local rules, and standing orders.*`;
+*This discovery draft was produced by ${BRAND.messaging.redlineAuthor} and requires attorney review before serving. Verify compliance with all applicable court rules, local rules, and standing orders.*`;
 
 export const DiscoveryDrafter: WorkflowTemplate = {
   id: 'discovery-drafter',

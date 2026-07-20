@@ -45,10 +45,14 @@
     "urls": {
       "type": "object",
       "properties": {
+        "domain": { "type": "string" },
         "site": { "type": "string", "format": "uri" },
+        "repository": { "type": "string", "format": "uri" },
         "docsBase": { "type": "string" },
         "supportEmail": { "type": "string" },
-        "developersEmail": { "type": "string" }
+        "developersEmail": { "type": "string" },
+        "licenseUrl": { "type": "string", "format": "uri" },
+        "supportUrl": { "type": "string", "format": "uri" }
       }
     },
     "assets": {

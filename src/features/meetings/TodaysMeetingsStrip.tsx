@@ -29,6 +29,7 @@ import { useMeetingAutoprep, useAutoprepRescan } from './useMeetingAutoprep';
 import { useBriefStaleness } from './useBriefStaleness';
 import { todayWindowUtc } from './todayWindow';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 function formatTime(utc: string): string {
   return new Date(utc).toLocaleTimeString([], {
@@ -345,7 +346,7 @@ export function TodaysMeetingsStrip({
                         Whose meeting is this?
                       </div>
                       <div className="mt-0.5 text-[11.5px] leading-snug text-slate-400">
-                        {brandText('Pick a client and Lantern will file this one, and remember it for next time.')}
+                        {brandText(`Pick a client and ${BRAND.name} will file this one, and remember it for next time.`)}
                       </div>
                     </div>
                     <div className="flex flex-col gap-0.5 p-1">

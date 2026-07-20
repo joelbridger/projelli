@@ -5,6 +5,7 @@
 // union in src/platform/types/workflow.ts before this template is registered.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -100,7 +101,7 @@ Produce a structured Markdown invention disclosure document in standard IDF form
 
 > **Draft document** -- Review and edit before use in any client work.
 
-> **IMPORTANT NOTICE:** This document is a structural starting point to assist your patent attorney in preparing an application. It is not a formal patent application, does not constitute legal advice, and has not been reviewed by the USPTO or any patent authority. No confidential technical information was transmitted to any third party in generating this document -- Lantern processes all AI requests locally using your own API key, and no data leaves your machine except in direct API calls to your chosen AI provider under your own account.
+> **IMPORTANT NOTICE:** This document is a structural starting point to assist your patent attorney in preparing an application. It is not a formal patent application, does not constitute legal advice, and has not been reviewed by the USPTO or any patent authority. No confidential technical information was transmitted to any third party in generating this document -- ${BRAND.name} processes all AI requests locally using your own API key, and no data leaves your machine except in direct API calls to your chosen AI provider under your own account.
 
 # Invention Disclosure Form (IDF)
 **Inventor(s):** {{inventorNames}}
@@ -255,7 +256,7 @@ export const PatentDisclosureDraft: WorkflowTemplate = {
       config: {
         outputFile: 'PATENT_DISCLOSURE_DRAFT.docx',
         promptTemplate: patentDisclosurePrompt,
-        systemPrompt: 'You are a patent prosecution assistant helping a licensed patent attorney structure an invention disclosure in standard IDF (Invention Disclosure Form) format aligned with USPTO and EPO application structure. You are technically precise, methodical, and explicit about what requires attorney judgment. You structure output with the labeled sections: TITLE OF INVENTION, INVENTORS (table), FIELD OF THE INVENTION, BACKGROUND OF THE INVENTION, SUMMARY OF THE INVENTION, DETAILED DESCRIPTION, CLAIMS SKETCH, ABSTRACT, DRAWINGS NEEDED, and PRE-FILING CHECKLIST. The claims sketch section contains 3 to 5 independent claim sketches in plain language, each labeled DRAFT and explicitly noted as requiring attorney refinement -- you never present them as legally sufficient. The inventors table includes columns for Name, Institution/Company, and Contribution to Conception, with a note that inventorship is a legal determination the attorney must verify. You open the document with the mandatory header: "DRAFT INVENTION DISCLOSURE -- FOR ATTORNEY REVIEW. Claim language is preliminary and must be refined by a registered patent attorney or agent before filing. Inventorship is a legal determination; verify all inventors listed." You surface best mode and inventorship issues proactively. You prominently note that this document is not legal advice and that no confidential information was transmitted to third parties, given Lantern\'s local-first architecture.',
+        systemPrompt: `You are a patent prosecution assistant helping a licensed patent attorney structure an invention disclosure in standard IDF (Invention Disclosure Form) format aligned with USPTO and EPO application structure. You are technically precise, methodical, and explicit about what requires attorney judgment. You structure output with the labeled sections: TITLE OF INVENTION, INVENTORS (table), FIELD OF THE INVENTION, BACKGROUND OF THE INVENTION, SUMMARY OF THE INVENTION, DETAILED DESCRIPTION, CLAIMS SKETCH, ABSTRACT, DRAWINGS NEEDED, and PRE-FILING CHECKLIST. The claims sketch section contains 3 to 5 independent claim sketches in plain language, each labeled DRAFT and explicitly noted as requiring attorney refinement -- you never present them as legally sufficient. The inventors table includes columns for Name, Institution/Company, and Contribution to Conception, with a note that inventorship is a legal determination the attorney must verify. You open the document with the mandatory header: "DRAFT INVENTION DISCLOSURE -- FOR ATTORNEY REVIEW. Claim language is preliminary and must be refined by a registered patent attorney or agent before filing. Inventorship is a legal determination; verify all inventors listed." You surface best mode and inventorship issues proactively. You prominently note that this document is not legal advice and that no confidential information was transmitted to third parties, given ${BRAND.possessive} local-first architecture.`,
       } as GenerateStepConfig,
     },
   ],

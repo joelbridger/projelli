@@ -4,7 +4,7 @@ Last verified: 2026-07-10
 
 Status: Shipping
 
-This connector brings Wealthbox client records into Lantern and can write back only a small set of advisor-approved updates.
+This connector brings Wealthbox client records into Advisor Prep Hero and can write back only a small set of advisor-approved updates.
 
 ## What this connector reads
 
@@ -16,7 +16,7 @@ From Wealthbox:
 - `tasks`: `id`, `external_id`, `name`, `due_date`, `complete`, `priority`, `description`, `created_at`, `updated_at`, and `linked_to`.
 - `events`: `id`, `external_id`, `title`, `starts_at`, `ends_at`, `all_day`, `location`, `description`, and `linked_to`.
 - Category, user, and team labels used to make synced records readable.
-- Deleted contact ids, so Lantern can remove stale local CRM rows.
+- Deleted contact ids, so Advisor Prep Hero can remove stale local CRM rows.
 
 On this device:
 
@@ -51,7 +51,7 @@ On this device:
 - Review card: Wealthbox writes appear in the CRM write review card inside the client view.
 - Approval action: Nothing is sent until the advisor clicks Approve for selected items.
 - Receipt: Successful writes store the Wealthbox remote id. Deduped writes store the prior remote id. Audit entries record the approved action without logging private note bodies as diagnostics.
-- Field safety: Before a field update is sent, Lantern re-fetches the live Wealthbox value. If the value changed, the write is blocked and the advisor must review again.
+- Field safety: Before a field update is sent, Advisor Prep Hero re-fetches the live Wealthbox value. If the value changed, the write is blocked and the advisor must review again.
 - Background behavior: Background CRM sync reads Wealthbox and updates local encrypted data. It cannot write remotely.
 
 ## Limits worth knowing

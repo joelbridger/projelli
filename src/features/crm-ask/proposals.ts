@@ -1,6 +1,7 @@
 import type { AnswerCitation, AskTurn } from '@/features/ask/askHelpers';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { isCrmCitationPath, parseCrmCitationPath } from './retrieval';
+import { BRAND } from '@/config/brand';
 
 export type CrmAskProposalKind = 'fact_add' | 'task_create';
 
@@ -56,7 +57,7 @@ export function createCrmAskProposal(input: CrmAskProposalInput): LiveCrmRecord 
             contextRefs,
           },
         },
-        proposedBy: { userId: 'lantern-ai', display: 'Lantern', kind: 'ai' },
+        proposedBy: { userId: 'lantern-ai', display: `${BRAND.name}`, kind: 'ai' },
         rationale: 'Prepared from this cited Ask answer. It is waiting for your approval.',
         contextRefs,
         state: 'pending',
@@ -81,7 +82,7 @@ export function createCrmAskProposal(input: CrmAskProposalInput): LiveCrmRecord 
             observedAt: now,
           },
         },
-        proposedBy: { userId: 'lantern-ai', display: 'Lantern', kind: 'ai' },
+        proposedBy: { userId: 'lantern-ai', display: `${BRAND.name}`, kind: 'ai' },
         rationale: 'Prepared from this cited Ask answer. It is waiting for your approval.',
         contextRefs,
         state: 'pending',

@@ -78,26 +78,26 @@ export const DATA_MAP_ROWS: MapRow[] = [
     icon: Laptop,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Your files and notes stay on your machine',
-    body: 'Your workspace is a normal folder on your own hard drive, in a location you chose. Lantern opens and edits those files in place. There is no Lantern cloud holding copies of your documents, and nothing is uploaded for sync.',
+    body: `Your workspace is a normal folder on your own hard drive, in a location you chose. ${BRAND.name} opens and edits those files in place. There is no ${BRAND.name} cloud holding copies of your documents, and nothing is uploaded for sync.`,
   },
   {
     icon: KeyRound,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Your AI keys live in your operating system keychain',
-    body: "When you add an API key for Anthropic, OpenAI, or Google, it is stored in your computer's own secure keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux). Lantern never holds your keys on a server and never charges you for the AI itself.",
+    body: `When you add an API key for Anthropic, OpenAI, or Google, it is stored in your computer's own secure keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux). ${BRAND.name} never holds your keys on a server and never charges you for the AI itself.`,
   },
   {
     icon: Cloud,
     tone: 'text-sky-700 bg-sky-50 dark:text-sky-300 dark:bg-sky-950/40',
     title: 'When you use a cloud model, your prompt goes straight to that provider',
-    body: "If your chat uses Anthropic, OpenAI, or Google, your message (and any file content you include) is sent directly from your machine to that provider's API using your own key. Lantern is not a middleman in that request. It does not pass through, store, or see it.",
-    caveat: "The honest asterisk: that provider does receive your prompt. They commonly retain it for a limited window (often around 30 days for abuse monitoring; Google's window differs), and whether it is used to train their models is governed by your account settings in their console, not by Lantern. Read your provider's data policy and set your training opt-out there.",
+    body: `If your chat uses Anthropic, OpenAI, or Google, your message (and any file content you include) is sent directly from your machine to that provider's API using your own key. ${BRAND.name} is not a middleman in that request. It does not pass through, store, or see it.`,
+    caveat: `The honest asterisk: that provider does receive your prompt. They commonly retain it for a limited window (often around 30 days for abuse monitoring; Google's window differs), and whether it is used to train their models is governed by your account settings in their console, not by ${BRAND.name}. Read your provider's data policy and set your training opt-out there.`,
   },
   {
     icon: Laptop,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'For your most sensitive work, use a local model',
-    body: 'Run a local model with Ollama and switch Lantern to Local-only mode (Settings → AI → Confidentiality mode). In that mode the prompt and your files are processed by a model on your own machine, and outside connectors such as Wealthbox and email pause so nothing leaves this computer.',
+    body: `Run a local model with Ollama and switch ${BRAND.name} to Local-only mode (Settings → AI → Confidentiality mode). In that mode the prompt and your files are processed by a model on your own machine, and outside connectors such as Wealthbox and email pause so nothing leaves this computer.`,
   },
   {
     icon: Mail,
@@ -109,41 +109,41 @@ export const DATA_MAP_ROWS: MapRow[] = [
     icon: Users,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Your Wealthbox connection runs from your machine to Wealthbox',
-    body: "When you connect Wealthbox, your API key is stored in your computer's own keychain, never on a Lantern server. Lantern reads your Wealthbox data by calling Wealthbox directly from your machine with that key, so those requests never pass through Lantern's servers and Lantern never sees your CRM data. A sync imports the households and client records your Wealthbox login can see, and stores them in a local, encrypted database on your device, searched the same way your files are.",
-    caveat: "Reading is automatic; writing is not. Lantern can write a note, task, or field update into Wealthbox, but only from a review card that lists exactly what will be sent, which you approve before anything goes out. Nothing is written back on its own. Disconnecting deletes the imported Wealthbox data from this device.",
+    body: `When you connect Wealthbox, your API key is stored in your computer's own keychain, never on a ${BRAND.name} server. ${BRAND.name} reads your Wealthbox data by calling Wealthbox directly from your machine with that key, so those requests never pass through ${BRAND.possessive} servers and ${BRAND.name} never sees your CRM data. A sync imports the households and client records your Wealthbox login can see, and stores them in a local, encrypted database on your device, searched the same way your files are.`,
+    caveat: `Reading is automatic; writing is not. ${BRAND.name} can write a note, task, or field update into Wealthbox, but only from a review card that lists exactly what will be sent, which you approve before anything goes out. Nothing is written back on its own. Disconnecting deletes the imported Wealthbox data from this device.`,
   },
   {
     icon: ScanText,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Scanned documents are read on your machine',
-    body: 'When a PDF in your workspace is a scan with no text layer, Lantern reads it with an OCR engine that runs inside the app, on your computer. The page images and the recognized text never leave the device, and no cloud OCR service is ever used. Where the engine was less sure of a page, passages from it are labeled "low-confidence scan" in citations so you know to check the original.',
+    body: `When a PDF in your workspace is a scan with no text layer, ${BRAND.name} reads it with an OCR engine that runs inside the app, on your computer. The page images and the recognized text never leave the device, and no cloud OCR service is ever used. Where the engine was less sure of a page, passages from it are labeled "low-confidence scan" in citations so you know to check the original.`,
   },
   {
     icon: Server,
     tone: 'text-slate-700 bg-slate-100 dark:text-slate-300 dark:bg-slate-800/60',
-    title: "What Lantern's own servers see",
-    body: "The only automatic contact with Lantern's servers is a periodic license check. That request carries nothing about your documents, your prompts, or your clients. It sends only what is needed to confirm your purchase is active. If you opt into anonymous analytics in Settings, small lifecycle events (an anonymous install id plus an event name like 'app launched', with no file content and no prompts) are sent when you enable that option. If you use the bug-report form, the message you type in it is posted to Lantern support. Neither analytics nor bug reports are on by default.",
+    title: `What ${BRAND.possessive} own servers see`,
+    body: `The only automatic contact with ${BRAND.possessive} servers is a periodic license check. That request carries nothing about your documents, your prompts, or your clients. It sends only what is needed to confirm your purchase is active. If you opt into anonymous analytics in Settings, small lifecycle events (an anonymous install id plus an event name like 'app launched', with no file content and no prompts) are sent when you enable that option. If you use the bug-report form, the message you type in it is posted to ${BRAND.name} support. Neither analytics nor bug reports are on by default.`,
   },
   {
     icon: Server,
     tone: 'text-indigo-700 bg-indigo-50 dark:text-indigo-300 dark:bg-indigo-950/40',
-    title: 'For firm Assured mode: AI requests go through a Lantern relay',
-    body: "Firms that use Assured mode have a firm admin configure a managed provider key on the Lantern backend. In that mode, AI requests from your machine go through the Lantern relay, which attaches the firm's key server-side and forwards the request to your AI provider. Lantern retains nothing from those requests (no prompt, no completion) under its Data Processing Agreement. The AI provider still receives your prompt under your firm's agreement with them. This path is visible in the egress indicator when it is active and applies only to firm members whose admin has enabled it. Solo users on direct BYOK are never routed this way.",
+    title: `For firm Assured mode: AI requests go through a ${BRAND.name} relay`,
+    body: `Firms that use Assured mode have a firm admin configure a managed provider key on the ${BRAND.name} backend. In that mode, AI requests from your machine go through the ${BRAND.name} relay, which attaches the firm's key server-side and forwards the request to your AI provider. ${BRAND.name} retains nothing from those requests (no prompt, no completion) under its Data Processing Agreement. The AI provider still receives your prompt under your firm's agreement with them. This path is visible in the egress indicator when it is active and applies only to firm members whose admin has enabled it. Solo users on direct BYOK are never routed this way.`,
     caveat: "Assured mode is a firm-tier feature. If you are a solo user, the relay is not in the picture for you at all.",
   },
   {
     icon: KeyRound,
     tone: "text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40",
-    title: "Lantern can encrypt this workspace's files with AES-256",
-    body: "When you enable the vault, every document file is stored as ciphertext on disk (AES-256-GCM). Lantern decrypts files transparently as you work, so your day-to-day experience is unchanged. A 24-word recovery phrase is generated once and never stored by Lantern. If you lose that phrase and your device's keychain, Lantern cannot recover your files. For firm workspaces, a firm admin holds an escrow copy and can recover the vault on your behalf.",
+    title: `${BRAND.name} can encrypt this workspace's files with AES-256`,
+    body: `When you enable the vault, every document file is stored as ciphertext on disk (AES-256-GCM). ${BRAND.name} decrypts files transparently as you work, so your day-to-day experience is unchanged. A 24-word recovery phrase is generated once and never stored by ${BRAND.name}. If you lose that phrase and your device's keychain, ${BRAND.name} cannot recover your files. For firm workspaces, a firm admin holds an escrow copy and can recover the vault on your behalf.`,
     caveat: "File names and folder structure remain visible on disk regardless of vault status. Only the contents of individual files are encrypted. The recovery phrase is the sole backstop for solo users.",
   },
   {
     icon: BarChart2,
     tone: 'text-violet-700 bg-violet-50 dark:text-violet-300 dark:bg-violet-950/40',
     title: 'Optional error reporting (opt-in, off by default)',
-    body: 'If you turn on Optional error reporting in Settings, Lantern sends structured usage counts to help improve the product: which features you use, how many searches you run, which workflow template you ran, and whether you connected a provider. It never sends your content, file names, client names, prompts, or search queries. Only counts and internal ids. This is a separate opt-in from anonymous analytics, also off by default.',
-    caveat: `To confirm what is collected: Settings > Privacy > Optional error reporting lists every field sent. Endpoint: ${BRAND.urls.formsDiagnostics}.`,
+    body: `If you turn on Optional error reporting in Settings, ${BRAND.name} sends structured usage counts to help improve the product: which features you use, how many searches you run, which workflow template you ran, and whether you connected a provider. It never sends your content, file names, client names, prompts, or search queries. Only counts and internal ids. This is a separate opt-in from anonymous analytics, also off by default.`,
+    caveat: `To confirm what is collected: Settings > Privacy > Optional error reporting lists every field sent. Help: ${BRAND.urls.supportUrl}.`,
   },
   {
     icon: HardDrive,
@@ -156,7 +156,7 @@ export const DATA_MAP_ROWS: MapRow[] = [
     icon: Database,
     tone: 'text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40',
     title: 'What the search index itself stores',
-    body: 'To answer questions across your files, Lantern keeps a local search index inside your workspace folder. The passage text in it is encrypted at rest, and so are the file paths, so the index on its own does not reveal which clients or projects you have files for. Two things in it stay readable on disk, on purpose: the workspace item label and the confidentiality tag on each passage, because search isolation has to filter on them before anything is searched.',
+    body: `To answer questions across your files, ${BRAND.name} keeps a local search index inside your workspace folder. The passage text in it is encrypted at rest, and so are the file paths, so the index on its own does not reveal which clients or projects you have files for. Two things in it stay readable on disk, on purpose: the workspace item label and the confidentiality tag on each passage, because search isolation has to filter on them before anything is searched.`,
     caveat: 'The index stores numeric summaries of your documents (not your actual words) that help the AI find relevant passages. These numeric summaries are kept on your device and are not sent anywhere on their own. One detail to be aware of: they sit on disk unencrypted, and this row exists so you know that.',
   },
 ];
@@ -202,7 +202,7 @@ export function DataMapDialog({ open, onOpenChange }: DataMapDialogProps) {
       return;
     }
 
-    doc.title = brandText('Where your data lives and who can see it (Lantern)');
+    doc.title = brandText(`Where your data lives and who can see it (${BRAND.name})`);
 
     const style = doc.createElement('style');
     style.textContent = [

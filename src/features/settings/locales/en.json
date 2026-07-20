@@ -70,7 +70,7 @@
     },
     "license": {
       "title": "License",
-      "description": "A license keeps AI chat, workflows, and all {{productName}} features running after your trial. Keys are available at <pricingLink>lantern.com</pricingLink>.",
+      "description": "A license keeps AI chat, workflows, and all {{productName}} features running after your trial. Keys are available at <pricingLink>{{licenseUrl}}</pricingLink>.",
       "deactivate-confirm": "Deactivate this license? You will lose access to paid features until you re-activate.",
       "badge": {
         "activated": "ACTIVATED",
@@ -103,7 +103,7 @@
       "trial-active-detail": "You're on the free trial. Every {{productName}} feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
       "days-left_one": "1 day left",
       "days-left_other": "{{count}} days left",
-      "get-license-cta": "Get a license at lantern.com",
+      "get-license-cta": "Get a license at {{licenseUrl}}",
       "already-have-key": "Already have a license key?",
       "recovery-heading": "Already bought {{productName}}?",
       "recovery-detail": "Enter your license code to restore it on this computer. No account needed.",
@@ -141,7 +141,7 @@
         "field-workflow-id": "Which workflow template you ran (the template id, not the output).",
         "field-search-count": "How many searches you ran. No query text.",
         "field-install-id": "Your anonymous install id plus app version and platform.",
-        "endpoint-note": "Endpoint: forms.lanternplatform.app/api/forms/lantern/design-partner-event. Used only to improve the product for your firm."
+        "endpoint-note": "Sent through {{productName}}'s secure feedback service. Used only to improve the product for your firm."
       },
       "telemetry": {
         "title": "Usage stats",
@@ -153,7 +153,7 @@
         "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of {{productName}}, and macOS / Windows / Linux.",
         "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-license-tier": "<c>license_tier</c> (when relevant): trial, personal, professional, firm.",
-        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL stored on {{productNamePossessive}} server. Used only for funnel metrics and roadmap decisions.",
+        "endpoint-note": "Sent through {{productName}}'s secure analytics service. JSONL is stored on {{productNamePossessive}} server and used only for funnel metrics and roadmap decisions.",
         "install-id-display": "Your install ID: <c>{{id}}</c>"
       },
       "email": {

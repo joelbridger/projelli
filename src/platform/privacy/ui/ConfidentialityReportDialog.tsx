@@ -20,6 +20,7 @@ import {
 import { Button } from '@/ui/button';
 import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 export interface ConfidentialityReportDialogProps {
   open: boolean;
@@ -76,7 +77,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
       return;
     }
 
-    doc.title = brandText(`Confidentiality Report: ${report.matterName} (Lantern)`);
+    doc.title = brandText(`Confidentiality Report: ${report.matterName} (${BRAND.name})`);
 
     const style = doc.createElement('style');
     style.textContent = [
@@ -254,7 +255,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
 
             {/* Footer note */}
             <div className="foot mt-6 text-xs text-muted-foreground border-t border-border pt-4 leading-relaxed">
-              {brandText("This report reflects the architecture-level data flow recorded by Lantern. It is based on audit log entries from your local machine. Lantern holds no copies of your prompts. For questions about your AI provider's data handling, refer to their published data processing policies. This report is not professional or compliance advice and does not certify compliance with any specific regulation.")}
+              {brandText(`This report reflects the architecture-level data flow recorded by ${BRAND.name}. It is based on audit log entries from your local machine. ${BRAND.name} holds no copies of your prompts. For questions about your AI provider's data handling, refer to their published data processing policies. This report is not professional or compliance advice and does not certify compliance with any specific regulation.`)}
             </div>
           </div>
         </div>

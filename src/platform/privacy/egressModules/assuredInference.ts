@@ -4,6 +4,7 @@
 
 import { connectorOperation } from './shared';
 import type { EgressOperation } from '../egressFollowups/types';
+import { BRAND } from '@/config/brand';
 
 export const assuredInferenceOperations = [
   connectorOperation({
@@ -11,11 +12,11 @@ export const assuredInferenceOperations = [
     category: 'assured-inference',
     title: 'Use Assured AI',
     approvalText:
-      'This sends your prompt through Lantern’s zero-retention service before it reaches your firm’s AI provider. Lantern says it does not retain the prompt or answer, but the bytes still pass through that service.',
+      `This sends your prompt through ${BRAND.possessive} zero-retention service before it reaches your firm’s AI provider. ${BRAND.name} says it does not retain the prompt or answer, but the bytes still pass through that service.`,
     dataSummary:
       'The prompt, selected AI context, and the provider request needed to answer.',
     dataClasses: ['content', 'metadata', 'credential'],
-    recipient: 'Lantern’s zero-retention service, then your firm’s AI provider',
+    recipient: `${BRAND.possessive} zero-retention service, then your firm’s AI provider`,
     requiresFinalApproval: true,
     destination: { allowedOrigins: ['api.lanternplatform.app'] },
   }),

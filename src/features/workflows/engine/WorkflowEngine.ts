@@ -31,6 +31,7 @@ import {
   type VerifyCitationFn,
 } from './legalAnalysis';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 /**
  * Callback for interview step - receives questions, returns answers
@@ -683,7 +684,7 @@ export class WorkflowEngine {
 
     if (!this.analyzeDeps) {
       throw new Error(
-        brandText('This workflow needs client-scoped retrieval, which is only available in the Lantern desktop app with an active client.'),
+        brandText(`This workflow needs client-scoped retrieval, which is only available in the ${BRAND.name} desktop app with an active client.`),
       );
     }
     if (!this.fileOps.writeFileBinary) {

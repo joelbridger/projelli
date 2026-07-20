@@ -242,7 +242,7 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
     destination: 'provider-direct',
     severity: 'direct',
     label: `Sent to your ${name} account`,
-    note: brandText(`Sent straight from your machine to ${name} with your own API key. Lantern is not in between. ${name} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your ${name} account.`),
+    note: brandText(`Sent straight from your machine to ${name} with your own API key. ${BRAND.name} is not in between. ${name} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your ${name} account.`),
     dataLeaves: true,
     provider,
   };

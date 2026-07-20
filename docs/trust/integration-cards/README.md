@@ -2,7 +2,7 @@
 
 Integration claims get vague fast. These cards keep them exact.
 
-Every shipping connector gets one public card. The card says what Lantern reads, what it writes, what it can never touch, how writes are gated, and when the code was last checked.
+Every shipping connector gets one public card. The card says what Advisor Prep Hero reads, what it writes, what it can never touch, how writes are gated, and when the code was last checked.
 
 ## Shipping cards
 

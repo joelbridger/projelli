@@ -4,6 +4,7 @@
 
 import { connectorOperation, IMAPS, SMTPS } from './shared';
 import type { EgressOperation } from '../egressFollowups/types';
+import { BRAND } from '@/config/brand';
 
 export const mailOperations = [
   connectorOperation({
@@ -11,7 +12,7 @@ export const mailOperations = [
     category: 'connector-authentication',
     title: 'Connect Microsoft 365 mail',
     approvalText:
-      'This opens Microsoft sign-in so Lantern can connect the mailbox you choose.',
+      `This opens Microsoft sign-in so ${BRAND.name} can connect the mailbox you choose.`,
     dataSummary: 'Microsoft sign-in details and the permission you approve.',
     dataClasses: ['metadata', 'credential'],
     recipient: 'Microsoft',
@@ -23,7 +24,7 @@ export const mailOperations = [
     category: 'connector-authentication',
     title: 'Connect Gmail',
     approvalText:
-      'This opens Google sign-in so Lantern can connect the mailbox you choose.',
+      `This opens Google sign-in so ${BRAND.name} can connect the mailbox you choose.`,
     dataSummary: 'Google sign-in details and the permission you approve.',
     dataClasses: ['metadata', 'credential'],
     recipient: 'Google',

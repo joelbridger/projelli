@@ -4,6 +4,7 @@ import { CalendarDays, Mail, Save } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import { BRAND } from '@/config/brand';
 
 const panel = {
   border: '1px solid var(--kp-border)',
@@ -62,9 +63,10 @@ export function CrmEmailSurface() {
       <section style={panel}>
         <h2 style={{ marginTop: 0 }}>Email connection</h2>
         <p>
-          Lantern keeps email in your mail account. This screen saves a
+          {`
+          ${BRAND.name} keeps email in your mail account. This screen saves a
           connection check and links activity back to that account.
-        </p>
+        `}</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button
             data-testid="crm-email-sync"

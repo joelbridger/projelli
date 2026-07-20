@@ -124,6 +124,7 @@ import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 import { EV_TRASH_CHANGED } from '@/config/identity';
 import { brandText } from '@/config/brandText';
 import { askSendPipeline } from '../pipeline/AskSendPipeline';
+import { BRAND } from '@/config/brand';
 
 export function fileSearchQueryToRegex(query: string): RegExp {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1304,7 +1305,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 ) {
                   return {
                     content:
-                      brandText('This file is recognized as an exported report from an outside tool (for example RightCapital or Jump). Lantern needs your one-time confirmation before exported reports are used with AI. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy, or ask about it in the Ask tab where you will be prompted. The file content was not read.'),
+                      brandText(`This file is recognized as an exported report from an outside tool (for example RightCapital or Jump). ${BRAND.name} needs your one-time confirmation before exported reports are used with AI. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy, or ask about it in the Ask tab where you will be prompted. The file content was not read.`),
                     path: relativePath,
                     withheld: true,
                   };

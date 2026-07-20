@@ -2,6 +2,7 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -131,7 +132,7 @@ Note any pre-suit notice or claims act requirements that may apply based on the 
 
 ---
 
-*This calendar was structured by Lantern AI and requires attorney verification before any date is docketed. AI does not calculate deadlines.*`;
+*This calendar was structured by ${BRAND.messaging.redlineAuthor} and requires attorney verification before any date is docketed. AI does not calculate deadlines.*`;
 
 export const DeadlineCalendar: WorkflowTemplate = {
   id: 'deadline-calendar',

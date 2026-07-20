@@ -22,6 +22,7 @@
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 export interface ConfidentialityReportCall {
   at: string;           // ISO timestamp
@@ -101,9 +102,9 @@ export function pickAttestation(byMode: Record<string, number>): string {
     }
     parts.push(
       `${calls(directCount)} went directly from your machine to your AI provider under your own API key. ` +
-      brandText('Lantern was not in the path and has no copy of these prompts. ') +
+      brandText(`${BRAND.name} was not in the path and has no copy of these prompts. `) +
       'Your provider received the prompts and may retain them briefly per their data policy. ' +
-      brandText('Lantern does not use your data for training.')
+      brandText(`${BRAND.name} does not use your data for training.`)
     );
     return parts.join(' ');
   }
@@ -117,7 +118,7 @@ export function pickAttestation(byMode: Record<string, number>): string {
     }
     parts.push(
       `${calls(assuredCount)} were routed through your firm's zero-retention proxy. ` +
-      brandText('Lantern retained no prompt or completion. ') +
+      brandText(`${BRAND.name} retained no prompt or completion. `) +
       'Your AI provider received the prompts under your firm\'s agreement with them.'
     );
     return parts.join(' ');
@@ -132,12 +133,12 @@ export function pickAttestation(byMode: Record<string, number>): string {
   }
   if (hasDirect) {
     parts.push(
-      brandText(`${calls(directCount)} went directly from your machine to your AI provider under your own key (Lantern not in the path).`)
+      brandText(`${calls(directCount)} went directly from your machine to your AI provider under your own key (${BRAND.name} not in the path).`)
     );
   }
   if (hasAssured) {
     parts.push(
-      brandText(`${calls(assuredCount)} went through your firm's zero-retention proxy (Lantern retained nothing).`)
+      brandText(`${calls(assuredCount)} went through your firm's zero-retention proxy (${BRAND.name} retained nothing).`)
     );
   }
   return parts.join(' ');

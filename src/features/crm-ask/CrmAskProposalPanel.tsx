@@ -8,6 +8,7 @@ import {
   readSelectionOperationDecision,
   useSelectionOperationDecision,
 } from '@/platform/client-context';
+import { BRAND } from '@/config/brand';
 
 const CRM_PROPOSAL_SELECTION_REQUEST = {
   operationClass: 'client-scoped',
@@ -58,7 +59,7 @@ export function CrmAskProposalPanel({ answer }: { answer: AskTurn | null }) {
 
   return <Card variant="raised" data-testid="crm-ask-proposal" style={{ margin: '0 var(--kp-gutter) var(--kp-space-md)' }}>
     <strong>Turn this into a proposal</strong>
-    <p style={{ margin: '4px 0 10px', color: 'var(--kp-text-dim)' }}>Lantern will not change a client record. It will place this in your approval list first.</p>
+    <p style={{ margin: '4px 0 10px', color: 'var(--kp-text-dim)' }}>{`${BRAND.name} will not change a client record. It will place this in your approval list first.`}</p>
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       <select aria-label="Proposal type" data-testid="crm-ask-proposal-kind" value={kind} onChange={(event) => { setKind(event.target.value as CrmAskProposalKind); }}>
         <option value="task_create">Propose a task</option>

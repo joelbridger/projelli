@@ -2,6 +2,7 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -34,7 +35,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'The name and nature of the third party receiving the disclosure. Be specific — "cloud software" and "AI tool" are different third parties requiring separate consents.',
     type: 'text',
     required: true,
-    placeholder: 'e.g., TaxSlayer Pro (cloud-based tax preparation software) or Lantern (AI workspace software)',
+    placeholder: `e.g., TaxSlayer Pro (cloud-based tax preparation software) or ${BRAND.name} (AI workspace software)`,
   },
   {
     id: 'purposeOfDisclosure',

@@ -22,6 +22,7 @@ import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode'
 import { InfoHelp } from '@/ui/InfoHelp';
 import type { Matter } from '@/platform/types/matter';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 function normalizeClientName(value: string): string {
   return value
@@ -201,7 +202,7 @@ export function ShareFileConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
               ShareFile documents
-              <InfoHelp content={brandText('Import documents this ShareFile token can read. Lantern downloads supported Office and text files, extracts text locally, and stores encrypted search chunks by client. Read-only: Lantern lists folders and downloads files. It never uploads, edits, moves, or deletes anything in ShareFile.')} />
+              <InfoHelp content={brandText(`Import documents this ShareFile token can read. ${BRAND.name} downloads supported Office and text files, extracts text locally, and stores encrypted search chunks by client. Read-only: ${BRAND.name} lists folders and downloads files. It never uploads, edits, moves, or deletes anything in ShareFile.`)} />
             </h3>
           </div>
         </div>

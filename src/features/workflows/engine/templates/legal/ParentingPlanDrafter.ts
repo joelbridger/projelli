@@ -2,6 +2,7 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -201,7 +202,7 @@ Standard parenting time schedule: [Describe the proposed regular schedule as a s
 
 ---
 
-*This parenting plan outline was structured by Lantern AI. All custody and access provisions require attorney review against the specific client circumstances and applicable {{jurisdiction}} best-interests standards before use.*`;
+*This parenting plan outline was structured by ${BRAND.messaging.redlineAuthor}. All custody and access provisions require attorney review against the specific client circumstances and applicable {{jurisdiction}} best-interests standards before use.*`;
 
 export const ParentingPlanDrafter: WorkflowTemplate = {
   id: 'parenting-plan-drafter',

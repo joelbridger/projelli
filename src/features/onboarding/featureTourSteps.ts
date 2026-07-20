@@ -10,6 +10,7 @@
  * = modal-in-the-middle, for intro + outro steps).
  */
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 export interface FeatureTourStep {
   id: string;
@@ -24,14 +25,14 @@ const RAW_FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'intro',
     title: 'A quick look at the new layout',
-    body: 'Lantern is built around your clients, not loose files. This tour covers the main areas worth knowing. Skip any time with Esc, step back with the left arrow key. You can restart from Settings, Onboarding.',
+    body: `${BRAND.name} is built around your clients, not loose files. This tour covers the main areas worth knowing. Skip any time with Esc, step back with the left arrow key. You can restart from Settings, Onboarding.`,
     targetSelector: null,
     placement: 'center',
   },
   {
     id: 'matters',
     title: 'Your Client Map',
-    body: 'Lantern leads with your clients, not loose files. Each client gets their own private space, and opening one shows their Client Map: documents, emails, and AI conversations all stay inside that client boundary so the wrong client never sees the wrong file. Create one with the plus button next to Clients.',
+    body: `${BRAND.name} leads with your clients, not loose files. Each client gets their own private space, and opening one shows their Client Map: documents, emails, and AI conversations all stay inside that client boundary so the wrong client never sees the wrong file. Create one with the plus button next to Clients.`,
     targetSelector: '[data-testid="spine-nav-matters"]',
     placement: 'right',
   },
@@ -52,7 +53,7 @@ const RAW_FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'email',
     title: 'Email, imported and searchable',
-    body: 'Connect your Microsoft 365 or Gmail inbox and Lantern imports your client emails. Filter Ask to Email to search across them and cite them in your answers. Your email stays encrypted on your machine; nothing is uploaded to Lantern servers.',
+    body: `Connect your Microsoft 365 or Gmail inbox and ${BRAND.name} imports your client emails. Filter Ask to Email to search across them and cite them in your answers. Your email stays encrypted on your machine; nothing is uploaded to ${BRAND.name} servers.`,
     targetSelector: '[data-testid="spine-nav-search"]',
     placement: 'right',
   },

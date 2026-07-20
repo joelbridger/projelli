@@ -6,6 +6,7 @@
  */
 
 import type { EntityRef as CrmEntityRef } from '@/platform/crm/types';
+import { BRAND } from '@/config/brand';
 /** UI state stores the canonical reference identifier; persistence restores its kind. */
 export type EntityRef = CrmEntityRef['id'];
 
@@ -118,7 +119,7 @@ export function createMigrationWizardState(): MigrationWizardState {
       { field: 'opportunities.*', state: 'read_only_mirror', detail: 'Read-only during the parallel run.' },
       { field: 'projects.*', state: 'read_only_mirror', detail: 'Read-only during the parallel run.' },
       { field: 'workflows.*', state: 'guided_fallback', detail: 'Open work is recreated by an operator at cutover.' },
-      { field: '*', state: 'lantern_only', detail: 'This stays in Lantern until cutover.' },
+      { field: '*', state: 'lantern_only', detail: `This stays in ${BRAND.name} until cutover.` },
     ],
     lastIncrementalSyncAt: null,
     lastFullReconciliationAt: null,
@@ -231,7 +232,7 @@ export function reduceMigrationWizard(
     case 'DECIDE_WORKFLOW': {
       const item = next.checklistItems.find(candidate => candidate.id === event.id);
       if (!item) return { ...state, error: 'Workflow checklist item not found.' };
-      if (event.decision === 'recreate' && !event.resultingWorkflowInstanceRef) return { ...state, error: 'A recreated workflow needs its new Lantern workflow reference.' };
+      if (event.decision === 'recreate' && !event.resultingWorkflowInstanceRef) return { ...state, error: `A recreated workflow needs its new ${BRAND.name} workflow reference.` };
       if (event.decision === 'gap' && !event.gapReason) return { ...state, error: 'A workflow gap needs an explanation.' };
       item.decision = event.decision;
       if (event.resultingWorkflowInstanceRef) item.resultingWorkflowInstanceRef = event.resultingWorkflowInstanceRef;

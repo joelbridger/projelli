@@ -8,6 +8,7 @@ import type { CrmHomeRoute } from '@/features/crm-home/routes';
 import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHomeAdapter, CrmTask } from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import { dailyWorkItems, workHousehold, workLabel, type CrmDailyWorkItem } from '@/features/crm-home/shared/workItems';
+import { BRAND } from '@/config/brand';
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -249,10 +250,11 @@ export function Today({
         >
           <strong>How Today is ordered</strong>
           <p style={mutedStyle}>
-            Work with a date comes first, with overdue work first. Then Lantern
+            {`
+            Work with a date comes first, with overdue work first. Then ${BRAND.name}
             puts blocked work and high-priority work ahead of other open items.
             It only uses saved CRM records and never moves work by itself.
-          </p>
+          `}</p>
           {open.length === 0 ? (
             <p style={mutedStyle}>
               Add a task or finish your import to start a plan.

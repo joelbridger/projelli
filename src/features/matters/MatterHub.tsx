@@ -450,7 +450,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       }
       if (restoreFailed) {
         throw new Error(
-          'The client onboarding link was regenerated on the server, but this device could not save it in secure storage. Lantern could not restore the previous link automatically. Try regenerate again once secure storage is available.',
+          `The client onboarding link was regenerated on the server, but this device could not save it in secure storage. ${BRAND.name} could not restore the previous link automatically. Try regenerate again once secure storage is available.`,
         );
       }
       throw new Error(

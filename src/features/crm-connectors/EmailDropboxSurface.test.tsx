@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { MailListItem } from '@/platform/utils/mail-commands';
+import { BRAND } from '@/config/brand';
 import { assertCrossContextIsolation } from '@/testing/cross-context-isolation';
 import { EmailDropboxSurface } from './EmailDropboxSurface';
 
@@ -72,7 +73,7 @@ function email(id: string, subject: string, account: string): MailListItem {
     receivedDateTime: '2026-07-17T00:00:00.000Z',
     provider: 'm365',
     account,
-    folderId: 'Lantern Dropbox',
+    folderId: `${BRAND.name} Dropbox`,
     hasAttachments: false,
   };
 }
@@ -140,7 +141,7 @@ describe('EmailDropboxSurface', () => {
       assertATypedValueVisible: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('advisor-typed-a@example.test'); },
       assertWithinContextEditPreserved: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('advisor-typed-a@example.test'); },
       assertBSuccessLoaded: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('b@example.test'); expect(screen.getByTestId('crm-email-dropbox-email-email-b')).toBeInTheDocument(); },
-      assertBFailureIsFailClosed: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue(''); expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue('Lantern Dropbox'); },
+      assertBFailureIsFailClosed: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue(''); expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue(`${BRAND.name} Dropbox`); },
       assertNoAContentInFields: ({ typedA, loadedA }) => { expect(screen.queryByDisplayValue(typedA)).not.toBeInTheDocument(); for (const marker of loadedA) expect(document.body.textContent).not.toContain(marker); },
       assertNoAContentInUnderlyingState: async (_, phase) => {
         save.mockClear();

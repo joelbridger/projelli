@@ -46,6 +46,7 @@ import { brandText } from '@/config/brandText';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 import { NetworkLockdownRetryButton } from '@/platform/privacy/ui/NetworkLockdownRetryButton';
+import { BRAND } from '@/config/brand';
 
 function isCrmNetworkLockdownError(error: unknown): boolean {
   return (
@@ -67,7 +68,7 @@ export function WealthboxConnect() {
       : nativeLockdown.pending
         ? t('crm.wealthbox.lockdown.pending')
         : nativeLockdown.status === 'unknown'
-          ? 'Lantern could not confirm the desktop privacy guard. Wealthbox stays paused until its state can be checked.'
+          ? `${BRAND.name} could not confirm the desktop privacy guard. Wealthbox stays paused until its state can be checked.`
           : t('crm.wealthbox.lockdown.active');
 
   const progress = useCrmStore((s) => s.progress);
@@ -256,7 +257,7 @@ export function WealthboxConnect() {
       setSyncing(false);
       setAwaitingImportConfirmation(true);
       const confirmed = await confirm(
-        brandText(`Import ${String(count)} household${count === 1 ? '' : 's'} into local encrypted storage on this device? Lantern stores this data locally — it stays on your machine.`),
+        brandText(`Import ${String(count)} household${count === 1 ? '' : 's'} into local encrypted storage on this device? ${BRAND.name} stores this data locally — it stays on your machine.`),
         {
           title: `Import ${String(count)} Wealthbox household${count === 1 ? '' : 's'}`,
           confirmLabel: 'Import',
@@ -594,7 +595,7 @@ export function WealthboxConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Wealthbox
-          <InfoHelp content={brandText('Connect your Wealthbox account to bring client household data into your Client Maps. Requires the Lantern desktop app.')} />
+          <InfoHelp content={brandText(`Connect your Wealthbox account to bring client household data into your Client Maps. Requires the ${BRAND.name} desktop app.`)} />
         </h3>
         <IntegrationHonestyCard connectorId="wealthbox" />
         <WealthboxCustomFieldsAvailability />
@@ -624,7 +625,7 @@ export function WealthboxConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Wealthbox
-          <InfoHelp content={brandText('Connect your Wealthbox account to bring client household data into your Client Maps. Lantern imports what this Wealthbox login can see.')} />
+          <InfoHelp content={brandText(`Connect your Wealthbox account to bring client household data into your Client Maps. ${BRAND.name} imports what this Wealthbox login can see.`)} />
         </h3>
         <IntegrationHonestyCard connectorId="wealthbox" />
         <WealthboxCustomFieldsAvailability />

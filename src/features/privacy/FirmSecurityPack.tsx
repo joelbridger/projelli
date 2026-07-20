@@ -81,14 +81,15 @@ const SECTIONS: Section[] = [
     id: 'what-lantern-is',
     icon: Laptop,
     tone: 'text-emerald-700 bg-emerald-50',
-    heading: 'What Lantern is',
+    heading: `What ${BRAND.name} is`,
     body: (
       <p>
-        Lantern is a private intelligence layer for your practice. It runs as a
+        {`
+        ${BRAND.name} is a private intelligence layer for your practice. It runs as a
         desktop app on your own computer. Documents, email, and client records
-        stay in local files you control. Lantern answers questions across all of
+        stay in local files you control. ${BRAND.name} answers questions across all of
         it and shows a citation you can open and check for every answer.
-      </p>
+      `}</p>
     ),
   },
   {
@@ -99,9 +100,10 @@ const SECTIONS: Section[] = [
     body: (
       <>
         <p>
-          Your files stay on your own computer. Lantern has no content server.
+          {`
+          Your files stay on your own computer. ${BRAND.name} has no content server.
           We never receive, store, or can read your client records.
-        </p>
+        `}</p>
         <p style={{ marginTop: '0.75rem', fontWeight: 600 }}>
           Data map (full detail below):
         </p>
@@ -116,12 +118,13 @@ const SECTIONS: Section[] = [
     body: (
       <div>
         <p>
-          Lantern Intake lets an advisor send a secure checklist link to a
+          {`
+          ${BRAND.name} Intake lets an advisor send a secure checklist link to a
           client or household. On the honest client page, each submitted answer
           and document is encrypted in the browser before upload to a key held
           in the advisor&apos;s operating system keychain. The relay is a
           mailbox for encrypted submissions, not an archive.
-        </p>
+        `}</p>
         <p style={{ marginTop: '0.75rem' }}>
           <strong>The relay can see:</strong> the intake ID, the creating seat
           or organization identity, lifecycle and submission timestamps, opaque
@@ -198,8 +201,9 @@ const SECTIONS: Section[] = [
         <div style={{ marginBottom: '0.75rem' }}>
           <strong>Direct (bring your own key):</strong> {DIRECT_EGRESS.note}{' '}
           <span style={{ color: '#555' }}>
-            (data leaves to your chosen AI provider, not to Lantern)
-          </span>
+            {`
+            (data leaves to your chosen AI provider, not to ${BRAND.name})
+          `}</span>
         </div>
         <div>
           <strong>Assured (firm option):</strong> {ASSURED_EGRESS.note}{' '}
@@ -232,10 +236,11 @@ const SECTIONS: Section[] = [
     heading: 'Keys and accounts',
     body: (
       <p>
-        Lantern never holds AI keys and never charges for AI usage. Solo use
+        {`
+        ${BRAND.name} never holds AI keys and never charges for AI usage. Solo use
         needs no account at all. Firm use adds single sign-on, seats, and shared
         matters.
-      </p>
+      `}</p>
     ),
   },
   {
@@ -261,8 +266,8 @@ const SECTIONS: Section[] = [
     body: (
       <div>
         <p>
-          <strong>SOC 2:</strong> Lantern is not SOC 2 certified. A readiness
-          and gap-analysis assessment is complete (see{' '}
+          <strong>SOC 2:</strong> {` ${BRAND.name} is not SOC 2 certified. A readiness
+          and gap-analysis assessment is complete (see`}{' '}
           <code>docs/trust/soc2-readiness.md</code>); a formal audit by an
           independent CPA firm has not yet been completed. A SOC 2 Type II
           report requires an independent CPA auditor and an observation period
@@ -282,12 +287,12 @@ const SECTIONS: Section[] = [
           actually support before execution.
         </p>
         <p style={{ marginTop: '0.5rem' }}>
-          <strong>Firm installation:</strong> Lantern runs as a desktop
+          <strong>Firm installation:</strong> {` ${BRAND.name} runs as a desktop
           application on your hardware. Your IT team deploys and updates it
           through your normal software distribution process. No configuration of
-          Lantern&apos;s infrastructure is required for a solo or small-firm
+          ${BRAND.name}&apos;s infrastructure is required for a solo or small-firm
           install.
-        </p>
+        `}</p>
       </div>
     ),
   },
@@ -350,7 +355,7 @@ function usePrint(printableId: string) {
       return;
     }
 
-    doc.title = 'Lantern security overview for CCO / compliance officer';
+    doc.title = `${BRAND.name} security overview for CCO / compliance officer`;
 
     const style = doc.createElement('style');
     style.textContent = [
@@ -404,14 +409,16 @@ export function FirmSecurityPackContent() {
   return (
     <div id={PRINTABLE_ID} data-testid="firm-security-pack-content">
       <h1 className="text-lg font-semibold mb-1">
-        Lantern security overview for your firm&apos;s CCO / compliance officer
-      </h1>
+        {`
+        ${BRAND.name} security overview for your firm&apos;s CCO / compliance officer
+      `}</h1>
       <p className="sub text-sm text-muted-foreground mb-4">
-        This is a plain-English summary of how Lantern handles your client data,
+        {`
+        This is a plain-English summary of how ${BRAND.name} handles your client data,
         written so your CCO or compliance officer can evaluate it quickly. Every
         claim here matches how the software actually works. If something
         isn&apos;t finished yet, I say so.
-      </p>
+      `}</p>
 
       <div className="space-y-0" data-testid="firm-security-pack-sections">
         {SECTIONS.map((section) => {
@@ -469,15 +476,16 @@ export function FirmSecurityPackContent() {
       </div>
 
       <p className="foot mt-4 text-xs text-muted-foreground">
-        This document was generated from the Lantern desktop app. All claims are
-        verifiable against the source code referenced in{' '}
+        {`
+        This document was generated from the ${BRAND.name} desktop app. All claims are
+        verifiable against the source code referenced in`}{' '}
         <code>docs/trust/security-overview.md</code>. For the full data
         processing contract, see <code>docs/legal/DPA-template.md</code>. For
         Intake secure-link detail and the full reviewer checklist, see{' '}
         <code>docs/trust/it-pack/INTAKE-IT-PACK.md</code>. For SOC 2 status, see{' '}
-        <code>docs/trust/soc2-readiness.md</code>. Lantern is not SOC 2
+        <code>docs/trust/soc2-readiness.md</code>{`. ${BRAND.name} is not SOC 2
         certified as of this document.
-      </p>
+      `}</p>
     </div>
   );
 }

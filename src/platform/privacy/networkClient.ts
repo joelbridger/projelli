@@ -30,6 +30,7 @@ import {
   type NetworkEgressResult,
 } from '@/platform/privacy/networkEgressReceipt';
 import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
+import { BRAND } from '@/config/brand';
 
 export const OFFLINE_MODE_BLOCKED_CODE = 'OFFLINE_MODE_BLOCKED';
 
@@ -41,7 +42,7 @@ export class OfflineModeBlockedError extends Error {
 
   constructor(action: string) {
     super(
-      `Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use ${action}.`
+      `Offline Mode is on. ${BRAND.name} cannot connect to the internet. Turn it off to use ${action}.`
     );
     this.name = 'OfflineModeBlockedError';
   }

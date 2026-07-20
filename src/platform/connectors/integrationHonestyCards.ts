@@ -1,3 +1,4 @@
+import { BRAND } from '@/config/brand';
 export const integrationHonestyCardIds = [
   'wealthbox',
   'email',
@@ -37,7 +38,7 @@ export const integrationHonestyCards = {
     lastVerified: '2026-07-10',
     status: 'Shipping',
     summary:
-      'This connector brings Wealthbox client records into Lantern and can write back only a small set of advisor-approved updates.',
+      `This connector brings Wealthbox client records into ${BRAND.name} and can write back only a small set of advisor-approved updates.`,
     reads: [
       {
         heading: 'From Wealthbox',
@@ -48,7 +49,7 @@ export const integrationHonestyCards = {
           '`tasks`: `id`, `external_id`, `name`, `due_date`, `complete`, `priority`, `description`, `created_at`, `updated_at`, and `linked_to`.',
           '`events`: `id`, `external_id`, `title`, `starts_at`, `ends_at`, `all_day`, `location`, `description`, and `linked_to`.',
           'Category, user, and team labels used to make synced records readable.',
-          'Deleted contact ids, so Lantern can remove stale local CRM rows.',
+          `Deleted contact ids, so ${BRAND.name} can remove stale local CRM rows.`,
         ],
       },
       {
@@ -102,7 +103,7 @@ export const integrationHonestyCards = {
       {
         label: 'Field safety',
         detail:
-          'Before a field update is sent, Lantern re-fetches the live Wealthbox value. If the value changed, the write is blocked and the advisor must review again.',
+          `Before a field update is sent, ${BRAND.name} re-fetches the live Wealthbox value. If the value changed, the write is blocked and the advisor must review again.`,
       },
       {
         label: 'Background behavior',
@@ -121,7 +122,7 @@ export const integrationHonestyCards = {
     lastVerified: '2026-07-10',
     status: 'Shipping for Microsoft 365, Gmail, and IMAP',
     summary:
-      'This connector imports email into Lantern and can send or save drafts only when the advisor acts from the email UI.',
+      `This connector imports email into ${BRAND.name} and can send or save drafts only when the advisor acts from the email UI.`,
     reads: [
       {
         heading: 'From Microsoft 365',
@@ -261,7 +262,7 @@ export const integrationHonestyCards = {
       {
         heading: 'On this device',
         items: [
-          'Folder mappings from Microsoft folders to Lantern clients.',
+          `Folder mappings from Microsoft folders to ${BRAND.name} clients.`,
           'Sync metadata: source id, drive id, site id, item id, file name, parent path, web URL, remote signature, content hash, client id, indexed flag, pending PDF flag, deleted flag, cursor, and local imported path when one exists.',
         ],
       },
@@ -279,7 +280,7 @@ export const integrationHonestyCards = {
           'Encrypted sync metadata in the local OneDrive database.',
           'Encrypted search chunks for unmapped or RAG-only downloaded files.',
           "Local imported copies for mapped client folders, under the client's workspace folder in a `OneDrive` subfolder.",
-          'Local cleanup on remote delete: if Microsoft reports an item deleted, Lantern marks the local item deleted, removes its connector search chunks, and removes its owned imported local copy when one was recorded.',
+          `Local cleanup on remote delete: if Microsoft reports an item deleted, ${BRAND.name} marks the local item deleted, removes its connector search chunks, and removes its owned imported local copy when one was recorded.`,
         ],
       },
     ],
@@ -289,8 +290,8 @@ export const integrationHonestyCards = {
       'It cannot delete Microsoft files.',
       'It cannot create Microsoft folders.',
       'It cannot change Microsoft sharing settings, permissions, owners, labels, or retention.',
-      'It cannot write outside the active Lantern workspace. Folder and file path segments are sanitized before local import.',
-      'It does not overwrite a user-owned local file. If a same-name local file exists and Lantern does not already own that imported copy, it writes a conflict copy instead.',
+      `It cannot write outside the active ${BRAND.name} workspace. Folder and file path segments are sanitized before local import.`,
+      `It does not overwrite a user-owned local file. If a same-name local file exists and ${BRAND.name} does not already own that imported copy, it writes a conflict copy instead.`,
     ],
     gating: [
       {
@@ -313,13 +314,13 @@ export const integrationHonestyCards = {
       {
         label: 'Disconnect',
         detail:
-          'Local imported data is deleted only through the disconnect flow. Imported files in client folders are deleted only when the user chooses the delete-files option. If cleanup cannot finish safely, Lantern keeps the Microsoft connection so the user can retry deletion.',
+          `Local imported data is deleted only through the disconnect flow. Imported files in client folders are deleted only when the user chooses the delete-files option. If cleanup cannot finish safely, ${BRAND.name} keeps the Microsoft connection so the user can retry deletion.`,
       },
     ],
     limits: [
       'The connector uses Microsoft OAuth scopes for file and site reading: `Files.Read.All` and `Sites.Read.All`.',
       'Personal OneDrive and business drives are handled differently because Microsoft exposes them differently.',
-      'A sync can be stopped. If stop lands after a download but before the local write, Lantern does not commit that local file write.',
+      `A sync can be stopped. If stop lands after a download but before the local write, ${BRAND.name} does not commit that local file write.`,
     ],
   },
   calendly: {
@@ -328,7 +329,7 @@ export const integrationHonestyCards = {
     lastVerified: '2026-07-10',
     status: 'Shipping',
     summary:
-      'This connector reads scheduled Calendly meetings and invitees into Lantern. It does not change Calendly.',
+      `This connector reads scheduled Calendly meetings and invitees into ${BRAND.name}. It does not change Calendly.`,
     reads: [
       {
         heading: 'From Calendly',

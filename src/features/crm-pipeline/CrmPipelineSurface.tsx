@@ -30,6 +30,7 @@ import {
   type PipelineData,
   type PipelineViewId,
 } from './pipelineExtensionRegistry';
+import { BRAND } from '@/config/brand';
 
 type StoredPipeline = LiveCrmRecord & PipelineDef;
 type StoredStage = LiveCrmRecord & StageDef;
@@ -229,8 +230,8 @@ export function PipelineHome({
       workflowStepTitle: action.title,
       action,
       state: 'pending',
-      proposedBy: { userId: 'lantern-ai', display: 'Lantern', kind: 'ai' },
-      rationale: `Lantern proposes: ${action.title}. This change is waiting for your approval.`,
+      proposedBy: { userId: 'lantern-ai', display: `${BRAND.name}`, kind: 'ai' },
+      rationale: `${BRAND.name} proposes: ${action.title}. This change is waiting for your approval.`,
       createdAt: now(),
       updatedAt: now(),
     });
@@ -398,7 +399,7 @@ export function PipelineHome({
           kind: 'workflow_launch',
           workflowTemplateId: rule.workflowTemplateId,
         },
-        proposedBy: { userId: 'lantern-ai', display: 'Lantern', kind: 'ai' },
+        proposedBy: { userId: 'lantern-ai', display: `${BRAND.name}`, kind: 'ai' },
         rationale: `Moving “${opportunity.name}” into ${stage.name} suggests “${templateName(rule.workflowTemplateId) ?? 'the linked workflow'}”. It is waiting for your approval.`,
         contextRefs: [
           { kind: 'opportunity', id: opportunity.id, matterId: 'firm_home' },
@@ -1339,7 +1340,7 @@ function StageSettings({
       </Button>
       <p style={muted}>
         {rule.enabled && rule.workflowTemplateId
-          ? 'When an opportunity enters this stage, Lantern prepares the workflow for approval. It never starts it automatically.'
+          ? `When an opportunity enters this stage, ${BRAND.name} prepares the workflow for approval. It never starts it automatically.`
           : 'No workflow will be suggested from this stage.'}
       </p>
     </section>

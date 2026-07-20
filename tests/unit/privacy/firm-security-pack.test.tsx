@@ -16,6 +16,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { FirmSecurityPackContent } from '@/features/privacy/FirmSecurityPack';
 import { resolveEgress } from '@/platform/privacy/egress';
+import { BRAND } from '@/config/brand';
 
 // DataMapContent is a large trust document tested elsewhere; mock it so these
 // tests focus only on FirmSecurityPack assertions.
@@ -64,14 +65,14 @@ describe('FirmSecurityPack — renders without crashing', () => {
   it('shows the document title', () => {
     render(<FirmSecurityPackContent />);
     const content = screen.getByTestId('firm-security-pack-content');
-    expect(content.textContent).toContain('Lantern security overview');
+    expect(content.textContent).toContain(`${BRAND.name} security overview`);
   });
 
   it('shows the opening disclaimer', () => {
     render(<FirmSecurityPackContent />);
     expect(
       screen.getByTestId('firm-security-pack-content').textContent
-    ).toContain('Every claim here matches how the software actually works');
+    ).toMatch(/Every\s+claim here matches how the software actually works/);
   });
 });
 
@@ -165,7 +166,7 @@ describe('FirmSecurityPack — honest assurance status', () => {
     expect(text).not.toContain('soc 2 compliant');
   });
 
-  it('states that Lantern is not SOC 2 certified', () => {
+  it('states that the product is not SOC 2 certified', () => {
     const text = renderAndGetText().toLowerCase();
     expect(text).toContain('not soc 2 certified');
   });
@@ -204,9 +205,9 @@ describe('FirmSecurityPack — honest assurance status', () => {
 // ---------------------------------------------------------------------------
 
 describe('FirmSecurityPack — required sections', () => {
-  it('has a "What Lantern is" section', () => {
+  it('has a product identity section', () => {
     const text = renderAndGetText();
-    expect(text).toContain('What Lantern is');
+    expect(text).toContain(`What ${BRAND.name} is`);
   });
 
   it('has a "Where data lives" section', () => {

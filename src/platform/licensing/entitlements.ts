@@ -41,6 +41,7 @@
 
 import type { LicenseTier } from '@/platform/hooks/useLicense';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 /**
  * The stable paid tier codes (same wire codes as the license JWT). `free` means
@@ -515,7 +516,7 @@ export function entitlementMessage(e: Entitlement): { headline: string; body: st
     case 'grandfathered':
       return {
         headline: 'You keep everything you paid for.',
-        body: brandText('Your original license stays fully active. Lantern 3.0 never claws back what you already own.'),
+        body: brandText(`Your original license stays fully active. ${BRAND.name} 3.0 never claws back what you already own.`),
       };
     case 'offline-grace':
       return {

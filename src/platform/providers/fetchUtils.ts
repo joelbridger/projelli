@@ -5,6 +5,7 @@
 // F-120: every fetch handed out here is wrapped so the status bar can show a
 // live "sending" pulse while a request is actually in flight.
 import { instrumentEgressFetch } from '@/platform/privacy/egressActivity';
+import { BRAND } from '@/config/brand';
 
 export type ProviderType = 'anthropic' | 'openai' | 'google';
 
@@ -220,7 +221,7 @@ export class ApiResponseParseError extends Error {
    */
   toDiagnostic(): string {
     const lines: string[] = [];
-    lines.push('=== Lantern API Parse Error Diagnostic ===');
+    lines.push(`=== ${BRAND.name} API Parse Error Diagnostic ===`);
     lines.push(`Time: ${new Date().toISOString()}`);
     lines.push(`Parse error: ${this.parseErrorMessage}`);
     lines.push(`HTTP status: ${String(this.status)}`);

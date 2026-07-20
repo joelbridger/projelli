@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { create } from 'zustand';
+import { BRAND } from '@/config/brand';
 
 export interface NetworkPolicyStatus {
   offlineMode: boolean;
@@ -65,7 +66,7 @@ function assertValidPolicyStatus(
     (status.loadError !== null && typeof status.loadError !== 'string')
   ) {
     throw new Error(
-      'Lantern received an invalid Offline Mode status from the desktop app.'
+      `${BRAND.name} received an invalid Offline Mode status from the desktop app.`
     );
   }
 }
@@ -118,7 +119,7 @@ export function finishOfflineModeChange(): void {
 export function failOfflineModeChange(): void {
   const state = useOfflineModeStore.getState();
   const changeError = !state.statusKnown
-    ? 'Lantern could not confirm whether Network lockdown is on. Outside connections stay paused until the desktop privacy guard can be checked. Select Retry to try again.'
+    ? `${BRAND.name} could not confirm whether Network lockdown is on. Outside connections stay paused until the desktop privacy guard can be checked. Select Retry to try again.`
     : state.offlineMode
       ? 'Network lockdown is still on because the privacy setting could not be updated. Nothing can leave this computer. Select Retry to try again.'
       : 'Network lockdown is off, but the privacy setting could not be saved. Select Retry to try again.';
@@ -138,7 +139,7 @@ export function failOfflineModeChange(): void {
 export async function getNetworkPolicyStatus(): Promise<NetworkPolicyStatus> {
   if (!isTauri()) {
     throw new Error(
-      'Offline Mode is only available in the Lantern desktop app.'
+      `Offline Mode is only available in the ${BRAND.name} desktop app.`
     );
   }
 
@@ -176,7 +177,7 @@ export async function hydrateOfflineMode(): Promise<NetworkPolicyStatus | null> 
 export async function setOfflineMode(enabled: boolean): Promise<void> {
   if (!isTauri()) {
     throw new Error(
-      'Offline Mode is only available in the Lantern desktop app.'
+      `Offline Mode is only available in the ${BRAND.name} desktop app.`
     );
   }
 

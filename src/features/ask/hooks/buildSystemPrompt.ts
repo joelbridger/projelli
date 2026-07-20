@@ -15,6 +15,7 @@ import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
 import { buildFactsMemoryBlock } from '@/platform/rag/FactsService';
 import { brandText } from '@/config/brandText';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
+import { BRAND } from '@/config/brand';
 
 export interface BuildSystemPromptArgs {
   messages: ChatMessage[];
@@ -53,7 +54,7 @@ export function buildSystemPrompt({
     : '';
 
   const workspaceInstructions = hasWorkspace
-    ? brandText(`You are running inside Lantern, a local-first workspace app. The user's active workspace folder is "${rootPath}". You have direct access to this workspace via tools: read_file, write_file, create_folder, move_file, delete_file, list_files, search_files. When the user asks you to create, edit, organize, or look at files, USE THESE TOOLS directly — do not refuse, do not ask the user to create the file themselves, and do not pretend you can't access files. You CAN. All file paths should be relative to the workspace root. When creating .md files (documentation, notes, plans, etc.), just write them directly using write_file. After creating or modifying files, briefly confirm what you did.\n\n`)
+    ? brandText(`You are running inside ${BRAND.name}, a local-first workspace app. The user's active workspace folder is "${rootPath}". You have direct access to this workspace via tools: read_file, write_file, create_folder, move_file, delete_file, list_files, search_files. When the user asks you to create, edit, organize, or look at files, USE THESE TOOLS directly — do not refuse, do not ask the user to create the file themselves, and do not pretend you can't access files. You CAN. All file paths should be relative to the workspace root. When creating .md files (documentation, notes, plans, etc.), just write them directly using write_file. After creating or modifying files, briefly confirm what you did.\n\n`)
     : '';
 
   const baseRole = hasWorkspace

@@ -3,6 +3,7 @@ import type {
   WorkflowCompletionValidator,
 } from '@/features/crm-home/workflowLive';
 import { isEnabled } from '@/platform/flags';
+import { BRAND } from '@/config/brand';
 
 type CompletionLogic = typeof import('./workflowDependentDueCompletionLogic');
 type CompleteWorkflowStep = (
@@ -63,7 +64,7 @@ export function registerWorkflowDependentDueCompletion(
             ? 'workflow_dependency_invalid'
             : 'workflow_dependency_loading',
           message: completionLogicLoadFailed
-            ? 'Workflow timing checks could not load. Restart Lantern and try again.'
+            ? `Workflow timing checks could not load. Restart ${BRAND.name} and try again.`
             : 'Workflow timing checks are loading. Try again in a moment.',
         },
       };

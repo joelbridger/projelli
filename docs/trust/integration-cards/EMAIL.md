@@ -4,7 +4,7 @@ Last verified: 2026-07-10
 
 Status: Shipping for Microsoft 365, Gmail, and IMAP
 
-This connector imports email into Lantern and can send or save drafts only when the advisor acts from the email UI.
+This connector imports email into Advisor Prep Hero and can send or save drafts only when the advisor acts from the email UI.
 
 ## What this connector reads
 
