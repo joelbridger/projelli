@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Lantern default permissions for workspace operations. Least privilege: every grant below has at least one real caller (see prep/PLUGIN-PERMISSION-SURFACE-SWEEP-c34.md). The filesystem scope starts EMPTY and is populated at runtime, from Rust, with directories the user actually picked in a native dialog (see src-tauri/src/commands/workspace_scope.rs and tauri-plugin-dialog's own allow_file/allow_directory).",
+  "description": "Lantern default permissions for workspace operations. Least privilege: the grants below resolve to 28 concrete IPC commands, down from 123 before the c34 narrowing (see PLUGIN-PERMISSION-SURFACE-SWEEP-c34.md in the coordination repo, section RECONCILED COUNT, for the counting command and for why 28 and the separate figure 25 measure different things). The filesystem scope starts EMPTY and is populated at runtime, from Rust, by two mechanisms: tauri-plugin-dialog grants each file or folder the user actually picks in a native dialog (its own allow_file/allow_directory calls), and the workspace_grant_fs_scope command in src-tauri/src/commands/fs.rs grants the workspace root the app is opening, after refusing whole-disk roots, home-level roots and known-protected system/credential roots at the command boundary. The workspace root reaching that command is renderer-supplied, so it is guarded rather than trusted; the deny list below still applies inside any granted tree.",
   "windows": [
     "main"
   ],

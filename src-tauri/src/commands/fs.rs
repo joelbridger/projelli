@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_fs::FsExt;
 
 /// Result of checking if a path exists
@@ -26,31 +26,63 @@ pub struct PathExistsResult {
 /// workspace tree plus the non-dialog open paths (recent list, typed path,
 /// create-new).
 ///
-/// SECURITY NOTE (HD-4 shape): the path is renderer-supplied. The
-/// `is_dangerous_scope_root` check below refuses roots that would re-widen the
-/// surface to the whole disk or the user's entire profile (filesystem root, a
-/// bare drive root, the home directory itself, or any ancestor of it), and the
-/// capability `deny` list still blocks system/credential locations even inside
-/// a granted tree. This makes the grant strictly narrower than the former
-/// `**/*`, but it is NOT fully un-forgeable: a compromised renderer could still
-/// name a specific existing directory it is not meant to reach. Fully closing
-/// that requires a backend-recorded set of paths the user actually picked in a
+/// SECURITY NOTE (HD-4 shape): the path is renderer-supplied. Two independent
+/// command-boundary guards run before anything is granted:
+///
+///  1. `is_dangerous_scope_root` refuses roots that would re-widen the
+///     surface to the whole disk or the user's entire profile (filesystem root,
+///     a bare drive root, the home directory itself, or any ancestor of it).
+///  2. `protected_scope_root_for` refuses known protected system and
+///     credential locations — `/etc`, `/usr`, `/bin`, `/sbin`, `C:\Windows`,
+///     `C:\Program Files`, `~/.ssh`, the macOS keychain directory, the app's
+///     own local-data directory, and so on. The capability `deny` list already
+///     blocks reads inside those trees; this is DEFENSE IN DEPTH, an additional
+///     layer at the command boundary, not a replacement for the deny list.
+///
+/// THE LAW — what each guard reads, and why the renderer cannot forge it:
+///  - `path`: renderer-supplied. It is the SUBJECT being judged, never the
+///    authority doing the judging. No policy is derived from it.
+///  - `PROTECTED_SCOPE_ROOTS`: a compile-time `const` baked into the binary.
+///  - `dirs::home_dir()` and the `SystemRoot`/`ProgramFiles`/… lookups: the
+///    HOST PROCESS environment. A webview has no API that mutates its host
+///    process's environment; anything that could set it already has native code
+///    execution, which is outside this threat model.
+///  - `app.path().app_local_data_dir()`: derived from the compiled bundle
+///    identifier plus the OS data directory, taken from the `AppHandle` — it
+///    never comes from the IPC payload.
+///
+/// This makes the grant strictly narrower than the former `**/*`, but it is
+/// still NOT fully un-forgeable: a compromised renderer could name a specific
+/// existing NON-system directory it is not meant to reach. Fully closing that
+/// requires a backend-recorded set of paths the user actually picked in a
 /// native dialog (only real picks populate it); called out in the c34 report as
 /// follow-up.
 #[tauri::command]
-pub fn workspace_grant_fs_scope(app: AppHandle, path: String) -> Result<(), String> {
+pub fn workspace_grant_fs_scope<R: Runtime>(app: AppHandle<R>, path: String) -> Result<(), String> {
     let raw = PathBuf::from(&path);
     if raw.as_os_str().is_empty() {
         return Err("workspace path is empty".to_string());
     }
     // Canonicalize when the directory already exists (the open flow); for the
     // create-new flow the directory does not exist yet, so fall back to the
-    // lexical path. Either way the dangerous-root check still runs.
+    // lexical path. Either way both guards below still run.
     let resolved = raw.canonicalize().unwrap_or_else(|_| raw.clone());
-    if is_dangerous_scope_root(&resolved) {
+    // The guards judge a lexically-normalised form so that a create-new path
+    // that does not exist yet — where `canonicalize` cannot collapse anything —
+    // cannot smuggle `..` past them (e.g. `/tmp/../etc/newdir`).
+    let judged = normalize_lexically(&resolved);
+    if is_dangerous_scope_root(&judged) {
         return Err(format!(
             "refusing to grant filesystem scope to a system or home-level directory: {}",
-            resolved.display()
+            judged.display()
+        ));
+    }
+    let roots = protected_scope_roots(app.path().app_local_data_dir().ok());
+    if let Some(root) = protected_scope_root_for(&judged, &roots) {
+        return Err(format!(
+            "refusing to grant filesystem scope inside a protected location ({}): {}",
+            root.display(),
+            judged.display()
         ));
     }
     let scope = app.fs_scope();
@@ -94,6 +126,180 @@ fn is_dangerous_scope_root(path: &Path) -> bool {
         }
     }
     false
+}
+
+/// Absolute locations that must never become a workspace scope root, nor
+/// contain one. This MIRRORS the `fs:scope` `deny` list in
+/// `capabilities/default.json` (`/etc`, `/usr/bin`, `/bin`, `/sbin`,
+/// `C:/Windows`, `C:/Program Files`, `C:/Program Files (x86)`) and adds a few
+/// unambiguous system directories no workspace can legitimately live in.
+///
+/// Both the POSIX and the Windows entries are listed UNCONDITIONALLY, with no
+/// `cfg`: a Windows workspace path never matches a POSIX root and vice versa,
+/// and keeping the list `cfg`-free means every platform's entries are compiled
+/// and unit-tested on every platform — a `cfg`-gated list is only ever proved on
+/// the machine that happens to build it (HD-3).
+const PROTECTED_SCOPE_ROOTS: &[&str] = &[
+    "/etc",
+    // macOS canonicalises /etc to /private/etc, so the check must see both.
+    "/private/etc",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/boot",
+    "/dev",
+    "/proc",
+    "/sys",
+    "C:\\Windows",
+    "C:\\Program Files",
+    "C:\\Program Files (x86)",
+    "C:\\ProgramData",
+];
+
+/// Credential directories under the user's own home.
+const PROTECTED_HOME_RELATIVE_ROOTS: &[&str] = &[
+    ".ssh",
+    ".gnupg",
+    ".aws",
+    // macOS login keychain (also in the capability deny list).
+    "Library/Keychains",
+];
+
+/// Windows environment variables that name a protected root. Read from the HOST
+/// PROCESS environment (not from IPC); absent on other platforms, in which case
+/// nothing is added.
+const PROTECTED_ROOT_ENV_VARS: &[&str] = &[
+    "SystemRoot",
+    "windir",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "ProgramData",
+];
+
+/// Every form of the user's home directory worth matching against: the value
+/// the OS reports, plus its canonicalised form when they differ (Fedora
+/// Silverblue reports `/home/u` for a real `/var/home/u`; macOS data-volume
+/// layouts do the same through firmlinks).
+fn home_dir_forms() -> Vec<PathBuf> {
+    let mut forms = Vec::new();
+    if let Some(home) = dirs::home_dir() {
+        if let Ok(canonical) = home.canonicalize() {
+            if canonical != home {
+                forms.push(canonical);
+            }
+        }
+        forms.push(home);
+    }
+    forms
+}
+
+/// Build the protected-root list. `app_local_data` is the app's own local data
+/// directory (the encrypted pool, the webview profile, the audit ledger) taken
+/// from the `AppHandle`; passed in rather than looked up so this is unit
+/// testable without a running app.
+fn protected_scope_roots(app_local_data: Option<PathBuf>) -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = PROTECTED_SCOPE_ROOTS.iter().map(PathBuf::from).collect();
+
+    for var in PROTECTED_ROOT_ENV_VARS {
+        if let Some(value) = std::env::var_os(var) {
+            let candidate = PathBuf::from(value);
+            if candidate.is_absolute() {
+                roots.push(candidate);
+            }
+        }
+    }
+
+    for home in home_dir_forms() {
+        for relative in PROTECTED_HOME_RELATIVE_ROOTS {
+            roots.push(home.join(relative));
+        }
+    }
+
+    if let Some(app_local_data) = app_local_data {
+        roots.push(app_local_data);
+    }
+
+    roots
+}
+
+/// The protected root that `path` is equal to or nested inside, if any.
+///
+/// A root that is an ANCESTOR of the user's home directory is skipped: on
+/// layouts where home canonicalises under one of these (`/var/home/<user>`,
+/// `/System/Volumes/Data/Users/<user>`) treating it as protected would refuse
+/// every legitimate workspace. Granting such an ancestor ITSELF is still
+/// refused — by `is_dangerous_scope_root`, which fires first.
+fn protected_scope_root_for(path: &Path, roots: &[PathBuf]) -> Option<PathBuf> {
+    let homes = home_dir_forms();
+    roots
+        .iter()
+        .find(|root| {
+            if homes.iter().any(|home| home.starts_with(root)) {
+                return false;
+            }
+            path_is_within(path, root)
+        })
+        .cloned()
+}
+
+/// `path == root` or `path` is nested under `root`, compared by whole path
+/// components (so `/etcetera` is NOT inside `/etc`).
+///
+/// The second comparison is the Windows one: Windows paths are case-insensitive
+/// and mix `/` with `\`, neither of which `Path::starts_with` accounts for. It
+/// runs on every platform ON PURPOSE rather than behind a `cfg` — that way the
+/// Windows matching is exercised by the unit tests on whatever host builds
+/// them, instead of being a claim no test on this machine can settle (HD-3).
+/// Running it on POSIX can only ever make the guard refuse MORE (a
+/// case-variant spelling of a protected root); it never admits anything the
+/// component comparison would have refused.
+fn path_is_within(path: &Path, root: &Path) -> bool {
+    if root.as_os_str().is_empty() {
+        return false;
+    }
+    if path.starts_with(root) {
+        return true;
+    }
+    let normalize = |p: &Path| p.to_string_lossy().replace('/', "\\").to_lowercase();
+    let path = normalize(path);
+    let root = normalize(root);
+    let root = root.trim_end_matches('\\');
+    if root.is_empty() {
+        return false;
+    }
+    path == root || path.starts_with(&format!("{root}\\"))
+}
+
+/// Collapse `.` and `..` textually, without touching the filesystem. Used so the
+/// guards judge the same location the OS would resolve, even for a path that
+/// does not exist yet and therefore cannot be canonicalised. A leading `..` that
+/// would escape above the root is kept (there is nothing above the root).
+fn normalize_lexically(path: &Path) -> PathBuf {
+    let mut components = path.components().peekable();
+    let mut out = if let Some(prefix @ Component::Prefix(..)) = components.peek().copied() {
+        components.next();
+        PathBuf::from(prefix.as_os_str())
+    } else {
+        PathBuf::new()
+    };
+
+    for component in components {
+        match component {
+            Component::Prefix(..) => unreachable!("prefix can only be the first component"),
+            Component::RootDir => out.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if matches!(out.components().next_back(), Some(Component::Normal(_))) {
+                    out.pop();
+                } else {
+                    out.push("..");
+                }
+            }
+            Component::Normal(part) => out.push(part),
+        }
+    }
+
+    out
 }
 
 /// Check if a path exists and get its type
@@ -323,6 +529,238 @@ mod workspace_scope_guard_tests {
                 "a genuine nested workspace must be grantable"
             );
         }
+    }
+}
+
+/// Command-level rejection of known protected roots (c35 A3, defense in depth).
+///
+/// The capability `deny` list already refuses reads inside these trees. These
+/// tests pin the ADDITIONAL layer: `workspace_grant_fs_scope` itself refuses
+/// the grant at the command boundary, before `allow_directory` is ever called.
+#[cfg(test)]
+mod protected_scope_root_tests {
+    use super::{
+        normalize_lexically, path_is_within, protected_scope_root_for, protected_scope_roots,
+        workspace_grant_fs_scope,
+    };
+    use std::path::{Path, PathBuf};
+
+    fn roots() -> Vec<PathBuf> {
+        protected_scope_roots(None)
+    }
+
+    /// A mock app with the REAL `tauri-plugin-fs` registered, so
+    /// `workspace_grant_fs_scope` runs end to end and the resulting scope can be
+    /// interrogated — the refusal is proved by the scope still denying the
+    /// protected path, not merely by an error string.
+    fn mock_app_with_fs_plugin() -> tauri::App<tauri::test::MockRuntime> {
+        tauri::test::mock_builder()
+            .plugin(tauri_plugin_fs::init())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .expect("build mock app with fs plugin")
+    }
+
+    /// THE NEGATIVE CONTROL for this lane.
+    ///
+    /// Calls the REAL `workspace_grant_fs_scope` Tauri command with `/etc` — a
+    /// root the OLD code accepted (`is_dangerous_scope_root("/etc")` is false:
+    /// it has a parent, it has normal components, and it is neither the home
+    /// directory nor an ancestor of it). The command must now refuse it, and
+    /// the message must name the PROTECTED guard so this cannot pass by
+    /// accident through the pre-existing dangerous-root guard.
+    ///
+    /// Neuter the `protected_scope_root_for` block in the command and this test
+    /// goes RED.
+    #[test]
+    fn command_refuses_a_known_protected_root() {
+        use tauri_plugin_fs::FsExt;
+
+        let app = mock_app_with_fs_plugin();
+        let result = workspace_grant_fs_scope(app.handle().clone(), "/etc".to_string());
+        assert!(
+            result.is_err(),
+            "workspace_grant_fs_scope must refuse a protected system root"
+        );
+        let message = result.unwrap_err();
+        assert!(
+            message.contains("protected location"),
+            "must be refused by the protected-root guard specifically, got: {message}"
+        );
+        assert!(
+            message.contains("/etc"),
+            "refusal must name the offending root, got: {message}"
+        );
+        // The refusal is real, not cosmetic: nothing under /etc entered the
+        // plugin's fs scope.
+        assert!(
+            !app.fs_scope().is_allowed("/etc/passwd"),
+            "the refused root must NOT have been granted to the renderer"
+        );
+    }
+
+    /// Same guard, reached through the create-new flow's shape: a path that does
+    /// not exist yet (so `canonicalize` fails) and that hides the protected root
+    /// behind `..`. The lexical normalisation must expose it.
+    #[test]
+    fn command_refuses_a_traversal_into_a_protected_root() {
+        use tauri_plugin_fs::FsExt;
+
+        let app = mock_app_with_fs_plugin();
+        let result = workspace_grant_fs_scope(
+            app.handle().clone(),
+            "/tmp/lantern-a3/../../etc/ssh/lantern-not-a-workspace".to_string(),
+        );
+        let message = result.expect_err("traversal into /etc must be refused");
+        assert!(message.contains("protected location"), "got: {message}");
+        assert!(
+            !app.fs_scope().is_allowed("/etc/ssh/ssh_host_rsa_key"),
+            "the traversal target must NOT have been granted to the renderer"
+        );
+    }
+
+    /// PR-2 positive control on the SAME code path: a genuine workspace still
+    /// goes all the way through the command and really is granted. Proves the
+    /// new layer does not fail closed on legitimate flows.
+    #[test]
+    fn command_still_grants_a_genuine_workspace() {
+        use tauri_plugin_fs::FsExt;
+
+        let app = mock_app_with_fs_plugin();
+        let workspace = tempfile::tempdir().expect("workspace tempdir");
+        let file = workspace.path().join("client.docx");
+        std::fs::write(&file, b"in-workspace").expect("write workspace file");
+
+        assert!(
+            !app.fs_scope().is_allowed(&file),
+            "precondition: nothing is granted before the command runs"
+        );
+        workspace_grant_fs_scope(
+            app.handle().clone(),
+            workspace.path().to_string_lossy().to_string(),
+        )
+        .expect("a genuine workspace must still be grantable");
+        assert!(
+            app.fs_scope().is_allowed(&file),
+            "the workspace tree must be reachable after the grant"
+        );
+    }
+
+    #[test]
+    fn protected_roots_cover_the_capability_deny_list() {
+        let roots = roots();
+        for denied in [
+            "/etc/shadow",
+            "/usr/bin",
+            "/bin/sh",
+            "/sbin",
+            "C:\\Windows\\System32",
+            "C:\\Program Files\\Lantern",
+            "C:\\Program Files (x86)\\Lantern",
+        ] {
+            assert!(
+                protected_scope_root_for(Path::new(denied), &roots).is_some(),
+                "{denied} is in the capability deny list; the command must refuse it too"
+            );
+        }
+    }
+
+    #[test]
+    fn credential_directories_under_home_are_protected() {
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+        let roots = roots();
+        for relative in [".ssh", ".ssh/id_rsa", ".gnupg", ".aws/credentials"] {
+            let path = home.join(relative);
+            assert!(
+                protected_scope_root_for(&path, &roots).is_some(),
+                "{} must be refused as a scope root",
+                path.display()
+            );
+        }
+    }
+
+    #[test]
+    fn the_apps_own_local_data_directory_is_protected() {
+        let app_local_data = PathBuf::from("/home/someone/.local/share/com.lantern.app");
+        let roots = protected_scope_roots(Some(app_local_data.clone()));
+        assert!(
+            protected_scope_root_for(&app_local_data.join("crm-core-enc.db"), &roots).is_some(),
+            "$APPLOCALDATA is denied by the capability; the command must refuse it too"
+        );
+    }
+
+    /// PR-2 self-diagnosis: the new layer must not break a legitimate flow. A
+    /// genuine workspace — including one whose name merely resembles a
+    /// protected root — stays grantable.
+    #[test]
+    fn a_genuine_workspace_is_not_protected() {
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+        let roots = roots();
+        for relative in [
+            "Advisor Prep Hero/Coast Wealth",
+            "Documents/Clients",
+            "Desktop/etc-planning", // NOT /etc
+            "OneDrive/Advisor Prep Hero",
+        ] {
+            let path = home.join(relative);
+            assert!(
+                protected_scope_root_for(&path, &roots).is_none(),
+                "{} is a legitimate workspace and must stay grantable",
+                path.display()
+            );
+        }
+    }
+
+    /// A root that is an ancestor of the user's home must NOT poison every
+    /// workspace (Fedora Silverblue: home is really `/var/home/<user>`).
+    #[test]
+    fn a_root_containing_the_home_directory_is_exempted() {
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+        let mut ancestors: Vec<PathBuf> = Vec::new();
+        let mut cursor = home.parent();
+        while let Some(parent) = cursor {
+            if parent.parent().is_some() {
+                ancestors.push(parent.to_path_buf());
+            }
+            cursor = parent.parent();
+        }
+        if ancestors.is_empty() {
+            return;
+        }
+        let workspace = home.join("Advisor Prep Hero");
+        assert!(
+            protected_scope_root_for(&workspace, &ancestors).is_none(),
+            "an ancestor of home must be exempted, or no workspace would ever be grantable"
+        );
+    }
+
+    #[test]
+    fn similarly_named_siblings_are_not_treated_as_nested() {
+        assert!(path_is_within(Path::new("/etc/ssh"), Path::new("/etc")));
+        assert!(path_is_within(Path::new("/etc"), Path::new("/etc")));
+        assert!(!path_is_within(Path::new("/etcetera"), Path::new("/etc")));
+        assert!(!path_is_within(Path::new("/home/u/etc"), Path::new("/etc")));
+    }
+
+    #[test]
+    fn lexical_normalisation_collapses_traversal() {
+        assert_eq!(
+            normalize_lexically(Path::new("/tmp/a/../../etc/x")),
+            PathBuf::from("/etc/x")
+        );
+        assert_eq!(
+            normalize_lexically(Path::new("/home/u/./ws")),
+            PathBuf::from("/home/u/ws")
+        );
+        assert_eq!(
+            normalize_lexically(Path::new("/home/u/ws")),
+            PathBuf::from("/home/u/ws")
+        );
     }
 }
 
