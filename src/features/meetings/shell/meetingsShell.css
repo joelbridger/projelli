@@ -221,6 +221,12 @@
   background: var(--kp-warning-bg);
 }
 
+.meetings-shell-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kp-space-xs);
+}
+
 .meetings-shell-empty,
 .meetings-shell-local-state,
 .meetings-shell-error,

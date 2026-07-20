@@ -27,6 +27,7 @@
         "meeting": "Reunión",
         "when": "Cuándo",
         "client": "Cliente vinculado",
+        "owner": "Responsable",
         "status": "Estado",
         "open": "Abrir reunión",
         "action": "Acción",
@@ -34,13 +35,26 @@
       },
       "link": {
         "linked": "Vinculada al cliente",
-        "folder-only": "No vinculada a un cliente"
+        "folder-only": "Sin carpeta de reunión vinculada"
+      },
+      "owner": {
+        "unassigned": "Sin asignar",
+        "unavailable": "El nombre del responsable no está disponible"
       },
       "status": { "needs-review": "Necesita revisión" },
       "empty": {
         "upcoming": "No hay próximas reuniones.",
         "past": "Aún no hay reuniones procesadas.",
+        "upcoming-filtered": "Ninguna reunión próxima coincide con estos filtros.",
+        "upcoming-filtered-client": "Ninguna reunión próxima de {{client}} coincide con estos filtros.",
+        "past-filtered": "Ninguna reunión anterior coincide con estos filtros.",
+        "past-filtered-client": "Ninguna reunión anterior de {{client}} coincide con estos filtros.",
+        "actions-filtered": "Ninguna acción coincide con estos filtros.",
+        "actions-filtered-client": "Ninguna acción de {{client}} coincide con estos filtros.",
         "actions": "Nada espera tu revisión."
+      },
+      "unavailable": {
+        "choose-client": "Elige un cliente para ver reuniones."
       },
       "loading": {
         "meetings": "Cargando reuniones…",
@@ -64,12 +78,14 @@
       },
       "filters": {
         "view": "Vista",
+        "status": "Estado",
         "type": "Tipo",
         "owner": "Responsable",
         "need-attention": "Necesita atención",
         "all": "Todo",
         "archived": "Archivado",
         "all-types": "Todos los tipos",
+        "all-statuses": "Todos los estados",
         "tasks": "Propuestas de tareas",
         "crm-updates": "Propuestas de actualización del CRM",
         "follow-ups": "Borradores de seguimiento",
@@ -78,6 +94,63 @@
         "all-owners": "Todos los responsables",
         "mine": "Míos",
         "unassigned": "Sin asignar"
+      },
+      "facts": {
+        "client-match": "Coincide con el cliente seleccionado",
+        "relative": {
+          "starts-in": "Comienza en {{count}} minuto",
+          "starts-in_other": "Comienza en {{count}} minutos",
+          "in-progress": "En curso · queda {{count}} minuto",
+          "in-progress_other": "En curso · quedan {{count}} minutos",
+          "ended-ago": "Terminó hace {{count}} minuto",
+          "ended-ago_other": "Terminó hace {{count}} minutos"
+        },
+        "platform": {
+          "zoom": "Zoom",
+          "teams": "Teams",
+          "google-meet": "Google Meet",
+          "phone": "Teléfono",
+          "in-person": "En persona",
+          "other": "Otra plataforma",
+          "unavailable": "Los detalles de la plataforma no están disponibles"
+        },
+        "participants": {
+          "unavailable": "Los detalles de participantes no están disponibles",
+          "count": "{{count}} participante (nombre no disponible)",
+          "count_other": "{{count}} participantes (nombres no disponibles)",
+          "named-more": "{{name}} y {{count}} persona más",
+          "named-more_other": "{{name}} y {{count}} personas más"
+        },
+        "brief": {
+          "available": "Preparación lista",
+          "processing": "Preparación en proceso",
+          "needs-review": "La preparación necesita revisión",
+          "not-available": "El estado de preparación no está disponible"
+        },
+        "join": {
+          "available": "Datos para unirse disponibles",
+          "unavailable": "Los datos para unirse no están disponibles"
+        },
+        "recording": {
+          "not-recorded": "No grabada",
+          "recording": "Grabación en curso",
+          "processing": "Grabación en proceso",
+          "available": "Grabación disponible",
+          "unavailable": "El estado de grabación no está disponible"
+        },
+        "processing": {
+          "needs-review": "Necesita revisión",
+          "processing": "En proceso",
+          "complete": "Completa",
+          "unknown": "El estado de procesamiento no está disponible"
+        },
+        "outputs": {
+          "transcript": "Transcripción lista",
+          "summary": "Resumen listo",
+          "tasks": "Tareas listas",
+          "follow-up": "Borrador de seguimiento listo",
+          "unavailable": "Los detalles de resultados no están disponibles"
+        }
       },
       "fixture": {
         "list": "Vista externa de reuniones",
@@ -97,7 +170,9 @@
       "automations": {
         "description": "Reglas de calendario activas para reuniones a las que esta aplicación está lista para unirse."
       },
-      "new-meeting": { "choose-client": "Elige un cliente antes de iniciar una reunión." },
+      "new-meeting": {
+        "choose-client": "Elige un cliente antes de iniciar una reunión."
+      },
       "fallback": { "meeting": "Reunión" },
       "detail-tabs": {
         "prep": "Preparación",

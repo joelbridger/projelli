@@ -27,6 +27,7 @@
         "meeting": "Besprechung",
         "when": "Wann",
         "client": "Kundenzuordnung",
+        "owner": "Verantwortlich",
         "status": "Status",
         "open": "Besprechung öffnen",
         "action": "Aktion",
@@ -34,13 +35,26 @@
       },
       "link": {
         "linked": "Mit Kunde verknüpft",
-        "folder-only": "Nicht mit einem Kunden verknüpft"
+        "folder-only": "Kein verknüpfter Besprechungsordner"
+      },
+      "owner": {
+        "unassigned": "Nicht zugewiesen",
+        "unavailable": "Name nicht verfügbar"
       },
       "status": { "needs-review": "Prüfung nötig" },
       "empty": {
         "upcoming": "Keine bevorstehenden Besprechungen.",
         "past": "Noch keine verarbeiteten Besprechungen.",
+        "upcoming-filtered": "Keine bevorstehenden Besprechungen entsprechen diesen Filtern.",
+        "upcoming-filtered-client": "Keine bevorstehenden Besprechungen für {{client}} entsprechen diesen Filtern.",
+        "past-filtered": "Keine vergangenen Besprechungen entsprechen diesen Filtern.",
+        "past-filtered-client": "Keine vergangenen Besprechungen für {{client}} entsprechen diesen Filtern.",
+        "actions-filtered": "Keine Aktionen entsprechen diesen Filtern.",
+        "actions-filtered-client": "Keine Aktionen für {{client}} entsprechen diesen Filtern.",
         "actions": "Nichts wartet auf Sie."
+      },
+      "unavailable": {
+        "choose-client": "Wählen Sie einen Kunden, um Besprechungen anzuzeigen."
       },
       "loading": {
         "meetings": "Besprechungen werden geladen…",
@@ -64,12 +78,14 @@
       },
       "filters": {
         "view": "Ansicht",
+        "status": "Status",
         "type": "Typ",
         "owner": "Verantwortlich",
         "need-attention": "Zu prüfen",
         "all": "Alle",
         "archived": "Archiviert",
         "all-types": "Alle Typen",
+        "all-statuses": "Alle Status",
         "tasks": "Aufgabenvorschläge",
         "crm-updates": "CRM-Änderungsvorschläge",
         "follow-ups": "Nachfassentwürfe",
@@ -78,6 +94,63 @@
         "all-owners": "Alle Verantwortlichen",
         "mine": "Meine",
         "unassigned": "Nicht zugewiesen"
+      },
+      "facts": {
+        "client-match": "Entspricht dem ausgewählten Kunden",
+        "relative": {
+          "starts-in": "Beginnt in {{count}} Minute",
+          "starts-in_other": "Beginnt in {{count}} Minuten",
+          "in-progress": "Läuft · noch {{count}} Minute",
+          "in-progress_other": "Läuft · noch {{count}} Minuten",
+          "ended-ago": "Vor {{count}} Minute beendet",
+          "ended-ago_other": "Vor {{count}} Minuten beendet"
+        },
+        "platform": {
+          "zoom": "Zoom",
+          "teams": "Teams",
+          "google-meet": "Google Meet",
+          "phone": "Telefon",
+          "in-person": "Persönlich",
+          "other": "Andere Plattform",
+          "unavailable": "Plattformdetails sind nicht verfügbar"
+        },
+        "participants": {
+          "unavailable": "Teilnehmerdetails sind nicht verfügbar",
+          "count": "{{count}} Teilnehmer (Name nicht verfügbar)",
+          "count_other": "{{count}} Teilnehmer (Namen nicht verfügbar)",
+          "named-more": "{{name}} und {{count}} weitere Person",
+          "named-more_other": "{{name}} und {{count}} weitere Personen"
+        },
+        "brief": {
+          "available": "Vorbereitung bereit",
+          "processing": "Vorbereitung läuft",
+          "needs-review": "Vorbereitung muss geprüft werden",
+          "not-available": "Vorbereitungsstatus ist nicht verfügbar"
+        },
+        "join": {
+          "available": "Teilnahmedaten verfügbar",
+          "unavailable": "Teilnahmedaten sind nicht verfügbar"
+        },
+        "recording": {
+          "not-recorded": "Nicht aufgezeichnet",
+          "recording": "Aufzeichnung läuft",
+          "processing": "Aufzeichnung wird verarbeitet",
+          "available": "Aufzeichnung verfügbar",
+          "unavailable": "Aufzeichnungsstatus ist nicht verfügbar"
+        },
+        "processing": {
+          "needs-review": "Prüfung nötig",
+          "processing": "Wird verarbeitet",
+          "complete": "Abgeschlossen",
+          "unknown": "Verarbeitungsstatus ist nicht verfügbar"
+        },
+        "outputs": {
+          "transcript": "Transkript bereit",
+          "summary": "Zusammenfassung bereit",
+          "tasks": "Aufgaben bereit",
+          "follow-up": "Nachfassentwurf bereit",
+          "unavailable": "Ausgabedetails sind nicht verfügbar"
+        }
       },
       "fixture": {
         "list": "Externe Besprechungsansicht",
@@ -97,7 +170,9 @@
       "automations": {
         "description": "Aktive Kalenderregeln für Besprechungen, denen diese App beitreten kann."
       },
-      "new-meeting": { "choose-client": "Wählen Sie einen Kunden, bevor Sie eine Besprechung starten." },
+      "new-meeting": {
+        "choose-client": "Wählen Sie einen Kunden, bevor Sie eine Besprechung starten."
+      },
       "fallback": { "meeting": "Besprechung" },
       "detail-tabs": {
         "prep": "Vorbereitung",

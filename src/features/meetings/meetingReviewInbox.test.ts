@@ -471,6 +471,7 @@ describe('meeting Actions inbox', () => {
     const beta = await inbox.readForClient(clientB, filter);
     expect(beta.kind).toBe('ready-empty');
     if (beta.kind !== 'ready-empty') throw new Error(beta.kind);
+    expect(beta.emptyReason).toBe('filtered');
     expect(beta.emptyCopy).toContain('Beta Household');
     expect(beta.emptyCopy).toContain('filtered');
   });

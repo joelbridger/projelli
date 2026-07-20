@@ -1,8 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- public registries intentionally pair contracts with small base renderers. */
-import {
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DEFAULT_MEETING_REVIEW_INBOX_FILTER,
@@ -19,7 +16,10 @@ import type {
   MeetingArtifactReader,
   MeetingProjection,
   MeetingRef,
+  MeetingSurfaceProjectionResult,
+  MeetingSurfaceRow,
   NoticeEvidenceInput,
+  PastMeetingStatusFilter,
 } from '../foundation/contract';
 
 interface BaseDescriptor<Context> {
@@ -49,7 +49,9 @@ function validateDescriptor<Context>(
     throw new Error(`[${registry}] order must be finite: ${descriptor.id}`);
   }
   if (!descriptor.labelKey.includes('.')) {
-    throw new Error(`[${registry}] labelKey must be namespaced: ${descriptor.id}`);
+    throw new Error(
+      `[${registry}] labelKey must be namespaced: ${descriptor.id}`
+    );
   }
   ids.add(descriptor.id);
 }
@@ -57,7 +59,10 @@ function validateDescriptor<Context>(
 function createLiveRegistry<
   Descriptor extends BaseDescriptor<Context>,
   Context,
->(name: string, base: readonly Descriptor[]): LiveRegistry<Descriptor, Context> {
+>(
+  name: string,
+  base: readonly Descriptor[]
+): LiveRegistry<Descriptor, Context> {
   return { name, base, registered: [], listeners: new Set(), version: 0 };
 }
 
@@ -70,7 +75,9 @@ function compose<Descriptor extends BaseDescriptor<Context>, Context>(
   descriptors.forEach((descriptor) => {
     validateDescriptor(registry.name, descriptor, ids);
     if (typeof (descriptor as { render?: unknown }).render !== 'function') {
-      throw new Error(`[${registry.name}] render is required: ${descriptor.id}`);
+      throw new Error(
+        `[${registry.name}] render is required: ${descriptor.id}`
+      );
     }
   });
   return descriptors
@@ -92,7 +99,9 @@ function register<Descriptor extends BaseDescriptor<Context>, Context>(
     throw error;
   }
   registry.version += 1;
-  registry.listeners.forEach((listener) => { listener(); });
+  registry.listeners.forEach((listener) => {
+    listener();
+  });
   let active = true;
   return () => {
     if (!active) return;
@@ -101,7 +110,9 @@ function register<Descriptor extends BaseDescriptor<Context>, Context>(
       (candidate) => candidate !== descriptor
     );
     registry.version += 1;
-    registry.listeners.forEach((listener) => { listener(); });
+    registry.listeners.forEach((listener) => {
+      listener();
+    });
   };
 }
 
@@ -113,9 +124,10 @@ function subscribe<Descriptor extends BaseDescriptor<Context>, Context>(
   return () => registry.listeners.delete(listener);
 }
 
-function useRegistryVersion<Descriptor extends BaseDescriptor<Context>, Context>(
-  registry: LiveRegistry<Descriptor, Context>
-): number {
+function useRegistryVersion<
+  Descriptor extends BaseDescriptor<Context>,
+  Context,
+>(registry: LiveRegistry<Descriptor, Context>): number {
   return useSyncExternalStore(
     (listener) => subscribe(registry, listener),
     () => registry.version,
@@ -125,18 +137,30 @@ function useRegistryVersion<Descriptor extends BaseDescriptor<Context>, Context>
 
 export interface MeetingListContext {
   readonly client: ClientBoundary | null;
-  readonly meetings: readonly MeetingProjection[];
+  /** The sealed projector is the only source for visible meeting-row facts. */
+  readonly surface: Extract<
+    MeetingSurfaceProjectionResult,
+    { readonly kind: 'ready' }
+  > | null;
   readonly reviewResult: MeetingReviewInboxResult;
   readonly reviewFilter: MeetingReviewInboxFilter;
   readonly currentMemberId: string | null;
-  readonly now: number;
+  readonly pastFilter: {
+    readonly status: PastMeetingStatusFilter | 'all';
+    /** `all` is one sentinel within the otherwise open meeting-type IDs. */
+    readonly typeId: string;
+  };
+  readonly ownerFilterState: {
+    readonly applied: boolean;
+    readonly unfilteredCounts: Readonly<Record<'upcoming' | 'past', number>>;
+  };
   openMeeting: (ref: MeetingRef) => Promise<void>;
   setReviewFilter: (filter: MeetingReviewInboxFilter) => void;
+  setPastFilter: (filter: MeetingListContext['pastFilter']) => void;
   retryReview: () => void;
 }
 
-export interface MeetingListDescriptor
-  extends BaseDescriptor<MeetingListContext> {
+export interface MeetingListDescriptor extends BaseDescriptor<MeetingListContext> {
   readonly kind: 'primary' | 'manage';
   readonly render: (context: MeetingListContext) => ReactNode;
 }
@@ -148,6 +172,127 @@ function meetingDate(value: string): string {
   }).format(new Date(value));
 }
 
+function relativeMeetingTime(
+  value: MeetingSurfaceRow['relativeContext'],
+  t: ReturnType<typeof useTranslation>['t']
+): string {
+  if (value.kind === 'starts-in') {
+    return t('meetings.shell.facts.relative.starts-in', {
+      count: value.minutes,
+    });
+  }
+  if (value.kind === 'in-progress') {
+    return t('meetings.shell.facts.relative.in-progress', {
+      count: value.minutesRemaining,
+    });
+  }
+  return t('meetings.shell.facts.relative.ended-ago', {
+    count: value.minutes,
+  });
+}
+
+function platformLabel(
+  platform: MeetingSurfaceRow['platform'],
+  t: ReturnType<typeof useTranslation>['t']
+): string {
+  const labels: Record<
+    Exclude<MeetingSurfaceRow['platform'], 'unknown'>,
+    string
+  > = {
+    zoom: t('meetings.shell.facts.platform.zoom'),
+    teams: t('meetings.shell.facts.platform.teams'),
+    'google-meet': t('meetings.shell.facts.platform.google-meet'),
+    phone: t('meetings.shell.facts.platform.phone'),
+    'in-person': t('meetings.shell.facts.platform.in-person'),
+    other: t('meetings.shell.facts.platform.other'),
+  };
+  return platform === 'unknown'
+    ? t('meetings.shell.facts.platform.unavailable')
+    : labels[platform];
+}
+
+function participantLabel(
+  cue: MeetingSurfaceRow['participantCue'],
+  t: ReturnType<typeof useTranslation>['t']
+): string {
+  if (cue.count === 0) {
+    return t('meetings.shell.facts.participants.unavailable');
+  }
+  const firstName = cue.names[0];
+  if (!firstName) {
+    return t('meetings.shell.facts.participants.count', { count: cue.count });
+  }
+  if (cue.count === 1) return firstName;
+  return t('meetings.shell.facts.participants.named-more', {
+    name: firstName,
+    count: cue.count - 1,
+  });
+}
+
+function outputLabels(
+  outputs: MeetingSurfaceRow['outputs'],
+  t: ReturnType<typeof useTranslation>['t']
+): readonly string[] {
+  const labels = [
+    outputs.transcript ? t('meetings.shell.facts.outputs.transcript') : null,
+    outputs.summary ? t('meetings.shell.facts.outputs.summary') : null,
+    outputs.tasks ? t('meetings.shell.facts.outputs.tasks') : null,
+    outputs.followUp ? t('meetings.shell.facts.outputs.follow-up') : null,
+  ].filter((value): value is string => value !== null);
+  return labels.length > 0
+    ? labels
+    : [t('meetings.shell.facts.outputs.unavailable')];
+}
+
+function briefLabel(
+  status: MeetingSurfaceRow['briefStatus'],
+  t: ReturnType<typeof useTranslation>['t']
+): string {
+  const labels: Record<MeetingSurfaceRow['briefStatus'], string> = {
+    available: t('meetings.shell.facts.brief.available'),
+    processing: t('meetings.shell.facts.brief.processing'),
+    'needs-review': t('meetings.shell.facts.brief.needs-review'),
+    'not-available': t('meetings.shell.facts.brief.not-available'),
+  };
+  return labels[status];
+}
+
+function joinLabel(
+  readiness: MeetingSurfaceRow['joinReadiness'],
+  t: ReturnType<typeof useTranslation>['t']
+): string {
+  return readiness === 'available'
+    ? t('meetings.shell.facts.join.available')
+    : t('meetings.shell.facts.join.unavailable');
+}
+
+function recordingLabel(
+  status: MeetingSurfaceRow['recordingStatus'],
+  t: ReturnType<typeof useTranslation>['t']
+): string {
+  const labels: Record<MeetingSurfaceRow['recordingStatus'], string> = {
+    'not-recorded': t('meetings.shell.facts.recording.not-recorded'),
+    recording: t('meetings.shell.facts.recording.recording'),
+    processing: t('meetings.shell.facts.recording.processing'),
+    available: t('meetings.shell.facts.recording.available'),
+    unavailable: t('meetings.shell.facts.recording.unavailable'),
+  };
+  return labels[status];
+}
+
+function processingLabel(
+  status: MeetingSurfaceRow['processingStatus'],
+  t: ReturnType<typeof useTranslation>['t']
+): string {
+  const labels: Record<MeetingSurfaceRow['processingStatus'], string> = {
+    'needs-review': t('meetings.shell.facts.processing.needs-review'),
+    processing: t('meetings.shell.facts.processing.processing'),
+    complete: t('meetings.shell.facts.processing.complete'),
+    unknown: t('meetings.shell.facts.processing.unknown'),
+  };
+  return labels[status];
+}
+
 function MeetingsRows({
   context,
   period,
@@ -156,76 +301,220 @@ function MeetingsRows({
   period: 'upcoming' | 'past';
 }) {
   const { t } = useTranslation();
-  const rows = context.meetings.filter((meeting) =>
-    period === 'upcoming'
-      ? Date.parse(meeting.scheduledEndUtc) >= context.now
-      : Date.parse(meeting.scheduledEndUtc) < context.now
-  );
-  if (rows.length === 0) {
-    return (
-      <div className="meetings-shell-empty" data-testid={`meetings-${period}-empty`}>
-        {t(
-          period === 'upcoming'
-            ? 'meetings.shell.empty.upcoming'
-            : 'meetings.shell.empty.past'
-        )}
+  const allRows = context.surface?.[period] ?? [];
+  const rows =
+    period === 'past'
+      ? allRows.filter(
+          (row) =>
+            (context.pastFilter.status === 'all' ||
+              row.processingStatus === context.pastFilter.status) &&
+            (context.pastFilter.typeId === 'all' ||
+              row.typeId === context.pastFilter.typeId)
+        )
+      : allRows;
+  const pastFilters =
+    period === 'past' ? (
+      <div
+        className="meetings-shell-toolbar"
+        data-testid="meetings-past-filters"
+      >
+        <label>
+          <span>{t('meetings.shell.filters.status')}</span>
+          <select
+            data-testid="meetings-past-status-filter"
+            value={context.pastFilter.status}
+            onChange={(event) => {
+              context.setPastFilter({
+                ...context.pastFilter,
+                status: event.target.value as PastMeetingStatusFilter | 'all',
+              });
+            }}
+          >
+            <option value="all">
+              {t('meetings.shell.filters.all-statuses')}
+            </option>
+            {(context.surface?.pastFilters.statuses ?? []).map((status) => (
+              <option key={status} value={status}>
+                {processingLabel(status, t)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>{t('meetings.shell.filters.type')}</span>
+          <select
+            data-testid="meetings-past-type-filter"
+            value={context.pastFilter.typeId}
+            onChange={(event) => {
+              context.setPastFilter({
+                ...context.pastFilter,
+                typeId: event.target.value,
+              });
+            }}
+          >
+            <option value="all">{t('meetings.shell.filters.all-types')}</option>
+            {(context.surface?.pastFilters.typeIds ?? []).map((typeId) => (
+              <option key={typeId} value={typeId}>
+                {typeId}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
+    ) : null;
+
+  if (!context.surface) {
+    return (
+      <>
+        {pastFilters}
+        <div
+          className="meetings-shell-local-state"
+          data-testid={`meetings-${period}-unavailable`}
+        >
+          {t('meetings.shell.unavailable.choose-client')}
+        </div>
+      </>
+    );
+  }
+
+  if (rows.length === 0) {
+    const pastFilterApplied =
+      period === 'past' &&
+      allRows.length > 0 &&
+      (context.pastFilter.status !== 'all' ||
+        context.pastFilter.typeId !== 'all');
+    const ownerFilteredToNothing =
+      context.ownerFilterState.applied &&
+      allRows.length === 0 &&
+      context.ownerFilterState.unfilteredCounts[period] > 0;
+    const filteredToNothing = pastFilterApplied || ownerFilteredToNothing;
+    const clientName =
+      context.client?.displayName ?? context.client?.householdRef ?? '';
+    return (
+      <>
+        {pastFilters}
+        <div
+          className="meetings-shell-empty"
+          data-testid={
+            filteredToNothing
+              ? `meetings-${period}-filtered-empty`
+              : `meetings-${period}-empty`
+          }
+        >
+          {filteredToNothing
+            ? t(
+                clientName
+                  ? `meetings.shell.empty.${period}-filtered-client`
+                  : `meetings.shell.empty.${period}-filtered`,
+                { client: clientName }
+              )
+            : context.surface.emptyCopy[period]}
+        </div>
+      </>
     );
   }
   return (
-    <div className="meetings-shell-table-wrap" data-testid={`meetings-${period}-rows`}>
-      <table className="meetings-shell-table">
-        <thead>
-          <tr>
-            <th>{t('meetings.shell.columns.meeting')}</th>
-            <th>{t('meetings.shell.columns.when')}</th>
-            <th>{t('meetings.shell.columns.client')}</th>
-            <th>{t('meetings.shell.columns.status')}</th>
-            <th aria-label={t('meetings.shell.columns.open')} />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((meeting) => {
-            const linked = meeting.legacyLink !== undefined;
-            return (
-              <tr key={meeting.id} data-testid={`meetings-row-${meeting.id}`}>
-                <td>
-                  <strong>{meeting.typeId}</strong>
-                  <small>{meeting.state}</small>
-                </td>
-                <td>{meetingDate(meeting.scheduledStartUtc)}</td>
-                <td>{meeting.householdRef}</td>
-                <td>
-                  <span className={`meetings-shell-status ${linked ? 'is-linked' : ''}`}>
-                    {t(
-                      linked
-                        ? 'meetings.shell.link.linked'
-                        : 'meetings.shell.link.folder-only'
+    <>
+      {pastFilters}
+      <div
+        className="meetings-shell-table-wrap"
+        data-testid={`meetings-${period}-rows`}
+      >
+        <table className="meetings-shell-table">
+          <thead>
+            <tr>
+              <th>{t('meetings.shell.columns.meeting')}</th>
+              <th>{t('meetings.shell.columns.when')}</th>
+              <th>{t('meetings.shell.columns.client')}</th>
+              <th>{t('meetings.shell.columns.status')}</th>
+              <th aria-label={t('meetings.shell.columns.open')} />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((meeting) => {
+              const linked = meeting.hasLinkedMeeting;
+              return (
+                <tr key={meeting.id} data-testid={`meetings-row-${meeting.id}`}>
+                  <td>
+                    <strong>{meeting.title}</strong>
+                    <small>
+                      {meeting.typeId} · {platformLabel(meeting.platform, t)}
+                    </small>
+                    <small>{participantLabel(meeting.participantCue, t)}</small>
+                  </td>
+                  <td>
+                    <span>{meetingDate(meeting.scheduledStartUtc)}</span>
+                    <small>
+                      {relativeMeetingTime(meeting.relativeContext, t)}
+                    </small>
+                  </td>
+                  <td data-testid={`meetings-client-${meeting.id}`}>
+                    <strong>
+                      {meeting.clientLink.displayName ??
+                        meeting.clientLink.householdRef}
+                    </strong>
+                    <small>{t('meetings.shell.facts.client-match')}</small>
+                  </td>
+                  <td>
+                    <div className="meetings-shell-facts">
+                      <span className="meetings-shell-status">
+                        {briefLabel(meeting.briefStatus, t)}
+                      </span>
+                      <span className="meetings-shell-status">
+                        {joinLabel(meeting.joinReadiness, t)}
+                      </span>
+                      <span className="meetings-shell-status">
+                        {recordingLabel(meeting.recordingStatus, t)}
+                      </span>
+                      {period === 'past' ? (
+                        <>
+                          <span className="meetings-shell-status">
+                            {processingLabel(meeting.processingStatus, t)}
+                          </span>
+                          {outputLabels(meeting.outputs, t).map((label) => (
+                            <span key={label} className="meetings-shell-status">
+                              {label}
+                            </span>
+                          ))}
+                        </>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td>
+                    {linked ? (
+                      <button
+                        type="button"
+                        className="kp-btn kp-btn--secondary kp-btn--sm"
+                        data-testid={`meetings-open-${meeting.id}`}
+                        onClick={() => {
+                          void context
+                            .openMeeting(meeting.id)
+                            .catch((error: unknown) => {
+                              console.error(
+                                '[Meetings] Could not open meeting row.',
+                                error
+                              );
+                            });
+                        }}
+                      >
+                        {t('meetings.shell.actions.open')}
+                      </button>
+                    ) : (
+                      <span
+                        className="meetings-shell-status"
+                        data-testid={`meetings-folder-status-${meeting.id}`}
+                      >
+                        {t('meetings.shell.link.folder-only')}
+                      </span>
                     )}
-                  </span>
-                </td>
-                <td>
-                  {linked ? (
-                    <button
-                      type="button"
-                      className="kp-btn kp-btn--secondary kp-btn--sm"
-                      data-testid={`meetings-open-${meeting.id}`}
-                      onClick={() => {
-                        void context.openMeeting(meeting.id).catch((error: unknown) => {
-                          console.error('[Meetings] Could not open meeting row.', error);
-                        });
-                      }}
-                    >
-                      {t('meetings.shell.actions.open')}
-                    </button>
-                  ) : null}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -262,17 +551,26 @@ function ActionsView({ context }: { context: MeetingListContext }) {
         ? 'mine'
         : 'all';
   const filters = (
-    <div className="meetings-shell-toolbar" data-testid="meetings-actions-filters">
+    <div
+      className="meetings-shell-toolbar"
+      data-testid="meetings-actions-filters"
+    >
       <label>
         <span>{t('meetings.shell.filters.view')}</span>
         <select
           data-testid="meetings-actions-view-filter"
           value={filter.view}
-          onChange={(event) => { setView(event.target.value as MeetingReviewInboxView); }}
+          onChange={(event) => {
+            setView(event.target.value as MeetingReviewInboxView);
+          }}
         >
-          <option value="need-attention">{t('meetings.shell.filters.need-attention')}</option>
+          <option value="need-attention">
+            {t('meetings.shell.filters.need-attention')}
+          </option>
           <option value="all">{t('meetings.shell.filters.all')}</option>
-          <option value="archived">{t('meetings.shell.filters.archived')}</option>
+          <option value="archived">
+            {t('meetings.shell.filters.archived')}
+          </option>
         </select>
       </label>
       <label>
@@ -280,14 +578,26 @@ function ActionsView({ context }: { context: MeetingListContext }) {
         <select
           data-testid="meetings-actions-type-filter"
           value={filter.type}
-          onChange={(event) => { setType(event.target.value as MeetingReviewInboxItemKind | 'all'); }}
+          onChange={(event) => {
+            setType(event.target.value as MeetingReviewInboxItemKind | 'all');
+          }}
         >
           <option value="all">{t('meetings.shell.filters.all-types')}</option>
-          <option value="task-proposal">{t('meetings.shell.filters.tasks')}</option>
-          <option value="crm-update-proposal">{t('meetings.shell.filters.crm-updates')}</option>
-          <option value="follow-up-draft">{t('meetings.shell.filters.follow-ups')}</option>
-          <option value="speaker-confirmation">{t('meetings.shell.filters.speaker-confirmations')}</option>
-          <option value="unmatched-attendee">{t('meetings.shell.filters.unmatched-attendees')}</option>
+          <option value="task-proposal">
+            {t('meetings.shell.filters.tasks')}
+          </option>
+          <option value="crm-update-proposal">
+            {t('meetings.shell.filters.crm-updates')}
+          </option>
+          <option value="follow-up-draft">
+            {t('meetings.shell.filters.follow-ups')}
+          </option>
+          <option value="speaker-confirmation">
+            {t('meetings.shell.filters.speaker-confirmations')}
+          </option>
+          <option value="unmatched-attendee">
+            {t('meetings.shell.filters.unmatched-attendees')}
+          </option>
         </select>
       </label>
       <label>
@@ -295,13 +605,17 @@ function ActionsView({ context }: { context: MeetingListContext }) {
         <select
           data-testid="meetings-actions-owner-filter"
           value={ownerValue}
-          onChange={(event) => { setOwner(event.target.value as 'all' | 'mine' | 'unassigned'); }}
+          onChange={(event) => {
+            setOwner(event.target.value as 'all' | 'mine' | 'unassigned');
+          }}
         >
           <option value="all">{t('meetings.shell.filters.all-owners')}</option>
           {context.currentMemberId ? (
             <option value="mine">{t('meetings.shell.filters.mine')}</option>
           ) : null}
-          <option value="unassigned">{t('meetings.shell.filters.unassigned')}</option>
+          <option value="unassigned">
+            {t('meetings.shell.filters.unassigned')}
+          </option>
         </select>
       </label>
     </div>
@@ -311,7 +625,10 @@ function ActionsView({ context }: { context: MeetingListContext }) {
     return (
       <>
         {filters}
-        <div className="meetings-shell-local-state" data-testid="meetings-actions-loading">
+        <div
+          className="meetings-shell-local-state"
+          data-testid="meetings-actions-loading"
+        >
           {t('meetings.shell.loading.actions')}
         </div>
       </>
@@ -324,8 +641,12 @@ function ActionsView({ context }: { context: MeetingListContext }) {
     return (
       <>
         {filters}
-        <div className="meetings-shell-error" role="alert" data-testid="meetings-actions-error">
-          <span>{context.reviewResult.message}</span>
+        <div
+          className="meetings-shell-error"
+          role="alert"
+          data-testid="meetings-actions-error"
+        >
+          <span>{t('meetings.shell.errors.actions')}</span>
           {context.reviewResult.retry === 'available' ? (
             <button
               type="button"
@@ -341,11 +662,28 @@ function ActionsView({ context }: { context: MeetingListContext }) {
     );
   }
   if (context.reviewResult.kind === 'ready-empty') {
+    const filteredToNothing = context.reviewResult.emptyReason === 'filtered';
+    const clientName =
+      context.client?.displayName ?? context.client?.householdRef ?? '';
     return (
       <>
         {filters}
-        <div className="meetings-shell-empty" data-testid="meetings-actions-empty">
-          {context.reviewResult.emptyCopy}
+        <div
+          className="meetings-shell-empty"
+          data-testid={
+            filteredToNothing
+              ? 'meetings-actions-filtered-empty'
+              : 'meetings-actions-empty'
+          }
+        >
+          {filteredToNothing
+            ? t(
+                clientName
+                  ? 'meetings.shell.empty.actions-filtered-client'
+                  : 'meetings.shell.empty.actions-filtered',
+                { client: clientName }
+              )
+            : context.reviewResult.emptyCopy}
         </div>
       </>
     );
@@ -360,41 +698,62 @@ function ActionsView({ context }: { context: MeetingListContext }) {
   return (
     <>
       {filters}
-      <div className="meetings-shell-table-wrap" data-testid="meetings-actions-rows">
+      <div
+        className="meetings-shell-table-wrap"
+        data-testid="meetings-actions-rows"
+      >
         <table className="meetings-shell-table">
-        <thead>
-          <tr>
-            <th>{t('meetings.shell.columns.action')}</th>
-            <th>{t('meetings.shell.columns.meeting')}</th>
-            <th>{t('meetings.shell.columns.client')}</th>
-            <th>{t('meetings.shell.columns.status')}</th>
-            <th aria-label={t('meetings.shell.columns.review')} />
-          </tr>
-        </thead>
-        <tbody>
-          {context.reviewResult.items.map((item) => (
-            <tr key={item.id} data-testid={`meetings-action-${item.id}`}>
-              <td><strong>{t(itemLabels[item.kind])}</strong></td>
-              <td>{item.meetingLabel}</td>
-              <td>{item.clientLabel}</td>
-              <td><span className="meetings-shell-status is-review">{t('meetings.shell.status.needs-review')}</span></td>
-              <td>
-                <button
-                  type="button"
-                  className="kp-btn kp-btn--primary kp-btn--sm"
-                  data-testid={`meetings-review-${item.id}`}
-                  onClick={() => {
-                    void context.openMeeting(item.meetingId).catch((error: unknown) => {
-                      console.error('[Meetings] Could not open review item.', error);
-                    });
-                  }}
-                >
-                  {t('meetings.shell.actions.review')}
-                </button>
-              </td>
+          <thead>
+            <tr>
+              <th>{t('meetings.shell.columns.action')}</th>
+              <th>{t('meetings.shell.columns.meeting')}</th>
+              <th>{t('meetings.shell.columns.client')}</th>
+              <th>{t('meetings.shell.columns.owner')}</th>
+              <th>{t('meetings.shell.columns.status')}</th>
+              <th aria-label={t('meetings.shell.columns.review')} />
             </tr>
-          ))}
-        </tbody>
+          </thead>
+          <tbody>
+            {context.reviewResult.items.map((item) => (
+              <tr key={item.id} data-testid={`meetings-action-${item.id}`}>
+                <td>
+                  <strong>{t(itemLabels[item.kind])}</strong>
+                </td>
+                <td>{item.meetingLabel}</td>
+                <td>{item.clientLabel}</td>
+                <td>
+                  {item.owner.ref === null
+                    ? t('meetings.shell.owner.unassigned')
+                    : item.owner.label?.trim() ||
+                      t('meetings.shell.owner.unavailable')}
+                </td>
+                <td>
+                  <span className="meetings-shell-status is-review">
+                    {t('meetings.shell.status.needs-review')}
+                  </span>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="kp-btn kp-btn--primary kp-btn--sm"
+                    data-testid={`meetings-review-${item.id}`}
+                    onClick={() => {
+                      void context
+                        .openMeeting(item.meetingId)
+                        .catch((error: unknown) => {
+                          console.error(
+                            '[Meetings] Could not open review item.',
+                            error
+                          );
+                        });
+                    }}
+                  >
+                    {t('meetings.shell.actions.review')}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     </>
@@ -441,13 +800,18 @@ const baseMeetingListDescriptors: readonly MeetingListDescriptor[] = [
 
 const emptyListContext: MeetingListContext = {
   client: null,
-  meetings: [],
+  surface: null,
   reviewResult: MEETING_REVIEW_INBOX_LOADING,
   reviewFilter: DEFAULT_MEETING_REVIEW_INBOX_FILTER,
   currentMemberId: null,
-  now: 0,
+  pastFilter: { status: 'all', typeId: 'all' },
+  ownerFilterState: {
+    applied: false,
+    unfilteredCounts: { upcoming: 0, past: 0 },
+  },
   openMeeting: () => Promise.resolve(),
   setReviewFilter: () => undefined,
+  setPastFilter: () => undefined,
   retryReview: () => undefined,
 };
 
@@ -487,20 +851,25 @@ export interface MeetingListToolContext {
   setOwnerFilter: (ownerId: string | null) => void;
 }
 
-export interface MeetingListToolDescriptor
-  extends BaseDescriptor<MeetingListToolContext> {
+export interface MeetingListToolDescriptor extends BaseDescriptor<MeetingListToolContext> {
   readonly render: (context: MeetingListToolContext) => ReactNode;
 }
 
 function MyMeetingsTool({ context }: { context: MeetingListToolContext }) {
   const { t } = useTranslation();
   return (
-    <div className="meetings-shell-filter-group" role="group" aria-label={t('meetings.shell.tools.owner')}>
+    <div
+      className="meetings-shell-filter-group"
+      role="group"
+      aria-label={t('meetings.shell.tools.owner')}
+    >
       <button
         type="button"
         className={context.ownerFilter === null ? 'is-active' : ''}
         data-testid="meetings-owner-all"
-        onClick={() => { context.setOwnerFilter(null); }}
+        onClick={() => {
+          context.setOwnerFilter(null);
+        }}
       >
         {t('meetings.shell.tools.all')}
       </button>
@@ -510,7 +879,8 @@ function MyMeetingsTool({ context }: { context: MeetingListToolContext }) {
         data-testid="meetings-owner-mine"
         disabled={!context.currentMemberId}
         onClick={() => {
-          if (context.currentMemberId) context.setOwnerFilter(context.currentMemberId);
+          if (context.currentMemberId)
+            context.setOwnerFilter(context.currentMemberId);
         }}
       >
         {t('meetings.shell.tools.mine')}
@@ -571,8 +941,7 @@ export interface MeetingArtifactContext {
   append: (artifact: MeetingArtifactInput) => Promise<MeetingArtifact>;
 }
 
-export interface MeetingArtifactDescriptor
-  extends BaseDescriptor<MeetingArtifactContext> {
+export interface MeetingArtifactDescriptor extends BaseDescriptor<MeetingArtifactContext> {
   readonly render: (context: MeetingArtifactContext) => ReactNode;
 }
 
@@ -612,11 +981,12 @@ export function hasMeetingArtifactContributions(): boolean {
 
 export interface NoticeEvidenceProviderContext {
   readonly meeting: MeetingProjection;
-  appendNoticeEvidence: (input: NoticeEvidenceInput) => Promise<MeetingArtifact>;
+  appendNoticeEvidence: (
+    input: NoticeEvidenceInput
+  ) => Promise<MeetingArtifact>;
 }
 
-export interface NoticeEvidenceProviderDescriptor
-  extends BaseDescriptor<NoticeEvidenceProviderContext> {
+export interface NoticeEvidenceProviderDescriptor extends BaseDescriptor<NoticeEvidenceProviderContext> {
   readonly render: (context: NoticeEvidenceProviderContext) => ReactNode;
 }
 
@@ -626,7 +996,8 @@ const noticeStore = createLiveRegistry<
   NoticeEvidenceProviderContext
 >('noticeEvidenceProviderRegistry', []);
 
-export const noticeEvidenceProviderRegistry: readonly NoticeEvidenceProviderDescriptor[] = [];
+export const noticeEvidenceProviderRegistry: readonly NoticeEvidenceProviderDescriptor[] =
+  [];
 
 export function registerNoticeEvidenceProviderDescriptor(
   descriptor: NoticeEvidenceProviderDescriptor

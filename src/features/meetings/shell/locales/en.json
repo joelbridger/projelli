@@ -27,6 +27,7 @@
         "meeting": "Meeting",
         "when": "When",
         "client": "Client match",
+        "owner": "Owner",
         "status": "Status",
         "open": "Open meeting",
         "action": "Action",
@@ -34,13 +35,26 @@
       },
       "link": {
         "linked": "Linked to client",
-        "folder-only": "Not linked to a client"
+        "folder-only": "No linked meeting folder"
+      },
+      "owner": {
+        "unassigned": "Unassigned",
+        "unavailable": "Owner name is not available"
       },
       "status": { "needs-review": "Needs review" },
       "empty": {
         "upcoming": "No upcoming meetings.",
         "past": "No processed meetings yet.",
+        "upcoming-filtered": "No upcoming meetings match these filters.",
+        "upcoming-filtered-client": "No upcoming meetings match these filters for {{client}}.",
+        "past-filtered": "No past meetings match these filters.",
+        "past-filtered-client": "No past meetings match these filters for {{client}}.",
+        "actions-filtered": "No Actions match these filters.",
+        "actions-filtered-client": "No Actions match these filters for {{client}}.",
         "actions": "Nothing waiting on you."
+      },
+      "unavailable": {
+        "choose-client": "Choose a client to view meetings."
       },
       "loading": {
         "meetings": "Loading meetings…",
@@ -64,12 +78,14 @@
       },
       "filters": {
         "view": "View",
+        "status": "Status",
         "type": "Type",
         "owner": "Owner",
         "need-attention": "Needs attention",
         "all": "All",
         "archived": "Archived",
         "all-types": "All types",
+        "all-statuses": "All statuses",
         "tasks": "Task proposals",
         "crm-updates": "CRM update proposals",
         "follow-ups": "Follow-up drafts",
@@ -78,6 +94,63 @@
         "all-owners": "All owners",
         "mine": "Mine",
         "unassigned": "Unassigned"
+      },
+      "facts": {
+        "client-match": "Matches selected client",
+        "relative": {
+          "starts-in": "Starts in {{count}} minute",
+          "starts-in_other": "Starts in {{count}} minutes",
+          "in-progress": "In progress · {{count}} minute left",
+          "in-progress_other": "In progress · {{count}} minutes left",
+          "ended-ago": "Ended {{count}} minute ago",
+          "ended-ago_other": "Ended {{count}} minutes ago"
+        },
+        "platform": {
+          "zoom": "Zoom",
+          "teams": "Teams",
+          "google-meet": "Google Meet",
+          "phone": "Phone",
+          "in-person": "In person",
+          "other": "Other platform",
+          "unavailable": "Platform details are not available"
+        },
+        "participants": {
+          "unavailable": "Participant details are not available",
+          "count": "{{count}} participant (names not available)",
+          "count_other": "{{count}} participants (names not available)",
+          "named-more": "{{name}} and {{count}} other",
+          "named-more_other": "{{name}} and {{count}} others"
+        },
+        "brief": {
+          "available": "Brief ready",
+          "processing": "Brief processing",
+          "needs-review": "Brief needs review",
+          "not-available": "Brief status is not available"
+        },
+        "join": {
+          "available": "Join details available",
+          "unavailable": "Join details are not available"
+        },
+        "recording": {
+          "not-recorded": "Not recorded",
+          "recording": "Recording in progress",
+          "processing": "Recording processing",
+          "available": "Recording available",
+          "unavailable": "Recording status is not available"
+        },
+        "processing": {
+          "needs-review": "Needs review",
+          "processing": "Processing",
+          "complete": "Complete",
+          "unknown": "Processing status is not available"
+        },
+        "outputs": {
+          "transcript": "Transcript ready",
+          "summary": "Summary ready",
+          "tasks": "Tasks ready",
+          "follow-up": "Follow-up draft ready",
+          "unavailable": "Output details are not available"
+        }
       },
       "fixture": {
         "list": "Outside meeting view",

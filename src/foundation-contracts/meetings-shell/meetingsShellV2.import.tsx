@@ -24,7 +24,9 @@ export function OutsideMeetingsShellContributions() {
             {
               'data-testid': 'outside-meeting-list-host',
             },
-            context.meetings.length
+            context.surface
+              ? context.surface.upcoming.length + context.surface.past.length
+              : 0
           ),
       }),
       registerMeetingListToolDescriptor({

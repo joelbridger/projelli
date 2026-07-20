@@ -136,6 +136,7 @@ export type MeetingReviewInboxResult =
       readonly kind: 'ready-empty';
       readonly items: readonly [];
       readonly badgeMeetingCount: number;
+      readonly emptyReason: 'no-items' | 'filtered';
       readonly emptyCopy: string;
       readonly filter: MeetingReviewInboxFilter;
       readonly retry: 'not-available';
@@ -492,6 +493,7 @@ export function createMeetingReviewInboxReader(
       kind: 'ready-empty',
       items: [] as const,
       badgeMeetingCount: 0,
+      emptyReason: 'no-items',
       emptyCopy: 'Nothing waiting on you.',
       filter: validFilter(requestedFilter),
       retry: 'not-available',
@@ -595,6 +597,7 @@ export function createMeetingReviewInboxReader(
           kind: 'ready-empty',
           items: [] as const,
           badgeMeetingCount,
+          emptyReason: allItems.length === 0 ? 'no-items' : 'filtered',
           emptyCopy: selectedName
             ? `Nothing waiting on you for ${selectedName}. This view is filtered to ${selectedName}.`
             : 'Nothing waiting on you.',

@@ -2918,6 +2918,8 @@ export interface MeetingSurfaceFacts {
 export interface MeetingSurfaceRow {
   readonly id: MeetingRef;
   readonly clientLink: ClientBoundary;
+  /** True only when the canonical record has a durable detail-folder link. */
+  readonly hasLinkedMeeting: boolean;
   readonly title: string;
   readonly typeId: string;
   readonly platform: MeetingPlatform;
@@ -3065,6 +3067,7 @@ export function projectMeetingSurface(
         matterId: meeting.matterId,
         ...(clientDisplayName ? { displayName: clientDisplayName } : {}),
       },
+      hasLinkedMeeting: meeting.legacyLink !== undefined,
       title: joined?.title?.trim() || meeting.typeId,
       typeId: meeting.typeId,
       platform: joined?.platform ?? 'unknown',
