@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setDevFlagOverride } from '@/platform/flags';
 import {
   getHouseholdAddActions,
@@ -16,7 +16,14 @@ import {
 } from './tabRegistry';
 
 describe('household record registries', () => {
-  afterEach(() => { setDevFlagOverride('crm-merge-clients', undefined); });
+  beforeEach(() => {
+    setDevFlagOverride('record-kinds-v1', false);
+  });
+
+  afterEach(() => {
+    setDevFlagOverride('crm-merge-clients', undefined);
+    setDevFlagOverride('record-kinds-v1', undefined);
+  });
 
   it('keeps compatibility mounts in their existing stable order', () => {
     expect(
@@ -53,13 +60,21 @@ describe('household record registries', () => {
 
   it('adds the merge action only when its dark flag is enabled', () => {
     setDevFlagOverride('crm-merge-clients', true);
-    expect(getHouseholdHeaderActions().map((descriptor) => descriptor.id)).toEqual([
-      'ask',
-      'metadata',
-      'edit',
-      'schedule',
-      'merge_duplicate',
-    ]);
+    expect(
+      getHouseholdHeaderActions().map((descriptor) => descriptor.id)
+    ).toEqual(['ask', 'metadata', 'edit', 'schedule', 'merge_duplicate']);
+  });
+
+  it('adds the record Details cards only when their own dark flag is enabled', () => {
+    setDevFlagOverride('record-kinds-v1', false);
+    expect(
+      getHouseholdSections().map((descriptor) => descriptor.id)
+    ).not.toContain('record-kinds-details');
+
+    setDevFlagOverride('record-kinds-v1', true);
+    expect(getHouseholdSections().map((descriptor) => descriptor.id)).toContain(
+      'record-kinds-details'
+    );
   });
 
   it('rejects duplicate extension data keys clearly', () => {
