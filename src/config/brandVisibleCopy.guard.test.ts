@@ -4,17 +4,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { BRAND } from './brand';
-
-type BrandConfig = {
-  urls: {
-    domain: string;
-    site: string;
-    repository: string;
-    licenseUrl: string;
-    supportUrl: string;
-    supportEmail: string;
-  };
-};
+import brandConfig from '../../brand/brand.config.json';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SOURCE_ROOT = path.join(ROOT, 'src');
@@ -170,22 +160,20 @@ describe('visible brand copy guard', () => {
   });
 
   it('exposes every public identity and support link through BRAND', () => {
-    const config: BrandConfig = JSON.parse(fs.readFileSync(path.join(ROOT, 'brand/brand.config.json'), 'utf8'));
+    const { urls } = brandConfig;
+    const publicUrlKeys = [
+      'domain',
+      'site',
+      'repository',
+      'licenseUrl',
+      'supportUrl',
+      'supportEmail',
+    ] as const;
 
-    expect(config.urls).toMatchObject({
-      domain: expect.any(String),
-      site: expect.any(String),
-      repository: expect.any(String),
-      licenseUrl: expect.any(String),
-      supportUrl: expect.any(String),
-      supportEmail: expect.any(String),
-    });
-    expect(BRAND.urls.domain).toBe(config.urls.domain);
-    expect(BRAND.urls.site).toBe(config.urls.site);
-    expect(BRAND.urls.repository).toBe(config.urls.repository);
-    expect(BRAND.urls.licenseUrl).toBe(config.urls.licenseUrl);
-    expect(BRAND.urls.supportUrl).toBe(config.urls.supportUrl);
-    expect(BRAND.urls.supportEmail).toBe(config.urls.supportEmail);
+    for (const key of publicUrlKeys) {
+      expect(typeof urls[key]).toBe('string');
+      expect(BRAND.urls[key]).toBe(urls[key]);
+    }
   });
 
   it('keeps internal service endpoints out of every UI module', () => {
