@@ -110,21 +110,38 @@ jobs:
           path: coverage/
           retention-days: 14
 
+  # The CANONICAL backend gate — one script, six steps, no subset.
+  #
+  # This job used to run `bun run typecheck` + `bun test` only. The two
+  # structural guards (the request-body totality boundary and the privileged
+  # route registry) ran exclusively in `scripts/gate.sh`, which CI never calls,
+  # so a PR that reintroduced an unbounded body drain — or removed `auth` from a
+  # privileged route — faced neither of them and landed GREEN. A checker nobody
+  # runs is indistinguishable from absent. `npm run backend:gate` runs all six
+  # steps in one place so they cannot drift into disjoint green paths again.
   backend:
+    needs: [setup]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Restore node_modules cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
       - name: Install backend deps
         working-directory: ./backend
         run: bun install --frozen-lockfile
-      - name: Backend typecheck
-        working-directory: ./backend
-        run: bun run typecheck
-      - name: Backend tests
-        working-directory: ./backend
-        run: bun test
+      # Repo ROOT, not ./backend — the script cd's into backend itself for the
+      # typecheck and test steps.
+      - name: Canonical backend gate (structural guards + typecheck + tests)
+        run: npm run backend:gate
 
   rust:
     runs-on: ubuntu-latest

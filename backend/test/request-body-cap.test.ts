@@ -202,13 +202,10 @@ test("a body at the control-plane cap boundary is accepted, just over is refused
 
   // The value a handler receives has no drainable raw material, even through
   // reflection or prototype access. These assertions exercise the real seam.
-  const prepared = await prepareHttpRequest(new Request("http://test.invalid/x", { method: "POST", body: "hello" }), CAP);
-  expect(prepared.ok).toBe(true);
-  if (prepared.ok) {
-    expect(Object.isFrozen(prepared.value)).toBe(true);
-    expect(Object.keys(prepared.value).sort()).toEqual(["headers", "method", "signal", "url"]);
-    expect(Reflect.get(prepared.value, "body")).toBeUndefined();
-    expect(Reflect.get(prepared.value, "clone")).toBeUndefined();
-    expect(Reflect.get(Object.getPrototypeOf(prepared.value), "text")).toBeUndefined();
-  }
+  const prepared = prepareHttpRequest(new Request("http://test.invalid/x", { method: "POST", body: "hello" }), CAP);
+  expect(Object.isFrozen(prepared)).toBe(true);
+  expect(Object.keys(prepared).sort()).toEqual(["headers", "method", "signal", "url"]);
+  expect(Reflect.get(prepared, "body")).toBeUndefined();
+  expect(Reflect.get(prepared, "clone")).toBeUndefined();
+  expect(Reflect.get(Object.getPrototypeOf(prepared), "text")).toBeUndefined();
 });

@@ -32,12 +32,10 @@ step "Case-only filename collisions" node scripts/check-case-collisions.mjs
 # backend/src/lib/requestBody.ts, which aborts mid-stream at the cap; these two
 # steps are what keep that true. The self-test runs FIRST so a checker that has
 # stopped detecting anything can't report a silent pass.
-step "Backend body-reader guard (self-test)" npm run backend:body-readers:test
-step "Backend request-body seam" npm run backend:body-readers:check
-# Privileged endpoints are registered through one auth-declaring front door.
-# The self-test runs first so a hollow checker cannot report a green scan.
-step "Backend privileged-route guard (self-test)" npm run backend:privileged-routes:test
-step "Backend privileged-route declarations" npm run backend:privileged-routes:check
+# All of it — both guards, their self-tests, backend tsc and backend tests — is
+# ONE script that ci.yml, gate-changed.sh and gate-ci-parity.sh also call, so no
+# caller can ever run a subset again.
+step "Canonical backend gate" npm run backend:gate
 step "TypeScript"      npm run typecheck
 step "TypeScript (tests)" npm run typecheck:tests
 step "Brand sync"      npm run brand:check

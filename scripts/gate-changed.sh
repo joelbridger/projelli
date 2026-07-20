@@ -46,8 +46,10 @@ fi
 
 if selected backend; then
   if command -v bun >/dev/null 2>&1; then
-    step "Backend typecheck" bash -c "cd backend && bun run typecheck"
-    step "Backend tests" bash -c "cd backend && bun test"
+    # ONE canonical script, not a subset. The structural guards used to run only
+    # in scripts/gate.sh, so a backend change could be "proven" here by tsc and
+    # bun test alone while the boundary checker never ran at all.
+    step "Canonical backend gate" npm run backend:gate
   else
     echo "❌ Backend changed but Bun is unavailable; cannot safely skip backend proof."
     fail=1

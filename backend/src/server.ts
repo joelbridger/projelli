@@ -68,7 +68,7 @@ import { handleNotifySend, handleNotifyInbox, handleNotifyAck, handleNotifySyncT
 import { notificationHub } from "./lib/notifications.ts";
 import { handleCheckpointReceipt } from "./routes/checkpoints.ts";
 import { createPrivilegedRoutes, dispatchPrivilegedRequest } from "./routes/privileged.ts";
-import { prepareHttpRequest } from "./lib/requestBody.ts";
+import { peerAddress, serveFetch, upgradeWebSocket } from "./lib/requestBody.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
 import type { UserRole } from "./lib/types.ts";
@@ -242,25 +242,19 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
     // in this project chose — so an honest oversized upload is refused by the
     // runtime before it reaches a handler at all.
     maxRequestBodySize: SERVER_MAX_REQUEST_BODY_BYTES,
-    async fetch(rawReq: Request, srv: Bun.Server<SyncSocketData>): Promise<Response | undefined> {
-      if (rawReq.method === "OPTIONS") return preflight();
+    // TOTALITY BOUNDARY. `serveFetch` owns Bun's fetch callback so this file
+    // never receives, names, or holds a raw `Request` at all — the seam takes
+    // it, keeps it private, and calls the router below with frozen metadata.
+    // That is why `Request` and `ReadableStream` appear nowhere in this file:
+    // the checker enforces their absence everywhere outside `lib/requestBody.ts`
+    // as a totality, so there is no name to allowlist and none to defeat.
+    fetch: serveFetch<SyncSocketData>(requestBodyCap, async (req): Promise<Response | undefined> => {
+      if (req.method === "OPTIONS") return preflight();
 
-      // Totality boundary: every handler below receives only frozen metadata.
-      // The drainable Request stays private inside lib/requestBody.ts, where a
-      // route can trigger only a capped read after its header auth has passed.
-      const rawPath = new URL(rawReq.url).pathname;
-      const bodyCap = requestBodyCap(rawPath, rawReq.method);
-      const prepared = await prepareHttpRequest(rawReq, bodyCap);
-      if (!prepared.ok) {
-        return prepared.tooLarge
-          ? error("payload_too_large", 413, `Request exceeds ${bodyCap} bytes.`)
-          : error("invalid_body", 400);
-      }
-      const req = prepared.value;
       const url = new URL(req.url);
       const path = url.pathname;
       const method = req.method;
-      const ip = clientIpFromPeer(srv.requestIP(rawReq)?.address, req.headers.get("x-forwarded-for"));
+      const ip = clientIpFromPeer(peerAddress(req), req.headers.get("x-forwarded-for"));
 
       try {
         // Privileged routes are auth-by-construction. This dispatch runs before
@@ -278,7 +272,8 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/notify/sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
           const authz = authorizeNotifySync(req, store);
           if (!authz.ok) return authz.resp;
-          if (srv.upgrade(rawReq, { data: { kind: "notify", subId: randomUUID(), orgId: authz.orgId, userId: authz.userId, seatId: "" } })) return undefined;
+          const notifyData: SyncSocketData = { kind: "notify", subId: randomUUID(), orgId: authz.orgId, userId: authz.userId, seatId: "" };
+          if (upgradeWebSocket(req, notifyData)) return undefined;
           return error("upgrade_failed", 400);
         }
         // --- E2EE sync relay + matter ACL (chunk 2) ---
@@ -300,7 +295,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
             const syncSince = Number(sinceRaw);
             if (!Number.isInteger(syncSince) || syncSince < 0) return error("invalid_cursor", 400);
             const data: DocumentSocketData = { kind: "document", subId: randomUUID(), docId: syncDocId, since: syncSince, subscriptions: new Set(), ...authz.data };
-            if (srv.upgrade(rawReq, { data })) return undefined; // upgraded; Bun owns the socket now
+            if (upgradeWebSocket(req, data)) return undefined; // upgraded; Bun owns the socket now
             return error("upgrade_failed", 400);
           }
           // Relay: append / catch-up. Push broadcasts via this server's hub.
@@ -405,7 +400,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         console.error(`[error] ${method} ${path}:`, err);
         return error("internal_error", 500);
       }
-    },
+    }),
 
     // Live fan-out for the sync relay. The connection is already access-gated in
     // `fetch` (authorizeSyncConnect) before upgrade, so a walled / non-member /

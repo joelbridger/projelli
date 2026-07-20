@@ -22,10 +22,9 @@ step "Frontend coverage floor (matches ci.yml quality job)" npm run test:coverag
 
 if command -v bun >/dev/null 2>&1; then
   step "Backend install (matches ci.yml backend job)"    bash -c "cd backend && bun install --frozen-lockfile"
-  step "Backend typecheck (matches ci.yml backend job)"  bash -c "cd backend && bun run typecheck"
-  step "Backend tests (matches ci.yml backend job)"      bash -c "cd backend && bun test"
+  step "Canonical backend gate (matches ci.yml backend job)" npm run backend:gate
 else
-  skip "Backend typecheck + tests (matches ci.yml backend job)" "bun not found on PATH — install from https://bun.sh to run this locally"
+  skip "Canonical backend gate (matches ci.yml backend job)" "bun not found on PATH — install from https://bun.sh to run this locally"
 fi
 
 if command -v cargo-deny >/dev/null 2>&1; then

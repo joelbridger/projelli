@@ -1,0 +1,655 @@
+{
+  "note": "SINGLE SOURCE OF TRUTH. Every drain-shape table in any report is RENDERED from this file by scripts/render-drain-corpus.mjs, and both the checker self-test and the backend runtime regression test read these exact `source` strings. A table cell can therefore never describe a different artifact than the one under test.",
+  "shapes": [
+    {
+      "id": "s01",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await req.text() }",
+      "expectRules": [
+        "handler-request-member",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "s02",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await (req as Request).text() }",
+      "expectRules": [
+        "handler-request-cast",
+        "no-raw-body-drain",
+        "request-type-cast"
+      ]
+    },
+    {
+      "id": "s03",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ const { text } = req; return await text() }",
+      "expectRules": [
+        "handler-request-destructure"
+      ]
+    },
+    {
+      "id": "s04",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ const { text } = req as any; return await text.call(req) }",
+      "expectRules": [
+        "handler-request-cast"
+      ]
+    },
+    {
+      "id": "s05",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function drain(r: Request){ return await r.arrayBuffer() }\nasync function probe(req: HttpRequest){ return await drain(req as unknown as Request) }",
+      "expectRules": [
+        "handler-request-cast",
+        "no-raw-body-drain",
+        "request-type-annotation",
+        "request-type-cast"
+      ]
+    },
+    {
+      "id": "s06",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function drain(r: { arrayBuffer(): Promise<ArrayBuffer> }){ return await r.arrayBuffer() }\nasync function probe(req: HttpRequest){ return await drain(req as any) }",
+      "expectRules": [
+        "handler-request-cast",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "s07",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Request.prototype.text.call(req) }",
+      "expectRules": [
+        "request-type-value"
+      ]
+    },
+    {
+      "id": "s08",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await (req as any)[\"text\"]() }",
+      "expectRules": [
+        "handler-request-cast"
+      ]
+    },
+    {
+      "id": "s09",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await (req as any)[\"te\"+\"xt\"]() }",
+      "expectRules": [
+        "handler-request-cast"
+      ]
+    },
+    {
+      "id": "s10",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Reflect.get(req, \"text\").call(req) }",
+      "expectRules": [
+        "handler-request-reflection"
+      ]
+    },
+    {
+      "id": "s11",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Reflect.apply(req.text, req, []) }",
+      "expectRules": [
+        "handler-request-member",
+        "handler-request-reflection"
+      ]
+    },
+    {
+      "id": "s12",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Object.getPrototypeOf(req).text.call(req) }",
+      "expectRules": [
+        "handler-request-reflection"
+      ]
+    },
+    {
+      "id": "s13",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await new Request(req as any).text() }",
+      "expectRules": [
+        "handler-request-cast",
+        "no-raw-body-drain",
+        "request-type-construction"
+      ]
+    },
+    {
+      "id": "s14",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ const o: any = { ...req }; return await o.text() }",
+      "expectRules": [
+        "handler-request-spread",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "s15",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await (req as unknown as Request).text() }",
+      "expectRules": [
+        "handler-request-cast",
+        "no-raw-body-drain",
+        "request-type-cast"
+      ]
+    },
+    {
+      "id": "s16",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function drain<T extends { text(): Promise<string> }>(r: T){ return await r.text() }\nasync function probe(req: HttpRequest){ return await drain(req as any) }",
+      "expectRules": [
+        "handler-request-cast",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "s17",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ const r = req.body.getReader(); let n = 0; for(;;){ const x = await r.read(); if (x.done) break; n += x.value.byteLength } return n }",
+      "expectRules": [
+        "handler-request-member",
+        "no-stream-drain"
+      ]
+    },
+    {
+      "id": "s18",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Bun.readableStreamToText(req.body) }",
+      "expectRules": [
+        "handler-request-member",
+        "no-stream-drain"
+      ]
+    },
+    {
+      "id": "s19",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Bun.readableStreamToArrayBuffer(req.body) }",
+      "expectRules": [
+        "handler-request-member",
+        "no-stream-drain"
+      ]
+    },
+    {
+      "id": "s20",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await new Response(req.body).text() }",
+      "expectRules": [
+        "handler-request-member",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "s21",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "function get<T, K extends keyof T>(x: T, k: K){ return x[k] }\nasync function probe(req: HttpRequest){ return await Bun.readableStreamToText(get(req, \"body\") as any) }",
+      "expectRules": [
+        "no-stream-drain"
+      ]
+    },
+    {
+      "id": "s22",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "declare global { interface Body { probe(): void } }\nexport {}",
+      "expectRules": []
+    },
+    {
+      "id": "s23",
+      "group": "review-23",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ const m = \"text\"; const fn = (req as any)[m]; return await fn.call(req) }",
+      "expectRules": [
+        "handler-request-cast"
+      ]
+    },
+    {
+      "id": "b01",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await req.blob() }",
+      "expectRules": [
+        "handler-request-member",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "b02",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await req.bytes() }",
+      "expectRules": [
+        "handler-request-member",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "b03",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await req.formData() }",
+      "expectRules": [
+        "handler-request-member",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "b04",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await req.json() }",
+      "expectRules": [
+        "handler-request-member",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "b05",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await req.clone().text() }",
+      "expectRules": [
+        "handler-request-member",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "b06",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ const [a] = req.body.tee(); return await Bun.readableStreamToText(a) }",
+      "expectRules": [
+        "handler-request-member",
+        "no-stream-drain"
+      ]
+    },
+    {
+      "id": "b07",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ let n = 0; for await (const c of req.body) { n += c.byteLength } return n }",
+      "expectRules": [
+        "handler-request-member"
+      ]
+    },
+    {
+      "id": "b08",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Bun.readableStreamToText(req.body.pipeThrough(new TransformStream())) }",
+      "expectRules": [
+        "handler-request-member",
+        "no-stream-drain"
+      ]
+    },
+    {
+      "id": "b09",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ let n = 0; for await (const c of req.body.values()) { n += c.byteLength } return n }",
+      "expectRules": [
+        "handler-request-member"
+      ]
+    },
+    {
+      "id": "b10",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await req.valueOf().text() }",
+      "expectRules": [
+        "handler-request-member",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "b11",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ const C = req.constructor as any; return await new C(req).text() }",
+      "expectRules": [
+        "handler-request-member",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "b12",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await (req as any).__proto__.text.call(req) }",
+      "expectRules": [
+        "handler-request-cast"
+      ]
+    },
+    {
+      "id": "b13",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Bun.readableStreamToBytes(req.body) }",
+      "expectRules": [
+        "handler-request-member",
+        "no-stream-drain"
+      ]
+    },
+    {
+      "id": "b14",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Bun.readableStreamToBlob(req.body) }",
+      "expectRules": [
+        "handler-request-member",
+        "no-stream-drain"
+      ]
+    },
+    {
+      "id": "b15",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ const parts = await Bun.readableStreamToArray(req.body); let n = 0; for (const p of parts) n += p.byteLength; return n }",
+      "expectRules": [
+        "handler-request-member",
+        "no-stream-drain"
+      ]
+    },
+    {
+      "id": "b16",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Request.prototype.blob.call(req) }",
+      "expectRules": [
+        "request-type-value"
+      ]
+    },
+    {
+      "id": "b17",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Object.assign({}, req).text() }",
+      "expectRules": [
+        "handler-request-reflection",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "b18",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await Object.create(req).text() }",
+      "expectRules": [
+        "handler-request-reflection",
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "b19",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ return await new Proxy(req, {}).text() }",
+      "expectRules": [
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "b20",
+      "group": "derived-20",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "handler",
+      "source": "async function probe(req: HttpRequest){ const it = req[Symbol.asyncIterator](); let n = 0; for(;;){ const x = await it.next(); if (x.done) break; n += x.value.byteLength } return n }",
+      "expectRules": [
+        "handler-request-computed"
+      ]
+    },
+    {
+      "id": "c-parse-failure",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export const swallowed = `\nawait (req as Request).text();",
+      "expectRules": [
+        "parse-failure"
+      ]
+    },
+    {
+      "id": "c-request-type-annotation",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(r: Request){ return r }",
+      "expectRules": [
+        "request-type-annotation"
+      ]
+    },
+    {
+      "id": "c-request-type-cast",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(x: unknown){ const r = x as Request; return r }",
+      "expectRules": [
+        "request-type-cast"
+      ]
+    },
+    {
+      "id": "c-request-type-construction",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export const r = new Request(\"http://x/\")",
+      "expectRules": [
+        "request-type-construction"
+      ]
+    },
+    {
+      "id": "c-request-type-value",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export const p = Request.prototype",
+      "expectRules": [
+        "request-type-value"
+      ]
+    },
+    {
+      "id": "c-stream-type-annotation",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(s: ReadableStream<Uint8Array>){ return s }",
+      "expectRules": [
+        "stream-type-annotation"
+      ]
+    },
+    {
+      "id": "c-stream-type-cast",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(x: unknown){ const s = x as ReadableStream; return s }",
+      "expectRules": [
+        "stream-type-cast"
+      ]
+    },
+    {
+      "id": "c-stream-type-construction",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export const s = new ReadableStream()",
+      "expectRules": [
+        "stream-type-construction"
+      ]
+    },
+    {
+      "id": "c-stream-type-value",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export const p = ReadableStream.prototype",
+      "expectRules": [
+        "stream-type-value"
+      ]
+    },
+    {
+      "id": "c-handler-request-cast",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(req: HttpRequest){ const x = req as any; return x }",
+      "expectRules": [
+        "handler-request-cast"
+      ]
+    },
+    {
+      "id": "c-handler-request-member",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(req: HttpRequest){ return req.body }",
+      "expectRules": [
+        "handler-request-member"
+      ]
+    },
+    {
+      "id": "c-handler-request-computed",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(req: HttpRequest, k: string){ return req[k] }",
+      "expectRules": [
+        "handler-request-computed"
+      ]
+    },
+    {
+      "id": "c-handler-request-destructure",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(req: HttpRequest){ const { text } = req; return text }",
+      "expectRules": [
+        "handler-request-destructure"
+      ]
+    },
+    {
+      "id": "c-handler-request-reflection",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(req: HttpRequest){ return Reflect.get(req, \"text\") }",
+      "expectRules": [
+        "handler-request-reflection"
+      ]
+    },
+    {
+      "id": "c-handler-request-spread",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(req: HttpRequest){ return { ...req } }",
+      "expectRules": [
+        "handler-request-spread"
+      ]
+    },
+    {
+      "id": "c-bun-serve-fetch-confinement",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export const options = { port: 1, fetch: async (rawReq, srv) => undefined }",
+      "expectRules": [
+        "bun-serve-fetch-confinement"
+      ]
+    },
+    {
+      "id": "c-bun-serve-options-confinement",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export const server = Bun.serve({ port: 1 })",
+      "expectRules": [
+        "bun-serve-options-confinement"
+      ]
+    },
+    {
+      "id": "c-no-raw-body-drain",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export async function h(x: { text(): Promise<string> }){ return await x.text() }",
+      "expectRules": [
+        "no-raw-body-drain"
+      ]
+    },
+    {
+      "id": "c-no-stream-drain",
+      "group": "rule-witness",
+      "path": "backend/src/routes/probe.ts",
+      "mode": "static",
+      "source": "export function h(s: { getReader(): unknown }){ return s.getReader() }",
+      "expectRules": [
+        "no-stream-drain"
+      ]
+    }
+  ]
+}

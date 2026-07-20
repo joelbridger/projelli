@@ -67,25 +67,123 @@ export interface HttpRequest {
  */
 export type CappedRead<T> = { ok: true; value: T } | { ok: false; tooLarge: boolean };
 
+/**
+ * The two Bun server APIs that genuinely need the concrete inbound `Request`.
+ *
+ * Declared STRUCTURALLY and kept inside this file on purpose: it is what lets
+ * `server.ts` hand the seam Bun's server handle without ever naming, holding, or
+ * passing a `Request` itself. `Bun.Server<T>` satisfies this shape, so the real
+ * server is accepted with no cast at the call site.
+ */
+export interface RawRequestServer<D> {
+  requestIP(request: Request): { readonly address: string } | null;
+  upgrade(request: Request, options: { data: D }): boolean;
+}
+
+/**
+ * What the seam remembers about a live request. `peer` and `upgrade` are
+ * CLOSURES captured at the fetch boundary, not the server object itself: they
+ * are the only two operations that need the concrete `Request`, so binding them
+ * here means the raw object never has to be handed back out to satisfy them.
+ */
 type BodyState =
-  | { kind: "pending"; request: Request; outerCapBytes: number }
+  | {
+      kind: "pending";
+      request: Request;
+      peer: () => string | undefined;
+      upgrade: (data: unknown) => boolean;
+      outerCapBytes: number;
+    }
   | { kind: "done"; read: CappedRead<Uint8Array> };
+
+const NO_SERVER = {
+  peer: () => undefined,
+  upgrade: () => false,
+} as const;
 
 const bodies = new WeakMap<HttpRequest, BodyState>();
 const EMPTY = new Uint8Array(0);
 const DECODER = new TextDecoder("utf-8", { fatal: false });
 
 /**
- * Consume the one raw inbound stream and replace it with a safe handler value.
- * The cap is checked while streaming; no handler runs until this completes.
+ * Replace the one raw inbound Request with a safe handler value.
+ *
+ * Returns the envelope DIRECTLY, not a result union: this function cannot fail.
+ * It deliberately does not pull the body — protected routes must reject bad
+ * credentials before reading one byte — so there is no size or parse outcome to
+ * report here. (An earlier signature returned `CappedRead<HttpRequest>`, which
+ * gave `server.ts` a 413/400 branch that could never execute and misled a reader
+ * about where the cap is enforced. It is enforced at the first `readCapped*`
+ * call, by `bodyFor`, using the tighter of the route and caller caps.)
  */
-export async function prepareHttpRequest(req: Request, maxBytes: number): Promise<CappedRead<HttpRequest>> {
+export function prepareHttpRequest(
+  req: Request,
+  maxBytes: number,
+  bound: { peer: () => string | undefined; upgrade: (data: unknown) => boolean } = NO_SERVER,
+): HttpRequest {
   const safe = metadataEnvelope(req);
-  // Do not pull the body here: protected routes must reject bad credentials
-  // before reading one byte. The raw stream remains private and the first
-  // readCapped* call consumes it using the tighter of the route and caller caps.
-  bodies.set(safe, { kind: "pending", request: req, outerCapBytes: maxBytes });
-  return { ok: true, value: safe };
+  bodies.set(safe, { kind: "pending", request: req, peer: bound.peer, upgrade: bound.upgrade, outerCapBytes: maxBytes });
+  return safe;
+}
+
+/**
+ * THE FETCH BOUNDARY. This is why `Request` exists in exactly one file.
+ *
+ * Bun's `fetch` callback is handed a real, drainable `Request`. Rather than let
+ * `server.ts` receive it and promise to be careful, the seam OWNS the callback:
+ * it takes the raw request, keeps it private, and calls the application's router
+ * with the metadata-only envelope. `server.ts` therefore never declares, names,
+ * casts to, constructs, or receives a `Request` at all — which is the property
+ * `scripts/check-backend-body-readers.mjs` enforces as a totality (no `Request`
+ * and no `ReadableStream` anywhere under `backend/src` outside this file and the
+ * two reviewed OUTBOUND response readers).
+ *
+ * `capFor` is the per-route outer cap chooser. It is given the path and method
+ * only, never the request, so the caller cannot smuggle the raw object out
+ * through the callback.
+ */
+export function serveFetch<D>(
+  capFor: (path: string, method: string) => number,
+  route: (req: HttpRequest) => Promise<Response | undefined>,
+): (raw: Request, server: RawRequestServer<D>) => Promise<Response | undefined> {
+  return async (raw, server) => {
+    const cap = capFor(new URL(raw.url).pathname, raw.method);
+    const bound = {
+      peer: () => server.requestIP(raw)?.address ?? undefined,
+      // The socket-data type is checked where `upgradeWebSocket` is CALLED (the
+      // caller annotates it), then erased through the private WeakMap, which is
+      // keyed by envelope and cannot carry `D`. This is the one unchecked hop
+      // and it is inside the seam by design.
+      upgrade: (data: unknown) => server.upgrade(raw, { data: data as D }),
+    };
+    return await route(prepareHttpRequest(raw, cap, bound));
+  };
+}
+
+/**
+ * The peer address Bun saw for this request, or `undefined`.
+ *
+ * The seam redeems the private raw request itself; callers hold only the
+ * envelope, so `srv.requestIP(rawReq)` never appears outside this file.
+ */
+export function peerAddress(req: HttpRequest): string | undefined {
+  const state = bodies.get(req);
+  if (state?.kind !== "pending") return undefined;
+  return state.peer();
+}
+
+/**
+ * Hand this connection to Bun's WebSocket machinery.
+ *
+ * Same reason as `peerAddress`: `srv.upgrade()` needs the concrete `Request`, so
+ * the seam performs the upgrade against its private copy. Fails CLOSED — an
+ * envelope this module did not prepare, or one whose body has already been
+ * consumed, cannot be upgraded.
+ */
+export function upgradeWebSocket<T>(req: HttpRequest, data: T): boolean {
+  const state = bodies.get(req);
+  if (state?.kind !== "pending") return false;
+  return state.upgrade(data);
 }
 
 /**
@@ -171,12 +269,26 @@ async function bodyFor(req: HttpRequest, maxBytes: number): Promise<CappedRead<U
   throw new TypeError("HttpRequest was not prepared by the request-body seam");
 }
 
+/** Locking the stream can throw (already-locked). Return null instead. */
+function acquireReader(body: ReadableStream<Uint8Array>) {
+  try {
+    return body.getReader();
+  } catch {
+    return null;
+  }
+}
+
 async function readRawBodyCapped(req: Request, maxBytes: number): Promise<CappedRead<Uint8Array>> {
   const declared = Number(req.headers.get("content-length") ?? "0");
   if (Number.isFinite(declared) && declared > maxBytes) return { ok: false, tooLarge: true };
   if (req.body === null) return { ok: true, value: EMPTY };
 
-  const reader = req.body.getReader();
+  // `getReader()` itself can throw — a second concurrent read of the same
+  // envelope finds the stream already locked. Acquiring it INSIDE a guard turns
+  // that into a clean 400-shaped refusal instead of an escaped rejection that
+  // `server.ts` answers with a 500. Fail closed, not fail loud.
+  const reader = acquireReader(req.body);
+  if (reader === null) return { ok: false, tooLarge: false };
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {
