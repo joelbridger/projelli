@@ -191,10 +191,23 @@ export function scanSource(relPath, sourceText) {
   return violations;
 }
 
-/** Universal git scope minus an exact reviewed exclusion list. */
+/**
+ * Universal git scope minus an exact reviewed exclusion list.
+ *
+ * `--cached --others --exclude-standard` on purpose: `--cached` alone sees only
+ * files that are already committed or staged, so a brand-new, not-yet-added
+ * source file under `backend/src` would be INVISIBLE to this scan while backend
+ * `tsc` and Bun both compile and run it. That was a real fail-open — an
+ * untracked `.ts` declaring `req: Request` and calling `req.text()` produced
+ * `✅ 39 files scanned, exit 0` with the file never opened. A guard that cannot
+ * see the file a developer just wrote is a guard that greens the moment it
+ * matters most. `--others --exclude-standard` adds exactly the untracked,
+ * non-ignored files; the two sets are disjoint, and the result is deduped
+ * defensively so an index/worktree overlap can never inflate the count.
+ */
 export function trackedBackendSources(root = repoRoot) {
-  const out = execFileSync('git', ['ls-files', '-z', '--', 'backend/src'], { cwd: root, encoding: 'utf8' });
-  const tracked = out.split('\0').filter(Boolean);
+  const out = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'backend/src'], { cwd: root, encoding: 'utf8' });
+  const tracked = [...new Set(out.split('\0').filter(Boolean))].sort();
   const unknown = tracked.filter((path) => !TS_SOURCE_EXTENSIONS.has(extname(path)) && !SOURCE_SCOPE_EXCLUDED.has(path));
   if (unknown.length > 0) {
     throw new Error(`check-backend-body-readers: refusing unknown tracked backend/src file type(s): ${unknown.join(', ')}. Review and scan it, or add an exact justified exclusion.`);
@@ -202,27 +215,44 @@ export function trackedBackendSources(root = repoRoot) {
   return tracked.filter((path) => !SOURCE_SCOPE_EXCLUDED.has(path));
 }
 
+/**
+ * The whole check, as a callable unit.
+ *
+ * `root` exists so the self-test can drive the REAL logic against a real
+ * throwaway repository — notably to prove the empty-scan refusal, which cannot
+ * be reached from the CLI without deleting the backend. It is NOT a bypass: the
+ * CLI below always passes the real repository root, and every abnormal outcome
+ * on any root THROWS. There is no argument, env var, or root that turns a
+ * finding into a pass.
+ *
+ * @returns {number} violation count (0 = clean). Throws on any refusal.
+ */
+export function runCheck(root = repoRoot, log = console) {
+  validateAllowlistIntegrity();
+  const files = trackedBackendSources(root);
+  if (files.length === 0) throw new Error('check-backend-body-readers: found 0 tracked files under backend/src — refusing to report a pass on an empty scan.');
+  const scanned = new Set(files);
+  const stale = [...REQUEST_TYPE_ALLOWED.keys(), ...RAW_READ_ALLOWED.keys()].filter((path) => !scanned.has(path));
+  if (stale.length > 0) throw new Error(`check-backend-body-readers: allowlist names untracked path(s): ${stale.join(', ')}`);
+
+  let total = 0;
+  for (const rel of files) {
+    for (const violation of scanSource(rel, readFileSync(resolve(root, rel), 'utf8'))) {
+      log.error(`${rel}:${violation.line}  [${violation.rule}]  ${violation.message}`);
+      total++;
+    }
+  }
+  if (total > 0) {
+    log.error(`\n❌ check-backend-body-readers: ${total} violation(s) in ${files.length} scanned file(s); failing closed.`);
+    return total;
+  }
+  log.log(`✅ check-backend-body-readers: ${files.length} tracked backend source files scanned; totality boundary intact.`);
+  return 0;
+}
+
 function main() {
   try {
-    validateAllowlistIntegrity();
-    const files = trackedBackendSources();
-    if (files.length === 0) throw new Error('check-backend-body-readers: found 0 tracked files under backend/src — refusing to report a pass on an empty scan.');
-    const scanned = new Set(files);
-    const stale = [...REQUEST_TYPE_ALLOWED.keys(), ...RAW_READ_ALLOWED.keys()].filter((path) => !scanned.has(path));
-    if (stale.length > 0) throw new Error(`check-backend-body-readers: allowlist names untracked path(s): ${stale.join(', ')}`);
-
-    let total = 0;
-    for (const rel of files) {
-      for (const violation of scanSource(rel, readFileSync(resolve(repoRoot, rel), 'utf8'))) {
-        console.error(`${rel}:${violation.line}  [${violation.rule}]  ${violation.message}`);
-        total++;
-      }
-    }
-    if (total > 0) {
-      console.error(`\n❌ check-backend-body-readers: ${total} violation(s) in ${files.length} scanned file(s); failing closed.`);
-      process.exit(1);
-    }
-    console.log(`✅ check-backend-body-readers: ${files.length} tracked backend source files scanned; totality boundary intact.`);
+    if (runCheck() > 0) process.exit(1);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
