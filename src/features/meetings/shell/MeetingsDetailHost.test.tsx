@@ -5,6 +5,7 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { FSBackend, FileStat } from '@/platform/fs/types';
 import { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+import { setMeetingMaterialViewerResolver } from '@/platform/fs/meetingMaterialViewer';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import {
@@ -17,9 +18,10 @@ import { setDevFlagOverride } from '@/platform/flags/router';
 
 const nativeRecords = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
-  invoke: vi.fn<
-    (command: string, args?: Record<string, unknown>) => Promise<unknown>
-  >(),
+  invoke:
+    vi.fn<
+      (command: string, args?: Record<string, unknown>) => Promise<unknown>
+    >(),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -76,6 +78,12 @@ class DetailHostBackend implements FSBackend {
           confirmedBy: 'advisor',
           confirmedAt: '2026-07-20T08:59:00.000Z',
         },
+        // CONTAINMENT (WB-085): file-backed meeting material carries the same
+        // owner + visibility policy as the pool record for this meeting
+        // (`ownerRef: 'advisor-1'` below), so the two mechanisms agree. Without
+        // the stamp this material fails closed and no detail renders.
+        ownerRef: 'advisor-1',
+        visibilityPolicyId: 'owner-private',
       })
     );
   }
@@ -187,6 +195,10 @@ describe('Meetings sealed detail host', () => {
       return Promise.reject(new Error(`Unexpected command ${command}`));
     });
     useWorkspaceStore.setState({ rootPath: '/workspace' });
+    // CONTAINMENT (WB-085): the file gate needs a resolved viewer. This is the
+    // advisor who owns the fixture material, so the reads below are the OWNER
+    // path; the refusal path is proved in meetingMaterialVisibility.wb085.test.
+    setMeetingMaterialViewerResolver(() => 'advisor-1');
     setDevFlagOverride('selection-authority-boot-gate', false);
     replaceCanonicalHouseholdDirectory('wealthbox', null);
     requestClearClientSelection();
@@ -239,6 +251,7 @@ describe('Meetings sealed detail host', () => {
   afterEach(() => {
     cleanup();
     setActiveWorkspaceService(null);
+    setMeetingMaterialViewerResolver(null);
     setDevFlagOverride('selection-authority-boot-gate', false);
     useMatterStore.setState({ matters: [], activeMatterId: null });
     replaceCanonicalHouseholdDirectory('wealthbox', null);

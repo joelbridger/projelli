@@ -1,18 +1,25 @@
 // Workspace Service
 // Orchestrates file operations with security validation
 
-import type { FileNode, Workspace, RecentWorkspace } from '@/platform/types/workspace';
 import type {
-  FSBackend,
-  FileStat,
-  WorkspaceInitOptions,
-} from './types';
-import {
-  FileOperationError,
-  DEFAULT_WORKSPACE_FOLDERS,
-} from './types';
+  FileNode,
+  Workspace,
+  RecentWorkspace,
+} from '@/platform/types/workspace';
+import type { FSBackend, FileStat, WorkspaceInitOptions } from './types';
+import { FileOperationError, DEFAULT_WORKSPACE_FOLDERS } from './types';
 import { PathValidator } from './PathValidator';
 import { WORKSPACE_DATA_DIR } from '@/config/identity';
+import {
+  classifyMeetingMaterialForViewer,
+  meetingFolderForPath,
+  meetingFolderIfSelf,
+  parseMeetingStamp,
+  stampPathForFolder,
+  OWNER_PRIVATE_VISIBILITY_POLICY,
+  type MeetingMaterialDisposition,
+} from './meetingMaterialVisibility';
+import { currentMeetingMaterialViewer } from './meetingMaterialViewer';
 
 /**
  * WorkspaceService provides secure file operations
@@ -26,7 +33,7 @@ import { WORKSPACE_DATA_DIR } from '@/config/identity';
  */
 function cloneFileTree(nodes: FileNode[]): FileNode[] {
   return nodes.map((n) =>
-    n.children ? { ...n, children: cloneFileTree(n.children) } : { ...n },
+    n.children ? { ...n, children: cloneFileTree(n.children) } : { ...n }
   );
 }
 
@@ -67,7 +74,10 @@ export class WorkspaceService {
   ): Promise<Workspace> {
     const { createIfMissing = false, createDefaultStructure = false } = options;
 
-    console.log('[WorkspaceService] initialize() called with rootPath:', rootPath);
+    console.log(
+      '[WorkspaceService] initialize() called with rootPath:',
+      rootPath
+    );
 
     // Set up backend. Pass createIfMissing so the create-new-workspace flow
     // creates the root directory instead of throwing when it is absent.
@@ -80,7 +90,9 @@ export class WorkspaceService {
     this.pathValidator = new PathValidator(rootPath);
 
     // Check if workspace exists - use empty string to check the root itself
-    console.log('[WorkspaceService] Checking if root exists by calling backend.exists("")');
+    console.log(
+      '[WorkspaceService] Checking if root exists by calling backend.exists("")'
+    );
     const exists = await backend.exists('');
 
     if (!exists) {
@@ -134,7 +146,10 @@ export class WorkspaceService {
       throw new Error('Workspace not initialized');
     }
 
-    console.log('[WorkspaceService] Creating default structure with folders:', DEFAULT_WORKSPACE_FOLDERS);
+    console.log(
+      '[WorkspaceService] Creating default structure with folders:',
+      DEFAULT_WORKSPACE_FOLDERS
+    );
 
     for (const folder of DEFAULT_WORKSPACE_FOLDERS) {
       // Pass relative path to backend - it will resolve against workspace root
@@ -190,6 +205,156 @@ export class WorkspaceService {
     this.workspace = null;
   }
 
+  // =========== CONTAINMENT (WB-085): file-backed meeting material ===========
+
+  /**
+   * Read a meeting folder's stamp DIRECTLY off the backend.
+   *
+   * Deliberately bypasses `readFile`: the stamp read is what the gate is made
+   * of, so routing it through the gate would recurse forever. Because it never
+   * returns bytes to a caller, bypassing the gate here leaks nothing — the
+   * parsed result is only ever fed to the classifier.
+   *
+   * Any failure (absent, unreadable, corrupt, not an object) yields null, which
+   * the classifier maps to `unstamped` -> REFUSED. There is no path through
+   * this method that turns an unreadable stamp into an allow.
+   */
+  private async readMeetingStamp(meetingFolder: string) {
+    const backend = this.backend;
+    const validator = this.pathValidator;
+    if (!backend || !validator) return null;
+    try {
+      const stampPath = validator.validatePath(
+        stampPathForFolder(meetingFolder)
+      );
+      const raw = await backend.read(this.toBackendPath(stampPath));
+      return parseMeetingStamp(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The visibility decision for `path`. Returns `allowed` unchanged for
+   * anything that is not per-meeting material — this gate governs meeting
+   * folders, not the whole workspace.
+   */
+  private async classifyMeetingPath(
+    path: string
+  ): Promise<MeetingMaterialDisposition> {
+    const folder = meetingFolderForPath(path);
+    if (!folder) return { kind: 'allowed' };
+    const stamp = await this.readMeetingStamp(folder);
+    return classifyMeetingMaterialForViewer(
+      stamp,
+      currentMeetingMaterialViewer()
+    );
+  }
+
+  /**
+   * Refuse a read of owner-private material INDISTINGUISHABLY from "not there".
+   *
+   * The refusal reuses the EXACT `FileOperationError` message, path and
+   * operation that a missing file produces at this same boundary, so a
+   * non-owner cannot use the error to learn that a meeting exists at all. This
+   * mirrors the pool path, where an owner-private record and a nonexistent one
+   * were proven to return byte-identical responses. The refusal reason is
+   * deliberately NOT surfaced in the error for the same reason.
+   */
+  private refuseMeetingRead(path: string, binary: boolean): never {
+    throw new FileOperationError(
+      binary
+        ? `Failed to read binary file: ${path}`
+        : `Failed to read file: ${path}`,
+      path,
+      'read'
+    );
+  }
+
+  /**
+   * CONTAINMENT (WB-085) — the ONE narrow bypass, for claiming a meeting folder
+   * this seat has just created.
+   *
+   * WHY IT MUST EXIST. Rust's `finalize_session` (capture/session.rs) writes the
+   * authoritative `meeting.json` (matterId/startedAt/consent) at Stop, BEFORE
+   * any TypeScript runs. That file is unstamped, and unstamped fails closed —
+   * so the post-stop pipeline could not read the file it needs to stamp, and
+   * every freshly recorded meeting would be permanently unreadable by the very
+   * advisor who recorded it. This method closes that gap.
+   *
+   * WHY IT IS SAFE. The bypass applies to UNSTAMPED folders only. The moment a
+   * folder carries a stamp, this method defers to the normal classifier and
+   * refuses exactly like `readFile` would — so it can never be used to reach
+   * ANOTHER advisor's owner-private material. The caller must already know the
+   * exact `meetingDir` it just finalized; this is not a folder scan and cannot
+   * be pointed at a directory the seat did not create.
+   *
+   * RESIDUAL, STATED PLAINLY. On a SHARED folder holding UNSTAMPED legacy
+   * material, this would let the first seat to touch a folder claim it. That is
+   * acceptable only because the product is pre-deploy with zero users, so no
+   * unstamped corpus exists in the field (see the migration decision in the
+   * lane report). It must be revisited before any migration path ships.
+   *
+   * Returns the (now stamped) metadata, or null when the folder has no
+   * readable metadata at all.
+   */
+  async adoptUnstampedMeetingFolder(
+    meetingDir: string,
+    stamp: { readonly ownerRef: string; readonly visibilityPolicyId?: string }
+  ): Promise<Record<string, unknown> | null> {
+    this.ensureInitialized();
+    const backend = this.backend;
+    const validator = this.pathValidator;
+    if (!backend || !validator) return null;
+    const folder = validator.validatePath(meetingDir);
+    const existing = await this.readMeetingStamp(folder);
+
+    // Already stamped -> no bypass. Judge it exactly like any other read.
+    if (existing && (existing.ownerRef || existing.visibilityPolicyId)) {
+      if (
+        classifyMeetingMaterialForViewer(
+          existing,
+          currentMeetingMaterialViewer()
+        ).kind === 'refused'
+      )
+        return null;
+      const raw = await this.readFile(stampPathForFolder(folder));
+      try {
+        return JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    }
+
+    // Unstamped -> claim it for this seat.
+    let meta: Record<string, unknown>;
+    try {
+      const raw = await backend.read(
+        this.toBackendPath(stampPathForFolder(folder))
+      );
+      const parsed: unknown = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+        return null;
+      meta = parsed as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+
+    const owner = stamp.ownerRef.trim();
+    if (owner === '') return null;
+    const stamped = {
+      ...meta,
+      ownerRef: owner,
+      visibilityPolicyId:
+        stamp.visibilityPolicyId?.trim() || OWNER_PRIVATE_VISIBILITY_POLICY,
+    };
+    await this.writeFile(
+      stampPathForFolder(folder),
+      JSON.stringify(stamped, null, 2)
+    );
+    return stamped;
+  }
+
   // ==================== File Operations ====================
 
   /**
@@ -200,6 +365,11 @@ export class WorkspaceService {
     const validatedPath = this.pathValidator!.validatePath(path);
     await this.checkSymlinkSafety(validatedPath);
     const backendPath = this.toBackendPath(validatedPath);
+
+    // CONTAINMENT (WB-085): gate BEFORE the backend is touched, so a refusal
+    // never depends on whether the underlying file happens to exist.
+    if ((await this.classifyMeetingPath(validatedPath)).kind === 'refused')
+      this.refuseMeetingRead(path, false);
 
     try {
       return await this.backend!.read(backendPath);
@@ -221,6 +391,10 @@ export class WorkspaceService {
     const validatedPath = this.pathValidator!.validatePath(path);
     await this.checkSymlinkSafety(validatedPath);
     const backendPath = this.toBackendPath(validatedPath);
+
+    // CONTAINMENT (WB-085): see readFile.
+    if ((await this.classifyMeetingPath(validatedPath)).kind === 'refused')
+      this.refuseMeetingRead(path, true);
 
     try {
       return await this.backend!.readBinary(backendPath);
@@ -301,6 +475,22 @@ export class WorkspaceService {
     this.ensureInitialized();
     const validatedPath = this.pathValidator!.validatePath(path);
     const backendPath = this.toBackendPath(validatedPath);
+    // CONTAINMENT (WB-085): the existence signal is part of the leak. Material
+    // a viewer may not read must report as absent, not as "there but refused" —
+    // otherwise `exists()` becomes the oracle that `readFile` refuses to be.
+    // Covers both a file INSIDE a meeting folder and the meeting folder ITSELF
+    // (the latter is what a probe of `Meetings/<folder>` asks).
+    if ((await this.classifyMeetingPath(validatedPath)).kind === 'refused')
+      return false;
+    const self = meetingFolderIfSelf(validatedPath);
+    if (self) {
+      const stamp = await this.readMeetingStamp(self);
+      if (
+        classifyMeetingMaterialForViewer(stamp, currentMeetingMaterialViewer())
+          .kind === 'refused'
+      )
+        return false;
+    }
     return this.backend!.exists(backendPath);
   }
 
@@ -453,8 +643,23 @@ export class WorkspaceService {
     const validatedPath = this.pathValidator!.validatePath(path);
     const backendPath = this.toBackendPath(validatedPath);
 
+    // CONTAINMENT (WB-085): listing INSIDE a meeting folder the viewer may not
+    // read reveals the artifact set (has audio, has notes, …) even though every
+    // individual read would refuse. Refuse the listing the same way a missing
+    // directory does.
+    if (
+      (await this.classifyMeetingPath(`${validatedPath}/.probe`)).kind ===
+      'refused'
+    )
+      throw new FileOperationError(
+        `Failed to list directory: ${path}`,
+        path,
+        'list'
+      );
+
+    let entries: FileNode[];
     try {
-      return await this.backend!.list(backendPath);
+      entries = await this.backend!.list(backendPath);
     } catch (error) {
       throw new FileOperationError(
         `Failed to list directory: ${path}`,
@@ -463,6 +668,38 @@ export class WorkspaceService {
         error instanceof Error ? error : undefined
       );
     }
+
+    // CONTAINMENT (WB-085): drop meeting folders this viewer may not read, so a
+    // listing of `Meetings/` is the existence oracle for the viewer's OWN
+    // meetings only. Done after the backend call so non-meeting listings pay
+    // nothing.
+    return this.filterRefusedMeetingFolders(entries);
+  }
+
+  /**
+   * Remove entries that are meeting folders the current viewer may not read.
+   * Only folders sitting directly under `Meetings/` are candidates; everything
+   * else passes through untouched.
+   */
+  private async filterRefusedMeetingFolders(
+    entries: FileNode[]
+  ): Promise<FileNode[]> {
+    const candidates = entries.filter(
+      (entry) => entry.type === 'folder' && meetingFolderIfSelf(entry.path)
+    );
+    if (candidates.length === 0) return entries;
+    const viewer = currentMeetingMaterialViewer();
+    const refused = new Set<string>();
+    await Promise.all(
+      candidates.map(async (entry) => {
+        const stamp = await this.readMeetingStamp(entry.path);
+        if (classifyMeetingMaterialForViewer(stamp, viewer).kind === 'refused')
+          refused.add(entry.path);
+      })
+    );
+    return refused.size === 0
+      ? entries
+      : entries.filter((entry) => !refused.has(entry.path));
   }
 
   /**
@@ -492,7 +729,8 @@ export class WorkspaceService {
    */
   async isSymlink(path: string): Promise<boolean> {
     this.ensureInitialized();
-    if (!this.pathValidator || !this.backend) throw new Error('Workspace not initialized');
+    if (!this.pathValidator || !this.backend)
+      throw new Error('Workspace not initialized');
     const validatedPath = this.pathValidator.validatePath(path);
     return this.backend.isSymlink(this.toBackendPath(validatedPath));
   }
@@ -504,7 +742,8 @@ export class WorkspaceService {
    */
   async resolveSymlink(path: string): Promise<string> {
     this.ensureInitialized();
-    if (!this.pathValidator || !this.backend) throw new Error('Workspace not initialized');
+    if (!this.pathValidator || !this.backend)
+      throw new Error('Workspace not initialized');
     const validatedPath = this.pathValidator.validatePath(path);
     return this.backend.resolveSymlink(this.toBackendPath(validatedPath));
   }
@@ -547,7 +786,7 @@ export class WorkspaceService {
     // Lantern's internal config folder is never shown anywhere in the tree
     // (so every fileTree consumer — not just FileTree/FileGridView — is covered).
     const items = (await this.backend!.list(path)).filter(
-      (i) => i.name !== WORKSPACE_DATA_DIR,
+      (i) => i.name !== WORKSPACE_DATA_DIR
     );
 
     for (const item of items) {
@@ -580,7 +819,10 @@ export class WorkspaceService {
           // empty folder — silently reporting `[]` here made a real access
           // failure invisible. Log it and flag it so the tree can show an
           // honest "couldn't read this folder" state instead.
-          console.error(`[WorkspaceService] Could not read folder "${item.path}":`, err);
+          console.error(
+            `[WorkspaceService] Could not read folder "${item.path}":`,
+            err
+          );
           item.children = [];
           item.readError = true;
         }
@@ -641,7 +883,9 @@ export class WorkspaceService {
    * Check symlink safety
    * @param validatedAbsolutePath - Already validated absolute path
    */
-  private async checkSymlinkSafety(validatedAbsolutePath: string): Promise<void> {
+  private async checkSymlinkSafety(
+    validatedAbsolutePath: string
+  ): Promise<void> {
     if (!this.backend || !this.pathValidator) return;
 
     const backendPath = this.toBackendPath(validatedAbsolutePath);

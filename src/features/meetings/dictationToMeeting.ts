@@ -7,6 +7,8 @@
  */
 import type { TranscriptFile } from '@/platform/types/meeting';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { applyMeetingStamp } from '@/platform/fs/meetingMaterialVisibility';
 import { formatCitationsForDisplay } from './meetingNoteTemplate';
 import {
   generateMeetingNoteMarkdown,
@@ -15,14 +17,24 @@ import {
 
 /** The one-segment pseudo-transcript a dictated note becomes — citations are
  *  all `[t:0]`, which is acceptable since there's only ever one source. */
-export function buildPseudoTranscript(noteText: string, matterId: string, recordedAt: string): TranscriptFile {
+export function buildPseudoTranscript(
+  noteText: string,
+  matterId: string,
+  recordedAt: string
+): TranscriptFile {
   return {
-    segments: [{ startMs: 0, endMs: 0, channel: 'mic', speaker: 'You', text: noteText }],
+    segments: [
+      { startMs: 0, endMs: 0, channel: 'mic', speaker: 'You', text: noteText },
+    ],
     meta: {
       startedAt: recordedAt,
       durationMs: 0,
       matterId,
-      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: recordedAt },
+      consent: {
+        mode: 'one-party',
+        confirmedBy: 'user',
+        confirmedAt: recordedAt,
+      },
       dictation: true,
     },
   };
@@ -53,13 +65,19 @@ export async function dictationToMeeting(
   matterId: string,
   matterFolder: string,
   recordedAt: string,
-  resolveProvider?: () => Promise<ResolvedMeetingNotesProvider>,
+  resolveProvider?: () => Promise<ResolvedMeetingNotesProvider>
 ): Promise<DictationMeetingFolder> {
   const transcript = buildPseudoTranscript(noteText, matterId, recordedAt);
   const folderName = `${recordedAt.slice(0, 10)}-dictated-${String(Date.parse(recordedAt) || 0)}`;
   const meetingDir = `${matterFolder}/Meetings/${folderName}`;
+  const sessionUserId = useFirmStore.getState().session?.userId;
+  const ownerRef =
+    typeof sessionUserId === 'string' ? sessionUserId.trim() : '';
 
-  await ws.writeFile(`${meetingDir}/transcript.json`, JSON.stringify(transcript, null, 2));
+  await ws.writeFile(
+    `${meetingDir}/transcript.json`,
+    JSON.stringify(transcript, null, 2)
+  );
 
   try {
     const markdown = await generateMeetingNoteMarkdown({
@@ -67,30 +85,42 @@ export async function dictationToMeeting(
       matterId,
       ...(resolveProvider ? { resolveProvider } : {}),
     });
-    const { markdownToDocxBytes, applyLetterheadIfConfigured } = await import('@/platform/utils/docx-io');
+    const { markdownToDocxBytes, applyLetterheadIfConfigured } =
+      await import('@/platform/utils/docx-io');
     // Same advisor-facing invariant as meetingStore's recording path: raw
     // [t:ms] tokens never reach notes.docx. 'omit' (not a timestamp) because
     // the pseudo-transcript is one segment at 0ms — "(at 0:00)" on every
     // bullet would be noise, not a citation.
-    const bytes = await markdownToDocxBytes(formatCitationsForDisplay(markdown, 'omit'), 'notes.docx');
+    const bytes = await markdownToDocxBytes(
+      formatCitationsForDisplay(markdown, 'omit'),
+      'notes.docx'
+    );
     const finalBytes = await applyLetterheadIfConfigured(bytes);
     await ws.writeFileBinary(`${meetingDir}/notes.docx`, finalBytes);
   } catch {
     // Queued — the meeting still files without notes if no provider is configured.
   }
 
+  // CONTAINMENT (WB-085): a dictated note is file-backed meeting material and
+  // is stamped with the same canonical owner + visibility policy as a recorded
+  // meeting, so the read gate can judge it. Unlike the recording path there is
+  // no Rust-written file to adopt — this IS the first write, so it is stamped
+  // outright and never exists unstamped.
   await ws.writeFile(
     `${meetingDir}/meeting.json`,
     JSON.stringify(
-      {
-        matterId,
-        startedAt: recordedAt,
-        consent: transcript.meta.consent,
-        dictation: true,
-      },
+      applyMeetingStamp(
+        {
+          matterId,
+          startedAt: recordedAt,
+          consent: transcript.meta.consent,
+          dictation: true,
+        },
+        { ownerRef }
+      ),
       null,
-      2,
-    ),
+      2
+    )
   );
 
   return { meetingDir };

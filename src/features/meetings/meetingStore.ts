@@ -20,6 +20,8 @@ import type { CaptureStatus, TranscriptFile } from '@/platform/types/meeting';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { applyMeetingStamp } from '@/platform/fs/meetingMaterialVisibility';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { MemoryService } from '@/platform/rag/MemoryService';
 import {
@@ -299,15 +301,36 @@ export function resolveWorkspaceRoot(): string {
   return useWorkspaceStore.getState().rootPath ?? '';
 }
 
+/**
+ * CONTAINMENT (WB-085) — the canonical owner for file-backed meeting material
+ * written by THIS seat. Same identity space as the shared pool's
+ * `MeetingProjection.ownerRef` (the firm member id), so the file mechanism and
+ * the record mechanism name owners identically. '' when there is no firm
+ * session, which leaves material UNSTAMPED and therefore refused on read — the
+ * fail-closed direction.
+ */
+function currentOwnerRef(): string {
+  const userId = useFirmStore.getState().session?.userId;
+  return typeof userId === 'string' ? userId.trim() : '';
+}
+
 export async function writeMeetingJson(
   meetingDir: string,
   meta: MeetingMeta
 ): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws) return;
+  // CONTAINMENT (WB-085): stamp at the write chokepoint. `applyMeetingStamp`
+  // never overwrites an existing stamp, so a later merge-write (notes error,
+  // delivery receipt, rename) cannot silently re-own an earlier advisor's
+  // material.
+  const stamped = applyMeetingStamp(
+    meta as unknown as Record<string, unknown>,
+    { ownerRef: currentOwnerRef() }
+  );
   await ws.writeFile(
     `${meetingDir}/meeting.json`,
-    JSON.stringify(meta, null, 2)
+    JSON.stringify(stamped, null, 2)
   );
 }
 
@@ -849,10 +872,17 @@ async function runPostStopPipeline(
       // never reconstruct/overwrite matterId/startedAt/consent from JS-side
       // state, which would silently replace Rust's real recorded values
       // (e.g. the actual start time) with wrong ones (e.g. stop time).
-      const existing = await activeWorkspaceService
-        ?.readFile(`${meetingDir}/meeting.json`)
-        .catch(() => null);
-      const base = existing ? (JSON.parse(existing) as MeetingMeta) : null;
+      // CONTAINMENT (WB-085): Rust's finalize_session wrote this file moments
+      // ago with no owner stamp, and unstamped material fails closed — so a
+      // plain readFile here would refuse the very file this seat just created.
+      // Claim the folder for this seat instead. The bypass covers UNSTAMPED
+      // folders only; a folder already stamped to another advisor is refused
+      // exactly as elsewhere.
+      const base = ((await activeWorkspaceService
+        ?.adoptUnstampedMeetingFolder(meetingDir, {
+          ownerRef: currentOwnerRef(),
+        })
+        .catch(() => null)) ?? null) as MeetingMeta | null;
       if (base) {
         // Task 12c: thin type detection — a matched calendar title (when the
         // recording started from one) plus any taught corrections decide the

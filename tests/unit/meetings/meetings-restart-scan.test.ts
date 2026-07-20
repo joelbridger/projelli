@@ -122,6 +122,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 import { TauriFSBackend } from '@/platform/fs/TauriFSBackend';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { listClientMeetings } from '@/features/meetings/ClientMeetingsTab';
+import { setMeetingMaterialViewerResolver } from '@/platform/fs/meetingMaterialViewer';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
 import {
@@ -213,7 +214,17 @@ async function openWorkspace(rootPath: string): Promise<WorkspaceService> {
   return svc;
 }
 
+/**
+ * CONTAINMENT (WB-085): file-backed meeting material now carries an owner +
+ * visibility policy, and the read gate resolves the viewer before returning
+ * anything. These prior-session fixtures are stamped to the advisor doing
+ * the scan — ARRANGE-phase truth matching production. The fail-closed
+ * refusal path is proved in src/platform/fs/meetingMaterialVisibility.wb085.test.ts.
+ */
+const FIXTURE_OWNER = 'advisor-restart-scan';
+
 beforeEach(() => {
+  setMeetingMaterialViewerResolver(() => FIXTURE_OWNER);
   fakeFs.dirs.clear();
   fakeFs.files.clear();
   (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
@@ -235,6 +246,8 @@ describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidat
         matterId: 'matter_nc_caldwell_jennifer',
         startedAt: '2026-07-04T10:47:38.422Z',
         consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:47:38.422Z' },
+        ownerRef: FIXTURE_OWNER,
+        visibilityPolicyId: 'owner-private',
       }),
     );
     const inSession = await scanAuthorizedClientMeetings(matterFolder, svc1);
@@ -258,18 +271,18 @@ describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidat
     const svcA = await openWorkspace(rootRaw);
     await svcA.writeFile(
       `${matterFolder}/Meetings/2026-06-01-old-one/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-06-01T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-06-01T00:00:00Z' } }),
+      JSON.stringify({ matterId: 'm1', startedAt: '2026-06-01T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-06-01T00:00:00Z' }, ownerRef: FIXTURE_OWNER, visibilityPolicyId: 'owner-private' }),
     );
     await svcA.writeFile(
       `${matterFolder}/Meetings/2026-06-15-old-two/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-06-15T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-06-15T00:00:00Z' } }),
+      JSON.stringify({ matterId: 'm1', startedAt: '2026-06-15T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-06-15T00:00:00Z' }, ownerRef: FIXTURE_OWNER, visibilityPolicyId: 'owner-private' }),
     );
 
     // Restart, record a THIRD meeting this session, then restart again.
     const svcB = await openWorkspace(rootRaw);
     await svcB.writeFile(
       `${matterFolder}/Meetings/2026-07-04-new-one/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
+      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' }, ownerRef: FIXTURE_OWNER, visibilityPolicyId: 'owner-private' }),
     );
     const svcC = await openWorkspace(rootRaw);
     const result = await scanAuthorizedClientMeetings(matterFolder, svcC);
@@ -289,7 +302,7 @@ describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidat
     const svc1 = await openWorkspace(rootRaw);
     await svc1.writeFile(
       `${meetingDirMixed}/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
+      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' }, ownerRef: FIXTURE_OWNER, visibilityPolicyId: 'owner-private' }),
     );
 
     const svc2 = await openWorkspace(rootRaw);
@@ -335,7 +348,7 @@ describe('listClientMeetings — scan-failure vs genuine-empty distinction', () 
     const svc = await openWorkspace(rootRaw);
     await svc.writeFile(
       `${matterFolder}/Meetings/2026-07-04-abc/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
+      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' }, ownerRef: FIXTURE_OWNER, visibilityPolicyId: 'owner-private' }),
     );
 
     // Fake a backend hiccup: fail list() on the Meetings folder exactly twice,
@@ -360,7 +373,7 @@ describe('listClientMeetings — scan-failure vs genuine-empty distinction', () 
     const svc = await openWorkspace(rootRaw);
     await svc.writeFile(
       `${matterFolder}/Meetings/2026-07-04-abc/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
+      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' }, ownerRef: FIXTURE_OWNER, visibilityPolicyId: 'owner-private' }),
     );
     svc.list = (async () => { throw new Error('permanently broken'); }) as typeof svc.list;
 

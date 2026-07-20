@@ -53,17 +53,69 @@ import { MEETING_NOTES_TIMEOUT_MS } from '@/features/meetings/meetingNotesTimeou
 import { meetingNoteFromTranscript } from '@/features/meetings/meetingNoteTemplate';
 import { ConfidentialityChoiceRequiredError } from '@/platform/privacy/localOnlyGuard';
 
+/**
+ * CONTAINMENT (WB-085): the post-stop pipeline claims the meeting folder Rust's
+ * finalize_session just wrote (WorkspaceService.adoptUnstampedMeetingFolder),
+ * because unstamped file-backed meeting material fails closed. This double
+ * stands in for that step faithfully: read the folder's meeting.json through
+ * the double's own readFile, add the owner stamp, and write it back through the
+ * double's own writeFile — so the assertions below still observe the real write
+ * shape.
+ */
+function withMeetingAdoption<T extends Record<string, unknown>>(double: T): T {
+  return {
+    ...double,
+    adoptUnstampedMeetingFolder: vi.fn(
+      async (
+        meetingDir: string,
+        stamp: { ownerRef: string; visibilityPolicyId?: string }
+      ) => {
+        const read = double['readFile'] as
+          | ((path: string) => Promise<string>)
+          | undefined;
+        const write = double['writeFile'] as
+          | ((path: string, content: string) => Promise<void>)
+          | undefined;
+        if (!read) return null;
+        let meta: Record<string, unknown>;
+        try {
+          const parsed: unknown = JSON.parse(
+            await read(`${meetingDir}/meeting.json`)
+          );
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+            return null;
+          meta = parsed as Record<string, unknown>;
+        } catch {
+          return null;
+        }
+        const stamped = {
+          ...meta,
+          ownerRef: meta['ownerRef'] ?? stamp.ownerRef,
+          visibilityPolicyId:
+            meta['visibilityPolicyId'] ?? stamp.visibilityPolicyId ?? 'owner-private',
+        };
+        if (write)
+          await write(
+            `${meetingDir}/meeting.json`,
+            JSON.stringify(stamped, null, 2)
+          );
+        return stamped;
+      }
+    ),
+  } as unknown as T;
+}
+
 describe('meeting store', () => {
   beforeEach(() => {
     invokeMock.mockReset();
     writeFileMock.mockReset();
     indexFileMock.mockReset();
     useMeetingStore.setState(useMeetingStore.getInitialState());
-    setMeetingsWorkspaceService({
+    setMeetingsWorkspaceService(withMeetingAdoption({
       writeFile: writeFileMock,
       readFile: vi.fn(async () => ''),
       exists: vi.fn(async () => false), // no transcript.json in these tests — notes stay queued, not an error
-    } as never);
+    }) as never);
   });
 
   it('start → stop drives capture commands and post-processing in order', async () => {
@@ -149,12 +201,12 @@ describe('meeting store', () => {
       files.set(normalized(p), content);
     });
     const writeFileBinary = vi.fn(async (_path: string, _content: ArrayBuffer) => {});
-    setMeetingsWorkspaceService({
+    setMeetingsWorkspaceService(withMeetingAdoption({
       readFile,
       writeFile,
       exists: vi.fn(async (p: string) => files.has(normalized(p))),
       writeFileBinary,
-    } as never);
+    }) as never);
     vi.mocked(meetingNoteFromTranscript.run).mockResolvedValueOnce('- did a thing [t:0]');
     invokeMock
       .mockResolvedValueOnce({ meetingDir, startedAt: 't0' })
@@ -196,7 +248,7 @@ describe('meeting store', () => {
       consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-02T17:00:00Z', note: '' },
     };
     const readFileMock = vi.fn(async (p: string) => (p.endsWith('meeting.json') ? JSON.stringify(rustWritten) : ''));
-    setMeetingsWorkspaceService({ writeFile: writeFileMock, readFile: readFileMock } as never);
+    setMeetingsWorkspaceService(withMeetingAdoption({ writeFile: writeFileMock, readFile: readFileMock }) as never);
     invokeMock
       .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
       .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: '/ws/C/Meetings/x/audio.wav', durationMs: 60000 })
@@ -303,12 +355,12 @@ describe('meeting store — notes generation never hangs and never fails silentl
       files.set(p, content);
     });
     const exists = vi.fn(async (p: string) => files.has(p));
-    setMeetingsWorkspaceService({
+    setMeetingsWorkspaceService(withMeetingAdoption({
       readFile,
       writeFile,
       exists,
       writeFileBinary: vi.fn(async (_path: string, _content: ArrayBuffer) => {}),
-    } as never);
+    }) as never);
     return { files };
   }
 
@@ -478,12 +530,12 @@ describe('meeting store — a transcript.json that exists but cannot be read/par
     const writeFile = vi.fn(async (p: string, content: string) => {
       files.set(p, content);
     });
-    setMeetingsWorkspaceService({
+    setMeetingsWorkspaceService(withMeetingAdoption({
       exists,
       readFile,
       writeFile,
       writeFileBinary: vi.fn(async (_path: string, _content: ArrayBuffer) => {}),
-    } as never);
+    }) as never);
     return { files };
   }
 
@@ -605,12 +657,12 @@ describe('meeting store — transcription never fails silently (QA-40)', () => {
       files.set(p, content);
     });
     const exists = vi.fn(async (p: string) => files.has(p));
-    setMeetingsWorkspaceService({
+    setMeetingsWorkspaceService(withMeetingAdoption({
       readFile,
       writeFile,
       exists,
       writeFileBinary: vi.fn(async (_path: string, _content: ArrayBuffer) => {}),
-    } as never);
+    }) as never);
     return { files };
   }
 

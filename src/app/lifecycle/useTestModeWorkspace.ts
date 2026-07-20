@@ -10,6 +10,9 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import { setMeetingsWorkspaceService } from '@/features/meetings/meetingStore';
+import { setMeetingMaterialViewerResolver } from '@/platform/fs/meetingMaterialViewer';
+import { applyMeetingStamp } from '@/platform/fs/meetingMaterialVisibility';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import { useFileBackupStore } from '@/platform/fs/fileBackupStore';
 import { useFileContextStore } from '@/platform/state/fileContextStore';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
@@ -49,6 +52,7 @@ export const TEST_MODE_WORKSPACE_SERVICE_METHOD_NAMES = [
   'close',
   'readFile',
   'readFileBinary',
+  'adoptUnstampedMeetingFolder',
   'writeFile',
   'writeFileBinary',
   'exists',
@@ -183,6 +187,38 @@ export function createTestModeWorkspaceMock(): TestModeWorkspaceMock {
       const bytes = files.get(path);
       if (!bytes) throw new Error(`Not found: ${path}`);
       return copyBuffer(bytes);
+    },
+    /**
+     * CONTAINMENT (WB-085): satisfies the same contract as the real service so
+     * the type stays total. NOT gated, deliberately and safely — this mock is
+     * entirely in-memory under `/test-workspace`, reachable only via
+     * `?testMode=true`, so there is no real folder for a second advisor to
+     * point at and the shared-folder leak cannot occur. Stamping is still
+     * honoured so demo material round-trips through the production shape.
+     */
+    async adoptUnstampedMeetingFolder(
+      meetingDir: string,
+      stamp: { readonly ownerRef: string; readonly visibilityPolicyId?: string }
+    ): Promise<Record<string, unknown> | null> {
+      await Promise.resolve();
+      const stampPath = `${meetingDir}/meeting.json`;
+      const bytes = files.get(stampPath);
+      if (!bytes) return null;
+      let meta: Record<string, unknown>;
+      try {
+        const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+          return null;
+        meta = parsed as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+      const stamped = applyMeetingStamp(meta, stamp);
+      files.set(
+        stampPath,
+        copyBuffer(textEncoder.encode(JSON.stringify(stamped, null, 2)).buffer)
+      );
+      return stamped;
     },
     async writeFile(path: string, content: string): Promise<void> {
       await Promise.resolve();
@@ -495,6 +531,11 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
         workspaceServiceRef.current = testWorkspace.service as WorkspaceService;
         setActiveWorkspaceService(workspaceServiceRef.current); // BUG-046: flush accessor
         setMeetingsWorkspaceService(workspaceServiceRef.current); // Wave 3c: meetings feature accessor
+        // CONTAINMENT (WB-085): see useWorkspaceLifecycle — the file-backed
+        // meeting gate resolves the viewer through this.
+        setMeetingMaterialViewerResolver(
+          () => useFirmStore.getState().session?.userId ?? null
+        );
         // Seed the two demo tabs into the mock filesystem too so that any
         // workspace op which goes through the real fs path (rename, exists,
         // readFile during reopen-after-rename) finds them.

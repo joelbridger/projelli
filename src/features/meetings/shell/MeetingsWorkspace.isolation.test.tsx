@@ -12,14 +12,16 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { FSBackend, FileStat } from '@/platform/fs/types';
 import { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+import { setMeetingMaterialViewerResolver } from '@/platform/fs/meetingMaterialViewer';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
 const nativeRecords = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
   commands: [] as string[],
-  invoke: vi.fn<
-    (command: string, args?: Record<string, unknown>) => Promise<unknown>
-  >(),
+  invoke:
+    vi.fn<
+      (command: string, args?: Record<string, unknown>) => Promise<unknown>
+    >(),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -95,6 +97,11 @@ class IsolationBackend implements FSBackend {
           confirmedBy: 'advisor',
           confirmedAt: '2026-07-20T08:59:00.000Z',
         },
+        // CONTAINMENT (WB-085): file-backed meeting material carries the same
+        // owner + visibility policy as the pool record for this meeting, so the
+        // file and record mechanisms agree. Unstamped material fails closed.
+        ownerRef: 'advisor-1',
+        visibilityPolicyId: 'owner-private',
       })
     );
   }
@@ -284,6 +291,9 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     service = new WorkspaceService();
     await service.initialize(new IsolationBackend(), '/workspace');
     setActiveWorkspaceService(service);
+    // CONTAINMENT (WB-085): resolve the viewer to the owner of the fixture
+    // material; the refusal path is proved in meetingMaterialVisibility.wb085.
+    setMeetingMaterialViewerResolver(() => 'advisor-1');
     runtime.workspace.serviceRef.current = service;
     runtime.navigation.setSurface.mockReset();
     runtime.navigation.pushSnapshot.mockReset();
@@ -322,24 +332,15 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
         linkedAt: '2026-07-18T00:00:00.000Z',
       }),
       meeting('meeting-folder-only', 'matter-b', 'household-b'),
-      taskReviewArtifact(
-        'artifact-a',
-        'meeting-a',
-        'matter-a',
-        'household-a'
-      ),
-      taskReviewArtifact(
-        'artifact-b',
-        'meeting-b',
-        'matter-b',
-        'household-b'
-      ),
+      taskReviewArtifact('artifact-a', 'meeting-a', 'matter-a', 'household-a'),
+      taskReviewArtifact('artifact-b', 'meeting-b', 'matter-b', 'household-b'),
     ];
   });
 
   afterEach(() => {
     cleanup();
     setActiveWorkspaceService(null);
+    setMeetingMaterialViewerResolver(null);
     setDevFlagOverride('selection-authority-boot-gate', false);
     useMatterStore.setState({ matters: [], activeMatterId: null });
     replaceCanonicalHouseholdDirectory('wealthbox', null);
@@ -384,7 +385,9 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     fireEvent.click(screen.getByTestId('meetings-view-past'));
     expect(await screen.findByTestId('meetings-past-empty')).toBeTruthy();
     fireEvent.click(screen.getByTestId('meetings-view-actions'));
-    expect(await screen.findByTestId('meetings-action-artifact-b')).toBeTruthy();
+    expect(
+      await screen.findByTestId('meetings-action-artifact-b')
+    ).toBeTruthy();
     expect(screen.queryByTestId('meetings-action-artifact-a')).toBeNull();
     expect(screen.getByTestId('meetings-actions-badge')).toHaveTextContent('1');
     expect(screen.getByTestId('meetings-actions-view-filter')).toHaveValue(

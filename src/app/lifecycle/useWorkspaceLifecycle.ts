@@ -13,6 +13,8 @@ import {
   setActiveWorkspaceService,
 } from '@/app/fileOps/flushDirtyTabs';
 import { setMeetingsWorkspaceService } from '@/features/meetings/meetingStore';
+import { setMeetingMaterialViewerResolver } from '@/platform/fs/meetingMaterialViewer';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import {
   createTemplatesMarketplaceService,
@@ -250,6 +252,12 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
       workspaceServiceRef.current = service;
       setActiveWorkspaceService(service); // BUG-046: keep the flush accessor in sync
       setMeetingsWorkspaceService(service); // Wave 3c: keep the meetings feature's accessor in sync
+      // CONTAINMENT (WB-085): the file-backed meeting gate needs to know who is
+      // looking. Until this is wired the viewer is unresolved, which refuses
+      // every stamped meeting file — fail-closed, never fail-open.
+      setMeetingMaterialViewerResolver(
+        () => useFirmStore.getState().session?.userId ?? null
+      );
       setShowWorkspaceSelector(false);
 
       const newRootPath = service.getRootPath();
@@ -296,12 +304,11 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
       if (newRootPath) {
         let auditWorkspaceReady = false;
         try {
-          auditWorkspaceReady =
-            await withTimeout(
-              auditServiceRef.current.hydrate(newRootPath),
-              AUDIT_HYDRATE_TIMEOUT_MS,
-              AUDIT_HYDRATE_LABEL
-            );
+          auditWorkspaceReady = await withTimeout(
+            auditServiceRef.current.hydrate(newRootPath),
+            AUDIT_HYDRATE_TIMEOUT_MS,
+            AUDIT_HYDRATE_LABEL
+          );
           if (auditWorkspaceReady) {
             const loaded = auditServiceRef.current.getAll().slice().reverse(); // store is oldest-first; UI shows newest-first
             setAuditEntries(loaded);

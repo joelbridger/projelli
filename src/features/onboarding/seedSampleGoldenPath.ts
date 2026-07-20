@@ -12,6 +12,8 @@ import type { TranscriptFile } from '@/platform/types/meeting';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { markdownToDocxBytes } from '@/platform/utils/docx-io';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { applyMeetingStamp } from '@/platform/fs/meetingMaterialVisibility';
 import {
   SAMPLE_FILE_BENEFICIARY_ESTATE,
   SAMPLE_FILE_MEETING_NOTES,
@@ -20,6 +22,8 @@ import {
 } from '@/platform/matter/samples/sampleMatterDemo';
 
 const SAMPLE_MEETING_FOLDER = '2026-07-02-hendricks-annual-review';
+/** Stable owner for the synthetic sample when no firm session is established. */
+const SAMPLE_MEETING_OWNER_REF = 'sample-advisor';
 const SAMPLE_COMPLETED_EVENT_ID = 'sample-hendricks-annual-review';
 const SAMPLE_BRIEF_EVENT_ID = 'sample-hendricks-planning-check-in';
 const SAMPLE_BRIEF_EVENT_TITLE = 'Hendricks planning check-in';
@@ -242,9 +246,30 @@ export async function seedSampleGoldenPath(
   matterId: string
 ): Promise<void> {
   const meetingDir = `${workspaceRoot.replace(/[\\/]+$/, '')}/Meetings/${SAMPLE_MEETING_FOLDER}`;
+  // CONTAINMENT (WB-085): the onboarding sample is file-backed meeting material
+  // like any other, so it is stamped at creation. Without a stamp it would fail
+  // closed on read and the golden-path sample would appear broken.
+  // The sample carries a BROAD policy, not owner-private: it is synthetic demo
+  // content, not a real client conversation, so classifying it as firm-visible
+  // is honest rather than a relaxation — and it keeps the golden path working
+  // for whichever advisor opens the sample workspace.
+  const sampleOwner = useFirmStore.getState().session?.userId;
   await workspace.writeFile(
     `${meetingDir}/meeting.json`,
-    JSON.stringify(sampleMeetingMeta(matterId), null, 2)
+    JSON.stringify(
+      applyMeetingStamp(
+        sampleMeetingMeta(matterId) as unknown as Record<string, unknown>,
+        {
+          ownerRef:
+            typeof sampleOwner === 'string' && sampleOwner.trim()
+              ? sampleOwner.trim()
+              : SAMPLE_MEETING_OWNER_REF,
+          visibilityPolicyId: 'household-team',
+        }
+      ),
+      null,
+      2
+    )
   );
   await workspace.writeFile(
     `${meetingDir}/transcript.json`,
