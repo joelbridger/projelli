@@ -16,6 +16,11 @@ step "Selection writer retirement" npm run selection:writers:test
 step "Union registry safety" node scripts/check-union-registry-preconditions.mjs
 step "Union registry merge history" node scripts/check-union-registry-merge-history.mjs
 step "Flag cap"         node scripts/check-flag-cap.mjs
+# A test that reads the real wall clock is a SCHEDULED FAILURE: green today, red
+# on a date nobody chose, and invisible until that date. One such test turned the
+# merge tip red for every branch on 2026-07-20T10:00Z. Sits next to the flag-cap
+# and flag-expiry checks because it is the same shape: a forgotten date, named.
+step "Test clock discipline" node scripts/check-test-clock-bombs.mjs
 step "Tauri version parity" node scripts/check-tauri-parity.mjs
 step "Tauri TS/Rust command contracts" node scripts/check-tauri-contracts.mjs
 step "Meeting voice bundle contract" npm run check:meeting-voice-bundle
