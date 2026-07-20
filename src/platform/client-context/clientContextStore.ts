@@ -892,6 +892,25 @@ const clientContextStore = create<ClientContextState>()((set) => {
   };
 });
 
+// Declared here — immediately after the underlying store is created and BEFORE
+// any code that can run during module evaluation (notably the
+// `registerSelectionWriterBridge(...)` call further down, which synchronously
+// flushes a queued rehydration when `matterStore` hydrated persisted data with
+// the boot gate on). Keeping this binding above that flush is load-bearing:
+// the rehydration path reads `useClientContextStore.getState()`, so a
+// bottom-of-file declaration left it in the temporal dead zone and threw
+// `Cannot access 'useClientContextStore' before initialization` at boot — in
+// dev AND in the production bundle — whenever a returning user booted with the
+// flag on. Do not move it back below the bridge registration.
+export const useClientContextStore = Object.assign(
+  <Selection>(selector: (state: ClientContextState) => Selection): Selection =>
+    clientContextStore(selector),
+  {
+    getState: clientContextStore.getState,
+    subscribe: clientContextStore.subscribe,
+  }
+);
+
 function writeBlockedSourceSelection(client: SharedClientIdentity | null): void {
   if (!selectionAuthorityEnabled()) return;
   const scope = freezeScope({ kind: 'blocked-unresolved' });
@@ -1516,12 +1535,3 @@ export function readAuthoritativeMatterScope(): MatterScopeSelection {
   ensureAuthorityBootValidated();
   return useClientContextStore.getState().scope;
 }
-
-export const useClientContextStore = Object.assign(
-  <Selection>(selector: (state: ClientContextState) => Selection): Selection =>
-    clientContextStore(selector),
-  {
-    getState: clientContextStore.getState,
-    subscribe: clientContextStore.subscribe,
-  }
-);
