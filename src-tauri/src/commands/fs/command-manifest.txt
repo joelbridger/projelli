@@ -7,3 +7,4 @@ command 90 crate::commands::fs::detect_libreoffice
 command 100 crate::commands::fs::convert_doc_to_docx
 command 110 crate::commands::fs::convert_ppt_to_pdf
 command 120 crate::commands::fs::convert_docx_to_pdf
+command 3050 crate::commands::fs::workspace_grant_fs_scope

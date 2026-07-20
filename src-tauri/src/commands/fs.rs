@@ -2,8 +2,10 @@
 // Custom filesystem operations that require native performance or capabilities
 
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
+use tauri::AppHandle;
+use tauri_plugin_fs::FsExt;
 
 /// Result of checking if a path exists
 #[derive(Serialize, Deserialize)]
@@ -11,6 +13,87 @@ pub struct PathExistsResult {
     pub exists: bool,
     pub is_file: bool,
     pub is_directory: bool,
+}
+
+/// Grant the renderer filesystem access to a workspace directory at runtime.
+///
+/// The capability file no longer grants whole-disk access (`fs:scope` starts
+/// EMPTY — see `capabilities/default.json`). Instead, when a workspace is
+/// opened, `TauriFSBackend.setRootPath` calls this with the chosen root and we
+/// extend the plugin fs scope to that directory and its descendants, right
+/// before any fs-plugin call touches it. Files the user picks through a native
+/// dialog are already granted by the dialog plugin itself; this covers the
+/// workspace tree plus the non-dialog open paths (recent list, typed path,
+/// create-new).
+///
+/// SECURITY NOTE (HD-4 shape): the path is renderer-supplied. The
+/// `is_dangerous_scope_root` check below refuses roots that would re-widen the
+/// surface to the whole disk or the user's entire profile (filesystem root, a
+/// bare drive root, the home directory itself, or any ancestor of it), and the
+/// capability `deny` list still blocks system/credential locations even inside
+/// a granted tree. This makes the grant strictly narrower than the former
+/// `**/*`, but it is NOT fully un-forgeable: a compromised renderer could still
+/// name a specific existing directory it is not meant to reach. Fully closing
+/// that requires a backend-recorded set of paths the user actually picked in a
+/// native dialog (only real picks populate it); called out in the c34 report as
+/// follow-up.
+#[tauri::command]
+pub fn workspace_grant_fs_scope(app: AppHandle, path: String) -> Result<(), String> {
+    let raw = PathBuf::from(&path);
+    if raw.as_os_str().is_empty() {
+        return Err("workspace path is empty".to_string());
+    }
+    // Canonicalize when the directory already exists (the open flow); for the
+    // create-new flow the directory does not exist yet, so fall back to the
+    // lexical path. Either way the dangerous-root check still runs.
+    let resolved = raw.canonicalize().unwrap_or_else(|_| raw.clone());
+    if is_dangerous_scope_root(&resolved) {
+        return Err(format!(
+            "refusing to grant filesystem scope to a system or home-level directory: {}",
+            resolved.display()
+        ));
+    }
+    let scope = app.fs_scope();
+    scope
+        .allow_directory(&resolved, true)
+        .map_err(|error| format!("could not grant workspace filesystem scope: {error}"))?;
+    // If canonicalization changed the spelling, also grant the raw form so a
+    // path the renderer later builds with an equivalent-but-different spelling
+    // still matches the scope.
+    if resolved != raw {
+        scope
+            .allow_directory(&raw, true)
+            .map_err(|error| format!("could not grant workspace filesystem scope: {error}"))?;
+    }
+    Ok(())
+}
+
+/// True if granting recursive fs access to `path` would re-open the whole disk
+/// or the user's entire profile. Blocks the filesystem root, a bare drive root,
+/// the home directory itself, and any ancestor of the home directory.
+fn is_dangerous_scope_root(path: &Path) -> bool {
+    // Filesystem root ("/") or a bare drive root ("C:\") has no parent.
+    if path.parent().is_none() {
+        return true;
+    }
+    let normal_components = path
+        .components()
+        .filter(|component| matches!(component, Component::Normal(_)))
+        .count();
+    if normal_components == 0 {
+        return true;
+    }
+    if let Some(home) = dirs::home_dir() {
+        if path == home {
+            return true;
+        }
+        // `path` is an ancestor of the home directory (e.g. C:\Users, /home) —
+        // too broad to grant recursively.
+        if home.starts_with(path) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Check if a path exists and get its type
@@ -193,6 +276,53 @@ mod open_in_explorer_tests {
         assert!(result.is_err(), "open_in_explorer must Err for missing path");
         let msg = result.unwrap_err();
         assert!(msg.contains("could not find"), "got: {msg}");
+    }
+}
+
+#[cfg(test)]
+mod workspace_scope_guard_tests {
+    use super::is_dangerous_scope_root;
+    use std::path::Path;
+
+    #[test]
+    fn filesystem_root_is_refused() {
+        assert!(is_dangerous_scope_root(Path::new("/")));
+    }
+
+    #[test]
+    fn home_directory_itself_is_refused() {
+        if let Some(home) = dirs::home_dir() {
+            assert!(
+                is_dangerous_scope_root(&home),
+                "granting the whole home dir would re-widen the surface"
+            );
+        }
+    }
+
+    #[test]
+    fn an_ancestor_of_home_is_refused() {
+        // The parent of the home directory (e.g. /home or C:\Users) contains
+        // every user's profile — too broad to grant.
+        if let Some(home) = dirs::home_dir() {
+            if let Some(parent) = home.parent() {
+                // Skip the degenerate case where home's parent is the fs root
+                // (already covered by filesystem_root_is_refused).
+                if parent.parent().is_some() {
+                    assert!(is_dangerous_scope_root(parent));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_real_workspace_under_home_is_allowed() {
+        if let Some(home) = dirs::home_dir() {
+            let workspace = home.join("Advisor Prep Hero").join("Coast Wealth");
+            assert!(
+                !is_dangerous_scope_root(&workspace),
+                "a genuine nested workspace must be grantable"
+            );
+        }
     }
 }
 
@@ -386,6 +516,17 @@ fn djb2_hash(bytes: &[u8]) -> u64 {
     hash
 }
 
+/// Extend the fs scope so the renderer may read a file this command just
+/// produced OUTSIDE the workspace (the LibreOffice PDF cache under the OS temp
+/// dir). The renderer reads these temp files through the fs plugin
+/// (`readTauriFile`), and now that `fs:scope` is no longer whole-disk that read
+/// would be refused unless the produced path is added to the runtime scope.
+fn allow_generated_file(app: &AppHandle, path: &Path) -> Result<(), String> {
+    app.fs_scope()
+        .allow_file(path)
+        .map_err(|error| format!("could not grant read access to the generated file: {error}"))
+}
+
 /// Convert a PowerPoint file (`.ppt` or `.pptx`) to PDF using LibreOffice in
 /// headless mode, and cache the resulting PDF inside the OS temp directory so
 /// reopening the same file is instant.
@@ -409,7 +550,7 @@ fn djb2_hash(bytes: &[u8]) -> u64 {
 /// - the soffice process exits non-zero (stderr is included in the message)
 /// - the expected output file wasn't produced / couldn't be moved
 #[tauri::command]
-pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
+pub fn convert_ppt_to_pdf(app: AppHandle, input_path: String) -> Result<String, String> {
     let soffice = detect_libreoffice()?
         .ok_or_else(|| "LibreOffice not found on this system.".to_string())?;
 
@@ -476,6 +617,7 @@ pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
             .map(|d| d.as_secs())
             .unwrap_or(0);
         if cached_mtime >= mtime_secs {
+            allow_generated_file(&app, &cached_pdf)?;
             return Ok(cached_pdf.display().to_string());
         }
     }
@@ -538,6 +680,7 @@ pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
     std::fs::rename(&produced, &cached_pdf)
         .map_err(|e| format!("Failed to move converted PDF into cache: {}", e))?;
 
+    allow_generated_file(&app, &cached_pdf)?;
     Ok(cached_pdf.display().to_string())
 }
 
@@ -562,7 +705,7 @@ pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
 /// - the soffice process exits non-zero (stderr is included in the message)
 /// - the expected output file wasn't produced / couldn't be moved
 #[tauri::command]
-pub fn convert_docx_to_pdf(input_path: String) -> Result<String, String> {
+pub fn convert_docx_to_pdf(app: AppHandle, input_path: String) -> Result<String, String> {
     let soffice = detect_libreoffice()?.ok_or_else(|| {
         "LibreOffice is required to export a PDF, but it was not found on this system. \
          Install LibreOffice (libreoffice.org) and try again. Your Word (.docx) export does \
@@ -624,6 +767,7 @@ pub fn convert_docx_to_pdf(input_path: String) -> Result<String, String> {
             .map(|d| d.as_secs())
             .unwrap_or(0);
         if cached_mtime >= mtime_secs {
+            allow_generated_file(&app, &cached_pdf)?;
             return Ok(cached_pdf.display().to_string());
         }
     }
@@ -683,5 +827,6 @@ pub fn convert_docx_to_pdf(input_path: String) -> Result<String, String> {
     std::fs::rename(&produced, &cached_pdf)
         .map_err(|e| format!("Failed to move converted PDF into cache: {}", e))?;
 
+    allow_generated_file(&app, &cached_pdf)?;
     Ok(cached_pdf.display().to_string())
 }

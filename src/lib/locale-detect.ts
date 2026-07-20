@@ -1,12 +1,13 @@
 /**
  * Detects the user's preferred locale at first launch.
  *
- * Desktop (Tauri): uses `@tauri-apps/plugin-os::locale()`.
- * Web demo: falls back to `navigator.language` so users hitting the hosted
- * preview still get a sensible default (per spec §8.6 web demo specifics).
- *
- * The Tauri plugin import is loaded dynamically so a missing plugin (i.e.
- * the web build) doesn't blow up at module-evaluation time.
+ * Uses `navigator.language` on every target. The desktop (Tauri) build has NO
+ * `@tauri-apps/plugin-os` Rust plugin registered and no `os:` capability grant,
+ * so the previous `@tauri-apps/plugin-os::locale()` call could never succeed in
+ * a shipped app — it was rejected by the ACL and silently fell through to this
+ * same `navigator.language` path (c34 capability-surface narrowing). The dead
+ * import has been removed rather than papered over; WebView2/WKWebView expose a
+ * correct `navigator.language`, so desktop locale detection is unaffected.
  */
 
 const SUPPORTED = ['en', 'es', 'de'] as const;
@@ -20,25 +21,18 @@ function normalize(raw: string | null | undefined): SupportedLocale {
     : 'en';
 }
 
-export async function detectLocale(): Promise<SupportedLocale> {
-  // Try Tauri OS plugin first (desktop builds).
-  try {
-    const mod = await import('@tauri-apps/plugin-os');
-    const raw = await mod.locale();
-    return normalize(raw);
-  } catch {
-    // Either the plugin isn't installed (web build) or the call failed.
-    // Fall through to navigator.language.
-  }
-
+// Returns a Promise (not `async`) so callers keep awaiting it unchanged, while
+// the body stays synchronous now that the removed Tauri-OS branch was the only
+// awaited call.
+export function detectLocale(): Promise<SupportedLocale> {
   try {
     if (typeof navigator !== 'undefined' && navigator.language) {
-      return normalize(navigator.language);
+      return Promise.resolve(normalize(navigator.language));
     }
   } catch {
     // Defensive: some environments (Node test runners without jsdom) may
     // throw when accessing navigator. Fall through to default.
   }
 
-  return 'en';
+  return Promise.resolve('en');
 }

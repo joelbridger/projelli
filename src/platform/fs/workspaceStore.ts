@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { FileNode, RecentWorkspace } from '@/platform/types/workspace';
 import { isTauriEnvironment } from './BackendFactory';
 import { SK_RECENT_WORKSPACES } from '@/config/identity';
-import { getTauriFsModule } from './tauriFsPlugin';
 
 const MAX_RECENT_WORKSPACES = 10;
 
@@ -62,11 +61,20 @@ async function pruneMissingRecentWorkspaces(workspaces: RecentWorkspace[]): Prom
   if (!isTauriEnvironment()) return workspaces;
 
   try {
-    const fs = await getTauriFsModule();
+    // Probe with the native `check_path` command, NOT the fs plugin's
+    // `exists()`. Recent workspaces are roots OTHER than the one currently open,
+    // so they are not in the runtime fs scope; a plugin `exists()` on them would
+    // be refused by the ACL and that rejection silently swallowed (the folder
+    // would look "present" and never get pruned). `check_path` is a plain
+    // `std::fs` probe in Rust that is not scope-gated. (c34 narrowing.)
+    const { invoke } = await import('@tauri-apps/api/core');
     const checks = await Promise.all(workspaces.map(async (workspace) => {
       try {
-        return (await fs.exists(workspace.path)) ? workspace : null;
+        const result = await invoke<{ exists: boolean }>('check_path', { path: workspace.path });
+        return result.exists ? workspace : null;
       } catch {
+        // A probe that itself failed (not a clean "missing") must not drop a
+        // recent — keep it rather than risk pruning a live workspace.
         return workspace;
       }
     }));

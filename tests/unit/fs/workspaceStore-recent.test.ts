@@ -7,23 +7,26 @@ import {
 
 const RECENT_KEY = 'lantern_recent_workspaces';
 const mockIsTauriEnvironment = vi.hoisted(() => vi.fn(() => false));
-const mockFsExists = vi.hoisted(() => vi.fn(async (_path?: string) => true));
+// The recent-workspace existence probe now uses the native `check_path`
+// command (not the scope-gated fs plugin), so we mock `invoke` and return the
+// `{ exists }` shape check_path produces.
+const mockInvoke = vi.hoisted(() =>
+  vi.fn(async (_cmd: string, _args?: { path?: string }) => ({ exists: true })),
+);
 
 vi.mock('@/platform/fs/BackendFactory', () => ({
   isTauriEnvironment: mockIsTauriEnvironment,
 }));
 
-vi.mock('@/platform/fs/tauriFsPlugin', () => ({
-  getTauriFsModule: vi.fn(async () => ({
-    exists: mockFsExists,
-  })),
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (cmd: string, args?: { path?: string }) => mockInvoke(cmd, args),
 }));
 
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   mockIsTauriEnvironment.mockReturnValue(false);
-  mockFsExists.mockResolvedValue(true);
+  mockInvoke.mockResolvedValue({ exists: true });
   useWorkspaceStore.setState({
     rootPath: null,
     fileTree: [],
@@ -107,7 +110,9 @@ describe('recent workspace path cleanup', () => {
 
   it('prunes dead recent folders when the desktop filesystem reports them missing', async () => {
     mockIsTauriEnvironment.mockReturnValue(true);
-    mockFsExists.mockImplementation(async (path?: string) => path !== 'C:/Missing');
+    mockInvoke.mockImplementation(async (_cmd: string, args?: { path?: string }) => ({
+      exists: args?.path !== 'C:/Missing',
+    }));
     localStorage.setItem(RECENT_KEY, JSON.stringify([
       {
         path: 'C:/Alive',
