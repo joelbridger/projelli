@@ -32,6 +32,7 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe('global success badge contrast', () => {
+  // Load-sensitive: compiling Tailwind and launching Chromium can exceed 5s under fleet load.
   it('keeps normal-size success badge text at the 4.5:1 accessibility floor', async () => {
     const stylesheetPath = path.resolve(
       process.cwd(),
@@ -62,5 +63,5 @@ describe('global success badge contrast', () => {
     } finally {
       await browser.close();
     }
-  });
+  }, 30_000);
 });
