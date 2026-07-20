@@ -28,6 +28,17 @@ export function isContactKind(value: unknown): value is ContactKind {
   return typeof value === 'string' && (CONTACT_KINDS as readonly string[]).includes(value);
 }
 
+/**
+ * True when a raw document claims to be a contact (household/person/etc.) by its
+ * `kind`, regardless of whether it carries the mandatory `matterId` pair. This is
+ * the evidence signal that lets callers tell "a legacy contact exists but is
+ * unpaired" apart from "no contact exists" — a distinction that must fail closed,
+ * never resolve to a silent empty list.
+ */
+export function isContactLikeDocument(source: Readonly<Record<string, unknown>>): boolean {
+  return isContactKind(source['kind']);
+}
+
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`${field} is required.`);
   return value.trim();

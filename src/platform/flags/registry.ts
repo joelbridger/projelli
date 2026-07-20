@@ -94,6 +94,7 @@ export const flagRegistry = [
   defineFlag('workflow-dependent-due', 'Keeps workflow dependency timing and sequence enforcement dark until their acceptance review is complete.', 'workflow-dependent-due', '2026-07-18', '2026-09-16'),
   defineFlag('active-integrations', 'Keeps connector-owned integration status and safe disconnect controls dark until their acceptance review is complete.', 'active-integrations', '2026-07-18', '2026-09-16'),
   defineFlag('meetings-shell-v1', 'Keeps the v1 Meetings shell dark until its acceptance drive is complete.', 'meetings-shell-v2', '2026-07-18', '2026-09-16'),
+  defineFlag('record-kinds-v1', 'Enables the selected-client Details cards and canonical edits for household and individual profiles, repeatable email and phone rows, editable facts, and linked financial accounts; it stays dark until the record-kinds acceptance proof passes.', 'record-kinds', '2026-07-19', '2026-09-17'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

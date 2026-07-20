@@ -5,6 +5,7 @@ import {
   contactInputDocument,
   contactRecordFromDocument,
   displayNameFor,
+  isContactLikeDocument,
   toRecordRef,
   validateContactLinks,
   validateContactPatch,
@@ -30,6 +31,21 @@ function asDocument(record: LiveCrmRecord): Readonly<Record<string, unknown>> {
 
 function activeContactRecords(records: readonly LiveCrmRecord[]): readonly ContactRecord[] {
   return records.flatMap((record) => record['deleted'] === true ? [] : [contactRecordFromDocument(asDocument(record))]).filter((record): record is ContactRecord => record !== null);
+}
+
+/**
+ * Live documents that look like a contact by `kind` but cannot be parsed into a
+ * valid paired ContactRecord — the dominant cause being a legacy record with no
+ * `matterId`. Callers that scope by the household+matter pair use this to fail
+ * closed instead of silently dropping unpaired evidence and reporting empty.
+ */
+function unpairedContactDocumentsFrom(records: readonly LiveCrmRecord[]): readonly Readonly<Record<string, unknown>>[] {
+  return records.flatMap((record) => {
+    if (record['deleted'] === true) return [];
+    const document = asDocument(record);
+    if (!isContactLikeDocument(document)) return [];
+    return contactRecordFromDocument(document) === null ? [document] : [];
+  });
 }
 
 function assertSameMatter(reference: ContactRef, record: ContactRecord): void {
@@ -81,6 +97,12 @@ export function projectDirectoryContacts(records: readonly LiveCrmRecord[]): rea
 
 export interface ContactRecordStore {
   readonly records: readonly ContactRecord[];
+  /**
+   * Contact-like live documents that failed to parse into a valid paired record
+   * (e.g. a legacy contact missing its `matterId`). Pair-scoped features read
+   * this to refuse rather than silently report an unpaired client as empty.
+   */
+  readonly unpairedContactDocuments: readonly Readonly<Record<string, unknown>>[];
   listDirectory(): readonly ContactDirectoryProjection[];
   get(id: string): Promise<ContactRecord | null>;
   resolve(ref: ContactRef): Promise<RecordScreenProjection | null>;
@@ -97,6 +119,7 @@ export interface ContactRecordStore {
  */
 export function createContactRecordStore(live: LivePort): ContactRecordStore {
   const records = activeContactRecords(live.records);
+  const unpairedContactDocuments = unpairedContactDocumentsFrom(live.records);
   const saveAndReload = async (document: Record<string, unknown>): Promise<ContactRecord> => {
     await live.save(document as LiveCrmRecord);
     const reloaded = await live.reloadRecords();
@@ -121,6 +144,7 @@ export function createContactRecordStore(live: LivePort): ContactRecordStore {
   };
   return {
     records,
+    unpairedContactDocuments,
     listDirectory: () => projectDirectoryContacts(live.records),
     get(id) {
       return Promise.resolve(recordFor(live.records, id));

@@ -81,6 +81,8 @@ export interface HouseholdSectionDescriptor {
   tab: HouseholdTab;
   /** The only context available to a public section contributor. */
   mount: (context: HouseholdSectionContext) => ReactNode;
+  /** Optional honest refusal shown when the shell cannot prove the pair. */
+  mountBlocked?: () => ReactNode;
 }
 
 /** Private bridge for sections that predate the public doorway. */
@@ -194,6 +196,7 @@ import {
 } from './extensions/custom-fields';
 import { householdMergeHeaderAction } from '@/features/crm-clients/extensions/merge';
 import { isEnabled } from '@/platform/flags';
+import { recordKindsSection } from './extensions/record-kinds/registry';
 
 export const householdHeaderActionRegistry: readonly HouseholdHeaderActionDescriptor[] =
   [...legacyHouseholdHeaderActions, householdMergeHeaderAction];
@@ -207,6 +210,7 @@ const registeredHouseholdSections: HouseholdSectionDescriptor[] = [
   writtenAgreementsSection,
   customFieldsAdvisorSection,
 ].map(adaptLegacySection);
+registeredHouseholdSections.push(recordKindsSection);
 export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] =
   registeredHouseholdSections;
 export const householdRecordExtensionRegistry: readonly HouseholdRecordExtensionDescriptor[] =
@@ -218,13 +222,18 @@ export const householdRecordExtensionRegistry: readonly HouseholdRecordExtension
 
 export function getHouseholdHeaderActions() {
   validateHouseholdHeaderActionDescriptors(householdHeaderActionRegistry);
-  return householdHeaderActionRegistry
-    // A dark action is absent from the registry consumer, not merely a child
-    // that happens to render null. That keeps the mounted toolbar byte-for-byte
-    // identical and leaves no wrapper slot behind.
-    .filter((action) => action.id !== 'merge_duplicate' || isEnabled('crm-merge-clients'))
-    .slice()
-    .sort((a, b) => a.order - b.order);
+  return (
+    householdHeaderActionRegistry
+      // A dark action is absent from the registry consumer, not merely a child
+      // that happens to render null. That keeps the mounted toolbar byte-for-byte
+      // identical and leaves no wrapper slot behind.
+      .filter(
+        (action) =>
+          action.id !== 'merge_duplicate' || isEnabled('crm-merge-clients')
+      )
+      .slice()
+      .sort((a, b) => a.order - b.order)
+  );
 }
 export function getHouseholdAddActions() {
   validateHouseholdAddActionDescriptors(householdAddActionRegistry);
@@ -232,14 +241,23 @@ export function getHouseholdAddActions() {
 }
 export function getHouseholdSections() {
   validateHouseholdSectionDescriptors(householdSectionRegistry);
-  return householdSectionRegistry.slice().sort((a, b) => a.order - b.order);
+  return householdSectionRegistry
+    .filter(
+      (section) =>
+        section.id !== recordKindsSection.id || isEnabled('record-kinds-v1')
+    )
+    .slice()
+    .sort((a, b) => a.order - b.order);
 }
 
 /** Add a public section to the live registry and return its cleanup function. */
 export function registerHouseholdSection(
   descriptor: HouseholdSectionDescriptor
 ): () => void {
-  validateHouseholdSectionDescriptors([...householdSectionRegistry, descriptor]);
+  validateHouseholdSectionDescriptors([
+    ...householdSectionRegistry,
+    descriptor,
+  ]);
   registeredHouseholdSections.push(descriptor);
   return () => {
     const index = registeredHouseholdSections.indexOf(descriptor);
@@ -257,7 +275,7 @@ export function mountHouseholdSection(
     ? legacy.mount(shell)
     : shell.sectionContext
       ? descriptor.mount(shell.sectionContext)
-      : null;
+      : (descriptor.mountBlocked?.() ?? null);
 }
 export function getHouseholdRecordExtensions() {
   validateHouseholdRecordExtensionDescriptors(householdRecordExtensionRegistry);
