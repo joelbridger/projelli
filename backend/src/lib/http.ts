@@ -19,7 +19,7 @@ import type { AccessTokenClaims } from "./types.ts";
  * still 2000x below Bun's 128 MB default. Bigger payloads have their OWN caps
  * on their own readers (relay updates, intake uploads, the assured prompt).
  */
-const MAX_BODY_BYTES = 64 * 1024;
+export const MAX_BODY_BYTES = 64 * 1024;
 
 // CORS: the desktop webview calls from `tauri://localhost`. Origin:* is safe
 // because real deployment puts this behind a loopback-only reverse proxy and

@@ -28,6 +28,8 @@ import net from "node:net";
 import { Store } from "../src/lib/db.ts";
 import { buildServeOptions } from "../src/server.ts";
 import { fanout } from "../src/lib/matters.ts";
+import { MAX_BODY_BYTES } from "../src/lib/http.ts";
+import { prepareHttpRequest } from "../src/lib/requestBody.ts";
 
 /** Attack payload: far bigger than any route's cap, small enough to stay fast. */
 const ATTACK_BYTES = 16 * 1024 * 1024; // 16 MiB
@@ -181,7 +183,7 @@ test("a legitimate small chunked body still works (the cap does not break normal
 });
 
 test("a body at the control-plane cap boundary is accepted, just over is refused", async () => {
-  const CAP = 64 * 1024;
+  const CAP = MAX_BODY_BYTES;
   const under = { email: "nobody@example.com", password: "x".repeat(12), pad: "p".repeat(CAP - 2048) };
   const over = { email: "nobody@example.com", password: "x".repeat(12), pad: "p".repeat(CAP * 2) };
 
@@ -197,4 +199,16 @@ test("a body at the control-plane cap boundary is accepted, just over is refused
   expect((await post(under)).status).toBe(401);
   // Over the cap: the read itself fails, so the route reports a bad body.
   expect((await post(over)).status).toBe(400);
+
+  // The value a handler receives has no drainable raw material, even through
+  // reflection or prototype access. These assertions exercise the real seam.
+  const prepared = await prepareHttpRequest(new Request("http://test.invalid/x", { method: "POST", body: "hello" }), CAP);
+  expect(prepared.ok).toBe(true);
+  if (prepared.ok) {
+    expect(Object.isFrozen(prepared.value)).toBe(true);
+    expect(Object.keys(prepared.value).sort()).toEqual(["headers", "method", "signal", "url"]);
+    expect(Reflect.get(prepared.value, "body")).toBeUndefined();
+    expect(Reflect.get(prepared.value, "clone")).toBeUndefined();
+    expect(Reflect.get(Object.getPrototypeOf(prepared.value), "text")).toBeUndefined();
+  }
 });

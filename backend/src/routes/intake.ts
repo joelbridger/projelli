@@ -69,11 +69,11 @@ function authorizeIntakeRead(req: HttpRequest, store: Store, intakeId: string): 
   return { ok: true, intake: shared.intake };
 }
 
-const MAX_CREATE_REQUEST_BYTES = Math.ceil(MAX_INTAKE_CHECKLIST_BYTES * 1.4) + Math.ceil(MAX_INTAKE_STATE_BYTES * 1.4) + 64 * 1024;
-const MAX_STATE_REQUEST_BYTES = Math.ceil(MAX_INTAKE_STATE_BYTES * 1.4) + 8 * 1024;
+export const MAX_CREATE_REQUEST_BYTES = Math.ceil(MAX_INTAKE_CHECKLIST_BYTES * 1.4) + Math.ceil(MAX_INTAKE_STATE_BYTES * 1.4) + 64 * 1024;
+export const MAX_STATE_REQUEST_BYTES = Math.ceil(MAX_INTAKE_STATE_BYTES * 1.4) + 8 * 1024;
 /** The largest body any intake route accepts (a base64 upload chunk + envelope). */
 export const MAX_CHUNK_REQUEST_BYTES = Math.ceil(MAX_INTAKE_CHUNK_BYTES * 1.4) + 64 * 1024;
-const MAX_SUBMIT_REQUEST_BYTES = 1024 * 1024;
+export const MAX_SUBMIT_REQUEST_BYTES = 1024 * 1024;
 const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/u;
 
 type ReadResult<T> = { ok: true; body: T } | { ok: false; tooLarge: boolean };

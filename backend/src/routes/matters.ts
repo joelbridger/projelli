@@ -446,7 +446,7 @@ export function authorizeSyncConnect(
 // rejected here. `tooLarge` lets the route distinguish a size rejection (413)
 // from a malformed-JSON rejection (400).
 // ---------------------------------------------------------------------------
-const MAX_REQUEST_BYTES = Math.ceil(MAX_UPDATE_BYTES * 1.4) + 64 * 1024;
+export const MAX_REQUEST_BYTES = Math.ceil(MAX_UPDATE_BYTES * 1.4) + 64 * 1024;
 
 interface UpdateBody {
   blob_id?: unknown;

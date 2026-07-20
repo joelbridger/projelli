@@ -42,7 +42,7 @@ const DEFAULT_FIRM_PACKS: ProfessionPack[] = ["advisor"];
  * have to be sized for the largest consumer, handing this unauthenticated route
  * a ceiling it does not need.
  */
-const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
+export const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 
 // ---------------------------------------------------------------------------
 // HMAC-SHA256 signature verification

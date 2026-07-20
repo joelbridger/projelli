@@ -12,7 +12,7 @@
 
 import { clientIpFromPeer, config } from "./lib/config.ts";
 import { getStore } from "./lib/db.ts";
-import { json, error, preflight, startRateLimitGc } from "./lib/http.ts";
+import { json, error, preflight, startRateLimitGc, MAX_BODY_BYTES } from "./lib/http.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
 import { handleLogin, handleRefresh, handleLogout, handleMe } from "./routes/auth.ts";
 import { handleActivate, handleSeatValidate, handleSeatHeartbeat } from "./routes/seats.ts";
@@ -40,6 +40,9 @@ import {
   handleSubmitIntakeItem,
   handleUploadIntakeChunk,
   MAX_CHUNK_REQUEST_BYTES,
+  MAX_CREATE_REQUEST_BYTES,
+  MAX_STATE_REQUEST_BYTES,
+  MAX_SUBMIT_REQUEST_BYTES,
 } from "./routes/intake.ts";
 import { fanout, FanoutHub, toUpdateFrame, resolveAccess, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
@@ -60,13 +63,17 @@ import {
   handlePutSignatureLaunch,
   handleRegisterEnvelope,
 } from "./routes/docusignSigning.ts";
+import { MAX_CONNECT_BYTES, MAX_JSON_BYTES } from "./routes/docusignSigning.ts";
 import { handleNotifySend, handleNotifyInbox, handleNotifyAck, handleNotifySyncTicket, authorizeNotifySync, handleNotifyTerminal } from "./routes/notifications.ts";
 import { notificationHub } from "./lib/notifications.ts";
 import { handleCheckpointReceipt } from "./routes/checkpoints.ts";
 import { createPrivilegedRoutes, dispatchPrivilegedRequest } from "./routes/privileged.ts";
+import { prepareHttpRequest } from "./lib/requestBody.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
 import type { UserRole } from "./lib/types.ts";
+import { MAX_WEBHOOK_BODY_BYTES } from "./routes/webhooks.ts";
+import { MAX_REQUEST_BYTES as MAX_UPDATE_REQUEST_BYTES } from "./routes/matters.ts";
 
 /** Data attached to each sync WebSocket on upgrade (set by authorizeSyncConnect). */
 interface DocumentSocketData {
@@ -187,6 +194,30 @@ function subscribeDocument(
 const SERVER_MAX_REQUEST_BODY_BYTES =
   Math.max(config.assuredMaxRequestBytes, MAX_CHUNK_REQUEST_BYTES) + 1024 * 1024;
 
+/** Pick the same cap the destination reader enforces. Unknown/control-plane
+ * routes receive the conservative 64 KiB cap. The reader still rechecks its
+ * own cap; this outer choice controls how much can exist before dispatch. */
+function requestBodyCap(path: string, method: string): number {
+  if (path === "/assured/infer" && method === "POST") return config.assuredMaxRequestBytes;
+  if (path === "/webhooks/lemonsqueezy" && method === "POST") return MAX_WEBHOOK_BODY_BYTES;
+  if (path === "/webhooks/docusign-signing" && method === "POST") return MAX_CONNECT_BYTES;
+  if (/^\/matter\/[^/]+\/updates$/.test(path) && method === "POST") return MAX_UPDATE_REQUEST_BYTES;
+  if (path === "/intake" && method === "POST") return MAX_CREATE_REQUEST_BYTES;
+
+  const intake = path.match(/^\/intake\/[^/]+\/(.*)$/);
+  if (intake) {
+    const rest = intake[1] ?? "";
+    if (rest === "keys" && method === "POST") return 2 * 1024 * 1024;
+    if ((rest === "checklist" && method === "PUT") || (rest === "regenerate" && method === "POST")) return MAX_CREATE_REQUEST_BYTES;
+    if (rest === "state" && method === "PUT") return MAX_STATE_REQUEST_BYTES;
+    if (/^item\/[^/]+\/chunk$/.test(rest) && method === "POST") return MAX_CHUNK_REQUEST_BYTES;
+    if (/^item\/[^/]+\/submit$/.test(rest) && method === "POST") return MAX_SUBMIT_REQUEST_BYTES;
+  }
+
+  if (/^\/docusign-signing\/[^/]+\/(capability|launch|envelope|wakeups\/ack)$/.test(path)) return MAX_JSON_BYTES;
+  return MAX_BODY_BYTES;
+}
+
 /**
  * Build the Bun.serve options for a given Store + fan-out hub. Factored out (vs.
  * an inline object) so tests can boot an isolated server on an ephemeral port
@@ -211,13 +242,25 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
     // in this project chose — so an honest oversized upload is refused by the
     // runtime before it reaches a handler at all.
     maxRequestBodySize: SERVER_MAX_REQUEST_BODY_BYTES,
-    async fetch(req: Request, srv: Bun.Server<SyncSocketData>): Promise<Response | undefined> {
+    async fetch(rawReq: Request, srv: Bun.Server<SyncSocketData>): Promise<Response | undefined> {
+      if (rawReq.method === "OPTIONS") return preflight();
+
+      // Totality boundary: every handler below receives only frozen metadata.
+      // The drainable Request stays private inside lib/requestBody.ts, where a
+      // route can trigger only a capped read after its header auth has passed.
+      const rawPath = new URL(rawReq.url).pathname;
+      const bodyCap = requestBodyCap(rawPath, rawReq.method);
+      const prepared = await prepareHttpRequest(rawReq, bodyCap);
+      if (!prepared.ok) {
+        return prepared.tooLarge
+          ? error("payload_too_large", 413, `Request exceeds ${bodyCap} bytes.`)
+          : error("invalid_body", 400);
+      }
+      const req = prepared.value;
       const url = new URL(req.url);
       const path = url.pathname;
       const method = req.method;
-      const ip = clientIpFromPeer(srv.requestIP(req)?.address, req.headers.get("x-forwarded-for"));
-
-        if (method === "OPTIONS") return preflight();
+      const ip = clientIpFromPeer(srv.requestIP(rawReq)?.address, req.headers.get("x-forwarded-for"));
 
       try {
         // Privileged routes are auth-by-construction. This dispatch runs before
@@ -235,7 +278,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/notify/sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
           const authz = authorizeNotifySync(req, store);
           if (!authz.ok) return authz.resp;
-          if (srv.upgrade(req, { data: { kind: "notify", subId: randomUUID(), orgId: authz.orgId, userId: authz.userId, seatId: "" } })) return undefined;
+          if (srv.upgrade(rawReq, { data: { kind: "notify", subId: randomUUID(), orgId: authz.orgId, userId: authz.userId, seatId: "" } })) return undefined;
           return error("upgrade_failed", 400);
         }
         // --- E2EE sync relay + matter ACL (chunk 2) ---
@@ -257,7 +300,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
             const syncSince = Number(sinceRaw);
             if (!Number.isInteger(syncSince) || syncSince < 0) return error("invalid_cursor", 400);
             const data: DocumentSocketData = { kind: "document", subId: randomUUID(), docId: syncDocId, since: syncSince, subscriptions: new Set(), ...authz.data };
-            if (srv.upgrade(req, { data })) return undefined; // upgraded; Bun owns the socket now
+            if (srv.upgrade(rawReq, { data })) return undefined; // upgraded; Bun owns the socket now
             return error("upgrade_failed", 400);
           }
           // Relay: append / catch-up. Push broadcasts via this server's hub.

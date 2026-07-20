@@ -63,6 +63,7 @@
     "boundaries:test": "node --test scripts/__tests__/check-boundaries.test.mjs",
     "backend:body-readers:check": "node scripts/check-backend-body-readers.mjs",
     "backend:body-readers:test": "node --test scripts/__tests__/check-backend-body-readers.test.mjs",
+    "backend:gate": "bash scripts/backend-gate.sh",
     "backend:privileged-routes:check": "node scripts/check-backend-privileged-routes.mjs",
     "backend:privileged-routes:test": "node --test scripts/__tests__/check-backend-privileged-routes.test.mjs",
     "crm:active-boundary": "node scripts/check-active-crm-legacy-guard.mjs",

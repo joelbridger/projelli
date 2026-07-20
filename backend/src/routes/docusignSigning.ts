@@ -23,8 +23,8 @@ import { validateDocusignConnectPayload, verifyDocusignConnectSignature } from "
 import { BlindSigningBrokerStore, MAX_SIGNATURE_LAUNCH_BYTES } from "../lib/docusignSigning/store.ts";
 
 const DECOY_INTAKE_TOKEN_HASH = hmacHash("lantern-docusign-signing-decoy-token-v1");
-const MAX_JSON_BYTES = Math.ceil(MAX_SIGNATURE_LAUNCH_BYTES * 1.4) + 8 * 1024;
-const MAX_CONNECT_BYTES = 64 * 1024;
+export const MAX_JSON_BYTES = Math.ceil(MAX_SIGNATURE_LAUNCH_BYTES * 1.4) + 8 * 1024;
+export const MAX_CONNECT_BYTES = 64 * 1024;
 const B64_RE = /^[A-Za-z0-9+/]*={0,2}$/u;
 const OPAQUE_ID_RE = /^[A-Za-z0-9._:-]{1,256}$/;
 const FORBIDDEN_FIELD = /^(document|documents|documentbytes|documentcontent|pdf|content|attachment|attachments|filename|filepath|path|recipientname|recipientemail|matterid|ceremonyurl)$/;
