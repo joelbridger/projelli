@@ -38,9 +38,9 @@ import { cn } from '@/lib/utils';
 import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 import { openExternal } from '@/platform/utils/openExternal';
 import { redactSecrets } from '@/platform/utils/redactSecrets';
+import { AI_SETUP_HELP_ENDPOINT } from '@/platform/utils/supportEndpoints';
 import { BRAND } from '@/config/brand';
 
-const AI_SETUP_HELP_URL = BRAND.urls.formsAiSetupHelp;
 const MAILTO_ADDRESS = BRAND.urls.supportEmail;
 
 // Payload bounds (defense-in-depth; the server also caps + whitelists).
@@ -218,7 +218,7 @@ export function AiSetupHelpDialog({
       // The help ticket goes to Lantern infrastructure, not the user's AI
       // provider — opt out of the "Sending to your AI provider" pulse.
       const fetchFn = await getCorsSafeFetch({ signalEgress: false });
-      const res = await fetchFn(AI_SETUP_HELP_URL, {
+      const res = await fetchFn(AI_SETUP_HELP_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

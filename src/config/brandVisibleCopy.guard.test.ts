@@ -42,8 +42,6 @@ const INTERNAL_IDENTIFIER_ALLOWLIST: Record<string, readonly string[]> = {
     'https://licenses.lanternplatform.app',
     'https://api.lanternplatform.app',
   ],
-  'src/features/matters/MatterHub.tsx': ['https://forms.lanternplatform.app'],
-  'src/features/matters/NewClientDialog.tsx': ['https://forms.lanternplatform.app'],
   'src/platform/intake/advisorIntakeLink.ts': ['https://forms.lanternplatform.app'],
   'src/platform/privacy/egressModules/assuredInference.ts': ['api.lanternplatform.app'],
   'src/platform/privacy/egressModules/offlineModeSinks.ts': [
@@ -51,7 +49,22 @@ const INTERNAL_IDENTIFIER_ALLOWLIST: Record<string, readonly string[]> = {
     'api.lanternplatform.app',
     'forms.lanternplatform.app',
   ],
+  // The stored value remains a mailbox lookup key for existing advisors. The
+  // input renders DISPLAY_DEFAULT_FOLDER_NAME instead, never this identifier.
+  'src/features/crm-connectors/EmailDropboxSurface.tsx': ['Lantern Dropbox'],
 };
+
+const RUST_VISIBLE_COPY_FILES = [
+  'src-tauri/src/generated_brand.rs',
+  'src-tauri/src/lib.rs',
+  'src-tauri/src/commands/crm/importer/export.rs',
+  'src-tauri/src/commands/crm/importer/fidelity.rs',
+  'src-tauri/src/commands/crm/importer/pipeline.rs',
+  'src-tauri/src/commands/crm/migration_commands.rs',
+  'src-tauri/src/commands/writeback/engine.rs',
+  'src-tauri/crates/lantern-docx/src/generated_brand.rs',
+  'src-tauri/crates/lantern-docx/src/scrub.rs',
+] as const;
 
 function walk(dir: string, predicate: (file: string) => boolean, files: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -83,6 +96,19 @@ function collectVisibleLiterals(file: string): string[] {
   return values;
 }
 
+function collectRustStringLiterals(file: string): string[] {
+  const source = fs.readFileSync(file, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+  return [...source.matchAll(/(?:r#*|b)?"(?:\\.|[^"\\])*"#*/g)]
+    .map(([literal]) => literal)
+    .filter(containsLegacyCopy);
+}
+
+function htmlTitle(file: string): string | undefined {
+  return /<title>([^<]*)<\/title>/.exec(fs.readFileSync(file, 'utf8'))?.[1];
+}
+
 describe('visible brand copy guard', () => {
   it('keeps all locale catalogs free of the internal name and domains', () => {
     const localeFiles = walk(SOURCE_ROOT, (file) => /\/locales\/[^/]+\.json$/.test(file));
@@ -111,6 +137,38 @@ describe('visible brand copy guard', () => {
     expect(leaks).toEqual([]);
   });
 
+  it('keeps static HTML titles and NSIS installer copy on the public brand', () => {
+    expect(htmlTitle(path.join(ROOT, 'index.html'))).toBe(BRAND.name);
+    expect(htmlTitle(path.join(ROOT, 'index.demo.html'))).toBe(`${BRAND.name} Demo`);
+    expect(htmlTitle(path.join(ROOT, 'intake-page/index.html'))).toBe(`${BRAND.name} secure intake`);
+
+    const installerFiles = walk(path.join(ROOT, 'src-tauri/windows'), (file) => /\.(nsh|nsi)$/.test(file));
+    const leaks = installerFiles.flatMap((file) =>
+      fs.readFileSync(file, 'utf8')
+        .replace(/^\s*;.*$/gm, '')
+        .split('\n')
+        .filter(containsLegacyCopy)
+        .map((line) => `${path.relative(ROOT, file)}: ${line.trim()}`),
+    );
+    expect(leaks).toEqual([]);
+  });
+
+  it('keeps native exports, generated document metadata, and public trust documents free of the internal name', () => {
+    const nativeLeaks = RUST_VISIBLE_COPY_FILES.flatMap((relative) =>
+      collectRustStringLiterals(path.join(ROOT, relative)).map((value) => `${relative}: ${value}`),
+    );
+    // Trust-network documents deliberately publish the locked service domains
+    // for an IT firewall review. They must never publish the old product name.
+    const trustLeaks = walk(path.join(ROOT, 'docs/trust'), (file) => file.endsWith('.md'))
+      .filter((file) => LEGACY_PRODUCT_NAME.test(fs.readFileSync(file, 'utf8')))
+      .map((file) => path.relative(ROOT, file));
+
+    expect(nativeLeaks).toEqual([]);
+    expect(trustLeaks).toEqual([]);
+    expect(fs.readFileSync(path.join(ROOT, 'src-tauri/crates/lantern-docx/src/scrub.rs'), 'utf8'))
+      .toContain('crate::generated_brand::PRODUCT_NAME');
+  });
+
   it('exposes every public identity and support link through BRAND', () => {
     const config: BrandConfig = JSON.parse(fs.readFileSync(path.join(ROOT, 'brand/brand.config.json'), 'utf8'));
 
@@ -130,17 +188,13 @@ describe('visible brand copy guard', () => {
     expect(BRAND.urls.supportEmail).toBe(config.urls.supportEmail);
   });
 
-  it('does not expose internal service endpoints from user-visible copy modules', () => {
-    const visibleModules = [
-      'src/platform/privacy/ui/DataMapDialog.tsx',
-      'src/features/settings/locales/en.json',
-      'src/features/settings/locales/es.json',
-      'src/features/settings/locales/de.json',
-    ];
+  it('keeps internal service endpoints out of every UI module', () => {
+    const uiModules = walk(SOURCE_ROOT, (file) => file.endsWith('.tsx'));
+    const internalBrandFields = /\b(?:formsBugReport|formsAiSetupHelp|formsTelemetry|formsDiagnostics|licenseApi|firmApi)\b/;
+    const leaks = uiModules
+      .filter((file) => internalBrandFields.test(fs.readFileSync(file, 'utf8')))
+      .map((file) => path.relative(ROOT, file));
 
-    for (const relative of visibleModules) {
-      const source = fs.readFileSync(path.join(ROOT, relative), 'utf8');
-      expect(source).not.toMatch(/forms[A-Za-z]+|licenseApi|firmApi/);
-    }
+    expect(leaks).toEqual([]);
   });
 });

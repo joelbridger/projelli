@@ -32,6 +32,7 @@ import { loadIntakeLinkSecret, updateIntakeLinkSecret } from '@/platform/intake/
 import { deriveAuthToken } from '@/platform/intake/intakeCrypto';
 import { regenerateIntakeLink } from '@/platform/intake/intakeLifecycle';
 import { createAdvisorIntake } from '@/platform/intake/createIntake';
+import { configuredIntakeHost } from '@/platform/intake/advisorIntakeLink';
 import type { FormRequest } from '@/platform/intake/types';
 import { b64ToBytes } from '@/platform/intake/pageSeal';
 import { useFirmStore } from '@/platform/firm/firmStore';
@@ -162,11 +163,6 @@ function formatClientMapUpdated(
     hour: 'numeric',
     minute: '2-digit',
   }));
-}
-
-function intakeHost(): string {
-  const env = (import.meta as { env?: { VITE_INTAKE_HOST?: string } }).env?.VITE_INTAKE_HOST;
-  return (env && env.trim()) || 'https://forms.lanternplatform.app';
 }
 
 function addDaysIso(days: number): string {
@@ -384,7 +380,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     await createAdvisorIntake({
       intakeId: request.request_id,
       matterId,
-      intakeHost: intakeHost(),
+      intakeHost: configuredIntakeHost(),
       expiresAt: addDaysIso(30),
       checklist: request,
       ...(request.blueprint_ref ? {} : { requestTitle: 'Client request' }),
@@ -415,7 +411,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     if (!oldSecretB64) throw new Error('This link is missing its saved secret.');
     const regenerated = await regenerateIntakeLink({
       intakeId,
-      intakeHost: intakeHost(),
+      intakeHost: configuredIntakeHost(),
       publicKeyRaw: b64ToBytes(current.publicKeyRawB64),
       checklistCiphertextB64: current.checklistCiphertextB64,
       stateCiphertextB64: current.stateCiphertextB64,
