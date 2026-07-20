@@ -558,6 +558,19 @@ function updateDisplayMetadata() {
     if (m && m[1] !== NAME) replaceExactlyOnce(indexHtml, `<title>${m[1]}</title>`, `<title>${NAME}</title>`, 'index.html <title>');
     else skip('index.html <title> already current');
   }
+  for (const [relative, title] of [
+    ['intake-page/index.html', `${NAME} secure intake`],
+    ['index.demo.html', `${NAME} Demo`],
+  ]) {
+    const file = path.join(ROOT, relative);
+    if (!exists(file)) continue;
+    const match = /<title>([^<]*)<\/title>/.exec(read(file));
+    if (match && match[1] !== title) {
+      replaceExactlyOnce(file, `<title>${match[1]}</title>`, `<title>${title}</title>`, `${relative} <title>`);
+    } else {
+      skip(`${relative} <title> already current`);
+    }
+  }
 }
 
 /** --rename: swap the capitalised display name across static prose (DRY RUN unless --apply). */
