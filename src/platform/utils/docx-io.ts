@@ -702,6 +702,54 @@ function escapeHtml(s: string): string {
 }
 
 /**
+ * Invert `escapeHtml` for a span that is about to be RE-encoded for ATTRIBUTE
+ * position.
+ *
+ * R-49 defect 1c. `renderInline` escapes the whole line as TEXT before it
+ * knows which spans will end up in an attribute, so by the time the link rule
+ * runs a URL the author wrote as `?a=1&b=2` already reads `?a=1&amp;b=2`.
+ * Handing that to `safeUrlAttribute` escapes the `&` a SECOND time, and the
+ * `.docx` this file packs then stores
+ * `Target="https://example.com/s?a=1&amp;amp;b=2"` — Word opens a DIFFERENT
+ * URL. Every markdown link with a query string was broken this way.
+ *
+ * That is treated as a security defect, not a cosmetic one: the correctness of
+ * a security control IS a security property. A sanitizer that quietly breaks
+ * ordinary links is a sanitizer someone turns off, and a disabled control is a
+ * live hole reached by disuse, which no security test catches.
+ *
+ * It is the exact inverse of `escapeHtml`'s three replaces applied in REVERSE
+ * order, which is what makes it a true inverse: a URL containing the literal
+ * text `&lt;` round-trips to `&lt;` and not to `<`.
+ *
+ * SECURITY BOUND — why decoding here cannot widen the URL allowlist. The only
+ * characters this can reintroduce are `&`, `<` and `>`, and none of them
+ * appears in any prefix `safeUrlAttribute` allows (`https?:` `mailto:` `tel:`
+ * `#` `/` `./` `../`). So no input can cross BLOCKED → ALLOWED by being
+ * decoded; it can only alter the TAIL of an already-allowed URL, and
+ * `safeUrlAttribute` re-escapes that tail in full. That bound is pinned
+ * behaviourally by the `WIDENING:` cases in
+ * `tests/unit/security/docxio-url-sink.test.ts`, not merely asserted here.
+ *
+ * It is applied ONLY to the URL capture, which is immediately re-encoded by
+ * `safeUrlAttribute`. The link TEXT is deliberately NOT decoded — it stays in
+ * element position, where `escapeHtml`'s output is already correct, and
+ * decoding it would turn escaped source back into live markup.
+ *
+ * KNOWN DUPLICATION, stated rather than hidden: `MarkdownPreview.tsx` on
+ * branch `sec/r49-markdown-xss-c39` carries a private function of the same
+ * name and the same three replaces. This copy is deliberately local instead of
+ * shared through `@/platform/render/htmlSanitize`, because that module has two
+ * competing versions in flight and the merge drops one of them; an export
+ * added to the losing copy would vanish and take this call site's compile with
+ * it. Unifying the two into the shared module is a follow-on AFTER that merge,
+ * not a thing this lane can do safely.
+ */
+function decodePipelineEscape(s: string): string {
+  return s.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+}
+
+/**
  * Render a single line's inline markdown (bold / italic / code / link) into
  * HTML. Order matters: code spans must be handled first so that
  * `` `foo_bar_baz` `` doesn't get italic tags inside.
@@ -722,9 +770,15 @@ function renderInline(line: string): string {
   // MarkdownPreview did not) and never checked the scheme (which pdf-export
   // did). Four hand-rolled sanitizers, four different subsets of the same
   // three rules. All four now call the one module.
+  //
+  // R-49 defect 1c adds `decodePipelineEscape` on the URL capture, which is
+  // the one span here that gets RE-encoded for attribute position. See that
+  // function for why it cannot widen the allowlist. `text` is NOT decoded: it
+  // stays in element position.
   working = working.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    (_m, text: string, href: string) => `<a href="${safeUrlAttribute(href, 'link')}">${text}</a>`
+    (_m, text: string, href: string) =>
+      `<a href="${safeUrlAttribute(decodePipelineEscape(href), 'link')}">${text}</a>`
   );
 
   working = working.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
