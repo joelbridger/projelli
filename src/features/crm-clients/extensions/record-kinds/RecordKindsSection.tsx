@@ -134,8 +134,24 @@ export function RecordKindsSection({
     kind: 'loading',
     scopeKey: activeKey,
   });
-  const [editing, setEditing] = useState<RecordKindsSnapshot | null>(null);
+  const [editing, setEditing] = useState<{
+    readonly scopeKey: string;
+    readonly snapshot: RecordKindsSnapshot;
+  } | null>(null);
   const [addingIndividual, setAddingIndividual] = useState(false);
+
+  // Client-data isolation: an open editor holds one client's full record. When
+  // the active client changes, drop any editor or add-panel from the prior
+  // client so B never inherits A's open drawer or its half-typed new record.
+  useEffect(() => {
+    setEditing(null);
+    setAddingIndividual(false);
+  }, [activeKey]);
+
+  // Belt-and-braces: even within a render before the reset effect runs, only an
+  // editor sealed to the current client key may show.
+  const openEditing =
+    editing && editing.scopeKey === activeKey ? editing.snapshot : null;
 
   const reload = useCallback(async () => {
     if (boundary.kind !== 'ready') return;
@@ -246,26 +262,28 @@ export function RecordKindsSection({
               key={`${item.ref.kind}:${item.ref.id}`}
               snapshot={item}
               onEdit={() => {
-                setEditing(item);
+                setEditing({ scopeKey: activeKey, snapshot: item });
               }}
             />
           ))}
         </div>
       )}
       <SlidePanel
-        open={editing !== null}
+        open={openEditing !== null}
         onClose={() => {
           setEditing(null);
         }}
-        title={editing ? `Edit ${editing.record.displayName}` : 'Edit contact'}
+        title={
+          openEditing ? `Edit ${openEditing.record.displayName}` : 'Edit contact'
+        }
         data-testid="record-kinds-edit-panel"
       >
-        {editing ? (
+        {openEditing ? (
           <RecordDetailsEditor
-            key={`${editing.ref.kind}:${editing.ref.id}`}
-            snapshot={editing}
+            key={`${openEditing.ref.kind}:${openEditing.ref.id}`}
+            snapshot={openEditing}
             onSave={async (draft) => {
-              await repository.update(boundary.scope, editing.ref, draft);
+              await repository.update(boundary.scope, openEditing.ref, draft);
               setEditing(null);
               await reload();
             }}

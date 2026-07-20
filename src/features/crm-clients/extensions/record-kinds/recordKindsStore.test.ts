@@ -199,6 +199,7 @@ describe('record-kinds paired client repository', () => {
   it('refuses undefined, partial, and mismatched household/matter pairs at every read and write', async () => {
     const contacts = {
       records: [],
+      unpairedContactDocuments: [],
       listDirectory: vi.fn(),
       get: vi.fn(),
       resolve: vi.fn(),
@@ -258,6 +259,80 @@ describe('record-kinds paired client repository', () => {
         draftFor('person', 'Other Client')
       )
     ).rejects.toBeInstanceOf(RecordKindsIsolationError);
+  });
+
+  it('refuses a legacy household with no matter pair instead of reporting empty', async () => {
+    const persisted = liveFixture([
+      {
+        id: 'household:selected',
+        kind: 'household',
+        name: 'Legacy Foster household',
+      },
+    ]);
+    const repository = createRecordKindsRepository(
+      createContactRecordStore(persisted.live)
+    );
+    await expect(repository.list(scope())).rejects.toBeInstanceOf(
+      RecordKindsIsolationError
+    );
+  });
+
+  it('refuses when a linked individual is missing its matter pair, never a partial roster', async () => {
+    const persisted = liveFixture([
+      {
+        id: 'household:selected',
+        kind: 'household',
+        matterId: 'matter-a',
+        name: 'Foster household',
+        contactLinks: [{ contactId: 'person:legacy', kind: 'person' }],
+      },
+      {
+        id: 'person:legacy',
+        kind: 'person',
+        firstName: 'Robert',
+        lastName: 'Foster',
+      },
+    ]);
+    const repository = createRecordKindsRepository(
+      createContactRecordStore(persisted.live)
+    );
+    await expect(repository.list(scope())).rejects.toBeInstanceOf(
+      RecordKindsIsolationError
+    );
+  });
+
+  it('refuses a malformed document that claims this matter rather than dropping it', async () => {
+    const persisted = liveFixture([
+      {
+        id: 'person:broken',
+        kind: 'person',
+        matterId: 'matter-a',
+      },
+    ]);
+    const repository = createRecordKindsRepository(
+      createContactRecordStore(persisted.live)
+    );
+    await expect(repository.list(scope())).rejects.toBeInstanceOf(
+      RecordKindsIsolationError
+    );
+  });
+
+  it('does not let another client’s unpaired record block this client', async () => {
+    const persisted = liveFixture([
+      {
+        id: 'household:selected',
+        kind: 'household',
+        matterId: 'matter-a',
+        name: 'Foster household',
+      },
+      { id: 'household:foreign', kind: 'household', name: 'Unpaired stranger' },
+    ]);
+    const repository = createRecordKindsRepository(
+      createContactRecordStore(persisted.live)
+    );
+    const records = await repository.list(scope());
+    expect(records).toHaveLength(1);
+    expect(records[0]?.record.displayName).toBe('Foster household');
   });
 
   it('keeps malformed saved details on the error branch instead of calling them empty', async () => {

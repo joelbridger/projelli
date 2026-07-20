@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -179,6 +180,36 @@ describe('record-kinds composed household surface isolation', () => {
         within(sectionB).queryByText('Foster household')
       ).not.toBeInTheDocument();
     });
+  });
+
+  it('drops client A open editor when switching to client B', async () => {
+    const contextA = context('household:a', 'matter-a', 'Foster household');
+    const contextB = context('household:b', 'matter-b', 'Diaz household');
+    const view = render(<RecordKindsSection context={contextA} />);
+
+    await screen.findByTestId('record-kinds-section');
+    fireEvent.click(screen.getByTestId('record-kinds-edit-person:a'));
+
+    const editor = await screen.findByTestId('record-kinds-editor');
+    expect(within(editor).getByDisplayValue('Robert')).toBeInTheDocument();
+    expect(screen.getByText('Edit Robert Foster')).toBeInTheDocument();
+
+    fixture.decision = selectedDecision(
+      'household:b',
+      'matter-b',
+      'Diaz household'
+    );
+    view.rerender(<RecordKindsSection context={contextB} />);
+
+    await waitFor(() => {
+      const sectionB = screen.getByTestId('record-kinds-section');
+      expect(within(sectionB).getByText('Camila Diaz')).toBeInTheDocument();
+    });
+    // A's open editor — its title, its form, and its field values — is gone.
+    expect(screen.queryByTestId('record-kinds-editor')).not.toBeInTheDocument();
+    expect(screen.queryByText('Edit Robert Foster')).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Robert')).not.toBeInTheDocument();
+    expect(screen.queryByText('Robert Foster')).not.toBeInTheDocument();
   });
 
   it('shows a valid empty store as empty, not as a read failure', async () => {

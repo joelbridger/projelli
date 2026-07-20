@@ -365,6 +365,107 @@ function createInput(
   };
 }
 
+function assertInScope(
+  scope: RuntimeSealedScope,
+  record: ContactRecord
+): ContactRecord {
+  if (record.matterId !== scope.matterId) {
+    throw new RecordKindsIsolationError();
+  }
+  return record;
+}
+
+/**
+ * Records that look like this client's contacts but cannot be verified against
+ * the sealed pair — a legacy household with no `matterId`, an unpaired linked
+ * individual, or a malformed document claiming this matter. Their existence must
+ * fail the scoped read closed; silently dropping them would report a populated
+ * client as empty and hide cross-client bleed.
+ */
+function scopedIsolationBlockers(
+  scope: RuntimeSealedScope,
+  contacts: ContactRecordStore
+): readonly Readonly<Record<string, unknown>>[] {
+  const linkedIds = new Set<string>();
+  const household = contacts.records.find(
+    (record) =>
+      record.kind === 'household' &&
+      record.id === scope.householdRef.id &&
+      record.matterId === scope.matterId
+  );
+  if (household) {
+    for (const link of household.contactLinks) linkedIds.add(link.contactId);
+  }
+  return contacts.unpairedContactDocuments.filter((document) => {
+    const id = typeof document['id'] === 'string' ? document['id'] : '';
+    const matterId =
+      typeof document['matterId'] === 'string' ? document['matterId'] : '';
+    return (
+      matterId === scope.matterId ||
+      id === scope.householdRef.id ||
+      (id !== '' && linkedIds.has(id))
+    );
+  });
+}
+
+/**
+ * The real storage boundary for this feature. Every read, resolve, create, and
+ * update authorizes the sealed household+matter pair BEFORE touching data. It
+ * never hands the feature a whole-firm array or an ID-only writer: the whole-firm
+ * records and the underlying `update(id, patch)` are encapsulated here, reached
+ * only after the pair is proven at runtime.
+ */
+interface ScopedContactStore {
+  readonly scope: RuntimeSealedScope;
+  list(): readonly ContactRecord[];
+  read(ref: ContactRef): Promise<ContactRecord | null>;
+  create(input: ContactCreateInput): Promise<ContactRecord>;
+  update(ref: ContactRef, patch: ContactPatch): Promise<ContactRecord>;
+}
+
+function createScopedContactStore(
+  contacts: ContactRecordStore,
+  untrustedScope: SealedRecordKindsClientScope
+): ScopedContactStore {
+  const scope = assertScope(untrustedScope);
+  return {
+    scope,
+    list() {
+      if (scopedIsolationBlockers(scope, contacts).length > 0) {
+        throw new RecordKindsIsolationError(
+          'Contact details are blocked because this client has records that are not linked to its workspace.'
+        );
+      }
+      return contacts.records.filter(
+        (record) => record.matterId === scope.matterId
+      );
+    },
+    async read(untrustedRef) {
+      const ref = assertTarget(scope, untrustedRef);
+      const projection = await contacts.resolve(ref);
+      return projection ? assertInScope(scope, projection.contact) : null;
+    },
+    async create(input) {
+      if (input.matterId !== scope.matterId) {
+        throw new RecordKindsIsolationError();
+      }
+      const created = await contacts.create(input);
+      return assertInScope(scope, created);
+    },
+    async update(untrustedRef, patch) {
+      const ref = assertTarget(scope, untrustedRef);
+      const current = await contacts.resolve(ref);
+      if (!current) throw new Error('The contact record no longer exists.');
+      assertInScope(scope, current.contact);
+      const updated = await contacts.update(ref.id, patch);
+      if (updated.kind !== ref.kind) {
+        throw new RecordKindsIsolationError();
+      }
+      return assertInScope(scope, updated);
+    },
+  };
+}
+
 export interface RecordKindsRepository {
   list(
     scope: SealedRecordKindsClientScope
@@ -391,9 +492,9 @@ export function createRecordKindsRepository(
   return {
     list(untrustedScope) {
       return Promise.resolve().then(() => {
-        const scope = assertScope(untrustedScope);
-        return contacts.records
-          .filter((record) => record.matterId === scope.matterId)
+        const store = createScopedContactStore(contacts, untrustedScope);
+        return store
+          .list()
           .filter(
             (record) => record.kind === 'household' || record.kind === 'person'
           )
@@ -401,32 +502,26 @@ export function createRecordKindsRepository(
       });
     },
     async read(untrustedScope, untrustedRef) {
-      const scope = assertScope(untrustedScope);
-      const ref = assertTarget(scope, untrustedRef);
-      const projection = await contacts.resolve(ref);
-      return projection ? snapshot(projection.contact) : null;
+      const store = createScopedContactStore(contacts, untrustedScope);
+      const record = await store.read(untrustedRef);
+      return record ? snapshot(record) : null;
     },
     async create(untrustedScope, input, details) {
-      const scope = assertScope(untrustedScope);
+      const store = createScopedContactStore(contacts, untrustedScope);
       const normalizedDetails = normalizeDetails(details);
-      const created = await contacts.create(
-        createInput(scope, input, normalizedDetails)
+      const created = await store.create(
+        createInput(store.scope, input, normalizedDetails)
       );
-      const ref = assertTarget(scope, {
-        kind: created.kind,
-        id: created.id,
-        matterId: created.matterId,
-      });
       const primaryAdvisor = input.primaryAdvisor?.trim();
       if (!primaryAdvisor) return snapshot(created);
-      const updated = await contacts.update(ref.id, { primaryAdvisor });
+      const updated = await store.update(
+        { kind: created.kind, id: created.id, matterId: created.matterId },
+        { primaryAdvisor }
+      );
       return snapshot(updated);
     },
     async update(untrustedScope, untrustedRef, draft) {
-      const scope = assertScope(untrustedScope);
-      const ref = assertTarget(scope, untrustedRef);
-      const current = await contacts.resolve(ref);
-      if (!current) throw new Error('The contact record no longer exists.');
+      const store = createScopedContactStore(contacts, untrustedScope);
       const channels = validateChannels(draft.channels);
       const details = normalizeDetails(draft.details);
       const patch: ContactPatch = {
@@ -442,10 +537,7 @@ export function createRecordKindsRepository(
           ? { lastName: draft.lastName.trim() }
           : {}),
       };
-      const updated = await contacts.update(ref.id, patch);
-      if (updated.matterId !== scope.matterId || updated.kind !== ref.kind) {
-        throw new RecordKindsIsolationError();
-      }
+      const updated = await store.update(untrustedRef, patch);
       return snapshot(updated);
     },
   };
