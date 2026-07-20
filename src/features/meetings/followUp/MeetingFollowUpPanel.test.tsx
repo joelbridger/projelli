@@ -222,7 +222,7 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
     expect(start).toHaveTextContent('Create Follow-up');
     fireEvent.click(start);
 
-    const body = await screen.findByTestId('followup-body');
+    const body = await screen.findByTestId('followup-drafts-body');
     expect(lane.records).toHaveLength(1);
     expect(lane.records[0]).toMatchObject({
       meetingId: 'meeting-a',
@@ -246,17 +246,17 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       },
     });
 
-    fireEvent.change(screen.getByTestId('followup-to'), {
+    fireEvent.change(screen.getByTestId('followup-drafts-to'), {
       target: { value: 'client@example.test' },
     });
-    fireEvent.change(screen.getByTestId('followup-subject'), {
+    fireEvent.change(screen.getByTestId('followup-drafts-subject'), {
       target: { value: 'Annual review recap' },
     });
     fireEvent.change(body, {
       target: { value: 'Edited exact-meeting recap.' },
     });
     expect(screen.queryByTestId('followup-send')).toBeNull();
-    fireEvent.click(screen.getByTestId('followup-save-drafts'));
+    fireEvent.click(screen.getByTestId('followup-drafts-save'));
 
     expect(
       await screen.findByTestId('meeting-follow-up-saved')
@@ -320,15 +320,15 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       save,
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
-    const body = await screen.findByTestId('followup-body');
+    const body = await screen.findByTestId('followup-drafts-body');
     fireEvent.change(body, {
       target: { value: 'Edited exact-meeting recap.' },
     });
-    expect(screen.getByTestId('meeting-follow-up-edited')).toBeTruthy();
+    expect(screen.getByTestId('followup-drafts-edited')).toBeTruthy();
     expect(screen.queryByTestId('followup-send')).toBeNull();
     expect(screen.queryByTestId('followup-generate')).toBeNull();
 
-    fireEvent.click(screen.getByTestId('followup-save-drafts'));
+    fireEvent.click(screen.getByTestId('followup-drafts-save'));
     await waitFor(() => {
       expect(mail.saveDraft).toHaveBeenCalledTimes(1);
     });
@@ -368,7 +368,7 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
     expect(
       await screen.findByTestId('meeting-follow-up-blocked')
     ).toHaveTextContent('Connect Outlook');
-    expect(screen.queryByTestId('followup-save-drafts')).toBeNull();
+    expect(screen.queryByTestId('followup-drafts-save')).toBeNull();
   });
 
   it('sanitizes a raw Outlook failure and keeps the explicit save retryable', async () => {
@@ -383,7 +383,7 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       save: vi.fn(),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
-    const save = await screen.findByTestId('followup-save-drafts');
+    const save = await screen.findByTestId('followup-drafts-save');
     fireEvent.click(save);
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('The draft was not saved to Outlook');
@@ -407,11 +407,11 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
 
-    const error = await screen.findByTestId('meeting-follow-up-local-error');
+    const error = await screen.findByTestId('followup-drafts-local-error');
     expect(error).toHaveTextContent('Outlook could not be checked');
     expect(error).not.toHaveTextContent('token');
-    fireEvent.click(screen.getByTestId('meeting-follow-up-retry'));
-    expect(await screen.findByTestId('followup-body')).toHaveValue(
+    fireEvent.click(screen.getByTestId('followup-drafts-retry'));
+    expect(await screen.findByTestId('followup-drafts-body')).toHaveValue(
       'Thank you for meeting today.'
     );
   });

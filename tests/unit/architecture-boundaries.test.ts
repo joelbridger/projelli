@@ -69,7 +69,6 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'meetings->dictation', // MeetingEntry (Wave 3c) reuses the existing AudioPlayer for the meeting audio scrubber instead of building a second audio player
   'meetings->documents', // MeetingEntry (Wave 3c) reuses the existing DocxEditor to show notes.docx inline instead of a second docx renderer
   'meetings->calendar-grid', // The Meetings shell composes CalendarGridSurface through the calendar-grid feature's public doorway.
-  'meetings->email', // Follow-up composes Email's public Outlook Drafts-only capability; the mode cannot send and receives the sealed meeting + household/matter identity.
   'meetings->workflows', // generateBrief.ts runs the existing MeetingPrepAndSuitabilityNotes template headlessly via the workflow engine, instead of duplicating template-execution logic in the meetings feature
   'onboarding->firm', // onboarding explains firm/SSO setup
   'onboarding->meetings', // seedSampleGoldenPath (B3 demo golden path) seeds a sample past meeting + upcoming prep brief via the meetings stores/generateBrief instead of duplicating meeting logic
