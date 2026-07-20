@@ -52,6 +52,50 @@ describe('parseSpreadsheet (UX-32)', () => {
   });
 });
 
+describe('CSV export formula-injection safety', () => {
+  it('neutralizes formula-leading text while preserving a negative number', async () => {
+    const model: SheetModel = {
+      sheets: [
+        {
+          name: 'Client export',
+          rows: [
+            [
+              {
+                display: '=HYPERLINK("https://attacker.test")',
+                raw: '=HYPERLINK("https://attacker.test")',
+              },
+              { display: '+cmd', raw: '+cmd' },
+              { display: '-2+3', raw: '-2+3' },
+              { display: '@SUM(A1)', raw: '@SUM(A1)' },
+              { display: '-42', raw: -42 },
+            ],
+          ],
+          merges: [],
+          columnCount: 5,
+        },
+      ],
+      activeSheetIndex: 0,
+      sourceExtension: 'csv',
+    };
+
+    const csv = new TextDecoder().decode(serializeSpreadsheet(model, 'csv'));
+    expect(csv).toContain("'=HYPERLINK");
+    expect(csv).toContain("'+cmd");
+    expect(csv).toContain("'-2+3");
+    expect(csv).toContain("'@SUM(A1)");
+
+    const reparsed = await parseSpreadsheet(csv, 'csv');
+    expect(reparsed.sheets[0]?.rows[0]?.map((cell) => cell?.display)).toEqual([
+      "'=HYPERLINK(\"https://attacker.test\")",
+      "'+cmd",
+      "'-2+3",
+      "'@SUM(A1)",
+      '-42',
+    ]);
+    expect(reparsed.sheets[0]?.rows[0]?.[4]?.raw).toBe('-42');
+  });
+});
+
 // A6 — confirm the xlsx editor path round-trips real spreadsheet data (values +
 // formulas) through serialize -> parse with high fidelity (SheetJS). This is the
 // same code the SpreadsheetViewer uses to save/open .xlsx files.

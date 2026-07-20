@@ -36,6 +36,16 @@ const SCANNED_THRESHOLD = 100;
 const PAGE_OCR_THRESHOLD = 25;
 
 /**
+ * PDF attachments, indexed workspace PDFs, intake PDFs, and ACATS PDFs all
+ * reach this module from outside the advisor's control. Text extraction and
+ * OCR rasterization do not need PDF.js's dynamic-code evaluation path.
+ */
+export const UNTRUSTED_PDFJS_OPTIONS = Object.freeze({
+  isEvalSupported: false,
+  enableXfa: false,
+});
+
+/**
  * VG-2 — does this page's extracted text indicate an image-only (scanned)
  * page that needs OCR? Pure; the OCR pipeline in MemoryService maps it over
  * `PdfExtractionResult.pages`.
@@ -101,7 +111,10 @@ export async function extractPdfText(bytes: Uint8Array): Promise<PdfExtractionRe
 
   let pdf: Awaited<ReturnType<typeof pdfjsLib.getDocument>['promise']>;
   try {
-    const loadingTask = pdfjsLib.getDocument({ data: bytes });
+    const loadingTask = pdfjsLib.getDocument({
+      data: bytes,
+      ...UNTRUSTED_PDFJS_OPTIONS,
+    });
     pdf = await loadingTask.promise;
   } catch (err: unknown) {
     // PDF.js throws a PasswordException for encrypted/password-protected files.
@@ -180,7 +193,10 @@ export async function renderPdfPageToPng(
   // thread), so hand it a private copy — the caller's bytes survive for the
   // next page's render call. Caught live in the Task 8 browser sanity run:
   // without the copy, page 2 of a multi-page OCR batch throws DataCloneError.
-  const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+  const pdf = await pdfjsLib.getDocument({
+    data: bytes.slice(),
+    ...UNTRUSTED_PDFJS_OPTIONS,
+  }).promise;
   try {
     const page = await pdf.getPage(pageIndex + 1); // PDF.js pages are 1-based
     const viewport = page.getViewport({ scale });

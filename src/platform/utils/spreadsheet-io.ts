@@ -533,7 +533,14 @@ function serializeCsv(model: SheetModel): Uint8Array {
     })
   );
 
-  const csv = Papa.unparse(rows);
+  // Spreadsheet programs execute text beginning with =, +, -, @, tab, or CR
+  // as a formula. PapaParse neutralizes matching values by prefixing an
+  // apostrophe. A plain negative numeric literal (for example -42 or -1.5e3)
+  // is data, not a formula, so keep that exact value intact while escaping
+  // every other dangerous '-' prefix.
+  const csv = Papa.unparse(rows, {
+    escapeFormulae: /^(?:[=+@\t\r]|-(?!\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$))/,
+  });
   // UTF-8 bytes for the whole string, newline-terminated so Excel is happy.
   return new TextEncoder().encode(`${csv}\n`);
 }
@@ -572,6 +579,12 @@ function spreadsheetMimeType(extension: SpreadsheetExtension): string {
 function parseXlsx(buffer: ArrayBuffer, extension: 'xlsx' | 'xls'): SheetModel {
   const workbook = XLSX.read(buffer, {
     type: 'array',
+    // Residual owner: Documents / SpreadsheetViewer. SheetJS may populate its
+    // optional cell.h representation, but parseWorksheet deliberately copies
+    // only raw/display/formula values and Cell renders display through React's
+    // text escaping. tests/security/document-parser-safety.test.tsx guards
+    // that no attacker-controlled cell HTML reaches a DOM HTML sink.
+    cellHTML: true,
     cellDates: true,
     cellFormula: true,
     cellNF: true, // keep number-format strings so `w` is populated for typed cells
