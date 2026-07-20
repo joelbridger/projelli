@@ -13,12 +13,14 @@ import {
   createStructuredMeetingSummaryReader,
   type StructuredMeetingSummary,
 } from './structuredMeetingSummary';
+import {
+  deliverStoredMeetingSummary,
+  structuredSummaryFromStoredNotes,
+  type StoredMeetingSummaryContent,
+  type StoredMeetingSummaryDelivery,
+} from './storedMeetingSummaryDelivery';
 
-export interface StructuredMeetingSummaryContent {
-  readonly summary?: string;
-  readonly decisions: readonly string[];
-  readonly personalNotes: readonly string[];
-}
+export type StructuredMeetingSummaryContent = StoredMeetingSummaryContent;
 
 export type StructuredMeetingSummaryPanelLoadResult =
   | {
@@ -50,41 +52,6 @@ export interface StructuredMeetingSummaryPanelProps {
   readonly loadSummary?: StructuredMeetingSummaryLoader;
 }
 
-const EMPTY_CONTENT: StructuredMeetingSummaryContent = Object.freeze({
-  decisions: [],
-  personalNotes: [],
-});
-
-function cleanLine(line: string): string {
-  return line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim();
-}
-
-type LegacySummarySection =
-  | 'summary'
-  | 'decisions'
-  | 'personalNotes'
-  | 'ignored';
-
-function headingName(line: string): LegacySummarySection | null {
-  const heading = line
-    .trim()
-    .replace(/^#{1,6}\s*/, '')
-    .replace(/:$/, '')
-    .trim()
-    .toLowerCase();
-  if (heading === 'summary' || heading === 'what changed') return 'summary';
-  if (heading === 'decisions') return 'decisions';
-  if (
-    heading === 'personal notes' ||
-    heading === 'personal updates' ||
-    heading === 'facts worth keeping'
-  ) {
-    return 'personalNotes';
-  }
-  if (heading === 'action items' || heading === 'follow-ups') return 'ignored';
-  return null;
-}
-
 /**
  * Compatibility projection for the existing exact meeting notes document.
  * Only headings and words already present in that document are used. Missing
@@ -94,36 +61,7 @@ function headingName(line: string): LegacySummarySection | null {
 export function structuredSummaryFromText(
   value: string
 ): StructuredMeetingSummaryContent {
-  const text = value.trim();
-  if (!text) return EMPTY_CONTENT;
-  const sections: Record<LegacySummarySection, string[]> = {
-    summary: [],
-    decisions: [],
-    personalNotes: [],
-    ignored: [],
-  };
-  let current: LegacySummarySection | null = null;
-  let foundHeading = false;
-  for (const rawLine of text.replace(/\r/g, '').split('\n')) {
-    const heading = headingName(rawLine);
-    if (heading) {
-      current = heading;
-      foundHeading = true;
-      continue;
-    }
-    const line = cleanLine(rawLine);
-    if (line && current) sections[current].push(line);
-  }
-  if (!foundHeading) {
-    return { summary: text, decisions: [], personalNotes: [] };
-  }
-
-  const summary = sections['summary'].join('\n').trim();
-  return {
-    ...(summary ? { summary } : {}),
-    decisions: sections['decisions'],
-    personalNotes: sections['personalNotes'],
-  };
+  return structuredSummaryFromStoredNotes(value);
 }
 
 function contentFromArtifact(
@@ -139,10 +77,8 @@ function contentFromArtifact(
 async function loadDefaultSummary(
   meetings: ReturnType<typeof useMeetingFoundationStore>,
   artifacts: ReturnType<typeof useMeetingArtifactStore>,
-  {
-    meeting,
-    boundary,
-  }: StructuredMeetingSummaryLoadRequest
+  storedDelivery: StoredMeetingSummaryDelivery | null,
+  { meeting, boundary }: StructuredMeetingSummaryLoadRequest
 ): Promise<StructuredMeetingSummaryPanelLoadResult> {
   const artifactResult = await createStructuredMeetingSummaryReader(
     meetings,
@@ -156,6 +92,13 @@ async function loadDefaultSummary(
       kind: 'ready',
       content: contentFromArtifact(artifactResult.summary),
       reviewState: artifactResult.summary.reviewState,
+    };
+  }
+  if (storedDelivery) {
+    return {
+      kind: 'ready',
+      content: storedDelivery.content,
+      reviewState: storedDelivery.reviewState,
     };
   }
   return { kind: 'empty' };
@@ -456,10 +399,15 @@ function ConnectedStructuredSummary({
 }) {
   const meetings = useMeetingFoundationStore();
   const artifacts = useMeetingArtifactStore();
+  const storedDelivery = deliverStoredMeetingSummary({
+    hostIdentity: context.hostIdentity,
+    clientBoundary: context.clientBoundary,
+    extraction: context.summaryExtraction,
+  });
   const loader = useCallback(
     (request: StructuredMeetingSummaryLoadRequest) =>
-      loadDefaultSummary(meetings, artifacts, request),
-    [meetings, artifacts]
+      loadDefaultSummary(meetings, artifacts, storedDelivery, request),
+    [meetings, artifacts, storedDelivery]
   );
   const identity = summaryIdentity(context);
   if (!identity) return <LegacySummaryCompatibility context={context} />;
@@ -479,9 +427,26 @@ export function StructuredMeetingSummaryPanel({
   loadSummary,
 }: StructuredMeetingSummaryPanelProps) {
   const identity = summaryIdentity(context);
+  const storedDelivery = deliverStoredMeetingSummary({
+    hostIdentity: context.hostIdentity,
+    clientBoundary: context.clientBoundary,
+    extraction: context.summaryExtraction,
+  });
   let content;
   if (!identity) {
-    content = <LegacySummaryCompatibility context={context} />;
+    content = storedDelivery ? (
+      <SummaryState
+        context={context}
+        result={{
+          kind: 'ready',
+          content: storedDelivery.content,
+          reviewState: storedDelivery.reviewState,
+        }}
+        onRetryRead={() => undefined}
+      />
+    ) : (
+      <LegacySummaryCompatibility context={context} />
+    );
   } else if (loadSummary) {
     content = (
       <BoundStructuredSummary
