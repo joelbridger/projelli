@@ -35,10 +35,9 @@ import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { HelpCircle, LifeBuoy, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 import { openExternal } from '@/platform/utils/openExternal';
 import { redactSecrets } from '@/platform/utils/redactSecrets';
-import { AI_SETUP_HELP_ENDPOINT } from '@/platform/utils/supportEndpoints';
+import { submitAiSetupHelpTicket } from '@/platform/utils/supportTicketService';
 import { BRAND } from '@/config/brand';
 
 const MAILTO_ADDRESS = BRAND.urls.supportEmail;
@@ -217,13 +216,7 @@ export function AiSetupHelpDialog({
     try {
       // The help ticket goes to Lantern infrastructure, not the user's AI
       // provider — opt out of the "Sending to your AI provider" pulse.
-      const fetchFn = await getCorsSafeFetch({ signalEgress: false });
-      const res = await fetchFn(AI_SETUP_HELP_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: ac.signal,
-      });
+      const res = await submitAiSetupHelpTicket(payload, ac.signal);
       if (!res.ok) throw new Error(`server responded ${String(res.status)}`);
       setStatus('success');
       setMessage('');

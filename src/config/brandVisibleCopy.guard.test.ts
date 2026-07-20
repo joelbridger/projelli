@@ -179,9 +179,16 @@ describe('visible brand copy guard', () => {
   it('keeps internal service endpoints out of every UI module', () => {
     const uiModules = walk(SOURCE_ROOT, (file) => file.endsWith('.tsx'));
     const internalBrandFields = /\b(?:formsBugReport|formsAiSetupHelp|formsTelemetry|formsDiagnostics|licenseApi|firmApi)\b/;
-    const leaks = uiModules
-      .filter((file) => internalBrandFields.test(fs.readFileSync(file, 'utf8')))
-      .map((file) => path.relative(ROOT, file));
+    const leaks = uiModules.flatMap((file) => {
+      const source = fs.readFileSync(file, 'utf8');
+      const relative = path.relative(ROOT, file);
+      const findings: string[] = [];
+      if (internalBrandFields.test(source)) findings.push(`${relative}: internal BRAND endpoint field`);
+      if (/from\s*['"]@\/platform\/utils\/supportEndpoints['"]/.test(source)) {
+        findings.push(`${relative}: support endpoint import`);
+      }
+      return findings;
+    });
 
     expect(leaks).toEqual([]);
   });

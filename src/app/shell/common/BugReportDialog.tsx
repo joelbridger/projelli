@@ -12,9 +12,8 @@ import { Textarea } from '@/ui/textarea';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { Bug, Loader2 } from 'lucide-react';
-import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 import { openExternal } from '@/platform/utils/openExternal';
-import { BUG_REPORT_ENDPOINT } from '@/platform/utils/supportEndpoints';
+import { submitBugReport } from '@/platform/utils/supportTicketService';
 import { BRAND } from '@/config/brand';
 
 const MAILTO_ADDRESS = BRAND.urls.supportEmail;
@@ -98,12 +97,7 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
     try {
       // F-120: the bug report goes to Lantern infrastructure, not the user's
       // AI provider — opt out of the "Sending to your AI provider" pulse.
-      const fetchFn = await getCorsSafeFetch({ signalEgress: false });
-      const res = await fetchFn(BUG_REPORT_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const res = await submitBugReport(payload);
       if (!res.ok) throw new Error(`server responded ${res.status}`);
       setStatus('success');
       setMessage('');
