@@ -8,7 +8,7 @@ const intakePack = readFileSync(
   'utf8'
 ).toLowerCase();
 
-describe('Advisor Prep Hero Intake IT Gatekeeper Pack claims discipline', () => {
+describe(`${BRAND.name} Intake IT Gatekeeper Pack claims discipline`, () => {
   it('does not use forbidden security overclaims', () => {
     expect(intakePack).not.toContain('military-grade');
     expect(intakePack).not.toContain('unhackable');
