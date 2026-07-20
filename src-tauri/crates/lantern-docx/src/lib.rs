@@ -47,6 +47,7 @@ pub mod validate;
 /// crates can build against the same single-source-of-truth model; it has no
 /// runtime cost in production paths because nothing in the library calls it.
 pub mod fixture;
+pub mod generated_brand;
 
 pub use error::{DocxError, Result};
 pub use letterhead::merge_into_template;

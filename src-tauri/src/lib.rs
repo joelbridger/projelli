@@ -16,6 +16,9 @@ pub mod network_policy;
 // MCP identifiers, OS data paths). Single source of truth for all
 // Rust-side identity strings — call sites import from here, never hard-code.
 pub mod identity;
+// Generated from brand/brand.config.json so native user-visible strings share
+// the same public product name as the renderer and installer.
+pub mod generated_brand;
 // Shared Sidecar trait + concrete impls (ParakeetSidecar, and later
 // PiperSidecar for Stream B TTS). The trait defines a lifecycle contract
 // (start/stop/is_running) that long-lived daemon sidecars and fire-and-forget

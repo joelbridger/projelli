@@ -10,10 +10,10 @@ This is the plain-English data map for IT review.
 4. API keys, vault keys, audit keys, mail keys, vector-store keys, firm device keys, and firm matter keys live in the operating system keychain.
 5. Local AI mode sends prompt content only to a local loopback service on the same computer.
 6. BYOK cloud AI mode sends the user's prompt and selected context directly to the selected AI provider.
-7. Firm Assured mode sends the user's prompt and selected context to the Lantern firm proxy, which forwards it to the selected AI provider without storing prompt or completion bodies.
-8. Firm shared workspaces send encrypted sync updates to the Lantern relay. The relay sees ciphertext, not readable client text.
+7. Firm Assured mode sends the user's prompt and selected context to the Advisor Prep Hero firm proxy, which forwards it to the selected AI provider without storing prompt or completion bodies.
+8. Firm shared workspaces send encrypted sync updates to the Advisor Prep Hero relay. The relay sees ciphertext, not readable client text.
 9. Optional connectors send or receive data with the vendor the user connected, such as Microsoft, Google, Wealthbox, Salesforce, Redtail, DocuSign, Box, ShareFile, Jotform, Zocks, Addepar, or Calendly.
-10. License checks, updates, support, bug reports, optional telemetry, and optional diagnostics contact Lantern service endpoints.
+10. License checks, updates, support, bug reports, optional telemetry, and optional diagnostics contact Advisor Prep Hero service endpoints.
 
 Source trail: [WorkspaceService.ts](../../../src/platform/fs/WorkspaceService.ts), [BackendFactory.ts](../../../src/platform/fs/BackendFactory.ts), [egress.ts](../../../src/platform/privacy/egress.ts), [DataMapDialog.tsx](../../../src/platform/privacy/ui/DataMapDialog.tsx), [fetchUtils.ts](../../../src/platform/providers/fetchUtils.ts), [assuredInference.ts](../../../src/platform/firm/assuredInference.ts), [MatterSyncClient.ts](../../../src/platform/firm/MatterSyncClient.ts), [matterCrypto.ts](../../../src/platform/firm/matterCrypto.ts), [KeychainService.ts](../../../src/platform/providers/KeychainService.ts), [tauri.conf.json](../../../src-tauri/tauri.conf.json), [default.json](../../../src-tauri/capabilities/default.json).
 
@@ -28,9 +28,9 @@ flowchart TD
   Keychain[Operating system keychain]
   LocalAI[Local AI on 127.0.0.1]
   CloudAI[Anthropic, OpenAI, or Google]
-  License[Lantern license service]
-  Forms[Lantern support and diagnostics forms]
-  FirmAPI[Lantern firm API]
+  License[Advisor Prep Hero license service]
+  Forms[Advisor Prep Hero support and diagnostics forms]
+  FirmAPI[Advisor Prep Hero firm API]
   Relay[Ciphertext-only firm sync relay]
   Vendor[Optional connected vendor systems]
 
@@ -72,7 +72,7 @@ Source: [fetchUtils.ts](../../../src/platform/providers/fetchUtils.ts), [ClaudeP
 
 ### Firm Assured AI
 
-In Assured mode, the app sends the provider-native request to the Lantern firm API. The firm API forwards the request to the selected provider. The backend documentation and code describe this as no-body persistence, with request metadata retained for audit and billing instead of prompt and completion bodies.
+In Assured mode, the app sends the provider-native request to the Advisor Prep Hero firm API. The firm API forwards the request to the selected provider. The backend documentation and code describe this as no-body persistence, with request metadata retained for audit and billing instead of prompt and completion bodies.
 
 Source: [assuredInference.ts](../../../src/platform/firm/assuredInference.ts), [backend README](../../../backend/README.md), [assured.ts](../../../backend/src/routes/assured.ts), [assured.ts lib](../../../backend/src/lib/assured.ts).
 

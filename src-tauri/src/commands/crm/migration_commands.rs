@@ -252,7 +252,7 @@ pub async fn crm_migration_import(
                         "kind": "migration_note_gap",
                         "matterId": "firm",
                         "label": source_label(&record.payload, &fallback_id),
-                        "reason": "This note was not linked to a client, so Lantern could not safely choose a household for it."
+                        "reason": format!("This note was not linked to a client, so {} could not safely choose a household for it.", crate::generated_brand::PRODUCT_NAME)
                     }));
                     continue;
                 }
