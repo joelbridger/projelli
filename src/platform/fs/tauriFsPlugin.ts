@@ -41,7 +41,16 @@ export interface TauriFsModule {
 }
 
 export async function getTauriFsModule(): Promise<TauriFsModule> {
-  if (typeof window !== 'undefined' && !('__TAURI__' in window)) {
+  // Durable Tauri detection: only throw when NEITHER the durable
+  // `__TAURI_INTERNALS__` transport NOR the legacy `__TAURI__` global is
+  // present. Using `__TAURI__` alone here would start throwing (breaking native
+  // fs access) after a future `withGlobalTauri:false` flip. Mirrors
+  // useWorkspaceLifecycle's negated-superset guard.
+  if (
+    typeof window !== 'undefined' &&
+    !('__TAURI_INTERNALS__' in window) &&
+    !('__TAURI__' in window)
+  ) {
     throw new Error('Tauri filesystem access is only available in the desktop app');
   }
   const fs = await import('@tauri-apps/plugin-fs');

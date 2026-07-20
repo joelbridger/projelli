@@ -77,8 +77,21 @@ class LocalStorageBackend implements KeyStorageBackend {
   }
 }
 
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
+/**
+ * Durable Tauri detection for the KEYCHAIN backend picker (see
+ * BackendFactory.isTauriEnvironment for the full rationale). Matches
+ * `__TAURI_INTERNALS__` (always injected by Tauri v2) OR the legacy `__TAURI__`
+ * convenience global, so the constructor default below keeps selecting the OS
+ * keychain after a future `withGlobalTauri:false` flip. Without this, dropping
+ * the global would silently demote API-key/secret storage to base64-obfuscated
+ * `localStorage` with no crash — a security regression. Exported so the
+ * no-demotion test can pin the picker directly.
+ */
+export function isTauriRuntime(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  );
 }
 
 function isKeychainNotFound(error: unknown): boolean {

@@ -81,10 +81,17 @@ export interface ClaudeProviderConfig {
 }
 
 /**
- * Check if we're running in Tauri desktop app
+ * Check if we're running in Tauri desktop app.
+ *
+ * Durable detection — matches `__TAURI_INTERNALS__` OR the legacy `__TAURI__`
+ * global so it survives a future `withGlobalTauri:false` flip. See
+ * BackendFactory.isTauriEnvironment for the full rationale.
  */
 function isTauriApp(): boolean {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  );
 }
 
 /**

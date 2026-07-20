@@ -84,9 +84,12 @@ export function getProviderBaseUrl(provider: ProviderType): string {
  * CORS, so we use the normal browser fetch.
  */
 function shouldUseTauriHttp(): boolean {
+  // Durable Tauri detection — see BackendFactory.isTauriEnvironment. Matching
+  // `__TAURI_INTERNALS__` keeps production API calls on the CORS-bypassing
+  // native HTTP path after a future `withGlobalTauri:false` flip.
   return (
     typeof window !== 'undefined' &&
-    '__TAURI__' in window &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window) &&
     !import.meta.env.DEV
   );
 }

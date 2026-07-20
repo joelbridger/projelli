@@ -633,7 +633,13 @@ export function DocumentsHome({
     if (!rootPath) return;
 
     try {
-      if (typeof window !== 'undefined' && '__TAURI__' in window) {
+      // Durable Tauri detection: match the `__TAURI_INTERNALS__` transport OR
+      // the legacy `__TAURI__` global so this survives a future
+      // `withGlobalTauri:false` flip.
+      if (
+        typeof window !== 'undefined' &&
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+      ) {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('open_in_explorer', {
           path: resolveExplorerPath(rootPath, selectedPath ?? currentFolderPath),

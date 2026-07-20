@@ -22,12 +22,24 @@ import { withTimeout } from '@/lib/withTimeout';
 const VAULT_STATUS_CHECK_TIMEOUT_MS = 5_000;
 
 /**
- * Detects if running in Tauri environment
- * @returns true if __TAURI__ global is present
+ * Detects if running in Tauri environment.
+ * @returns true if the Tauri runtime is present (native desktop app).
+ *
+ * Durable detection: Tauri v2 always injects `__TAURI_INTERNALS__` (the real
+ * IPC transport) into the main window REGARDLESS of `withGlobalTauri`. The
+ * legacy `__TAURI__` convenience global is only published when
+ * `withGlobalTauri:true`. We match EITHER so this picker keeps resolving to the
+ * native `TauriFSBackend` after a future `withGlobalTauri:false` flip — without
+ * that, dropping the global would silently demote the app to the browser
+ * `WebFSBackend` (loose-file storage) with no crash. Matches the durable idiom
+ * already used in updaterStore/AuditService/useWorkspaceLifecycle. Neither
+ * global is in the `Window` type, but `in` doesn't require that.
  */
 export function isTauriEnvironment(): boolean {
-  // __TAURI__ is injected by the Tauri runtime; not in the `Window` type.
-  return typeof window !== 'undefined' && '__TAURI__' in window;
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  );
 }
 
 /**

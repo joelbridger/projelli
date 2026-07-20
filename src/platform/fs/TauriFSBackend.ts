@@ -11,10 +11,18 @@ import {
 } from './tauriFsPlugin';
 
 /**
- * Check if running in Tauri environment
+ * Check if running in Tauri environment.
+ *
+ * Durable detection — matches `__TAURI_INTERNALS__` (always injected by Tauri
+ * v2, independent of `withGlobalTauri`) OR the legacy `__TAURI__` global, so it
+ * survives a future `withGlobalTauri:false` flip without demoting to browser
+ * mode. See BackendFactory.isTauriEnvironment for the full rationale.
  */
 export function isTauriEnvironment(): boolean {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  );
 }
 
 /**

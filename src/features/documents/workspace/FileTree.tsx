@@ -271,8 +271,13 @@ export function FileTree({
     if (!rootPath) return;
 
     try {
-      // Check if we're in Tauri environment
-      if (typeof window !== 'undefined' && '__TAURI__' in window) {
+      // Check if we're in Tauri environment (durable detection: match the
+      // `__TAURI_INTERNALS__` transport OR the legacy `__TAURI__` global so this
+      // survives a future `withGlobalTauri:false` flip).
+      if (
+        typeof window !== 'undefined' &&
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+      ) {
         // Use custom Tauri command to open in system file explorer.
         // Delegate to the exported resolveExplorerPath helper so the unit
         // tests exercise the exact code the handler runs.
