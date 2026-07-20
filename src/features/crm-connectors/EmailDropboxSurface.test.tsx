@@ -162,7 +162,7 @@ describe('EmailDropboxSurface', () => {
     });
   });
 
-  it('keeps the legacy default folder for mailbox lookup while showing the public name', async () => {
+  it('checks the public default folder name exactly for a new setup', async () => {
     mailMocks.checkFolder.mockResolvedValue({ items: [] });
     render(<EmailDropboxSurface />);
 
@@ -172,7 +172,39 @@ describe('EmailDropboxSurface', () => {
     });
     fireEvent.click(screen.getByTestId('crm-email-dropbox-check'));
     await waitFor(() => {
-      expect(mailMocks.checkFolder).toHaveBeenCalledWith({ folderName: 'Lantern Dropbox' });
+      expect(mailMocks.checkFolder).toHaveBeenCalledWith({ folderName: `${BRAND.name} Dropbox` });
+    });
+  });
+
+  it('retains a saved legacy folder name and checks that exact folder', async () => {
+    mailMocks.checkFolder.mockResolvedValue({ items: [] });
+    records = [configRecord('Lantern Dropbox', 'advisor@example.test')];
+    render(<EmailDropboxSurface />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue('Lantern Dropbox');
+      expect(mailMocks.checkFolder).toHaveBeenCalledWith({
+        folderName: 'Lantern Dropbox',
+        provider: 'm365',
+        account: 'advisor@example.test',
+      });
+    });
+  });
+
+  it('falls back to the legacy folder only when the public default is missing', async () => {
+    const publicFolder = `${BRAND.name} Dropbox`;
+    mailMocks.checkFolder.mockImplementation(({ folderName }: { folderName: string }) => {
+      if (folderName === publicFolder) {
+        return Promise.reject(new Error(`no connected mailbox folder or label named "${publicFolder}" was found`));
+      }
+      return Promise.resolve({ items: [] });
+    });
+    render(<EmailDropboxSurface />);
+
+    fireEvent.click(screen.getByTestId('crm-email-dropbox-check'));
+    await waitFor(() => {
+      expect(mailMocks.checkFolder).toHaveBeenNthCalledWith(1, { folderName: publicFolder });
+      expect(mailMocks.checkFolder).toHaveBeenNthCalledWith(2, { folderName: 'Lantern Dropbox' });
     });
   });
 

@@ -43,20 +43,33 @@ type EmailDropboxConfigRecord = LiveCrmRecord & {
 };
 
 const CONFIG_ID = 'email-dropbox-config:current-user';
-// This is an existing mailbox identifier, not product copy. Keep the lookup
-// stable so an advisor's already-configured folder continues to work after a
-// display-name change.
+// Existing advisors may have saved this old folder name. Preserve it exactly
+// when it is already configured, but use the public name for a new setup.
 const LEGACY_DEFAULT_FOLDER_ID = 'Lantern Dropbox';
 const DISPLAY_DEFAULT_FOLDER_NAME = `${BRAND.name} Dropbox`;
-const defaultConfig: DropboxConfig = { folderId: LEGACY_DEFAULT_FOLDER_ID, provider: '', account: '' };
+const defaultConfig: DropboxConfig = { folderId: DISPLAY_DEFAULT_FOLDER_NAME, provider: '', account: '' };
 const cardStyle = { display: 'grid', gap: 'var(--kp-space-sm)' } as const;
 
-function displayFolderName(folderId: string): string {
-  return folderId === LEGACY_DEFAULT_FOLDER_ID ? DISPLAY_DEFAULT_FOLDER_NAME : folderId;
+function isMissingBrandedFolder(reason: unknown): boolean {
+  return reason instanceof Error && reason.message === `no connected mailbox folder or label named "${DISPLAY_DEFAULT_FOLDER_NAME}" was found`;
 }
 
-function folderIdFromDisplay(value: string): string {
-  return value === DISPLAY_DEFAULT_FOLDER_NAME ? LEGACY_DEFAULT_FOLDER_ID : value;
+async function checkConfiguredFolder(config: DropboxConfig) {
+  const folderName = config.folderId.trim();
+  const input = {
+    folderName,
+    ...(config.provider ? { provider: config.provider } : {}),
+    ...(config.account.trim() ? { account: config.account.trim() } : {}),
+  };
+  try {
+    return await mailCheckDropboxFolder(input);
+  } catch (reason) {
+    // A new setup may be opened on a mailbox that still has the old default
+    // folder. Only fall back for that exact missing-folder response: provider,
+    // auth, or sync errors must remain visible to the advisor.
+    if (folderName !== DISPLAY_DEFAULT_FOLDER_NAME || !isMissingBrandedFolder(reason)) throw reason;
+    return mailCheckDropboxFolder({ ...input, folderName: LEGACY_DEFAULT_FOLDER_ID });
+  }
 }
 
 function emptySurfaceState(
@@ -223,11 +236,7 @@ export function EmailDropboxSurface() {
       requestSequenceRef.current === requestAtStart &&
       renderedMailboxContextRef.current === contextAtStart;
     try {
-      const page = await mailCheckDropboxFolder({
-        folderName: folderId,
-        ...(config.provider ? { provider: config.provider } : {}),
-        ...(config.account.trim() ? { account: config.account.trim() } : {}),
-      });
+      const page = await checkConfiguredFolder(config);
       if (!isCurrentRequest()) return;
       updateCurrentContext((current) => ({
         ...current,
@@ -348,7 +357,7 @@ export function EmailDropboxSurface() {
       <SurfaceHeader Icon={Inbox} title="Email dropbox" description="File forwarded or BCC’d email from your connected inbox, without sending it through a CRM server." />
       <Card variant="raised" style={cardStyle}>
         <div><h2 style={{ margin: 0 }}>Set up your private dropbox</h2><p>{`Make a folder or label in your connected mailbox, such as “${BRAND.name} Dropbox.” Forward email to your own inbox or BCC yourself, then add that label. ${BRAND.name} reads it only on this computer.`}</p></div>
-        <label>Mailbox folder or label<input data-testid="crm-email-dropbox-folder" value={displayFolderName(config.folderId)} onChange={(event) => { updateConfig('folderId', folderIdFromDisplay(event.target.value)); }} /></label>
+        <label>Mailbox folder or label<input data-testid="crm-email-dropbox-folder" value={config.folderId} onChange={(event) => { updateConfig('folderId', event.target.value); }} /></label>
         <label>Mail provider (optional)<select data-testid="crm-email-dropbox-provider" value={config.provider} onChange={(event) => { updateConfig('provider', event.target.value); }}><option value="">Any connected provider</option><option value="m365">Outlook</option><option value="gmail">Gmail</option><option value="imap">Other mail account</option></select></label>
         <label>Mailbox account (optional)<input data-testid="crm-email-dropbox-account" value={config.account} onChange={(event) => { updateConfig('account', event.target.value); }} placeholder="Leave blank to check every connected account" /></label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button data-testid="crm-email-dropbox-save" iconLeft={Save} onClick={() => { void saveConfig(); }}>Save dropbox</Button><Button data-testid="crm-email-dropbox-check" variant="secondary" iconLeft={RefreshCw} onClick={() => { void checkFolder(); }} disabled={loading}>{loading ? 'Checking…' : 'Check folder'}</Button></div>
