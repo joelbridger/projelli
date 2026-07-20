@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/platform/utils/openExternal';
+import { toSafeFrameSrc } from '@/platform/security/urlAllowlist';
 import { Button } from '@/ui/button';
 import {
   ZoomIn,
@@ -25,15 +26,21 @@ interface PDFViewerProps {
 }
 
 /**
- * Convert a data URL to a blob URL for better browser compatibility
+ * Convert a data URL to a blob URL for better browser compatibility.
+ *
+ * SECURITY (render-sink S17). This is a PDF viewer, so the blob's MIME is PINNED
+ * to `application/pdf` regardless of the MIME declared in the incoming data URL.
+ * A same-origin iframe executes a blob's content as a page ONLY when its MIME is
+ * `text/html`; pinning the type here means a `data:text/html;…` URL (were one ever
+ * to reach this viewer) can never become a scriptable `text/html` blob — it
+ * becomes an inert PDF blob that simply fails to render. The MIME is never read
+ * from the (caller-derived) data URL.
  */
 function dataUrlToBlobUrl(dataUrl: string): string {
   try {
     const parts = dataUrl.split(',');
     if (parts.length !== 2) return dataUrl;
 
-    const mimeMatch = parts[0]?.match(/data:([^;]+)/);
-    const mimeType = mimeMatch?.[1] ?? 'application/pdf';
     const base64Data = parts[1] ?? '';
 
     const byteString = atob(base64Data);
@@ -43,7 +50,8 @@ function dataUrlToBlobUrl(dataUrl: string): string {
       ia[i] = byteString.charCodeAt(i);
     }
 
-    const blob = new Blob([ab], { type: mimeType });
+    // PINNED: never a caller-derived MIME. See the security note above.
+    const blob = new Blob([ab], { type: 'application/pdf' });
     return URL.createObjectURL(blob);
   } catch (e) {
     console.error('Failed to convert data URL to blob URL:', e);
@@ -166,13 +174,20 @@ export function PDFViewer({ src, fileName = 'document.pdf', className, initialPa
           </div>
         ) : (
           <iframe
-            src={
-              blobUrl &&
-              initialPage != null &&
-              initialPage > 1
+            // SECURITY (render-sink S17): constrain the src to a safe scheme
+            // (blob:/http(s)/about:blank) — a javascript:/data:/file: value can
+            // never reach the frame — and run it in a restrictive sandbox.
+            // `allow-same-origin` is required for the parent-created blob: PDF to
+            // load; `allow-scripts` is deliberately OMITTED, so even if a
+            // non-PDF blob were ever framed it could not run script. Combined
+            // with the application/pdf MIME pin above, the PDF path is inert.
+            src={toSafeFrameSrc(
+              blobUrl && initialPage != null && initialPage > 1
                 ? `${blobUrl}#page=${initialPage}`
-                : (blobUrl ?? undefined)
-            }
+                : blobUrl,
+              { allowBlob: true },
+            )}
+            sandbox="allow-same-origin"
             title={fileName}
             className="border-0 w-full h-full"
             style={{

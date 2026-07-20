@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/platform/utils/openExternal';
+import { toSafeFrameSrc } from '@/platform/security/urlAllowlist';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
@@ -251,7 +252,14 @@ export function SourceFileEditor({
                 </div>
               ) : (
                 <iframe
-                  src={sourceCard.url}
+                  // SECURITY (render-sink S19): sourceCard.url is un-validated
+                  // JSON from a `.source` workspace file (or live user input) —
+                  // it can carry javascript:/data:text/html, which in this
+                  // allow-scripts+allow-same-origin frame would execute in the
+                  // app origin. Constrain it to http(s)/about:blank here; anything
+                  // else becomes an inert about:blank (the "preview unavailable"
+                  // fallback already covers sites that refuse framing).
+                  src={toSafeFrameSrc(sourceCard.url)}
                   className="w-full h-full border-0"
                   title={`Preview of ${sourceCard.title || sourceCard.url}`}
                   onLoad={() => setImageLoading(false)}

@@ -37,6 +37,7 @@ import { BRAND } from '@/config/brand';
 import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
 
 import { dataUrlToArrayBuffer } from './spreadsheet-io';
+import { sanitizeRenderedDocxDom } from './docx-sanitize';
 
 /** Either a data URL (typical when read via FSBackend) or raw bytes. */
 type DocxSource = string | ArrayBuffer;
@@ -92,6 +93,18 @@ export async function extractDocxText(source: DocxSource): Promise<DocxTextExtra
  * Render a `.docx` file into the given container using docx-preview.
  * The container is wiped before render. Defaults match Word more closely than
  * docx-preview's stock options (page breaks shown, experimental layout on).
+ *
+ * SECURITY (render-sink S7). docx-preview turns untrusted Word content into
+ * live DOM, and does NOT scheme-filter external hyperlink targets (it copies
+ * `rel.target` verbatim onto `<a href>`). Two guards close the injection class:
+ *   1. `renderAltChunks: false` — PINNED EXPLICITLY. docx-preview 0.3.7 defaults
+ *      this to TRUE (dist/docx-preview.mjs:3973), which would render an embedded
+ *      HTML `altChunk` into an `<iframe srcdoc>` whose <script> auto-fires in the
+ *      app origin. We never want embedded HTML, so it is forced off here.
+ *   2. `sanitizeRenderedDocxDom` — a post-render allow-list pass that neutralizes
+ *      `javascript:`/`data:`/etc. hrefs, strips on* handlers, and removes any
+ *      script/iframe/object/embed. Runs after `renderAsync` resolves (all of
+ *      docx-preview's deferred image/font tasks are settled by then).
  */
 export async function renderDocxPreview(
   bytes: ArrayBuffer,
@@ -109,7 +122,12 @@ export async function renderDocxPreview(
     experimental: true,
     breakPages: true,
     useBase64URL: true, // embed images inline so nothing leaks to the network
+    renderAltChunks: false, // SECURITY: never render embedded HTML (see above)
   });
+
+  // SECURITY: neutralize dangerous href/src schemes + strip handlers/scripts in
+  // the produced subtree before the user can interact with it (render-sink S7).
+  sanitizeRenderedDocxDom(container);
 }
 
 // ---------------------------------------------------------------------------

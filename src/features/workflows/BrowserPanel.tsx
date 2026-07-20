@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/platform/utils/openExternal';
+import { toSafeFrameSrc } from '@/platform/security/urlAllowlist';
 
 interface BrowserTab {
   id: string;
@@ -502,7 +503,15 @@ export function BrowserPanel({ className, initialUrl }: BrowserPanelProps) {
         ) : (
           <iframe
             ref={iframeRef}
-            src={activeTab?.url}
+            // SECURITY (render-sink S18): this in-app browser is intentionally
+            // scriptable (it loads user-navigated pages), so the residual risk is
+            // the SCHEME. `activeTab.url` can arrive un-normalized from the
+            // initialUrl prop, restored localStorage tabs, or the onLoad URL
+            // reflection — so constrain it here to http(s)/about:blank. A
+            // javascript:/data:/file:/tauri: value (which with allow-same-origin +
+            // allow-scripts would run in, or frame, the app origin) becomes
+            // about:blank instead.
+            src={toSafeFrameSrc(activeTab?.url)}
             onLoad={handleIframeLoad}
             onError={handleIframeError}
             className="w-full h-full border-0"
