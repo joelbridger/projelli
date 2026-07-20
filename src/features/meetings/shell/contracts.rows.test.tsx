@@ -304,11 +304,11 @@ describe('Meetings shell factual rows', () => {
     ).toBeNull();
   });
 
-  it('renders a real action owner and an honest unassigned owner', () => {
+  it('renders real, unassigned, and unavailable action owners honestly', () => {
     const ownedContext = context(undefined, {
       reviewResult: {
         kind: 'ready-populated',
-        badgeMeetingCount: 2,
+        badgeMeetingCount: 3,
         filter: baseReviewFilter,
         retry: 'not-available',
         items: [
@@ -362,6 +362,32 @@ describe('Meetings shell factual rows', () => {
               transcriptRef: 'transcript:meeting-a',
             },
           },
+          {
+            id: 'action-owner-name-unavailable',
+            artifactId: 'artifact-owner-name-unavailable',
+            meetingId: meeting.id,
+            client,
+            meetingLabel: 'Annual planning review',
+            clientLabel: 'Avery Household',
+            owner: {
+              ref: 'advisor-without-a-safe-label',
+              source: 'meeting',
+            },
+            reviewState: 'needs-review',
+            archiveState: 'active',
+            urgency: 'not-marked-urgent',
+            producedAt: '2026-07-20T08:07:00.000Z',
+            kind: 'task-proposal',
+            proposal: {
+              id: 'proposal-owner-name-unavailable',
+              kind: 'task',
+              title: 'Prepare notes',
+              detail: 'Prepare notes for the next review',
+              ownerRef: 'advisor-without-a-safe-label',
+              dueDate: null,
+              transcriptRef: 'transcript:meeting-a',
+            },
+          },
         ],
       },
     });
@@ -374,6 +400,9 @@ describe('Meetings shell factual rows', () => {
     expect(
       screen.getByTestId('meetings-action-action-unassigned')
     ).toHaveTextContent('Unassigned');
+    expect(
+      screen.getByTestId('meetings-action-action-owner-name-unavailable')
+    ).toHaveTextContent('Owner name is not available');
   });
 
   it('keeps a failed Actions load as an error with recovery, never an empty inbox', () => {
