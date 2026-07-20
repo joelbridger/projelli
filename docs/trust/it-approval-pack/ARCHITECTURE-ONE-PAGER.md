@@ -9,7 +9,7 @@ Advisor Prep Hero is a local-first desktop app. The advisor picks a workspace fo
 Data leaves the machine only in these cases:
 
 1. The user chooses cloud AI and sends selected context to Anthropic, OpenAI, or Google with their own key.
-2. A firm uses the Assured mode, where the app sends the AI request through the Lantern firm proxy with no prompt or completion storage.
+2. A firm uses the Assured mode, where the app sends the AI request through the Advisor Prep Hero firm proxy with no prompt or completion storage.
 3. A firm uses shared client workspaces, where only encrypted sync blobs go to the relay.
 4. The user signs in to optional connectors, such as Microsoft Graph, Google, Wealthbox, or other vendor systems.
 5. The app checks license status, checks for updates, or the user submits support, bug, telemetry, or diagnostic forms.
@@ -49,7 +49,7 @@ Source: [egress.ts](../../../src/platform/privacy/egress.ts), [cloudSendGuard.ts
 
 ### BYOK Direct To Provider
 
-BYOK means "bring your own key." If the user chooses Anthropic, OpenAI, or Google, the app sends the selected prompt and selected context directly from the desktop app to that provider's API. Lantern is not in the middle for direct BYOK calls.
+BYOK means "bring your own key." If the user chooses Anthropic, OpenAI, or Google, the app sends the selected prompt and selected context directly from the desktop app to that provider's API. Advisor Prep Hero is not in the middle for direct BYOK calls.
 
 The provider receives the prompt and any selected client context. Provider retention and training controls are governed by the user's provider account and provider terms.
 
@@ -57,7 +57,7 @@ Source: [fetchUtils.ts](../../../src/platform/providers/fetchUtils.ts), [ClaudeP
 
 ### Firm Assured Mode
 
-In Assured mode, the desktop app routes the provider-native request to the Lantern firm API. The firm proxy forwards the request to the selected provider and streams the response back. The proxy code is designed to store billing and audit metadata, not prompt or completion bodies.
+In Assured mode, the desktop app routes the provider-native request to the Advisor Prep Hero firm API. The firm proxy forwards the request to the selected provider and streams the response back. The proxy code is designed to store billing and audit metadata, not prompt or completion bodies.
 
 The BYOK provider key is not sent to the proxy. The app removes provider auth headers and replaces them with firm auth headers before calling the Assured endpoint.
 
@@ -78,18 +78,18 @@ Source: [MatterSyncClient.ts](../../../src/platform/firm/MatterSyncClient.ts), [
 | Workspace documents | No by default | Only when the user includes content in a cloud AI request, shares through firm encrypted sync, uses a connector, or sends support material | Selected AI provider, firm encrypted relay, selected connector, or support form |
 | Prompt and selected context in Local-only mode | No | Local model generation only | Local loopback AI service |
 | Prompt and selected context in BYOK mode | Yes | User sends a cloud AI message | Anthropic, OpenAI, or Google |
-| Prompt and selected context in Assured mode | Yes | Firm managed AI request | Lantern firm proxy, then selected AI provider |
-| Firm shared document updates | Yes, encrypted only | Firm sync or live co-editing | Lantern firm relay |
+| Prompt and selected context in Assured mode | Yes | Firm managed AI request | Advisor Prep Hero firm proxy, then selected AI provider |
+| Firm shared document updates | Yes, encrypted only | Firm sync or live co-editing | Advisor Prep Hero firm relay |
 | API keys and encryption keys | No in normal use | Stored and read locally | Operating system keychain |
 | License status | Yes | License activation and validation | `licenses.lanternplatform.app` |
 | Support, bug reports, optional telemetry, diagnostics | Yes, only when used or enabled | User support actions or enabled diagnostics | `forms.lanternplatform.app` |
 | Optional connector data | Yes | User connects an outside system | The selected vendor API |
 
-## What Lantern Servers Can See
+## What Advisor Prep Hero Servers Can See
 
-For solo local-first use, Lantern servers do not need the advisor's documents or prompts.
+For solo local-first use, Advisor Prep Hero servers do not need the advisor's documents or prompts.
 
-For license checks, Lantern servers can see license and activation metadata. For support or diagnostics, Lantern can see the submitted form payload. For Firm Assured mode, the firm proxy sees the request in transient server memory while forwarding it, and the backend is designed not to store prompt or completion bodies. For firm sync, the relay stores opaque ciphertext plus routing metadata.
+For license checks, Advisor Prep Hero servers can see license and activation metadata. For support or diagnostics, Advisor Prep Hero can see the submitted form payload. For Firm Assured mode, the firm proxy sees the request in transient server memory while forwarding it, and the backend is designed not to store prompt or completion bodies. For firm sync, the relay stores opaque ciphertext plus routing metadata.
 
 Source: [brand.ts](../../../src/config/brand.ts), [FirmApiClient.ts](../../../src/platform/firm/FirmApiClient.ts), [backend README](../../../backend/README.md), [contract.ts](../../../backend/src/contract.ts), [matters.ts](../../../backend/src/routes/matters.ts).
 

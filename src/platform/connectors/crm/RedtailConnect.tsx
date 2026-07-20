@@ -36,6 +36,7 @@ import { InfoHelp } from '@/ui/InfoHelp';
 import { brandText } from '@/config/brandText';
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 import { NetworkLockdownRetryButton } from '@/platform/privacy/ui/NetworkLockdownRetryButton';
+import { BRAND } from '@/config/brand';
 
 const PROVIDER = 'redtail' as const;
 const REDTAIL_KEY_PREFIX = 'redtail:';
@@ -69,7 +70,7 @@ export function RedtailConnect() {
       : nativeLockdown.pending
         ? 'Privacy protection is updating. Redtail stays paused until it finishes.'
         : nativeLockdown.status === 'unknown'
-          ? 'Lantern could not confirm the desktop privacy guard. Redtail stays paused until its state can be checked.'
+          ? `${BRAND.name} could not confirm the desktop privacy guard. Redtail stays paused until its state can be checked.`
           : 'Nothing will be sent to or downloaded from Redtail while this is on. Turn it off in Privacy settings to connect or sync.';
 
   const progress = useCrmStore((s) => s.progress);
@@ -149,7 +150,7 @@ export function RedtailConnect() {
 
       const count = households.length;
       const confirmed = await confirm(
-        brandText(`Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'} into local encrypted storage on this device? Lantern imports only the contacts, notes, and activities this login can read.`),
+        brandText(`Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'} into local encrypted storage on this device? ${BRAND.name} imports only the contacts, notes, and activities this login can read.`),
         {
           title: `Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'}`,
           confirmLabel: 'Import',
@@ -291,7 +292,7 @@ export function RedtailConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Redtail CRM
-          <InfoHelp content={brandText('Connect Redtail CRM to bring families, contacts, notes, and activities into Client Maps. Requires the Lantern desktop app.')} />
+          <InfoHelp content={brandText(`Connect Redtail CRM to bring families, contacts, notes, and activities into Client Maps. Requires the ${BRAND.name} desktop app.`)} />
         </h3>
       </section>
     );
@@ -302,7 +303,7 @@ export function RedtailConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Redtail CRM
-          <InfoHelp content={brandText('Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; Lantern stores the UserKey, not the password.')} />
+          <InfoHelp content={brandText(`Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; ${BRAND.name} stores the UserKey, not the password.`)} />
         </h3>
 
         {networkLockdown && (
@@ -342,7 +343,7 @@ export function RedtailConnect() {
               />
             </div>
             <p className="text-xs text-slate-500">
-              {brandText('The vendor API key comes from Lantern configuration. If it is missing, Redtail will not connect yet.')}
+              {brandText(`The vendor API key comes from ${BRAND.name} configuration. If it is missing, Redtail will not connect yet.`)}
             </p>
             <button
               type="button"

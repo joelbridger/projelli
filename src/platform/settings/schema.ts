@@ -19,6 +19,7 @@
 
 import { brandText } from '@/config/brandText';
 import type { SettingsSectionId } from '@/platform/types/settings';
+import { BRAND } from '@/config/brand';
 
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
@@ -170,7 +171,7 @@ export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
     key: 'startupBehavior',
     category: 'workspace',
     label: 'On startup',
-    description: brandText('Choose what Lantern opens when the app starts.'),
+    description: brandText(`Choose what ${BRAND.name} opens when the app starts.`),
     type: 'select',
     defaultValue: 'reopen',
     options: [
@@ -182,7 +183,7 @@ export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
     key: 'showWhatsNew',
     category: 'workspace',
     label: 'Update notifications',
-    description: brandText('Display a toast when a new version of Lantern is available.'),
+    description: brandText(`Display a toast when a new version of ${BRAND.name} is available.`),
     type: 'toggle',
     defaultValue: true,
   },
@@ -223,7 +224,7 @@ export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
     key: 'autoSaveInterval',
     category: 'workspace',
     label: 'Autosave delay',
-    description: 'How many seconds Lantern waits after you stop typing before it saves.',
+    description: `How many seconds ${BRAND.name} waits after you stop typing before it saves.`,
     type: 'number',
     defaultValue: 2,
     min: 1,
@@ -384,7 +385,7 @@ export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Allow exported reports from other tools',
     description:
-      brandText('When on, Lantern may store and use your chosen AI on the reports and notes you export or save from outside tools like RightCapital and Jump (recognized automatically from the files you import). Lantern reads these exported files; it is not connected to those tools. You are asked once before this is first used, and that choice is recorded in your audit log. Turn off to stop using them.'),
+      brandText(`When on, ${BRAND.name} may store and use your chosen AI on the reports and notes you export or save from outside tools like RightCapital and Jump (recognized automatically from the files you import). ${BRAND.name} reads these exported files; it is not connected to those tools. You are asked once before this is first used, and that choice is recorded in your audit log. Turn off to stop using them.`),
     type: 'toggle',
     defaultValue: false,
   },
@@ -393,7 +394,7 @@ export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Flag exported plans older than (days)',
     description:
-      brandText('A financial plan you export from a tool like RightCapital is a point-in-time snapshot. When a plan Lantern used to answer is older than this many days, it is flagged as possibly out of date in the sources and the answer. Meeting notes are never flagged on age.'),
+      brandText(`A financial plan you export from a tool like RightCapital is a point-in-time snapshot. When a plan ${BRAND.name} used to answer is older than this many days, it is flagged as possibly out of date in the sources and the answer. Meeting notes are never flagged on age.`),
     type: 'number',
     defaultValue: 90,
     min: 7,
@@ -679,7 +680,7 @@ export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
     key: 'autoUpdateCheck',
     category: 'advanced',
     label: 'Automatic updates',
-    description: brandText('When enabled, Lantern checks GitHub Releases for new versions in the background and prompts you when one is available.'),
+    description: brandText(`When enabled, ${BRAND.name} checks GitHub Releases for new versions in the background and prompts you when one is available.`),
     type: 'toggle',
     defaultValue: true,
   },
@@ -760,7 +761,7 @@ export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
     key: 'resetFeatureTour',
     category: 'help',
     label: 'Feature tour',
-    description: brandText('Replay the guided tour that introduces the Lantern workspace.'),
+    description: brandText(`Replay the guided tour that introduces the ${BRAND.name} workspace.`),
     type: 'text',
     defaultValue: '',
     action: { label: 'Start tour', actionId: 'reset-feature-tour' },
@@ -771,7 +772,7 @@ export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
     key: 'aboutWhatsNew',
     category: 'help',
     label: "What's new",
-    description: brandText('See highlights from the most recent Lantern releases.'),
+    description: brandText(`See highlights from the most recent ${BRAND.name} releases.`),
     type: 'text',
     defaultValue: '',
     action: { label: "What's new", actionId: 'open-whats-new' },
@@ -780,7 +781,7 @@ export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
     key: 'aboutWebsite',
     category: 'help',
     label: 'Website',
-    description: 'Open lantern.com in your browser.',
+    description: `Open ${BRAND.urls.domain} in your browser.`,
     type: 'text',
     defaultValue: '',
     action: { label: 'Open website', actionId: 'open-website' },

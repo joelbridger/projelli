@@ -51,7 +51,7 @@ exports[`egress module registry — byte-identical policy parity > freezes every
     "title": "Use cloud AI",
   },
   {
-    "approvalText": "This contacts Lantern’s licensing service to activate or validate your license.",
+    "approvalText": "This contacts Advisor Prep Hero's licensing service to activate or validate your license.",
     "category": "licensing",
     "dataClasses": [
       "metadata",
@@ -68,12 +68,12 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "license-api",
-    "recipient": "Lantern licensing",
+    "recipient": "Advisor Prep Hero licensing",
     "requiresFinalApproval": false,
     "title": "Activate or validate a license",
   },
   {
-    "approvalText": "This contacts Lantern’s firm service to validate this seat.",
+    "approvalText": "This contacts Advisor Prep Hero's firm service to validate this seat.",
     "category": "licensing",
     "dataClasses": [
       "metadata",
@@ -90,12 +90,12 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "firm-seat-validation",
-    "recipient": "Lantern firm seat validation",
+    "recipient": "Advisor Prep Hero firm seat validation",
     "requiresFinalApproval": false,
     "title": "Validate a firm seat",
   },
   {
-    "approvalText": "This contacts GitHub to check for or download a signed Lantern update.",
+    "approvalText": "This contacts GitHub to check for or download a signed Advisor Prep Hero update.",
     "category": "product-maintenance",
     "dataClasses": [
       "metadata",
@@ -135,7 +135,7 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "marketplace-manifest",
-    "recipient": "The Lantern template marketplace",
+    "recipient": "The Advisor Prep Hero template marketplace",
     "requiresFinalApproval": false,
     "title": "Refresh the template marketplace catalog",
   },
@@ -157,12 +157,12 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "marketplace-package",
-    "recipient": "The Lantern template marketplace",
+    "recipient": "The Advisor Prep Hero template marketplace",
     "requiresFinalApproval": true,
     "title": "Download a marketplace package",
   },
   {
-    "approvalText": "This sends the optional telemetry you enabled to Lantern.",
+    "approvalText": "This sends the optional telemetry you enabled to Advisor Prep Hero.",
     "category": "telemetry",
     "dataClasses": [
       "metadata",
@@ -178,12 +178,12 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "telemetry",
-    "recipient": "Lantern telemetry",
+    "recipient": "Advisor Prep Hero telemetry",
     "requiresFinalApproval": true,
     "title": "Send optional telemetry",
   },
   {
-    "approvalText": "This sends the optional diagnostic information you enabled to Lantern.",
+    "approvalText": "This sends the optional diagnostic information you enabled to Advisor Prep Hero.",
     "category": "diagnostics",
     "dataClasses": [
       "metadata",
@@ -199,7 +199,7 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "diagnostics",
-    "recipient": "Lantern diagnostics",
+    "recipient": "Advisor Prep Hero diagnostics",
     "requiresFinalApproval": true,
     "title": "Send optional diagnostics",
   },
@@ -226,7 +226,7 @@ exports[`egress module registry — byte-identical policy parity > freezes every
     "title": "Open an external link",
   },
   {
-    "approvalText": "This sends the bug report and the details you chose to include to Lantern.",
+    "approvalText": "This sends the bug report and the details you chose to include to Advisor Prep Hero.",
     "category": "diagnostics",
     "dataClasses": [
       "content",
@@ -243,12 +243,12 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "bug-report",
-    "recipient": "Lantern support",
+    "recipient": "Advisor Prep Hero support",
     "requiresFinalApproval": true,
     "title": "Send a bug report",
   },
   {
-    "approvalText": "This sends the AI setup help request and the details you chose to include to Lantern.",
+    "approvalText": "This sends the AI setup help request and the details you chose to include to Advisor Prep Hero.",
     "category": "diagnostics",
     "dataClasses": [
       "content",
@@ -265,12 +265,12 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "ai-setup-help",
-    "recipient": "Lantern support",
+    "recipient": "Advisor Prep Hero support",
     "requiresFinalApproval": true,
     "title": "Ask for AI setup help",
   },
   {
-    "approvalText": "This contacts Lantern’s encrypted client intake relay to create or receive encrypted intake data.",
+    "approvalText": "This contacts Advisor Prep Hero's encrypted client intake relay to create or receive encrypted intake data.",
     "category": "intake-sync",
     "dataClasses": [
       "content",
@@ -288,12 +288,12 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "intake-relay",
-    "recipient": "Lantern encrypted client intake relay",
+    "recipient": "Advisor Prep Hero encrypted client intake relay",
     "requiresFinalApproval": false,
     "title": "Use the encrypted client intake relay",
   },
   {
-    "approvalText": "This opens Microsoft sign-in so Lantern can connect the mailbox you choose.",
+    "approvalText": "This opens Microsoft sign-in so Advisor Prep Hero can connect the mailbox you choose.",
     "category": "connector-authentication",
     "dataClasses": [
       "metadata",
@@ -315,7 +315,7 @@ exports[`egress module registry — byte-identical policy parity > freezes every
     "title": "Connect Microsoft 365 mail",
   },
   {
-    "approvalText": "This opens Google sign-in so Lantern can connect the mailbox you choose.",
+    "approvalText": "This opens Google sign-in so Advisor Prep Hero can connect the mailbox you choose.",
     "category": "connector-authentication",
     "dataClasses": [
       "metadata",
@@ -760,7 +760,7 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "metadata",
       "credential",
     ],
-    "dataSummary": "Your Redtail username and password, Lantern’s Redtail API credential, the saved UserKey, and basic account metadata.",
+    "dataSummary": "Your Redtail username and password, Advisor Prep Hero's Redtail API credential, the saved UserKey, and basic account metadata.",
     "destination": {
       "allowedOrigins": [
         "api2.redtailtechnology.com",
@@ -1010,7 +1010,7 @@ exports[`egress module registry — byte-identical policy parity > freezes every
     "title": "Import Zocks meetings",
   },
   {
-    "approvalText": "This sends your prompt through Lantern’s zero-retention service before it reaches your firm’s AI provider. Lantern says it does not retain the prompt or answer, but the bytes still pass through that service.",
+    "approvalText": "This sends your prompt through Advisor Prep Hero's zero-retention service before it reaches your firm’s AI provider. Advisor Prep Hero says it does not retain the prompt or answer, but the bytes still pass through that service.",
     "category": "assured-inference",
     "dataClasses": [
       "content",
@@ -1028,12 +1028,12 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "assured-ai",
-    "recipient": "Lantern’s zero-retention service, then your firm’s AI provider",
+    "recipient": "Advisor Prep Hero's zero-retention service, then your firm’s AI provider",
     "requiresFinalApproval": true,
     "title": "Use Assured AI",
   },
   {
-    "approvalText": "This contacts GitHub to check for a signed Lantern update or download one you approve.",
+    "approvalText": "This contacts GitHub to check for a signed Advisor Prep Hero update or download one you approve.",
     "category": "product-maintenance",
     "dataClasses": [
       "metadata",
@@ -1079,7 +1079,7 @@ exports[`egress module registry — byte-identical policy parity > freezes every
     "title": "Download a local AI model",
   },
   {
-    "approvalText": "This contacts the Lantern template marketplace to download its catalog.",
+    "approvalText": "This contacts the Advisor Prep Hero template marketplace to download its catalog.",
     "category": "product-maintenance",
     "dataClasses": [
       "metadata",
@@ -1096,12 +1096,12 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "marketplace-catalog-download",
-    "recipient": "The Lantern template marketplace",
+    "recipient": "The Advisor Prep Hero template marketplace",
     "requiresFinalApproval": false,
     "title": "Refresh the template marketplace",
   },
   {
-    "approvalText": "This downloads the template package you selected from the Lantern marketplace.",
+    "approvalText": "This downloads the template package you selected from the Advisor Prep Hero marketplace.",
     "category": "product-maintenance",
     "dataClasses": [
       "metadata",
@@ -1118,7 +1118,7 @@ exports[`egress module registry — byte-identical policy parity > freezes every
       "redirects": "deny",
     },
     "id": "marketplace-package-download",
-    "recipient": "The Lantern template marketplace",
+    "recipient": "The Advisor Prep Hero template marketplace",
     "requiresFinalApproval": true,
     "title": "Download a marketplace template",
   },

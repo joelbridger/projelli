@@ -2,6 +2,7 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -157,7 +158,7 @@ Produce a complete Table of Authorities in standard court format. Organize citat
 
 ---
 
-*Citation formatting produced by Lantern AI. Verify every citation against the current Bluebook edition before filing. AI formatting is a starting point — do not rely on it without independent verification.*`;
+*Citation formatting produced by ${BRAND.messaging.redlineAuthor}. Verify every citation against the current Bluebook edition before filing. AI formatting is a starting point — do not rely on it without independent verification.*`;
 
 export const CitationFormatter: WorkflowTemplate = {
   id: 'citation-formatter',

@@ -51,6 +51,7 @@ import { publishIntakeKeyToMembers } from '@/platform/intake/intakeKeyShare';
 import { useIntakeStore } from '@/platform/intake/intakeStore';
 import { IntakeRelayClient } from '@/platform/intake/IntakeRelayClient';
 import { createAdvisorIntake } from '@/platform/intake/createIntake';
+import { configuredIntakeHost } from '@/platform/intake/advisorIntakeLink';
 import { bytesToB64 } from '@/platform/intake/pageSeal';
 import type { RequestItem } from '@/platform/intake/types';
 import {
@@ -88,12 +89,6 @@ function newIntakeId(): string {
     return `intake_${crypto.randomUUID()}`;
   }
   return `intake_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function intakeHost(): string {
-  const env = (import.meta as { env?: { VITE_INTAKE_HOST?: string } }).env
-    ?.VITE_INTAKE_HOST;
-  return (env && env.trim()) || 'https://forms.lanternplatform.app';
 }
 
 function addDaysIso(days: number): string {
@@ -307,7 +302,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
       const bundle = await createAdvisorIntake({
         intakeId,
         matterId: created.id,
-        intakeHost: intakeHost(),
+        intakeHost: configuredIntakeHost(),
         expiresAt,
         checklist,
         clientFirstName: firstName(displayName),

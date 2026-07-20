@@ -9,6 +9,7 @@ import { applyWorkflowOffer, decideOffer, stepValue, undoWorkflowApply, type Liv
 import type { CrmFreshnessState, OfferDecision, PropagationApplyOffer, PropagationOffer } from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import type { LiveWorkflowData } from './Workflows';
+import { BRAND } from '@/config/brand';
 
 export function PropagationSurface() {
   const { adapter, workflowData, saveLiveRecord, reportUndo, undoReport } = useCrmHomeSurfaceContext();
@@ -146,7 +147,7 @@ export function PropagationReview({
         >
           {freshness.kind === 'offline'
             ? 'Reconnect before changing open household workflows. You can still read this review.'
-            : 'Lantern is checking for the latest workflow updates before it can apply all of them.'}
+            : `${BRAND.name} is checking for the latest workflow updates before it can apply all of them.`}
         </div>
       )}
       {unresolved.length > 0 && (

@@ -11,6 +11,7 @@ import {
   type MailListItem,
 } from '@/platform/utils/mail-commands';
 import { suggestDropboxHousehold, type DropboxHousehold } from './emailDropboxMatching';
+import { BRAND } from '@/config/brand';
 
 type DropboxConfig = {
   folderId: string;
@@ -42,8 +43,34 @@ type EmailDropboxConfigRecord = LiveCrmRecord & {
 };
 
 const CONFIG_ID = 'email-dropbox-config:current-user';
-const defaultConfig: DropboxConfig = { folderId: 'Lantern Dropbox', provider: '', account: '' };
+// Existing advisors may have saved this old folder name. Preserve it exactly
+// when it is already configured, but use the public name for a new setup.
+const LEGACY_DEFAULT_FOLDER_ID = 'Lantern Dropbox';
+const DISPLAY_DEFAULT_FOLDER_NAME = `${BRAND.name} Dropbox`;
+const defaultConfig: DropboxConfig = { folderId: DISPLAY_DEFAULT_FOLDER_NAME, provider: '', account: '' };
 const cardStyle = { display: 'grid', gap: 'var(--kp-space-sm)' } as const;
+
+function isMissingBrandedFolder(reason: unknown): boolean {
+  return reason instanceof Error && reason.message === `no connected mailbox folder or label named "${DISPLAY_DEFAULT_FOLDER_NAME}" was found`;
+}
+
+async function checkConfiguredFolder(config: DropboxConfig) {
+  const folderName = config.folderId.trim();
+  const input = {
+    folderName,
+    ...(config.provider ? { provider: config.provider } : {}),
+    ...(config.account.trim() ? { account: config.account.trim() } : {}),
+  };
+  try {
+    return await mailCheckDropboxFolder(input);
+  } catch (reason) {
+    // A new setup may be opened on a mailbox that still has the old default
+    // folder. Only fall back for that exact missing-folder response: provider,
+    // auth, or sync errors must remain visible to the advisor.
+    if (folderName !== DISPLAY_DEFAULT_FOLDER_NAME || !isMissingBrandedFolder(reason)) throw reason;
+    return mailCheckDropboxFolder({ ...input, folderName: LEGACY_DEFAULT_FOLDER_ID });
+  }
+}
 
 function emptySurfaceState(
   workspaceRoot: string | null,
@@ -209,11 +236,7 @@ export function EmailDropboxSurface() {
       requestSequenceRef.current === requestAtStart &&
       renderedMailboxContextRef.current === contextAtStart;
     try {
-      const page = await mailCheckDropboxFolder({
-        folderName: folderId,
-        ...(config.provider ? { provider: config.provider } : {}),
-        ...(config.account.trim() ? { account: config.account.trim() } : {}),
-      });
+      const page = await checkConfiguredFolder(config);
       if (!isCurrentRequest()) return;
       updateCurrentContext((current) => ({
         ...current,
@@ -333,17 +356,17 @@ export function EmailDropboxSurface() {
     <div data-testid="crm-email-dropbox-surface" style={{ padding: 'var(--kp-space-xl)', overflow: 'auto', width: '100%', display: 'grid', gap: 'var(--kp-space-md)', alignContent: 'start' }}>
       <SurfaceHeader Icon={Inbox} title="Email dropbox" description="File forwarded or BCC’d email from your connected inbox, without sending it through a CRM server." />
       <Card variant="raised" style={cardStyle}>
-        <div><h2 style={{ margin: 0 }}>Set up your private dropbox</h2><p>Make a folder or label in your connected mailbox, such as “Lantern Dropbox.” Forward email to your own inbox or BCC yourself, then add that label. Lantern reads it only on this computer.</p></div>
+        <div><h2 style={{ margin: 0 }}>Set up your private dropbox</h2><p>{`Make a folder or label in your connected mailbox, such as “${BRAND.name} Dropbox.” Forward email to your own inbox or BCC yourself, then add that label. ${BRAND.name} reads it only on this computer.`}</p></div>
         <label>Mailbox folder or label<input data-testid="crm-email-dropbox-folder" value={config.folderId} onChange={(event) => { updateConfig('folderId', event.target.value); }} /></label>
         <label>Mail provider (optional)<select data-testid="crm-email-dropbox-provider" value={config.provider} onChange={(event) => { updateConfig('provider', event.target.value); }}><option value="">Any connected provider</option><option value="m365">Outlook</option><option value="gmail">Gmail</option><option value="imap">Other mail account</option></select></label>
         <label>Mailbox account (optional)<input data-testid="crm-email-dropbox-account" value={config.account} onChange={(event) => { updateConfig('account', event.target.value); }} placeholder="Leave blank to check every connected account" /></label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button data-testid="crm-email-dropbox-save" iconLeft={Save} onClick={() => { void saveConfig(); }}>Save dropbox</Button><Button data-testid="crm-email-dropbox-check" variant="secondary" iconLeft={RefreshCw} onClick={() => { void checkFolder(); }} disabled={loading}>{loading ? 'Checking…' : 'Check folder'}</Button></div>
-        <p data-testid="crm-email-dropbox-private-note" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 6 }}><ShieldCheck size={16} /> Email never passes through a Lantern server. The connected mailbox and this encrypted computer keep the content.</p>
+        <p data-testid="crm-email-dropbox-private-note" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 6 }}><ShieldCheck size={16} /> {` Email never passes through a ${BRAND.name} server. The connected mailbox and this encrypted computer keep the content.`}</p>
       </Card>
       {status ? <p role="status" data-testid="crm-email-dropbox-status">{status}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
       <Card variant="raised" style={cardStyle}>
-        <div><h2 style={{ margin: 0 }}>Email waiting to be filed</h2><p>Lantern suggests a client from the sender and subject. You choose before an email is filed.</p></div>
+        <div><h2 style={{ margin: 0 }}>Email waiting to be filed</h2><p>{`${BRAND.name} suggests a client from the sender and subject. You choose before an email is filed.`}</p></div>
         {!households.length ? <p data-testid="crm-email-dropbox-no-households">Add a client first, then return here to file their email.</p> : null}
         {!loading && emails.length === 0 ? <p data-testid="crm-email-dropbox-empty">Check your chosen mailbox folder to see email waiting to be filed.</p> : null}
         {emails.map((email) => <section key={email.id} data-testid={`crm-email-dropbox-email-${email.id}`} style={{ borderTop: '1px solid var(--kp-border)', paddingTop: 12, display: 'grid', gap: 8 }}>

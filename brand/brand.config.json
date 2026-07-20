@@ -34,12 +34,16 @@
   },
 
   "urls": {
-    "_readme": "Display-facing brand URLs/addresses. Safe to rebrand ONCE you own the new domain (a founder + DNS step). NOTE: licenseApi/firmApi are also in lockedIdentifiers — the versions here are for app code convenience; the locked copies are the authority for brand-sync assertions.",
+    "_readme": "Display-facing brand URLs/addresses. These are the only values user-facing copy may show or link to. NOTE: licenseApi/firmApi are internal service endpoints; the locked copies are the authority for brand-sync assertions.",
+    "domain": "advisorprephero.com",
     "site": "https://advisorprephero.com",
+    "repository": "https://github.com/advisor-prep-hero/advisor-prep-hero",
     "docsBase": "https://advisorprephero.com/docs",
     "supportEmail": "support@advisorprephero.com",
     "developersEmail": "developers@advisorprephero.com",
     "pricing": "https://advisorprephero.com/#pricing",
+    "licenseUrl": "https://advisorprephero.com/#pricing",
+    "supportUrl": "https://advisorprephero.com/support/",
     "download": "https://advisorprephero.com/download/",
     "privacy": "https://advisorprephero.com/legal/privacy/",
     "terms": "https://advisorprephero.com/legal/terms/",

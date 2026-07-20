@@ -10,6 +10,7 @@
 
 import { connectorOperation, HTTP_OR_HTTPS } from './shared';
 import type { EgressOperation } from '../egressFollowups/types';
+import { BRAND } from '@/config/brand';
 
 export const offlineModeSinks = [
   connectorOperation({
@@ -51,10 +52,10 @@ export const offlineModeSinks = [
     category: 'licensing',
     title: 'Activate or validate a license',
     approvalText:
-      'This contacts Lantern’s licensing service to activate or validate your license.',
+      `This contacts ${BRAND.possessive} licensing service to activate or validate your license.`,
     dataSummary: 'License and device-validation metadata.',
     dataClasses: ['metadata', 'credential'],
-    recipient: 'Lantern licensing',
+    recipient: `${BRAND.name} licensing`,
     requiresFinalApproval: false,
     destination: { allowedOrigins: ['licenses.lanternplatform.app'] },
   }),
@@ -62,10 +63,10 @@ export const offlineModeSinks = [
     id: 'firm-seat-validation',
     category: 'licensing',
     title: 'Validate a firm seat',
-    approvalText: 'This contacts Lantern’s firm service to validate this seat.',
+    approvalText: `This contacts ${BRAND.possessive} firm service to validate this seat.`,
     dataSummary: 'Firm-seat validation metadata and credential.',
     dataClasses: ['metadata', 'credential'],
-    recipient: 'Lantern firm seat validation',
+    recipient: `${BRAND.name} firm seat validation`,
     requiresFinalApproval: false,
     destination: { allowedOrigins: ['api.lanternplatform.app'] },
   }),
@@ -74,7 +75,7 @@ export const offlineModeSinks = [
     category: 'product-maintenance',
     title: 'Check for app updates',
     approvalText:
-      'This contacts GitHub to check for or download a signed Lantern update.',
+      `This contacts GitHub to check for or download a signed ${BRAND.name} update.`,
     dataSummary: 'App version and update download metadata. No client files.',
     dataClasses: ['metadata', 'binary-download'],
     recipient: 'GitHub Releases',
@@ -92,7 +93,7 @@ export const offlineModeSinks = [
       'This contacts the configured marketplace catalog source to download its catalog.',
     dataSummary: 'Marketplace catalog request metadata. No client files.',
     dataClasses: ['metadata', 'binary-download'],
-    recipient: 'The Lantern template marketplace',
+    recipient: `The ${BRAND.name} template marketplace`,
     requiresFinalApproval: false,
     destination: { allowedOrigins: ['raw.githubusercontent.com'] },
   }),
@@ -103,7 +104,7 @@ export const offlineModeSinks = [
     approvalText: 'This downloads the marketplace package you selected.',
     dataSummary: 'The selected package and download metadata. No client files.',
     dataClasses: ['content', 'metadata'],
-    recipient: 'The Lantern template marketplace',
+    recipient: `The ${BRAND.name} template marketplace`,
     requiresFinalApproval: true,
     destination: { allowedOrigins: ['raw.githubusercontent.com'] },
   }),
@@ -111,10 +112,10 @@ export const offlineModeSinks = [
     id: 'telemetry',
     category: 'telemetry',
     title: 'Send optional telemetry',
-    approvalText: 'This sends the optional telemetry you enabled to Lantern.',
+    approvalText: `This sends the optional telemetry you enabled to ${BRAND.name}.`,
     dataSummary: 'Optional app-use metadata. No client files.',
     dataClasses: ['metadata'],
-    recipient: 'Lantern telemetry',
+    recipient: `${BRAND.name} telemetry`,
     requiresFinalApproval: true,
     destination: { allowedOrigins: ['forms.lanternplatform.app'] },
   }),
@@ -123,10 +124,10 @@ export const offlineModeSinks = [
     category: 'diagnostics',
     title: 'Send optional diagnostics',
     approvalText:
-      'This sends the optional diagnostic information you enabled to Lantern.',
+      `This sends the optional diagnostic information you enabled to ${BRAND.name}.`,
     dataSummary: 'Optional app diagnostic metadata. No client files.',
     dataClasses: ['metadata'],
-    recipient: 'Lantern diagnostics',
+    recipient: `${BRAND.name} diagnostics`,
     requiresFinalApproval: true,
     destination: { allowedOrigins: ['forms.lanternplatform.app'] },
   }),
@@ -147,10 +148,10 @@ export const offlineModeSinks = [
     category: 'diagnostics',
     title: 'Send a bug report',
     approvalText:
-      'This sends the bug report and the details you chose to include to Lantern.',
+      `This sends the bug report and the details you chose to include to ${BRAND.name}.`,
     dataSummary: 'The bug-report text and selected diagnostic information.',
     dataClasses: ['content', 'metadata'],
-    recipient: 'Lantern support',
+    recipient: `${BRAND.name} support`,
     requiresFinalApproval: true,
     destination: { allowedOrigins: ['forms.lanternplatform.app'] },
   }),
@@ -159,10 +160,10 @@ export const offlineModeSinks = [
     category: 'diagnostics',
     title: 'Ask for AI setup help',
     approvalText:
-      'This sends the AI setup help request and the details you chose to include to Lantern.',
+      `This sends the AI setup help request and the details you chose to include to ${BRAND.name}.`,
     dataSummary: 'The help request and selected diagnostic information.',
     dataClasses: ['content', 'metadata'],
-    recipient: 'Lantern support',
+    recipient: `${BRAND.name} support`,
     requiresFinalApproval: true,
     destination: { allowedOrigins: ['forms.lanternplatform.app'] },
   }),
@@ -171,11 +172,11 @@ export const offlineModeSinks = [
     category: 'intake-sync',
     title: 'Use the encrypted client intake relay',
     approvalText:
-      'This contacts Lantern’s encrypted client intake relay to create or receive encrypted intake data.',
+      `This contacts ${BRAND.possessive} encrypted client intake relay to create or receive encrypted intake data.`,
     dataSummary:
       'Encrypted intake content, relay metadata, and the credential needed to authenticate the device.',
     dataClasses: ['content', 'metadata', 'credential'],
-    recipient: 'Lantern encrypted client intake relay',
+    recipient: `${BRAND.name} encrypted client intake relay`,
     requiresFinalApproval: false,
     destination: { allowedOrigins: ['api.lanternplatform.app'] },
   }),

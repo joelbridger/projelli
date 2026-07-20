@@ -16,6 +16,7 @@ import {
   type ConnectedAccount,
 } from '@/platform/utils/mail-commands';
 import { applyViewQuery } from '@/features/crm-views/viewQuery';
+import { BRAND } from '@/config/brand';
 
 type BroadcastRecipient = {
   id: string;
@@ -417,12 +418,12 @@ export function CrmBroadcastSurface() {
   const proposeWithAi = () => {
     if (!selectedView) {
       setMessage(
-        'Choose a saved client list before asking Lantern for a draft.'
+        `Choose a saved client list before asking ${BRAND.name} for a draft.`
       );
       return;
     }
     if (!aiBrief.trim()) {
-      setMessage('Tell Lantern what this email should cover first.');
+      setMessage(`Tell ${BRAND.name} what this email should cover first.`);
       return;
     }
     setDrafting(true);
@@ -442,14 +443,14 @@ export function CrmBroadcastSurface() {
       .then((response) => {
         setBody(response.content.trim());
         setMessage(
-          'Lantern proposed a draft. Edit it until it is right, then review every recipient.'
+          `${BRAND.name} proposed a draft. Edit it until it is right, then review every recipient.`
         );
       })
       .catch((reason: unknown) => {
         setMessage(
           reason instanceof Error
             ? reason.message
-            : 'Lantern could not draft this email. You can still write it yourself.'
+            : `${BRAND.name} could not draft this email. You can still write it yourself.`
         );
       })
       .finally(() => {
@@ -567,7 +568,7 @@ export function CrmBroadcastSurface() {
       <SurfaceHeader
         Icon={Send}
         title="Email broadcast"
-        description="Write one message for a saved client list. Lantern sends only the people you review and approve."
+        description={`Write one message for a saved client list. ${BRAND.name} sends only the people you review and approve.`}
       />
       {live.error ? (
         <section role="alert" style={panel}>
@@ -617,8 +618,9 @@ export function CrmBroadcastSurface() {
       <section style={panel}>
         <h2 style={{ marginTop: 0 }}>2. Write the message</h2>
         <label style={{ display: 'grid', gap: 4, maxWidth: 760 }}>
-          What should Lantern cover?
-          <input
+          {`
+          What should ${BRAND.name} cover?
+          `}<input
             data-testid="crm-broadcast-ai-brief"
             value={aiBrief}
             onChange={(event) => {
@@ -635,7 +637,7 @@ export function CrmBroadcastSurface() {
           onClick={proposeWithAi}
           style={{ marginTop: 8 }}
         >
-          {drafting ? 'Lantern is drafting…' : 'Ask Lantern for a draft'}
+          {drafting ? `${BRAND.name} is drafting…` : `Ask ${BRAND.name} for a draft`}
         </Button>
         <label
           style={{ display: 'grid', gap: 4, marginTop: 12, maxWidth: 760 }}
@@ -817,9 +819,10 @@ export function CrmBroadcastSurface() {
           </Button>
         </div>
         <p style={muted}>
-          Each approved person receives a separate email. Lantern never sends a
+          {`
+          Each approved person receives a separate email. ${BRAND.name} never sends a
           broadcast on its own.
-        </p>
+        `}</p>
         {message ? (
           <p data-testid="crm-broadcast-status" role="status">
             {message}

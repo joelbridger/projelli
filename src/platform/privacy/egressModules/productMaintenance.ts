@@ -5,6 +5,7 @@
 
 import { connectorOperation } from './shared';
 import type { EgressOperation } from '../egressFollowups/types';
+import { BRAND } from '@/config/brand';
 
 export const productMaintenanceOperations = [
   connectorOperation({
@@ -12,7 +13,7 @@ export const productMaintenanceOperations = [
     category: 'product-maintenance',
     title: 'Check for or download an app update',
     approvalText:
-      'This contacts GitHub to check for a signed Lantern update or download one you approve.',
+      `This contacts GitHub to check for a signed ${BRAND.name} update or download one you approve.`,
     dataSummary: 'App version and update download metadata. No client files.',
     dataClasses: ['metadata', 'binary-download'],
     recipient: 'GitHub Releases',
@@ -43,10 +44,10 @@ export const productMaintenanceOperations = [
     category: 'product-maintenance',
     title: 'Refresh the template marketplace',
     approvalText:
-      'This contacts the Lantern template marketplace to download its catalog.',
+      `This contacts the ${BRAND.name} template marketplace to download its catalog.`,
     dataSummary: 'Marketplace catalog request metadata. No client files.',
     dataClasses: ['metadata', 'binary-download'],
-    recipient: 'The Lantern template marketplace',
+    recipient: `The ${BRAND.name} template marketplace`,
     requiresFinalApproval: false,
     destination: { allowedOrigins: ['raw.githubusercontent.com'] },
   }),
@@ -55,11 +56,11 @@ export const productMaintenanceOperations = [
     category: 'product-maintenance',
     title: 'Download a marketplace template',
     approvalText:
-      'This downloads the template package you selected from the Lantern marketplace.',
+      `This downloads the template package you selected from the ${BRAND.name} marketplace.`,
     dataSummary:
       'The selected template package and download metadata. No client files.',
     dataClasses: ['metadata', 'binary-download'],
-    recipient: 'The Lantern template marketplace',
+    recipient: `The ${BRAND.name} template marketplace`,
     requiresFinalApproval: true,
     destination: { allowedOrigins: ['raw.githubusercontent.com'] },
   }),

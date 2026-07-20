@@ -1,4 +1,4 @@
-; Lantern NSIS Installer Hooks
+; Product-name NSIS Installer Hooks
 ; Customizes the MUI2 wizard appearance without replacing the full template.
 ; Hooked into Tauri's default installer.nsi via tauri.conf.json > nsis.installerHooks
 ;
@@ -16,17 +16,17 @@
 !macro NSIS_HOOK_POSTINSTALL
   ; Create desktop shortcut if it doesn't already exist
   SetShellVarContext current
-  IfFileExists "$DESKTOP\Lantern.lnk" +2 0
-    CreateShortcut "$DESKTOP\Lantern.lnk" "$INSTDIR\Lantern.exe" "" "$INSTDIR\Lantern.exe" 0
+  IfFileExists "$DESKTOP\${PRODUCTNAME}.lnk" +2 0
+    CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\${MAINBINARYNAME}.exe" 0
 
   ; v1.6: when installing silently (double-click UX) auto-launch the
   ; app after install. Skipped in /INTERACTIVE mode because the
-  ; built-in finish page there has a "Run Lantern" checkbox.
+  ; built-in finish page there has a "Run ${PRODUCTNAME}" checkbox.
   ; Skipped in /UPDATE mode because the auto-updater handles the
   ; relaunch itself and spawning a second instance would race.
   ${If} $PassiveMode = 1
     ${If} $UpdateMode <> 1
-      nsis_tauri_utils::RunAsUser "$INSTDIR\Lantern.exe" ""
+      nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" ""
     ${EndIf}
   ${EndIf}
 !macroend
@@ -35,5 +35,5 @@
 ; Clean up the desktop shortcut on uninstall
 !macro NSIS_HOOK_POSTUNINSTALL
   SetShellVarContext current
-  Delete "$DESKTOP\Lantern.lnk"
+  Delete "$DESKTOP\${PRODUCTNAME}.lnk"
 !macroend

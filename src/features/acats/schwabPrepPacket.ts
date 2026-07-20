@@ -7,6 +7,7 @@ import {
 } from './format';
 import { auditSchwabPrepPacketExport } from './audit';
 import type { AcatsTransferDraft } from './types';
+import { BRAND } from '@/config/brand';
 
 export { buildAcatsApprovalAuditMetadata } from './audit';
 
@@ -85,10 +86,10 @@ export function buildSchwabPrepPacketMarkdown(draft: AcatsTransferDraft): string
   const firmName = draft.deliveringFirm.name?.value ?? 'Delivering firm';
   const missing = draft.missingFields.length
     ? draft.missingFields.map((field) => `- [ ] ${field}`)
-    : ['- [x] No missing fields flagged by Lantern.'];
+    : [`- [x] No missing fields flagged by ${BRAND.name}.`];
   const warnings = draft.warnings.length
     ? draft.warnings.map((warning) => `- ${warning}`)
-    : ['- No warnings flagged by Lantern.'];
+    : [`- No warnings flagged by ${BRAND.name}.`];
 
   return [
     '# Schwab Prep Packet',
@@ -119,7 +120,7 @@ export function buildSchwabPrepPacketMarkdown(draft: AcatsTransferDraft): string
     '- [ ] Confirm the statement date is within Schwab guidance before using it.',
     '',
     '## Official-form mapping',
-    '| Schwab field area | Lantern prep value |',
+    `| Schwab field area | ${BRAND.name} prep value |`,
     '|---|---|',
     `| Delivering firm | ${firmName} |`,
     `| Delivering account title | ${draft.deliveringAccount.accountTitle?.value ?? ''} |`,

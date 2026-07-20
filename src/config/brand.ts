@@ -49,11 +49,15 @@ export const BRAND = {
     "exportWatermark": "Prepared with Advisor Prep Hero"
   },
   "urls": {
+    "domain": "advisorprephero.com",
     "site": "https://advisorprephero.com",
+    "repository": "https://github.com/advisor-prep-hero/advisor-prep-hero",
     "docsBase": "https://advisorprephero.com/docs",
     "supportEmail": "support@advisorprephero.com",
     "developersEmail": "developers@advisorprephero.com",
     "pricing": "https://advisorprephero.com/#pricing",
+    "licenseUrl": "https://advisorprephero.com/#pricing",
+    "supportUrl": "https://advisorprephero.com/support/",
     "download": "https://advisorprephero.com/download/",
     "privacy": "https://advisorprephero.com/legal/privacy/",
     "terms": "https://advisorprephero.com/legal/terms/",

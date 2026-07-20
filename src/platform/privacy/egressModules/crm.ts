@@ -5,6 +5,7 @@
 
 import { connectorOperation, HTTP_OR_HTTPS } from './shared';
 import type { EgressOperation } from '../egressFollowups/types';
+import { BRAND } from '@/config/brand';
 
 export const crmOperations = [
   connectorOperation({
@@ -93,7 +94,7 @@ export const crmOperations = [
     category: 'connector-authentication',
     title: 'Connect Redtail CRM',
     approvalText: 'This contacts Redtail to exchange the login for a saved UserKey.',
-    dataSummary: 'Your Redtail username and password, Lantern’s Redtail API credential, the saved UserKey, and basic account metadata.',
+    dataSummary: `Your Redtail username and password, ${BRAND.possessive} Redtail API credential, the saved UserKey, and basic account metadata.`,
     dataClasses: ['metadata', 'credential'],
     recipient: 'Redtail CRM',
     requiresFinalApproval: true,

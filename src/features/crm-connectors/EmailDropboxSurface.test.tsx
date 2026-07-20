@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { MailListItem } from '@/platform/utils/mail-commands';
+import { BRAND } from '@/config/brand';
 import { assertCrossContextIsolation } from '@/testing/cross-context-isolation';
 import { EmailDropboxSurface } from './EmailDropboxSurface';
 
@@ -140,7 +141,7 @@ describe('EmailDropboxSurface', () => {
       assertATypedValueVisible: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('advisor-typed-a@example.test'); },
       assertWithinContextEditPreserved: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('advisor-typed-a@example.test'); },
       assertBSuccessLoaded: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('b@example.test'); expect(screen.getByTestId('crm-email-dropbox-email-email-b')).toBeInTheDocument(); },
-      assertBFailureIsFailClosed: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue(''); expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue('Lantern Dropbox'); },
+      assertBFailureIsFailClosed: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue(''); expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue(`${BRAND.name} Dropbox`); },
       assertNoAContentInFields: ({ typedA, loadedA }) => { expect(screen.queryByDisplayValue(typedA)).not.toBeInTheDocument(); for (const marker of loadedA) expect(document.body.textContent).not.toContain(marker); },
       assertNoAContentInUnderlyingState: async (_, phase) => {
         save.mockClear();
@@ -158,6 +159,52 @@ describe('EmailDropboxSurface', () => {
         }
       },
       resolveLateAWrite: async () => { await act(async () => { lateA.resolve({ items: [aEmail] }); await lateA.promise; }); },
+    });
+  });
+
+  it('checks the public default folder name exactly for a new setup', async () => {
+    mailMocks.checkFolder.mockResolvedValue({ items: [] });
+    render(<EmailDropboxSurface />);
+
+    expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue(`${BRAND.name} Dropbox`);
+    await waitFor(() => {
+      expect(mailMocks.checkFolder).not.toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByTestId('crm-email-dropbox-check'));
+    await waitFor(() => {
+      expect(mailMocks.checkFolder).toHaveBeenCalledWith({ folderName: `${BRAND.name} Dropbox` });
+    });
+  });
+
+  it('retains a saved legacy folder name and checks that exact folder', async () => {
+    mailMocks.checkFolder.mockResolvedValue({ items: [] });
+    records = [configRecord('Lantern Dropbox', 'advisor@example.test')];
+    render(<EmailDropboxSurface />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue('Lantern Dropbox');
+      expect(mailMocks.checkFolder).toHaveBeenCalledWith({
+        folderName: 'Lantern Dropbox',
+        provider: 'm365',
+        account: 'advisor@example.test',
+      });
+    });
+  });
+
+  it('falls back to the legacy folder only when the public default is missing', async () => {
+    const publicFolder = `${BRAND.name} Dropbox`;
+    mailMocks.checkFolder.mockImplementation(({ folderName }: { folderName: string }) => {
+      if (folderName === publicFolder) {
+        return Promise.reject(new Error(`no connected mailbox folder or label named "${publicFolder}" was found`));
+      }
+      return Promise.resolve({ items: [] });
+    });
+    render(<EmailDropboxSurface />);
+
+    fireEvent.click(screen.getByTestId('crm-email-dropbox-check'));
+    await waitFor(() => {
+      expect(mailMocks.checkFolder).toHaveBeenNthCalledWith(1, { folderName: publicFolder });
+      expect(mailMocks.checkFolder).toHaveBeenNthCalledWith(2, { folderName: 'Lantern Dropbox' });
     });
   });
 

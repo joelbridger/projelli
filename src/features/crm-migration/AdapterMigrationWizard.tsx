@@ -5,6 +5,7 @@ import { Button } from '@/ui/kp';
 import { FreshnessBanner, Screen, mutedStyle, panelStyle } from '@/features/crm-home/shared/ui';
 import type { CrmHomeRoute } from '@/features/crm-home/routes';
 import type { AttachmentAccountingRecord, CrmFreshnessState, CrmHomeAdapter, ExportJobStatus, MigrationFidelityReport, MigrationNoteGap, MigrationWorkflowChecklist } from '@/features/crm-home/types';
+import { BRAND } from '@/config/brand';
 
 export function AdapterMigrationWizard({
   route,
@@ -150,10 +151,11 @@ export function AdapterMigrationWizard({
       <section style={panelStyle}>
         <strong>Use both systems while you check the import</strong>
         <p style={mutedStyle}>
-          Lantern brings over only what it can read safely. When it cannot tell
+          {`
+          ${BRAND.name} brings over only what it can read safely. When it cannot tell
           where an active workflow is, it asks your firm to decide instead of
           guessing.
-        </p>
+        `}</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button
             variant="secondary"
@@ -314,9 +316,10 @@ function FidelityReport({
               {workflowNeedsAttention === 1 ? '' : 's'} to rebuild
             </strong>
             <p style={mutedStyle}>
+              {`
               Choose the current step for each household, then rebuild its
-              remaining work in Lantern.
-            </p>
+              remaining work in ${BRAND.name}.
+            `}</p>
             <Button
               variant="secondary"
               data-testid="crm-migration-workflow-fallback"
@@ -732,7 +735,7 @@ function ExportReadiness({
             <>
               <li>Full check complete</li>
               <li>Current report saved</li>
-              <li>Eligible Lantern changes counted</li>
+              <li>{`Eligible ${BRAND.name} changes counted`}</li>
               <li>Destination format checked</li>
               <li>Known unsupported items listed</li>
             </>

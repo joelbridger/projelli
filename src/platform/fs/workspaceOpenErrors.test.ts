@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { describeWorkspaceOpenError, isTransientWorkspaceOpenFailure } from './workspaceOpenErrors';
-import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 import { TimeoutError } from '@/lib/withTimeout';
 
 describe('describeWorkspaceOpenError', () => {
@@ -24,7 +24,7 @@ describe('describeWorkspaceOpenError', () => {
       message: 'the OS credential storage service did not respond in time — it may be stopped, disabled, or unreachable',
     });
     expect(message).toBe(
-      brandText("Windows' credential storage service isn't running, so Lantern couldn't finish opening this workspace. Your files are safe. Try again, or restart the \"Credential Manager\" service (services.msc) if this keeps happening."),
+      `Windows' credential storage service isn't running, so ${BRAND.name} couldn't finish opening this workspace. Your files are safe. Try again, or restart the "Credential Manager" service (services.msc) if this keeps happening.`,
     );
   });
 

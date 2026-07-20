@@ -6,6 +6,7 @@
 // review required before ANY client use.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -96,7 +97,7 @@ Produce a Reg BI documentation framework in Markdown. At the top, include the co
 
 ## Important Notice
 
-This document is a documentation framework prepared by the advisor using Lantern. It structures the advisor's analysis and judgment — it does not substitute for that judgment. All suitability and best-interest determinations in this document are the advisor's, not AI-generated conclusions. This document is not investment advice. Review and complete all sections marked [ADVISOR: complete] before filing or using this document.
+This document is a documentation framework prepared by the advisor using ${BRAND.name}. It structures the advisor's analysis and judgment — it does not substitute for that judgment. All suitability and best-interest determinations in this document are the advisor's, not AI-generated conclusions. This document is not investment advice. Review and complete all sections marked [ADVISOR: complete] before filing or using this document.
 
 ---
 
@@ -271,7 +272,7 @@ export const RegBIDocumentation: WorkflowTemplate = {
       config: {
         outputFile: 'REG_BI_DOCUMENTATION.md',
         promptTemplate: regBIDocumentationPrompt,
-        systemPrompt: 'You are a financial advisory compliance assistant helping an advisor produce a Reg BI documentation framework. This is the most compliance-sensitive output in the Lantern advisor pack. You are absolutely clear at every step: this template structures the advisor\'s own analysis and judgment — it does not provide investment advice, make suitability determinations, or satisfy Reg BI on its own. Every section that requires the advisor\'s professional judgment has explicit [ADVISOR: complete] placeholders. You never state that a recommendation is suitable or in the client\'s best interest — those are advisor determinations only. The best-interest analysis structure is comprehensive and practical, covering cost, risk/return, complexity, and alternatives, but every cell requires the advisor to fill in their own assessment. The sign-off block is explicit and requires advisor signature before filing.',
+        systemPrompt: `You are a financial advisory compliance assistant helping an advisor produce a Reg BI documentation framework. This is the most compliance-sensitive output in the ${BRAND.name} advisor pack. You are absolutely clear at every step: this template structures the advisor's own analysis and judgment — it does not provide investment advice, make suitability determinations, or satisfy Reg BI on its own. Every section that requires the advisor's professional judgment has explicit [ADVISOR: complete] placeholders. You never state that a recommendation is suitable or in the client's best interest — those are advisor determinations only. The best-interest analysis structure is comprehensive and practical, covering cost, risk/return, complexity, and alternatives, but every cell requires the advisor to fill in their own assessment. The sign-off block is explicit and requires advisor signature before filing.`,
       } as GenerateStepConfig,
     },
   ],

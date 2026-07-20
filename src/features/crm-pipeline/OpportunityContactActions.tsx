@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Check, Plus, Sparkles } from 'lucide-react';
 import { Button } from '@/ui/kp';
+import { BRAND } from '@/config/brand';
 
 export type OpportunityContactActionKind = 'field_update' | 'tag_add' | 'task_create';
 export type OpportunityContactActionState = 'ready' | 'pending_approval' | 'complete' | 'dismissed';
@@ -60,7 +61,7 @@ export function OpportunityContactActionsEditor({
   };
   return <section data-testid="crm-opportunity-contact-actions-editor" style={{ borderTop: '1px solid var(--kp-border)', paddingTop: 12, gridColumn: '1 / -1' }}>
     <strong>Contact actions in this workflow</strong>
-    <p style={muted}>When a step is ready, Lantern prepares the change for your approval. It never changes a contact on its own.</p>
+    <p style={muted}>{`When a step is ready, ${BRAND.name} prepares the change for your approval. It never changes a contact on its own.`}</p>
     {actions.length ? <ol data-testid="crm-opportunity-contact-actions-draft" style={{ margin: '8px 0', paddingLeft: 20 }}>{actions.map((action, index) => <li key={action.id} style={{ marginTop: 4 }}>{action.title}: {actionSummary(action)} <button type="button" data-testid={`crm-opportunity-action-remove-${String(index)}`} onClick={() => { onChange(actions.filter((item) => item.id !== action.id)); }} style={{ marginLeft: 6, border: 0, background: 'transparent', color: 'var(--kp-danger)', cursor: 'pointer' }}>Remove</button></li>)}</ol> : <p data-testid="crm-opportunity-contact-actions-empty" style={muted}>Add the first step below. For example, tag a prospect or create a follow-up task.</p>}
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginTop: 8 }}>
       <label style={fieldStyle}>Workflow step<input data-testid="crm-opportunity-action-title" value={title} onChange={(event) => { setTitle(event.target.value); }} placeholder="For example, qualify prospect" /></label>
@@ -93,7 +94,7 @@ export function OpportunityContactActions({
     {actions.map((action, index) => <div key={action.id} data-testid={`crm-opportunity-action-${opportunityId}-${String(index)}`} style={{ display: 'grid', gap: 5, borderTop: index ? '1px solid var(--kp-border)' : undefined, paddingTop: index ? 8 : 0, marginTop: index ? 8 : 0 }}>
       <div><strong>{action.title}</strong><span style={muted}> · {actionSummary(action)}</span></div>
       {action.state === 'ready' ? <Button size="sm" variant="secondary" iconLeft={Sparkles} data-testid={`crm-opportunity-action-prepare-${opportunityId}-${String(index)}`} onClick={() => { onPrepare(action); }}>Complete step and prepare approval</Button> : null}
-      {action.state === 'pending_approval' ? <div data-testid={`crm-opportunity-action-review-${opportunityId}-${String(index)}`} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}><span style={{ ...muted, color: 'var(--kp-assured)' }}>Lantern proposed this change. Nothing has changed yet.</span><Button size="sm" iconLeft={Check} data-testid={`crm-opportunity-action-approve-${opportunityId}-${String(index)}`} onClick={() => { onApprove(action); }}>Approve and apply</Button><Button size="sm" variant="secondary" data-testid={`crm-opportunity-action-dismiss-${opportunityId}-${String(index)}`} onClick={() => { onDismiss(action); }}>Dismiss</Button></div> : null}
+      {action.state === 'pending_approval' ? <div data-testid={`crm-opportunity-action-review-${opportunityId}-${String(index)}`} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}><span style={{ ...muted, color: 'var(--kp-assured)' }}>{`${BRAND.name} proposed this change. Nothing has changed yet.`}</span><Button size="sm" iconLeft={Check} data-testid={`crm-opportunity-action-approve-${opportunityId}-${String(index)}`} onClick={() => { onApprove(action); }}>Approve and apply</Button><Button size="sm" variant="secondary" data-testid={`crm-opportunity-action-dismiss-${opportunityId}-${String(index)}`} onClick={() => { onDismiss(action); }}>Dismiss</Button></div> : null}
       {action.state === 'complete' ? <span data-testid={`crm-opportunity-action-complete-${opportunityId}-${String(index)}`} style={{ ...muted, color: 'var(--color-green-800)' }}>Approved and applied.</span> : null}
       {action.state === 'dismissed' ? <span style={muted}>Dismissed. You can edit the opportunity to add it again.</span> : null}
     </div>)}

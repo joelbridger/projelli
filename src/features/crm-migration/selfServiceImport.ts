@@ -1,4 +1,5 @@
 import Papa from 'papaparse';
+import { BRAND } from '@/config/brand';
 
 export type ImportRow = Record<string, string>;
 export type ImportFormat = 'csv' | 'excel' | 'vcard' | 'outlook';
@@ -59,7 +60,7 @@ export function parseVcards(text: string): { columns: string[]; rows: ImportRow[
     if (!result['Name']) result['Name'] = `Contact ${index + 1}`;
     return result;
   }).filter((row) => Object.keys(row).length > 1);
-  if (!rows.length) throw new Error('This vCard file has no contacts Lantern can read.');
+  if (!rows.length) throw new Error(`This vCard file has no contacts ${BRAND.name} can read.`);
   return { columns: ['Name', 'Email', 'Phone', 'Company', 'UID'].filter((column) => rows.some((row) => row[column])), rows };
 }
 
@@ -94,7 +95,7 @@ export async function parseContactImportFile(file: File): Promise<ParsedContactF
     return { format: 'excel', fileName: name, ...parsed };
   }
   const parsed = Papa.parse<string[]>(await file.text(), { skipEmptyLines: true });
-  if (parsed.errors.length) throw new Error(`Lantern could not read this CSV: ${parsed.errors[0]?.message ?? 'unknown problem'}`);
+  if (parsed.errors.length) throw new Error(`${BRAND.name} could not read this CSV: ${parsed.errors[0]?.message ?? 'unknown problem'}`);
   const result = rowsFromGrid(parsed.data);
   const outlook = result.columns.some((column) => /e-mail address|business phone|file as/i.test(column));
   return { format: outlook ? 'outlook' : 'csv', fileName: name, ...result };

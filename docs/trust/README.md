@@ -1,11 +1,11 @@
-# Lantern trust materials
+# Advisor Prep Hero trust materials
 
-These documents help a firm's IT, security, and compliance reviewers inspect Lantern's privacy and security posture. They describe the architecture and current readiness honestly. They are not certifications, audit reports, or legal advice.
+These documents help a firm's IT, security, and compliance reviewers inspect Advisor Prep Hero's privacy and security posture. They describe the architecture and current readiness honestly. They are not certifications, audit reports, or legal advice.
 
 ## Core materials
 
 - [Security overview](security-overview.md): how the local-first desktop product handles client work, AI requests, and device storage.
-- [SOC 2 readiness](soc2-readiness.md): the current gap and readiness assessment. Lantern is not SOC 2 certified.
+- [SOC 2 readiness](soc2-readiness.md): the current gap and readiness assessment. Advisor Prep Hero is not SOC 2 certified.
 - [Intake IT Gatekeeper Pack](it-pack/INTAKE-IT-PACK.md): the separate secure-link intake architecture, relay metadata boundary, email-fallback boundary, and reviewer checklist.
 
 ## Using the Intake pack

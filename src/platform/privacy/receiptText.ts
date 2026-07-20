@@ -28,7 +28,7 @@ export function receiptRouteText({
     return `via your firm's zero-retention proxy to ${provider}; ${BRAND.name} retained nothing`;
   }
   if (destination === 'demo-proxy') {
-    return brandText(`sent through the Lantern demo relay to ${provider}; do not use with client data`);
+    return brandText(`sent through the ${BRAND.name} demo relay to ${provider}; do not use with client data`);
   }
-  return brandText(`sent direct to ${provider}; nothing to Lantern`);
+  return brandText(`sent direct to ${provider}; nothing to ${BRAND.name}`);
 }

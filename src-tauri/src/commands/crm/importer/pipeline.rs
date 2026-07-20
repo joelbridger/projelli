@@ -226,7 +226,7 @@ pub fn parallel_run_field_registry(source_type: SourceType, field: &str) -> Writ
             }
         }
         (_, _) => WriteBackDisposition::LanternOnly {
-            reason: "This stays in Lantern until cutover",
+            reason: "This stays in the local workspace until cutover",
         },
     }
 }

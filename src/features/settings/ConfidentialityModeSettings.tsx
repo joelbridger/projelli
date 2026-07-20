@@ -45,6 +45,7 @@ import { getKeyCheckStatus } from '@/platform/providers/keyVerification';
 import { EV_EGRESS_CONFIG_CHANGE, SK_DEFAULT_MODEL, SK_DEFAULT_PROVIDER } from '@/config/identity';
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 import { NetworkLockdownRetryButton } from '@/platform/privacy/ui/NetworkLockdownRetryButton';
+import { BRAND } from '@/config/brand';
 
 interface ModeCard {
   mode: ConfidentialityMode;
@@ -73,7 +74,7 @@ const SOLO_CARDS: ModeCard[] = [
     icon: Laptop,
     title: 'On this computer only',
     blurb:
-      'AI runs on your machine: your documents and prompts are never sent to a cloud AI. Cloud AI providers are turned off and only on-device models are used — the built-in Lantern Local AI, or your own Ollama. Outside connectors pause so nothing leaves this computer. Use this for your most sensitive client work.',
+      `AI runs on your machine: your documents and prompts are never sent to a cloud AI. Cloud AI providers are turned off and only on-device models are used — the built-in ${BRAND.name} Local AI, or your own Ollama. Outside connectors pause so nothing leaves this computer. Use this for your most sensitive client work.`,
     accent: 'text-emerald-700 border-emerald-400 dark:text-emerald-300 dark:border-emerald-700',
     tag: 'Most private',
   },
@@ -82,7 +83,7 @@ const SOLO_CARDS: ModeCard[] = [
     icon: Cloud,
     title: 'Cloud AI (your account)',
     blurb:
-      'Your own API key talks directly to your chosen AI provider (Anthropic, OpenAI, or Google). Lantern is not in between. The provider sees your prompt, so control retention and training in your provider account.',
+      `Your own API key talks directly to your chosen AI provider (Anthropic, OpenAI, or Google). ${BRAND.name} is not in between. The provider sees your prompt, so control retention and training in your provider account.`,
     accent: 'text-sky-700 border-sky-400 dark:text-sky-300 dark:border-sky-700',
     tag: 'Most capable',
   },
@@ -94,7 +95,7 @@ const ASSURED_CARD: ModeCard = {
   icon: ShieldCheck,
   title: 'Assured',
   blurb:
-    "Cloud inference routed through the Lantern zero-retention proxy using your firm's managed key. We keep nothing (DPA + provider zero-retention). Available once your firm admin sets a managed key.",
+    `Cloud inference routed through the ${BRAND.name} zero-retention proxy using your firm's managed key. We keep nothing (DPA + provider zero-retention). Available once your firm admin sets a managed key.`,
   accent: 'text-indigo-700 border-indigo-400 dark:text-indigo-300 dark:border-indigo-700',
 };
 
@@ -143,8 +144,9 @@ function LocalAiCardDetails() {
   if (snap.state === 'idle') {
     return (
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-        Lantern Local AI is available in the desktop app.
-      </p>
+        {`
+        ${BRAND.name} Local AI is available in the desktop app.
+      `}</p>
     );
   }
 
@@ -154,15 +156,16 @@ function LocalAiCardDetails() {
         data-testid="local-ai-ready"
         className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900"
       >
-        Lantern Local AI is installed and ready.
-      </p>
+        {`
+        ${BRAND.name} Local AI is installed and ready.
+      `}</p>
     );
   }
 
   return (
     <div className="mt-3 rounded-md border border-border bg-background/70 px-3 py-3 text-xs">
       <div className="flex items-center justify-between gap-3">
-        <span className="font-medium text-foreground">Lantern Local AI</span>
+        <span className="font-medium text-foreground">{`${BRAND.name} Local AI`}</span>
         {snap.state === 'absent' && (
           <button
             type="button"
@@ -314,7 +317,7 @@ export function ConfidentialityModeSettings({
             <div className="space-y-2">
               <p>Choose whether AI requests stay on your computer or are sent to a cloud provider you control.</p>
               {isFirmUser && (
-                <p>{brandText("Firm security: the Assured option below routes AI requests through your firm's zero-retention proxy so Lantern retains nothing.")}</p>
+                <p>{brandText(`Firm security: the Assured option below routes AI requests through your firm's zero-retention proxy so ${BRAND.name} retains nothing.`)}</p>
               )}
             </div>
           }
@@ -420,11 +423,11 @@ export function ConfidentialityModeSettings({
           {enforcedLockdownOn
             ? <>On this computer only is on. Your documents and prompts are never sent
                 to a cloud AI — answers run on a local model on your machine (the
-                built-in {brandText('Lantern Local AI')} when it&rsquo;s ready, or your own Ollama).
+                built-in {brandText(`${BRAND.name} Local AI`)} when it&rsquo;s ready, or your own Ollama).
                 Cloud AI providers are disabled in the chat picker. Outside connectors
                 pause so nothing leaves this computer.</>
-            : <>On this computer only is selected. Outside connectors stay paused while
-                Lantern {nativeLockdown.pending ? 'updates' : 'checks'} the desktop privacy guard.</>}
+            : <>{`On this computer only is selected. Outside connectors stay paused while
+                ${BRAND.name} `}{nativeLockdown.pending ? 'updates' : 'checks'} the desktop privacy guard.</>}
         </p>
       )}
 
@@ -512,7 +515,7 @@ export function ConfidentialityModeSettings({
           >
             {nativeLockdown.pending
               ? 'Privacy protection is updating. Outside connections stay paused until the desktop guard confirms the change.'
-              : 'Lantern is checking the desktop privacy guard. Outside connections stay paused until its state can be confirmed.'}
+              : `${BRAND.name} is checking the desktop privacy guard. Outside connections stay paused until its state can be confirmed.`}
           </p>
         )}
         {nativeLockdown.error && (
@@ -534,7 +537,7 @@ export function ConfidentialityModeSettings({
               ? privileged.trigger === 'privileged-matter'
                 ? 'On automatically because the active client has network lockdown. It stays on until you switch to a different client.'
                 : 'On automatically because On this computer only is selected. It stays on while that option is active.'
-              : 'This privacy choice requires Network lockdown. Outside connections stay paused while Lantern confirms the desktop guard.'}
+              : `This privacy choice requires Network lockdown. Outside connections stay paused while ${BRAND.name} confirms the desktop guard.`}
           </p>
         )}
         {/* Affirmation: shown for ~5 s after the user manually turns lockdown on */}

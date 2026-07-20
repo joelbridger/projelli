@@ -298,11 +298,15 @@ function brandTs() {
       exportWatermark: cfg.messaging?.exportWatermark ?? `Prepared with ${cfg.name}`,
     },
     urls: {
+      domain: cfg.urls?.domain ?? '',
       site: cfg.urls?.site ?? '',
+      repository: cfg.urls?.repository ?? '',
       docsBase: cfg.urls?.docsBase ?? '',
       supportEmail: cfg.urls?.supportEmail ?? '',
       developersEmail: cfg.urls?.developersEmail ?? '',
       pricing: cfg.urls?.pricing ?? '',
+      licenseUrl: cfg.urls?.licenseUrl ?? cfg.urls?.pricing ?? '',
+      supportUrl: cfg.urls?.supportUrl ?? '',
       download: cfg.urls?.download ?? '',
       privacy: cfg.urls?.privacy ?? '',
       terms: cfg.urls?.terms ?? '',
@@ -380,12 +384,18 @@ function websiteBrandCss() {
 `;
 }
 
+function nativeBrandRust() {
+  return `// GENERATED FILE — do not edit by hand.\n// Source of truth: brand/brand.config.json\n\npub const PRODUCT_NAME: &str = ${JSON.stringify(NAME)};\n`;
+}
+
 // ── --check mode: verify generated files match the config, no writes ──────────
 function runCheck() {
   log(`${C.bold}brand:check${C.reset} — verifying generated files match brand/brand.config.json\n`);
   const targets = [
     { path: path.join(ROOT, 'src', 'config', 'brand.ts'), want: brandTs(), name: 'src/config/brand.ts' },
     { path: path.join(ROOT, 'website', 'styles', 'brand.css'), want: websiteBrandCss(), name: 'website/styles/brand.css' },
+    { path: path.join(ROOT, 'src-tauri', 'src', 'generated_brand.rs'), want: nativeBrandRust(), name: 'src-tauri/src/generated_brand.rs' },
+    { path: path.join(ROOT, 'src-tauri', 'crates', 'lantern-docx', 'src', 'generated_brand.rs'), want: nativeBrandRust(), name: 'src-tauri/crates/lantern-docx/src/generated_brand.rs' },
   ];
   const drift = [];
   for (const t of targets) {
@@ -452,6 +462,14 @@ function regenerateArtifacts() {
   const webCss = path.join(ROOT, 'website', 'styles', 'brand.css');
   const wcss = websiteBrandCss();
   if (!exists(webCss) || read(webCss) !== wcss) { write(webCss, wcss); ok('regenerated website/styles/brand.css'); } else skip('website/styles/brand.css already current');
+  for (const relative of [
+    'src-tauri/src/generated_brand.rs',
+    'src-tauri/crates/lantern-docx/src/generated_brand.rs',
+  ]) {
+    const file = path.join(ROOT, relative);
+    const rust = nativeBrandRust();
+    if (!exists(file) || read(file) !== rust) { write(file, rust); ok(`regenerated ${relative}`); } else skip(`${relative} already current`);
+  }
 }
 
 async function distributeAssets() {
@@ -553,6 +571,19 @@ function updateDisplayMetadata() {
     const m = /<title>([^<]*)<\/title>/.exec(read(indexHtml));
     if (m && m[1] !== NAME) replaceExactlyOnce(indexHtml, `<title>${m[1]}</title>`, `<title>${NAME}</title>`, 'index.html <title>');
     else skip('index.html <title> already current');
+  }
+  for (const [relative, title] of [
+    ['intake-page/index.html', `${NAME} secure intake`],
+    ['index.demo.html', `${NAME} Demo`],
+  ]) {
+    const file = path.join(ROOT, relative);
+    if (!exists(file)) continue;
+    const match = /<title>([^<]*)<\/title>/.exec(read(file));
+    if (match && match[1] !== title) {
+      replaceExactlyOnce(file, `<title>${match[1]}</title>`, `<title>${title}</title>`, `${relative} <title>`);
+    } else {
+      skip(`${relative} <title> already current`);
+    }
   }
 }
 

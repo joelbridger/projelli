@@ -51,7 +51,7 @@ export function getSettingsActions({
     } else if (actionId === 'open-website') {
       void openExternal(BRAND.urls.site);
     } else if (actionId === 'open-github') {
-      void openExternal('https://github.com/lanternplatform/lantern');
+      void openExternal(BRAND.urls.repository);
     } else if (actionId === 'reset-feature-tour') {
       featureTour.restart();
       setTimeout(() => { setTourOpen(true); }, 300);

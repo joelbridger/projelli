@@ -10,6 +10,12 @@ export const brandInterpolation = {
   productNamePossessive: BRAND.possessive,
   productAiName: BRAND.messaging.redlineAuthor,
   localAiName: LOCAL_AI_NAME,
+  domain: BRAND.urls.domain,
+  siteUrl: BRAND.urls.site,
+  repositoryUrl: BRAND.urls.repository,
+  licenseUrl: BRAND.urls.licenseUrl,
+  supportUrl: BRAND.urls.supportUrl,
+  supportEmail: BRAND.urls.supportEmail,
 } as const;
 
 void i18n.use(initReactI18next).init({

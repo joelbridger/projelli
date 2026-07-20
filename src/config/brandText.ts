@@ -8,7 +8,11 @@ export function brandText(text: string): string {
     .replace(/\bLantern AI\b/g, BRAND.messaging.redlineAuthor)
     .replace(/\bLantern's\b/g, BRAND.possessive)
     .replace(/\bLantern’s\b/g, BRAND.possessive)
-    .replace(/\bLantern\b/g, BRAND.name);
+    .replace(/\bLantern\b/g, BRAND.name)
+    .replace(/\{\{localAiName\}\}/g, LOCAL_AI_NAME)
+    .replace(/\{\{productAiName\}\}/g, BRAND.messaging.redlineAuthor)
+    .replace(/\{\{productNamePossessive\}\}/g, BRAND.possessive)
+    .replace(/\{\{productName\}\}/g, BRAND.name);
 }
 
 function brandUnknown(value: unknown): unknown {

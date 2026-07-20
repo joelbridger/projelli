@@ -28,6 +28,7 @@ import { withTimeout } from '@/lib/withTimeout';
 import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 // The Rust reqwest client now caps each individual HTTP request (60s + 15s
 // connect), but the Tauri IPC call from here still has no deadline of its
@@ -227,7 +228,7 @@ export function AddeparConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
               Addepar
-              <InfoHelp content={brandText('Import household holdings, asset allocation, accounts, and performance summaries. Lantern only reads Addepar data.')} />
+              <InfoHelp content={brandText(`Import household holdings, asset allocation, accounts, and performance summaries. ${BRAND.name} only reads Addepar data.`)} />
             </h3>
           </div>
         </div>

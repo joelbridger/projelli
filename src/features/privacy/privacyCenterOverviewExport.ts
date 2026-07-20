@@ -20,19 +20,19 @@ const ASSURED_EGRESS = resolveEgress({
   assuredAvailable: true,
 });
 
-const OVERVIEW_DOCX_NAME = 'Lantern Privacy Center Security Overview.docx';
-const OVERVIEW_PDF_NAME = 'Lantern Privacy Center Security Overview.pdf';
+const OVERVIEW_DOCX_NAME = `${BRAND.name} Privacy Center Security Overview.docx`;
+const OVERVIEW_PDF_NAME = `${BRAND.name} Privacy Center Security Overview.pdf`;
 
 export function privacyCenterSecurityOverviewMarkdown(): string {
   const lines: string[] = [
-    '# Lantern Privacy Center security overview',
+    `# ${BRAND.name} Privacy Center security overview`,
     '',
-    'This overview is exported from the Privacy Center. It summarizes where data lives, what can leave the device, and what a reviewer should know before approving Lantern.',
+    `This overview is exported from the Privacy Center. It summarizes where data lives, what can leave the device, and what a reviewer should know before approving ${BRAND.name}.`,
     '',
     '## Privacy modes',
     '',
     `- Local-only: ${LOCAL_ONLY_EGRESS.note} (${LOCAL_ONLY_EGRESS.dataLeaves ? 'data may leave the device' : 'nothing leaves the device'}).`,
-    `- Direct (bring your own key): ${DIRECT_EGRESS.note} Data leaves to your chosen AI provider, not to Lantern.`,
+    `- Direct (bring your own key): ${DIRECT_EGRESS.note} Data leaves to your chosen AI provider, not to ${BRAND.name}.`,
     `- Assured (firm option): ${ASSURED_EGRESS.note} Data passes through the firm's zero-retention proxy under a DPA.`,
     '',
     '## Data Map',
@@ -47,7 +47,7 @@ export function privacyCenterSecurityOverviewMarkdown(): string {
   lines.push(
     '## Intake / secure client links',
     '',
-    "For Lantern Intake secure links, the honest client page encrypts each submitted answer and document in the browser before upload to a key held in the advisor's operating system keychain. The relay is a mailbox for encrypted submissions, not an archive.",
+    `For ${BRAND.name} Intake secure links, the honest client page encrypts each submitted answer and document in the browser before upload to a key held in the advisor's operating system keychain. The relay is a mailbox for encrypted submissions, not an archive.`,
     '',
     '### Relay data boundary',
     '',
@@ -70,15 +70,15 @@ export function privacyCenterSecurityOverviewMarkdown(): string {
     '',
     '## Firm review notes',
     '',
-    'Lantern runs as a desktop app on your own computer. Lantern has no content server for your documents, prompts, or client records.',
+    `${BRAND.name} runs as a desktop app on your own computer. ${BRAND.name} has no content server for your documents, prompts, or client records.`,
     '',
-    'AI keys are stored in the operating system keychain. Lantern never holds AI keys and never charges for AI usage.',
+    `AI keys are stored in the operating system keychain. ${BRAND.name} never holds AI keys and never charges for AI usage.`,
     '',
     'Your client data is encrypted on your device; the relay stores only ciphertext and opaque handles and never sees client names or documents. Information barriers are enforced by withholding keys, not by hiding records in the interface.',
     '',
     '## Current assurance status',
     '',
-    'Lantern is not SOC 2 certified. A readiness and gap-analysis assessment is complete, but a formal independent audit has not yet completed.',
+    `${BRAND.name} is not SOC 2 certified. A readiness and gap-analysis assessment is complete, but a formal independent audit has not yet completed.`,
     '',
     'A Data Processing Agreement is available on request and should be reviewed by qualified counsel before execution.',
     '',

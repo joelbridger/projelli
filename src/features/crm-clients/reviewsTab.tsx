@@ -7,6 +7,7 @@ import { ExternalWriteReviewCard } from '@/features/planning/ExternalWriteReview
 import { useExternalWriteQueueStore } from '@/platform/state/externalWriteQueueStore';
 import { Button, Card } from '@/ui/kp';
 import type { HouseholdTabDescriptor, HouseholdTabSurfaceProps } from './tabRegistry';
+import { BRAND } from '@/config/brand';
 
 function ClientReviewsTab({ household }: HouseholdTabSurfaceProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -43,7 +44,7 @@ function ClientReviewsTab({ household }: HouseholdTabSurfaceProps) {
       setDraft(nextDraft);
     } catch (error) {
       console.warn('[ClientReviewsTab] Could not read the account statement:', error);
-      setStatementError('Lantern could not read that statement. Try another PDF.');
+      setStatementError(`${BRAND.name} could not read that statement. Try another PDF.`);
     } finally {
       setIsReadingStatement(false);
       input.value = '';
@@ -73,8 +74,9 @@ function ClientReviewsTab({ household }: HouseholdTabSurfaceProps) {
                 Start an account transfer
               </div>
               <p style={{ margin: '5px 0 0', color: 'var(--color-muted-foreground)', fontSize: 13 }}>
-                Choose the delivering firm’s PDF statement. Lantern will pull out the facts for your review.
-              </p>
+                {`
+                Choose the delivering firm’s PDF statement. ${BRAND.name} will pull out the facts for your review.
+              `}</p>
             </div>
             <Button
               size="sm"
@@ -95,7 +97,7 @@ function ClientReviewsTab({ household }: HouseholdTabSurfaceProps) {
               readStatement(event).catch((error: unknown) => {
                 console.warn('[ClientReviewsTab] Statement reader failed unexpectedly:', error);
                 setIsReadingStatement(false);
-                setStatementError('Lantern could not read that statement. Try another PDF.');
+                setStatementError(`${BRAND.name} could not read that statement. Try another PDF.`);
               });
             }}
           />

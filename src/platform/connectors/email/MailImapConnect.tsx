@@ -6,6 +6,7 @@ import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { brandText } from '@/config/brandText';
 import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
+import { BRAND } from '@/config/brand';
 
 export function MailImapConnect() {
   useMailSync();
@@ -80,7 +81,7 @@ export function MailImapConnect() {
           Outlook app password
         </a>
         ), Fastmail, or any standard IMAP host. Your password is stored only in
-        {brandText("this device's keychain and never leaves your machine. Requires the Lantern desktop app.")}
+        {brandText(`this device's keychain and never leaves your machine. Requires the ${BRAND.name} desktop app.`)}
       </p>
 
       {!connected && (

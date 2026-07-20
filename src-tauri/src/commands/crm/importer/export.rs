@@ -23,7 +23,7 @@ pub struct WrittenExport {
 }
 
 fn export_dir(workspace: &Path) -> PathBuf {
-    workspace.join("Lantern migration exports")
+    workspace.join(format!("{} migration exports", crate::generated_brand::PRODUCT_NAME))
 }
 
 fn safe_segment(value: &str) -> String {
@@ -192,7 +192,11 @@ pub fn write_rollback_csv(
             .and_then(Value::as_str)
             .unwrap_or("");
         let source_id = record.get("sourceId").and_then(Value::as_str).unwrap_or("");
-        rows.push([contact_type, name, first_name, last_name, source_id, "Exported by Lantern for rollback; verify Wealthbox's current import columns before use."].into_iter().map(csv_cell).collect::<Vec<_>>().join(","));
+        let note = format!(
+            "Exported by {} for rollback; verify Wealthbox's current import columns before use.",
+            crate::generated_brand::PRODUCT_NAME,
+        );
+        rows.push([contact_type, name, first_name, last_name, source_id, note.as_str()].into_iter().map(csv_cell).collect::<Vec<_>>().join(","));
     }
     let bytes = rows.join("\n").into_bytes();
     let path = export_dir(workspace).join(format!(
@@ -264,6 +268,6 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.to_string().contains("archive has 1"));
-        assert!(!root.join("Lantern migration exports").exists());
+        assert!(!root.join(format!("{} migration exports", crate::generated_brand::PRODUCT_NAME)).exists());
     }
 }

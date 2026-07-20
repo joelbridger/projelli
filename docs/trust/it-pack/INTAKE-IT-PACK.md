@@ -1,14 +1,14 @@
-# Lantern Intake IT Gatekeeper Pack
+# Advisor Prep Hero Intake IT Gatekeeper Pack
 
-> Audience: outside IT, security, and compliance reviewers evaluating Lantern Intake for a financial advisory firm.
+> Audience: outside IT, security, and compliance reviewers evaluating Advisor Prep Hero Intake for a financial advisory firm.
 >
-> Scope: this document covers the hosted intake link, the relay, the client browser page, and the advisor desktop app handling received intake submissions. Lantern is not SOC 2 certified. This is not a SOC 2 report, certification, legal opinion, or substitute for the firm's own Reg S-P, books-and-records, privacy, and vendor-review obligations.
+> Scope: this document covers the hosted intake link, the relay, the client browser page, and the advisor desktop app handling received intake submissions. Advisor Prep Hero is not SOC 2 certified. This is not a SOC 2 report, certification, legal opinion, or substitute for the firm's own Reg S-P, books-and-records, privacy, and vendor-review obligations.
 >
 > Source discipline: hidden HTML comments cite the intake architecture sections behind the security claims. Claims about what not to say also cite the intake risks document.
 
 ## 1. One-page architecture summary
 
-Lantern Intake lets an advisor send a secure checklist link to a client or household. The link is a capability URL. The secret part of the link is in the URL fragment, which browsers do not send to the server in normal HTTP requests. <!-- Source: docs/plans/lantern-plus/intake/ARCHITECTURE.md §0 and §2. -->
+Advisor Prep Hero Intake lets an advisor send a secure checklist link to a client or household. The link is a capability URL. The secret part of the link is in the URL fragment, which browsers do not send to the server in normal HTTP requests. <!-- Source: docs/plans/lantern-plus/intake/ARCHITECTURE.md §0 and §2. -->
 
 The advisor's desktop app creates a new intake keypair for each intake request. The private key stays on the advisor's machine in the operating system keychain. The public key is placed in the link fragment. The client's browser uses that public key to encrypt each answer and document before upload. <!-- Source: ARCHITECTURE.md §2. -->
 
@@ -20,11 +20,11 @@ When the advisor desktop app syncs, it downloads the encrypted submissions, decr
 
 The relay behaves like a mailbox, not an archive. The relay deletes ciphertext when the advisor's app acknowledges a durable local save. Independently, a daily retention sweep (also run once at boot) deletes any intake row past its expiry, whether or not it was ever acknowledged, so unsynced ciphertext does not accumulate indefinitely — this sweep runs on an up-to-24-hour cadence, not the instant a link expires. Expired and revoked links also stop granting access immediately. <!-- Source: ARCHITECTURE.md §3 and §5. -->
 
-The important boundary is page integrity. If the hosted intake page itself were compromised and served malicious JavaScript, that malicious page could read values typed from that session forward before encrypting them. Lantern treats that as a real residual risk and mitigates it with a self-contained static bundle, no third-party code, CSP, published build hashes, and a deploy-time integrity check. <!-- Source: ARCHITECTURE.md §8 T3. Also RISKS.md §3. -->
+The important boundary is page integrity. If the hosted intake page itself were compromised and served malicious JavaScript, that malicious page could read values typed from that session forward before encrypting them. Advisor Prep Hero treats that as a real residual risk and mitigates it with a self-contained static bundle, no third-party code, CSP, published build hashes, and a deploy-time integrity check. <!-- Source: ARCHITECTURE.md §8 T3. Also RISKS.md §3. -->
 
 ## 2. Honest relay metadata list
 
-This is the exact data boundary reviewers should use. The relay cannot read encrypted payloads, but it does see some routing and network metadata. Lantern does not describe this as "zero knowledge" because that would hide the metadata below. <!-- Source: ARCHITECTURE.md §3. Also RISKS.md §2. -->
+This is the exact data boundary reviewers should use. The relay cannot read encrypted payloads, but it does see some routing and network metadata. Advisor Prep Hero does not describe this as "zero knowledge" because that would hide the metadata below. <!-- Source: ARCHITECTURE.md §3. Also RISKS.md §2. -->
 
 ### The relay can see
 
@@ -50,7 +50,7 @@ The relay stores the encrypted bytes of every submission (it has to, to relay th
 
 ### Important precision
 
-The relay cannot prove that arbitrary bytes posted to it are encrypted. The precise claim is: the honest Lantern client page encrypts each submission before upload, and the relay stores opaque bytes plus the metadata listed above. <!-- Source: RISKS.md §2; supported by ARCHITECTURE.md §3 and §4. -->
+The relay cannot prove that arbitrary bytes posted to it are encrypted. The precise claim is: the honest Advisor Prep Hero client page encrypts each submission before upload, and the relay stores opaque bytes plus the metadata listed above. <!-- Source: RISKS.md §2; supported by ARCHITECTURE.md §3 and §4. -->
 
 ## 3. Data retention and deletion story
 
@@ -72,7 +72,7 @@ Resume state contains only non-sensitive display data, such as progress flags, g
 
 ### On the advisor machine
 
-Documents are filed into the client's folder under `Requests/onboarding/`. File-level at-rest protection follows the Lantern vault setting for that workspace. Restricted typed values go into a SQLCipher encrypted facts store keyed to the client record. Ordinary app state stores item status, timestamps, references, and masked renderings, not the restricted values themselves. <!-- Source: ARCHITECTURE.md §5 and §9. -->
+Documents are filed into the client's folder under `Requests/onboarding/`. File-level at-rest protection follows the Advisor Prep Hero vault setting for that workspace. Restricted typed values go into a SQLCipher encrypted facts store keyed to the client record. Ordinary app state stores item status, timestamps, references, and masked renderings, not the restricted values themselves. <!-- Source: ARCHITECTURE.md §5 and §9. -->
 
 The intake private key is stored in the operating system keychain. Social Security numbers are masked by default. Revealing, exporting, or copying a restricted fact writes an audit event. <!-- Source: ARCHITECTURE.md §2 and §5. -->
 
@@ -92,15 +92,15 @@ Local retention is a firm policy decision. The architecture's intake default is 
 | Malicious file upload | Server never decrypts or parses files. Advisor side uses size caps, type sniffing, no auto-open, and existing extraction rails. | A malicious file can still be delivered to the advisor machine as an inert file and must be handled with endpoint security in mind. <!-- Source: ARCHITECTURE.md §8 T8. --> |
 | Denial of service on public endpoints | Bearer token required before body read, rate limits per intake and IP, chunk caps, total-size caps, per-intake upload quota. | Availability still depends on the relay being reachable. <!-- Source: ARCHITECTURE.md §3 and §8 T9. --> |
 | Traffic analysis | Metadata is minimized and disclosed. Access logs are limited and not treated as client content. | File sizes, timing, IP, and user agent are not hidden from the HTTP service layer. <!-- Source: ARCHITECTURE.md §3 and §8 T10. --> |
-| Email fallback confusion | Email fallback is labeled as a different channel and is not described as end-to-end encrypted. Restricted fields route to phone walkthrough instead of email when the secure page cannot run. | Email replies have the confidentiality level of the firm's email system, not Lantern Intake's browser encryption. <!-- Source: ARCHITECTURE.md §4 and §8 T11; RISKS.md §5. --> |
+| Email fallback confusion | Email fallback is labeled as a different channel and is not described as end-to-end encrypted. Restricted fields route to phone walkthrough instead of email when the secure page cannot run. | Email replies have the confidentiality level of the firm's email system, not Advisor Prep Hero Intake's browser encryption. <!-- Source: ARCHITECTURE.md §4 and §8 T11; RISKS.md §5. --> |
 
 ## 5. FAQ for firm IT and compliance reviewers
 
-### 1. Can Lantern read a client's SSN or uploaded documents?
+### 1. Can Advisor Prep Hero read a client's SSN or uploaded documents?
 
 No. In the designed intake path, the client's browser encrypts each answer and document to the intake public key before upload. The relay does not have the private key. <!-- Source: ARCHITECTURE.md §2, §3, and §8 T1. -->
 
-### 2. What exactly is stored on Lantern-operated infrastructure?
+### 2. What exactly is stored on Advisor Prep Hero-operated infrastructure?
 
 The relay stores routing metadata, token hashes, sealed checklist and resume state, encrypted chunks, and encrypted item manifests until they are acknowledged by the advisor's app or swept up by the daily expiry cleanup, whichever comes first. It also receives normal HTTP request metadata such as IP and user agent. <!-- Source: ARCHITECTURE.md §3. -->
 
@@ -144,13 +144,13 @@ Not cloud AI. The client page may run local deterministic checks in the browser,
 
 No. Email is a separate fallback channel with the confidentiality of the firm's email system. The product must label email-sourced items separately and must not describe email fallback as end-to-end encrypted. <!-- Source: ARCHITECTURE.md §8 T11; RISKS.md §5. -->
 
-### 13. Does Lantern claim SOC 2 certification for Intake?
+### 13. Does Advisor Prep Hero claim SOC 2 certification for Intake?
 
-No. This pack is an architecture and risk explanation, not a SOC 2 report. Lantern must not claim SOC 2 certification unless an independent audit has actually been completed. <!-- Source: RISKS.md §2. -->
+No. This pack is an architecture and risk explanation, not a SOC 2 report. Advisor Prep Hero must not claim SOC 2 certification unless an independent audit has actually been completed. <!-- Source: RISKS.md §2. -->
 
-### 14. Does Lantern Intake make the firm compliant with Reg S-P or books-and-records rules?
+### 14. Does Advisor Prep Hero Intake make the firm compliant with Reg S-P or books-and-records rules?
 
-No. The firm remains the regulated entity. Lantern Intake can help reduce server-side exposure of client PII, but retention, deletion, incident response, supervision, and books-and-records decisions remain firm obligations. <!-- Source: RISKS.md §1; ARCHITECTURE.md §5. -->
+No. The firm remains the regulated entity. Advisor Prep Hero Intake can help reduce server-side exposure of client PII, but retention, deletion, incident response, supervision, and books-and-records decisions remain firm obligations. <!-- Source: RISKS.md §1; ARCHITECTURE.md §5. -->
 
 ### 15. Can a firm delete intake data?
 

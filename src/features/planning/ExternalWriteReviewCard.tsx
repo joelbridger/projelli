@@ -7,6 +7,7 @@ import {
   type ProposedExternalWrite,
 } from '@/platform/state/externalWriteQueueStore';
 import { RIGHTCAPITAL_INCOME_FIXTURE } from '@/features/planning/externalWriteFixtures';
+import { BRAND } from '@/config/brand';
 
 export interface ExternalWriteReviewCardProps {
   matterId: string;
@@ -35,7 +36,7 @@ function approveLabel(items: ProposedExternalWrite[]): string {
 
 function statusText(item: ProposedExternalWrite): string | null {
   if (item.status === 'sent') return `Sent. Receipt ${item.receiptRef ?? item.remoteId ?? 'saved'}.`;
-  if (item.status === 'verify_pending') return 'Delivery unconfirmed. Lantern will check before retrying.';
+  if (item.status === 'verify_pending') return `Delivery unconfirmed. ${BRAND.name} will check before retrying.`;
   if (item.status === 'stale') return `Current in ${targetLabel(item)} changed. Review again before sending.`;
   if (item.status === 'failed') return item.error ?? 'Could not send.';
   return null;

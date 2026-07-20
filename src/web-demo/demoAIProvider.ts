@@ -35,6 +35,7 @@ import type { ChatAttachment } from '@/platform/types/ai';
 import { getDemoSessionToken, resetDemoSessionToken } from './demoSessionToken';
 import { EV_DEMO_LIMIT_HIT, EV_DEMO_MESSAGE_SENT } from '@/config/identity';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 const BYOK_STORAGE_KEY = 'byokKey';
 const DEMO_PROXY_PATH = '/api/demo-chat';
@@ -121,7 +122,7 @@ class DemoProxyProvider implements Provider {
 
   getMetadata(): ProviderMetadata {
     return {
-      name: brandText('Lantern Demo (shared key)'),
+      name: brandText(`${BRAND.name} Demo (shared key)`),
       providerId: 'lantern-demo-proxy',
       model: this.modelHint,
       capabilities: { streaming: false, vision: false, functionCalling: false },

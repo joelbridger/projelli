@@ -1,3 +1,4 @@
+import { BRAND } from '@/config/brand';
 /**
  * The dispatchable Wave 5 welcome-journey copy. This module deliberately holds
  * copy and data only: it can be sealed with an intake checklist and shared by
@@ -70,7 +71,7 @@ export const DEFAULT_WELCOME_JOURNEY: WelcomeJourney = {
   privacy: {
     heading: 'How this page protects your information',
     body: ['This page encrypts your answers and uploads on your device before they are sent.', 'Only [firm_name] can unlock what you send.', 'For sensitive items, this page shows a checkmark after you provide them. It does not show the answer or file again.', 'If you prefer not to enter something here, [help_contact_label].'],
-    footer: 'Powered by Lantern for [firm_name].',
+    footer: `Powered by ${BRAND.name} for [firm_name].`,
   },
   handoff: { heading: 'Your team has been updated.', body: '[new_team_member_full_name] can help with uploads, signatures, and scheduling.' },
   phone_walkthrough_label: '[support_first_name] helped complete this by phone.',

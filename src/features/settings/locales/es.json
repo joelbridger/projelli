@@ -119,8 +119,8 @@
     "license": {
       "title": "Licencia",
       "title__sourceHash": "c011d6097bfbc8e936280addcf2e3e7d06ea2223ffd596973191b800a7035c32",
-      "description": "Una licencia mantiene el chat de IA, los flujos de trabajo y todas las funciones de {{productName}} activas tras tu prueba. Las claves están disponibles en <pricingLink>lantern.com</pricingLink>.",
-      "description__sourceHash": "5cdede16d12ec5981d36069071f514adb12fadbc540e15f9ef25fe76e5c4126b",
+      "description": "Una licencia mantiene el chat de IA, los flujos de trabajo y todas las funciones de {{productName}} activas tras tu prueba. Las claves están disponibles en <pricingLink>{{licenseUrl}}</pricingLink>.",
+      "description__sourceHash": "a22e1807c60f410e15f3213b85e8a8f112926a8649e5e35a32cc182869943569",
       "deactivate-confirm": "¿Desactivar esta licencia? Perderás el acceso a las funciones de pago hasta que la reactives.",
       "deactivate-confirm__sourceHash": "2cff19c7259e4828cf7e844917462cea95640e0282d0f3deb804dafff9c80d89",
       "badge": {
@@ -169,8 +169,8 @@
       "days-left_one__sourceHash": "94138aa699e8ac7a7414bb60cbdff90e4fc87d16b8ddc025e01690428570230a",
       "days-left_other": "Quedan {{count}} días",
       "days-left_other__sourceHash": "878bdbf15dccac2e74e867662a5e79e7e888cc87c403b34c513aee8005c1436c",
-      "get-license-cta": "Consigue una licencia en lantern.com",
-      "get-license-cta__sourceHash": "3cd49792283e16e730cdac6d3efc1ad24488d5266392e6621443ba9ed357e833",
+      "get-license-cta": "Consigue una licencia en {{licenseUrl}}",
+      "get-license-cta__sourceHash": "8ff0d204d3ffee3037ded460a2463ae2db8ef222273eced98c1495ae5adaeb26",
       "already-have-key": "¿Ya tienes una clave de licencia?",
       "already-have-key__sourceHash": "b0be03f349873e8bf1511090c79a05688ea392e60f07faf3fc0400a814f90ee2",
       "recovery-heading": "¿Ya compraste {{productName}}?",
@@ -231,8 +231,8 @@
         "field-search-count__sourceHash": "2f0806633aaf65157a22e8f12dc01ccc5dcdf1a5e1c5342832a5775013647ac8",
         "field-install-id": "Tu ID de instalación anónima junto con la versión de la app y la plataforma.",
         "field-install-id__sourceHash": "437f4e1486e40b4e75703e30fd015d545bf24ac08f81b8c93745213186cf41c0",
-        "endpoint-note": "Endpoint: forms.lanternplatform.app/api/forms/lantern/design-partner-event. Se usa únicamente para mejorar el producto para la práctica legal.",
-        "endpoint-note__sourceHash": "a7fdc5293dc426747949dbd83d6f648f2bfc9d4d4e07d27edb613d9368502f58"
+        "endpoint-note": "Se envía mediante el servicio seguro de comentarios de {{productName}}. Se usa únicamente para mejorar el producto para tu firma.",
+        "endpoint-note__sourceHash": "6c9719d90e3eefd60e857171b7cc4bfaf8f60ee8fc60848795b26995f26905ac"
       },
       "telemetry": {
         "title": "Estadísticas de uso anónimas",
@@ -253,8 +253,8 @@
         "field-event__sourceHash": "bc1f75f1e8aca06d01bb82dfcc2fdd8763fa6bb049773ee3e3bc4567a8c5d6af",
         "field-license-tier": "<c>license_tier</c> (cuando corresponda): trial, personal, professional, firm.",
         "field-license-tier__sourceHash": "f7d152bd910804c89a34c457ce6be8502aa36e700605e229bf85904ae9dc2890",
-        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL almacenado en servidores de {{productName}}. Se usa únicamente para métricas de embudo y decisiones de hoja de ruta.",
-        "endpoint-note__sourceHash": "db930261bf43f001c34e4e42013d35c2e5151ba931b8d208f3a0368e29fba6e9",
+        "endpoint-note": "Se envía mediante el servicio seguro de analítica de {{productName}}. JSONL se almacena en servidores de {{productName}} y se usa únicamente para métricas de embudo y decisiones de hoja de ruta.",
+        "endpoint-note__sourceHash": "a1c42739eda61974f212a15486daa1b670f6477330690d7a2a72c81a2d207e13",
         "install-id-display": "Tu ID de instalación: <c>{{id}}</c>",
         "install-id-display__sourceHash": "52e2a9cf6161dc02a352627b94c8e6694d0a6aa311200f3f358a7fdf8b213a52"
       },

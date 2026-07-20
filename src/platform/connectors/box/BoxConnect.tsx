@@ -27,6 +27,7 @@ import { InfoHelp } from '@/ui/InfoHelp';
 import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 // Durable, append-only audit trail for connector activity, so every Box sync leaves a record.
 const boxAudit = new AuditService('connectors');
@@ -199,7 +200,7 @@ export function BoxConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
               Box
-              <InfoHelp content={brandText('Import supported documents from Box into encrypted local search. Lantern only reads Box files.')} />
+              <InfoHelp content={brandText(`Import supported documents from Box into encrypted local search. ${BRAND.name} only reads Box files.`)} />
             </h3>
           </div>
         </div>

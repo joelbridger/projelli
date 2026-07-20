@@ -1,4 +1,5 @@
 import { getDocument } from 'pdfjs-dist';
+import { BRAND } from '@/config/brand';
 
 export type InspectedPdfFieldType = 'text' | 'date' | 'checkbox' | 'number' | 'money' | 'radio' | 'select';
 
@@ -113,7 +114,7 @@ export async function inspectPdfTemplate(bytes: Uint8Array): Promise<PdfInspecti
     return { kind: fields.length > 0 ? 'acroform' : 'overlay', pageCount: pdf.numPages, fields };
   } catch (error) {
     if (error instanceof PdfImportError) throw error;
-    throw new PdfImportError('Lantern could not safely read this PDF. Please choose a different file.');
+    throw new PdfImportError(`${BRAND.name} could not safely read this PDF. Please choose a different file.`);
   } finally {
     await task?.destroy();
   }

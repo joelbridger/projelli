@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { NotebookPen, X } from 'lucide-react';
 import { EV_OPEN_ZOCKS } from '@/config/identity';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 interface ZocksSourceState {
   sourceId: string;
@@ -54,7 +55,7 @@ export function ZocksSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          {brandText('Lantern imported this citation from Zocks as read-only text. Full meeting detail is a fast-follow.')}
+          {brandText(`${BRAND.name} imported this citation from Zocks as read-only text. Full meeting detail is a fast-follow.`)}
         </p>
       </div>
     </div>

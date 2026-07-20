@@ -42,6 +42,7 @@ import {
 } from './workflowExtensionRegistry';
 import { saveWorkflowStepMetadata } from './workflowStepPersistence';
 import { WorkflowRecordStartSlot } from './authoring/WorkflowRecordStartSlot';
+import { BRAND } from '@/config/brand';
 
 export function Workflows({
   freshness,
@@ -61,9 +62,10 @@ export function Workflows({
       <section style={panelStyle}>
         <strong>No workflow records are connected to this view.</strong>
         <p style={mutedStyle}>
+          {`
           Open the live CRM workspace to create a workflow and review its
-          household updates. Lantern will not show made-up workflow counts here.
-        </p>
+          household updates. ${BRAND.name} will not show made-up workflow counts here.
+        `}</p>
         <Button
           variant="secondary"
           data-testid="crm-workflow-review"
@@ -519,10 +521,11 @@ export function LiveWorkflows({
                       >
                         <strong>Scheduled workflow</strong>
                         <p style={mutedStyle}>
+                          {`
                           When this time arrives, this app creates a workflow
                           for the selected households. It never sends anything
-                          outside Lantern.
-                        </p>
+                          outside ${BRAND.name}.
+                        `}</p>
                         <label>
                           <input
                             data-testid="crm-live-workflow-schedule-enabled"

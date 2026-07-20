@@ -13,6 +13,7 @@ import {
 } from '@/platform/connectors/microsoft/microsoftAuthError';
 import { brandText } from '@/config/brandText';
 import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
+import { BRAND } from '@/config/brand';
 
 export function MailConnect() {
   const { t } = useTranslation();
@@ -120,7 +121,7 @@ export function MailConnect() {
     <section className="rounded-lg border border-slate-200 bg-white p-4">
       <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
         Microsoft 365 email
-        <InfoHelp content={brandText('Bring your Outlook mail into Lantern so you can actually find it. Your mail is encrypted and stays on this machine. Requires the Lantern desktop app.')} />
+        <InfoHelp content={brandText(`Bring your Outlook mail into ${BRAND.name} so you can actually find it. Your mail is encrypted and stays on this machine. Requires the ${BRAND.name} desktop app.`)} />
       </h3>
       <IntegrationHonestyCard connectorId="email" />
       {fdeStatus === 'off' && (
@@ -132,7 +133,7 @@ export function MailConnect() {
       {!connected && (
         <div className="mt-3 space-y-3">
           <p className="text-xs text-slate-500">
-            {brandText('A browser window will open to sign in to Microsoft. Complete sign-in there and Lantern will connect automatically.')}
+            {brandText(`A browser window will open to sign in to Microsoft. Complete sign-in there and ${BRAND.name} will connect automatically.`)}
           </p>
 
           {connectError && (

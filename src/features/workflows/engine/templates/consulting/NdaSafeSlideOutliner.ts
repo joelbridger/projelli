@@ -3,6 +3,7 @@
 // Recommend one experienced consultant read-through before production.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -131,7 +132,7 @@ Every slide outline below is designed to convey the key messages without disclos
 
 ---
 
-After the Markdown outline above, output a JSON code block with the following exact format. This powers the one-click "Download structured deck" export in Lantern.
+After the Markdown outline above, output a JSON code block with the following exact format. This powers the one-click "Download structured deck" export in ${BRAND.name}.
 
 \`\`\`json
 [

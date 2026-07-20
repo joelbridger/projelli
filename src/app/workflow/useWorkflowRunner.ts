@@ -71,6 +71,7 @@ import type {
 } from '@/features/workflows/marketplace/svc';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 import { SK_FIRM_NAME } from '@/config/identity';
+import { BRAND } from '@/config/brand';
 
 export interface UseWorkflowRunnerOptions {
   rootPath: string | null;
@@ -481,7 +482,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
         console.log(
-          `Using embedded Lantern Local AI for workflow generation [source=${resolution.source}]`
+          `Using embedded ${BRAND.name} Local AI for workflow generation [source=${resolution.source}]`
         );
       } else if (providerResolution.kind === 'ollama') {
         // F-107 — Ollama branch. Reachability confirmed above; construct the

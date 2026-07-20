@@ -27,6 +27,7 @@
  */
 
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 /** The stable wire/license codes. Never rename these (backend + JWT depend on them). */
 export type PricingTierCode = 'personal' | 'professional' | 'practice';
@@ -211,22 +212,22 @@ export const COMPETITOR_CONTEXT = {
     {
       product: 'Jump / Zocks (AI meeting notes)',
       price: 'about $75 to $175/advisor/mo',
-      position: brandText('A different job (meeting capture and CRM sync); Lantern is the private layer for confidential drafting and analysis'),
+      position: brandText(`A different job (meeting capture and CRM sync); ${BRAND.name} is the private layer for confidential drafting and analysis`),
     },
     {
       product: 'eMoney / MoneyGuidePro AI (bundled)',
       price: 'bundled into the planning suite',
-      position: brandText('A planning-tool add-on that runs in the vendor cloud; Lantern keeps client data on your machine'),
+      position: brandText(`A planning-tool add-on that runs in the vendor cloud; ${BRAND.name} keeps client data on your machine`),
     },
     {
       product: 'ChatGPT (free / Plus)',
       price: '$0 to $20/mo',
-      position: brandText('Generic and cloud-only; with Lantern on a local model no client data leaves your machine'),
+      position: brandText(`Generic and cloud-only; with ${BRAND.name} on a local model no client data leaves your machine`),
     },
     {
       product: 'Microsoft 365 Copilot',
       price: '$21 to $30/mo add-on (needs base M365)',
-      position: brandText('Lantern Solo is at or above, with advisor-specific depth and no required base subscription'),
+      position: brandText(`${BRAND.name} Solo is at or above, with advisor-specific depth and no required base subscription`),
     },
   ],
 } as const;
@@ -237,7 +238,7 @@ export const COMPETITOR_CONTEXT = {
  */
 export const GRANDFATHER_POLICY = {
   blurb:
-    brandText('Bought the old one-time Personal, Professional, or Practice license? You keep exactly what you paid for, in good faith. Lantern 3.0 is a new, repositioned product at new pricing, and we never claw back what you already own.'),
+    brandText(`Bought the old one-time Personal, Professional, or Practice license? You keep exactly what you paid for, in good faith. ${BRAND.name} 3.0 is a new, repositioned product at new pricing, and we never claw back what you already own.`),
 } as const;
 
 /** Convenience: format a per-seat annual price like "$39/mo ($468/yr)". */

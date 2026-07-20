@@ -28,6 +28,7 @@ import {
   type ScopeUpdateKind,
 } from '@/platform/rag/scopeUpdateStore';
 import { ragScopeWriteQueueDepth } from '@/platform/utils/tauri-commands';
+import { BRAND } from '@/config/brand';
 
 function PendingScopeUpdateMessage({
   completed,
@@ -146,7 +147,7 @@ export function ScopeUpdateBanner() {
     >
       <span className="min-w-0 flex-1 font-medium" data-testid="scope-update-message">
         {anyFailed ? (
-          'Client search update needs attention. You can still open and read every client. Some search results are paused until Lantern retries this update.'
+          `Client search update needs attention. You can still open and read every client. Some search results are paused until ${BRAND.name} retries this update.`
         ) : (
           <PendingScopeUpdateMessage completed={completed} total={total} kinds={kinds} />
         )}

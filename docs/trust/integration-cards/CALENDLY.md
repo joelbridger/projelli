@@ -4,7 +4,7 @@ Last verified: 2026-07-10
 
 Status: Shipping
 
-This connector reads scheduled Calendly meetings and invitees into Lantern. It does not change Calendly.
+This connector reads scheduled Calendly meetings and invitees into Advisor Prep Hero. It does not change Calendly.
 
 ## What this connector reads
 

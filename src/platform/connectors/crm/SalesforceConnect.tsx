@@ -37,6 +37,7 @@ import { InfoHelp } from '@/ui/InfoHelp';
 import { brandText } from '@/config/brandText';
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 import { NetworkLockdownRetryButton } from '@/platform/privacy/ui/NetworkLockdownRetryButton';
+import { BRAND } from '@/config/brand';
 
 const PROVIDER = 'salesforce' as const;
 const SALESFORCE_KEY_PREFIX = 'sfdc:';
@@ -74,7 +75,7 @@ export function SalesforceConnect() {
       : nativeLockdown.pending
         ? 'Privacy protection is updating. Salesforce stays paused until it finishes.'
         : nativeLockdown.status === 'unknown'
-          ? 'Lantern could not confirm the desktop privacy guard. Salesforce stays paused until its state can be checked.'
+          ? `${BRAND.name} could not confirm the desktop privacy guard. Salesforce stays paused until its state can be checked.`
           : 'Nothing will be sent to or downloaded from Salesforce while this is on. Turn it off in Privacy settings to connect or sync.';
 
   const progress = useCrmStore((s) => s.progress);
@@ -169,7 +170,7 @@ export function SalesforceConnect() {
 
       const count = households.length;
       const confirmed = await confirm(
-        brandText(`Import ${String(count)} Salesforce household${count === 1 ? '' : 's'} into local encrypted storage on this device? Lantern imports only the households and contacts this Salesforce login can read.`),
+        brandText(`Import ${String(count)} Salesforce household${count === 1 ? '' : 's'} into local encrypted storage on this device? ${BRAND.name} imports only the households and contacts this Salesforce login can read.`),
         {
           title: `Import ${String(count)} Salesforce household${count === 1 ? '' : 's'}`,
           confirmLabel: 'Import',
@@ -341,7 +342,7 @@ export function SalesforceConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Salesforce FSC
-          <InfoHelp content={brandText('Connect Salesforce Financial Services Cloud to bring household and contact data into Client Maps. Requires the Lantern desktop app.')} />
+          <InfoHelp content={brandText(`Connect Salesforce Financial Services Cloud to bring household and contact data into Client Maps. Requires the ${BRAND.name} desktop app.`)} />
         </h3>
       </section>
     );

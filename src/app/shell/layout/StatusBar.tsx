@@ -27,6 +27,7 @@ import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode'
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 import { Badge } from '@/ui/kp';
 import { useSelectionPresentation } from '@/platform/client-context';
+import { BRAND } from '@/config/brand';
 
 /**
  * Extract project name from full path
@@ -402,7 +403,7 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
             <div
               data-testid="privileged-matter-badge-unconfirmed"
               className="flex items-center gap-1 max-w-[280px] rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-amber-950"
-              title="Lantern is checking the desktop privacy guard."
+              title={`${BRAND.name} is checking the desktop privacy guard.`}
             >
               <ShieldOff className="h-3 w-3 shrink-0" aria-hidden />
               <span className="truncate">Checking isolation</span>

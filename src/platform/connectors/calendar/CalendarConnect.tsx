@@ -38,6 +38,7 @@ import {
   useAutoJoinCalendarPrefs,
 } from './autoJoinSettings';
 import { brandText } from '@/config/brandText';
+import { BRAND } from '@/config/brand';
 
 // Durable, append-only audit trail for connector activity, so a calendar
 // sync (including one that indexed zero meetings or failed) always leaves a
@@ -234,7 +235,7 @@ export function CalendarConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Calendar
-          <InfoHelp content={brandText('Requires the Lantern desktop app.')} />
+          <InfoHelp content={brandText(`Requires the ${BRAND.name} desktop app.`)} />
         </h3>
       </section>
     );
@@ -256,7 +257,7 @@ export function CalendarConnect() {
       >
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Calendar
-          <InfoHelp content={brandText('Connect your calendar so Lantern can match today’s meetings to the right client and prep you before each one. It reads meetings only, never writes to your calendar.')} />
+          <InfoHelp content={brandText(`Connect your calendar so ${BRAND.name} can match today’s meetings to the right client and prep you before each one. It reads meetings only, never writes to your calendar.`)} />
         </h3>
 
         {!anyConnected && (
@@ -345,7 +346,7 @@ export function CalendarConnect() {
             </div>
 
             <p className="mt-3 text-xs text-slate-500">
-              {brandText('Read-only. Lantern only reads your calendar to match meetings to clients. It never creates, edits, moves, or deletes events.')}
+              {brandText(`Read-only. ${BRAND.name} only reads your calendar to match meetings to clients. It never creates, edits, moves, or deletes events.`)}
             </p>
           </>
         )}
@@ -363,7 +364,7 @@ export function CalendarConnect() {
               Read-only · past 7 days + next 14
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              {brandText('Briefings prepare in the background while Lantern is open. Lantern does not run when closed.')}
+              {brandText(`Briefings prepare in the background while ${BRAND.name} is open. ${BRAND.name} does not run when closed.`)}
             </p>
             <div className="space-y-2 rounded-md border border-slate-200 bg-white px-3 py-2">
               {connectedIds.map((id) => (

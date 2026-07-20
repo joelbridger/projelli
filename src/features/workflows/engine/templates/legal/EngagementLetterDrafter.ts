@@ -2,6 +2,7 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -50,7 +51,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Describe how AI tools are used in your practice for this type of work. This goes into the required AI disclosure section. Be specific enough to satisfy ABA Opinion 512.',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., The firm uses Lantern, a local-first AI writing tool, to help draft documents and research memos. All AI-generated content is reviewed and edited by the responsible attorney before use. Client files are processed locally on the attorney\'s computer and are not transmitted to or stored by any third-party AI provider.',
+    placeholder: `e.g., The firm uses ${BRAND.name}, a local-first AI writing tool, to help draft documents and research memos. All AI-generated content is reviewed and edited by the responsible attorney before use. Client files are processed locally on the attorney's computer and are not transmitted to or stored by any third-party AI provider.`,
   },
   {
     id: 'additionalTerms',
@@ -148,7 +149,7 @@ In keeping with ABA Formal Opinion 512 (2024) and our duties of competence (Rule
 
 **What AI tools do in this engagement:** AI tools assist the responsible attorney by drafting initial versions of documents, organizing research, and identifying issues for attorney review. All AI-generated content is reviewed, edited, and approved by the responsible attorney before it is sent to you or filed on your behalf. AI tools do not make legal decisions.
 
-**How your information is handled:** [Firm] uses Lantern, a local-first AI writing tool. Your client information and client work details are processed locally on our firm's computers and are not transmitted to or stored by third-party AI service providers as part of our use of Lantern. [If you use additional AI tools with cloud processing, describe that here and identify what data is sent and to whom.]
+**How your information is handled:** [Firm] uses ${BRAND.name}, a local-first AI writing tool. Your client information and client work details are processed locally on our firm's computers and are not transmitted to or stored by third-party AI service providers as part of our use of ${BRAND.name}. [If you use additional AI tools with cloud processing, describe that here and identify what data is sent and to whom.]
 
 **Your right to opt out:** You have the right to object to the use of AI tools in your representation. If you prefer that we not use AI tools, please tell us before signing this letter and we will discuss how to proceed.
 
@@ -180,7 +181,7 @@ Print name: {{clientName}}
 
 ---
 
-*This engagement letter was drafted by Lantern AI and requires attorney review before sending. The AI disclosure clause is a model — confirm it meets your jurisdiction's specific consent requirements.*`;
+*This engagement letter was drafted by ${BRAND.messaging.redlineAuthor} and requires attorney review before sending. The AI disclosure clause is a model — confirm it meets your jurisdiction's specific consent requirements.*`;
 
 export const EngagementLetterDrafter: WorkflowTemplate = {
   id: 'engagement-letter-drafter',

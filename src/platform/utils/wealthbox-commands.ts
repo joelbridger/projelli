@@ -9,6 +9,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { CrmMatterMapEntry } from '@/platform/rag/matterResolver';
 import { getEgressOperation } from '@/platform/privacy/egressRegistry';
 import { getNetworkPolicyStatus } from '@/platform/privacy/offlineMode';
+import { BRAND } from '@/config/brand';
 
 export type CrmProvider = 'wealthbox' | 'salesforce' | 'redtail';
 
@@ -72,7 +73,7 @@ async function invokeCrmNetwork<T>(
   } catch {
     throw new CrmNetworkLockdownError(
       operation.title,
-      `Lantern could not confirm the desktop privacy guard. ${operation.title} stays paused until its state can be checked.`,
+      `${BRAND.name} could not confirm the desktop privacy guard. ${operation.title} stays paused until its state can be checked.`,
     );
   }
   if (status.offlineMode) {

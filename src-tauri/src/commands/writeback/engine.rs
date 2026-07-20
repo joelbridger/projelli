@@ -20,7 +20,7 @@ pub enum ExternalWriteError {
     InvalidInput(&'static str),
     #[error("could not record this write before sending it - try again")]
     LedgerUnavailable,
-    #[error("Delivery unconfirmed. Lantern will check before retrying.")]
+    #[error("Delivery unconfirmed. The app will check before retrying.")]
     VerifyPending,
     #[error("this exact write is already being sent - wait a moment before retrying")]
     InProgress,

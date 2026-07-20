@@ -2,6 +2,7 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -174,7 +175,7 @@ Every figure in this affidavit must be verified against the source documents lis
 
 ---
 
-*This financial affidavit was organized by Lantern AI. Do not certify or file this document until all figures have been independently verified against source documents.*`;
+*This financial affidavit was organized by ${BRAND.messaging.redlineAuthor}. Do not certify or file this document until all figures have been independently verified against source documents.*`;
 
 export const FinancialAffidavitOrganizer: WorkflowTemplate = {
   id: 'financial-affidavit-organizer',
