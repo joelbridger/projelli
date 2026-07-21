@@ -628,11 +628,7 @@ mod tests {
         let docx_bytes = lantern_docx::serialize_docx_bytes(&doc).unwrap();
         std::fs::write(dir.join("notes.docx"), docx_bytes).unwrap();
 
-        // `redact_segments_inner` is deliberately called with the canonical
-        // meeting path produced by `resolve_meeting_dir` in production. Keep
-        // this fixture in that same form: Windows canonical paths carry the
-        // `\\?\` prefix, while the raw tempfile spelling does not.
-        MeetingPaths { dir: dir.canonicalize().unwrap() }
+        MeetingPaths { dir }
     }
 
     fn contains_bytes_test_helper(haystack: &[u8], needle: &[u8]) -> bool {
@@ -691,7 +687,7 @@ mod tests {
         assert!(!dir.join("notes.docx").exists());
 
         let canon_ws = ws.path().canonicalize().unwrap();
-        let receipt = redact_segments_inner(&canon_ws, &dir.canonicalize().unwrap(), &[0], 1_777_000_000_000)
+        let receipt = redact_segments_inner(&canon_ws, &dir, &[0], 1_777_000_000_000)
             .expect("redacting a transcript-only meeting (no notes.docx) must succeed");
         assert_eq!(receipt.redacted_count, 1);
 
@@ -987,7 +983,7 @@ mod tests {
         let canon_ws = ws.path().canonicalize().unwrap();
         // Select index 0 (short) BEFORE index 1 (long) — the ordering that
         // would trigger the bug if needles weren't sorted longest-first.
-        let receipt = redact_segments_inner(&canon_ws, &dir.canonicalize().unwrap(), &[0, 1], 1_777_000_000_000).unwrap();
+        let receipt = redact_segments_inner(&canon_ws, &dir, &[0, 1], 1_777_000_000_000).unwrap();
         assert_eq!(receipt.redacted_count, 2);
 
         let docx_bytes = std::fs::read(dir.join("notes.docx")).unwrap();
@@ -1035,7 +1031,7 @@ mod tests {
         std::fs::write(dir.join("notes.docx"), lantern_docx::serialize_docx_bytes(&doc).unwrap()).unwrap();
 
         let canon_ws = ws.path().canonicalize().unwrap();
-        let receipt = redact_segments_inner(&canon_ws, &dir.canonicalize().unwrap(), &[0, 1], 1_777_000_000_000).unwrap();
+        let receipt = redact_segments_inner(&canon_ws, &dir, &[0, 1], 1_777_000_000_000).unwrap();
         assert_eq!(receipt.redacted_count, 2);
 
         let docx_bytes = std::fs::read(dir.join("notes.docx")).unwrap();
@@ -1076,7 +1072,7 @@ mod tests {
 
         let canon_ws = ws.path().canonicalize().unwrap();
         // Must not panic, and must actually redact both occurrences.
-        let receipt = redact_segments_inner(&canon_ws, &dir.canonicalize().unwrap(), &[0], 1_777_000_000_000).unwrap();
+        let receipt = redact_segments_inner(&canon_ws, &dir, &[0], 1_777_000_000_000).unwrap();
         assert_eq!(receipt.redacted_count, 1);
         let docx_bytes = std::fs::read(dir.join("notes.docx")).unwrap();
         assert!(!needle_survives_in_docx_package(&docx_bytes, needle));

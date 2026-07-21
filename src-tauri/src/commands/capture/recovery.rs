@@ -276,9 +276,8 @@ mod tests {
         let orphans = find_orphans(ws.path()).unwrap();
         assert_eq!(orphans.len(), 1);
         let reported = std::path::PathBuf::from(&orphans[0].meeting_dir);
-        let display_workspace = std::path::PathBuf::from(display_path(&ws.path().canonicalize().unwrap()));
         assert!(
-            reported.starts_with(&display_workspace),
+            reported.starts_with(ws.path().canonicalize().unwrap()),
             "expected the scanned path under the current workspace, got: {reported:?}"
         );
         assert_eq!(reported.file_name().unwrap(), "2026-07-01-mmoved");
