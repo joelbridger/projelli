@@ -347,8 +347,109 @@ var STATUS_ADAPTER={
   'Proven on Windows':{slug:'proven-windows',glyph:'✓'}
 };
 var STATUS_LABELS=Object.keys(STATUS_ADAPTER);
-var TOP_LEVEL_FIELDS=['updated','version','flywheel','stages','foundation','nonV1Features','legacyHistory','generated_at','input_hash','statusLabels','requirementUniverse'];
+var TOP_LEVEL_FIELDS=['version','updated','flywheel','stages','foundation','nonV1Features','legacyHistory','generated_at','input_hash','statusLabels','requirementUniverse','payload_sha256'];
 var REQUIREMENT_COUNTS={WB:151,JP:63,SC:24,v1:238,outside_v1:21};
+var JSON_SAFE_INTEGER_MIN=-9007199254740991, JSON_SAFE_INTEGER_MAX=9007199254740991;
+function scalarCodePoints(value){
+  var points=[];
+  for(var index=0;index<value.length;){
+    var first=value.charCodeAt(index++);
+    if(first>=0xd800&&first<=0xdbff){
+      if(index>=value.length) throw new Error('JSON string has an unpaired surrogate');
+      var second=value.charCodeAt(index++);
+      if(second<0xdc00||second>0xdfff) throw new Error('JSON string has an unpaired surrogate');
+      points.push(0x10000+((first-0xd800)<<10)+second-0xdc00);
+    }else{
+      if(first>=0xdc00&&first<=0xdfff) throw new Error('JSON string has an unpaired surrogate');
+      points.push(first);
+    }
+  }
+  return points;
+}
+function compareUnicodeScalars(left,right){
+  var a=scalarCodePoints(left), b=scalarCodePoints(right);
+  for(var index=0;index<Math.min(a.length,b.length);index++) if(a[index]!==b[index]) return a[index]-b[index];
+  return a.length-b.length;
+}
+function parseStrictJson(rawText){
+  if(typeof rawText!=='string') throw new Error('JSON input must be raw text');
+  var offset=0;
+  function skipWhitespace(){ while(offset<rawText.length&&/[ \t\n\r]/.test(rawText[offset])) offset++; }
+  function parseString(){
+    var start=offset;
+    if(rawText[offset++]!=='"') throw new Error('expected JSON string');
+    var escaped=false;
+    while(offset<rawText.length){
+      var code=rawText.charCodeAt(offset), character=rawText[offset++];
+      if(!escaped&&character==='"'){
+        var token=rawText.slice(start,offset), value;
+        try{value=JSON.parse(token);}catch(e){throw new Error('invalid JSON string');}
+        scalarCodePoints(value); return value;
+      }
+      if(!escaped&&code<0x20) throw new Error('JSON string has an unescaped control character');
+      if(!escaped&&character==='\\') escaped=true; else escaped=false;
+    }
+    throw new Error('unterminated JSON string');
+  }
+  function parseNumber(){
+    var match=/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/.exec(rawText.slice(offset));
+    if(!match) throw new Error('invalid JSON number');
+    var token=match[0]; offset+=token.length;
+    if(token==='-0') throw new Error('negative zero is not allowed');
+    if(/[.eE]/.test(token)) throw new Error('floats and exponent numbers are not allowed');
+    var exact=BigInt(token);
+    if(exact<BigInt(JSON_SAFE_INTEGER_MIN)||exact>BigInt(JSON_SAFE_INTEGER_MAX)) throw new Error('integer is outside the JSON-safe range');
+    return Number(exact);
+  }
+  function parseValue(){
+    skipWhitespace(); var character=rawText[offset];
+    if(character==='"') return parseString();
+    if(character==='['){
+      offset++; var array=[]; skipWhitespace(); if(rawText[offset]===']'){offset++;return array;}
+      while(true){ array.push(parseValue()); skipWhitespace(); if(rawText[offset]===']'){offset++;return array;} if(rawText[offset++]!==',') throw new Error('expected comma in JSON array'); }
+    }
+    if(character==='{'){
+      offset++; var object=Object.create(null), keys=new Set(); skipWhitespace(); if(rawText[offset]==='}'){offset++;return object;}
+      while(true){
+        skipWhitespace(); var key=parseString(); if(keys.has(key)) throw new Error('duplicate JSON object key: '+key); keys.add(key);
+        skipWhitespace(); if(rawText[offset++]!==':') throw new Error('expected colon in JSON object'); object[key]=parseValue(); skipWhitespace();
+        if(rawText[offset]==='}'){offset++;return object;} if(rawText[offset++]!==',') throw new Error('expected comma in JSON object');
+      }
+    }
+    if(rawText.startsWith('true',offset)){offset+=4;return true;}
+    if(rawText.startsWith('false',offset)){offset+=5;return false;}
+    if(rawText.startsWith('null',offset)){offset+=4;return null;}
+    if(character==='-'||(character>='0'&&character<='9')) return parseNumber();
+    throw new Error('invalid JSON value');
+  }
+  var value=parseValue(); skipWhitespace(); if(offset!==rawText.length) throw new Error('unexpected bytes after JSON value'); return value;
+}
+function canonicalValue(value,topLevel){
+  if(value===null) return 'null';
+  if(typeof value==='string'){scalarCodePoints(value);return JSON.stringify(value);}
+  if(typeof value==='boolean') return value?'true':'false';
+  if(typeof value==='number'){if(!Number.isSafeInteger(value)||Object.is(value,-0)) throw new Error('numbers must be JSON-safe integers');return String(value);}
+  if(Array.isArray(value)) return '['+value.map(function(item){return canonicalValue(item,false);}).join(',')+']';
+  if(typeof value==='object'){
+    var prototype=Object.getPrototypeOf(value); if(prototype!==null&&prototype!==Object.prototype) throw new Error('value contains a non-JSON object');
+    var keys=Object.keys(value).filter(function(key){return !topLevel||key!=='payload_sha256';}); keys.sort(compareUnicodeScalars);
+    return '{'+keys.map(function(key){return canonicalValue(key,false)+':'+canonicalValue(value[key],false);}).join(',')+'}';
+  }
+  throw new Error('value is outside the shared JSON contract');
+}
+function canonicalizePayload(payload){if(!payload||typeof payload!=='object'||Array.isArray(payload)) throw new Error('feature-map payload must be an object');return canonicalValue(payload,true);}
+function sha256Hex(utf8Text){
+  if(!globalThis.crypto||!globalThis.crypto.subtle) return Promise.reject(new Error('WebCrypto is unavailable'));
+  return globalThis.crypto.subtle.digest('SHA-256',new TextEncoder().encode(utf8Text)).then(function(digest){return Array.prototype.map.call(new Uint8Array(digest),function(byte){return byte.toString(16).padStart(2,'0');}).join('');});
+}
+function verifyFeatureMapPayload(rawText){
+  var payload=parseStrictJson(rawText);
+  if(!payload||typeof payload!=='object'||Array.isArray(payload)) throw new Error('feature-map data must be an object');
+  var actual=Object.keys(payload).sort(compareUnicodeScalars), expected=TOP_LEVEL_FIELDS.slice().sort(compareUnicodeScalars);
+  if(actual.length!==expected.length||actual.some(function(field,index){return field!==expected[index];})) throw new Error('feature-map data fields differ from the exact contract');
+  if(typeof payload.payload_sha256!=='string'||!/^[0-9a-f]{64}$/.test(payload.payload_sha256)) throw new Error('feature-map payload_sha256 is malformed');
+  return sha256Hex(canonicalizePayload(payload)).then(function(computed){if(computed!==payload.payload_sha256) throw new Error('feature-map payload digest differs');return payload;});
+}
 function statusAdapter(label){ return STATUS_ADAPTER[label]||null; }
 function visibleFeatures(data){
   var out=[];
@@ -451,7 +552,7 @@ function countFeatures(features){
   features.forEach(function(feature){ counts[statusAdapter(feature.status).slug]++; });
   return counts;
 }
-window.FeatureMapRenderer={version:'four-label-v1',statusAdapter:statusAdapter,validateMapData:validateMapData,countFeatures:countFeatures};
+window.FeatureMapRenderer={version:'four-label-v1',statusAdapter:statusAdapter,validateMapData:validateMapData,countFeatures:countFeatures,parseStrictJson:parseStrictJson,canonicalizePayload:canonicalizePayload,sha256Hex:sha256Hex,verifyFeatureMapPayload:verifyFeatureMapPayload};
 /* renderer-contract:end */
 var GLYPH={planned:'○','being-built':'◐','built-checking':'◒','proven-windows':'✓'};
 var LABEL={planned:'Planned','being-built':'Being built','built-checking':'Built — checking it','proven-windows':'Proven on Windows'};
@@ -723,7 +824,7 @@ STYLES.forEach(function(S){
 });
 applyBodyState();
 
-fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('status '+r.status);return r.json();}).then(function(d){
+fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('status '+r.status);return r.text();}).then(verifyFeatureMapPayload).then(function(d){
   var verdict=validateMapData(d);
   if(!verdict.ok) throw new Error(verdict.error);
   MAPDATA=d;

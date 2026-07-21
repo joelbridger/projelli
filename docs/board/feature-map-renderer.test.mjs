@@ -2,13 +2,19 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { webcrypto } from 'node:crypto';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const source = fs.readFileSync(path.join(here, 'feature-map.html'), 'utf8');
-const controlPath = '/home/jameson/lantern/coordination/control/generated/feature-map-data.json';
+const controlPath = '/home/jameson/lantern/coordination/.worktrees/control/view-publication-c41/control/generated/feature-map-data.json';
 const accepted = JSON.parse(fs.readFileSync(controlPath, 'utf8'));
+const acceptedRaw = fs.readFileSync(controlPath, 'utf8');
+const vectorsPath = '/home/jameson/lantern/coordination/.worktrees/control/view-publication-c41/control/fixtures/payload-sha256-vectors.json';
+const referencePath = '/home/jameson/lantern/coordination/.worktrees/control/view-publication-c41/coordinator/tools/verify-feature-map-payload.mjs';
+const vectors = JSON.parse(fs.readFileSync(vectorsPath, 'utf8'));
+const reference = await import(`${pathToFileURL(referencePath).href}?renderer-test=${Date.now()}`);
 const page = source.replace(/<script>\/\* panzoom[\s\S]*?<\/script>/, `<script>
 window.panzoom=function(){var transform={x:0,y:0,scale:1};return {getTransform:function(){return transform;},zoomAbs:function(x,y,scale){transform.scale=scale;},moveTo:function(x,y){transform.x=x;transform.y=y;},on:function(){}};};
 </script>`);
@@ -18,23 +24,27 @@ spec=importlib.util.spec_from_file_location('publisher',${JSON.stringify(publish
 module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
 module.parse_marker(sys.stdin.buffer.read())`;
 
-async function render(data, comments = []) {
+async function render(raw = acceptedRaw, comments = [], options = {}) {
   const requests = [];
   const dom = new JSDOM(page, {
     runScripts: 'dangerously', pretendToBeVisual: true, url: 'https://lantern.test/feature-map.html',
     beforeParse(window) {
-      window.fetch = async (url, options = {}) => {
-        requests.push({ url: String(url), options });
-        if (String(url) === 'feature-map-data.json') return { ok: true, json: async () => data };
-        if (String(url) === '/api/feature-map/comments' && (!options.method || options.method === 'GET')) return { ok: true, json: async () => comments };
-        if (String(url) === '/api/feature-map/comments' && options.method === 'POST') return { ok: true, json: async () => ({ id: 'new-comment', x: 12, y: 18, text: 'Saved note', author: 'Tester', ts: '2026-07-21T00:00:00Z' }) };
+      window.fetch = async (url, fetchOptions = {}) => {
+        requests.push({ url: String(url), options: fetchOptions });
+        if (String(url) === 'feature-map-data.json') {
+          if (options.networkError) throw new Error('network unavailable');
+          return { ok: options.ok !== false, text: async () => raw };
+        }
+        if (String(url) === '/api/feature-map/comments' && (!fetchOptions.method || fetchOptions.method === 'GET')) return { ok: true, json: async () => comments };
+        if (String(url) === '/api/feature-map/comments' && fetchOptions.method === 'POST') return { ok: true, json: async () => ({ id: 'new-comment', x: 12, y: 18, text: 'Saved note', author: 'Tester', ts: '2026-07-21T00:00:00Z' }) };
         return { ok: true, json: async () => ({}) };
       };
       window.confirm = () => true;
       window.alert = () => {};
+      Object.defineProperty(window, 'crypto', { configurable: true, value: options.crypto === undefined ? webcrypto : options.crypto });
     },
   });
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 20));
   return { dom, document: dom.window.document, requests };
 }
 
@@ -43,9 +53,17 @@ function visibleFrom(data) { return data.stages.flatMap((stage) => stage.groups.
 function publisherAccepts(bytes) {
   return spawnSync('python3', ['-c', parserProgram], { input: bytes, encoding: 'utf8' }).status === 0;
 }
+function raw(value) { return JSON.stringify(value); }
+function renderCounts(document) {
+  return [document.querySelectorAll('li.feat').length, document.querySelectorAll('.foundation li').length, document.querySelectorAll('#nonv1').length];
+}
+function assertRejected(result, message) {
+  assert.deepEqual(renderCounts(result.document), [0, 0, 0], `${message}: no journey, foundation, or outside-V1 cards render`);
+  assert.equal(result.document.querySelectorAll('.error').length, 1, `${message}: one visible error renders`);
+}
 
 assert.ok(publisherAccepts(source), 'the exact renderer document is accepted by the reviewed publisher');
-for (const mutate of [
+for (const [i, mutate] of [
   (html) => `<!--leading-->${html}`,
   (html) => html.replace('<!DOCTYPE html>', '<!DOCTYPE html><?before-html?>'),
   (html) => html.replace('<!DOCTYPE html>', '<!DOCTYPE html><![CDATA[bad]]>'),
@@ -53,19 +71,40 @@ for (const mutate of [
   (html) => html.replace('<!DOCTYPE html>', '<!DOCTYPE html>&nbsp;'),
   (html) => html.replace('<!DOCTYPE html>', '<!DOCTYPE html foo>'),
   (html) => html.replace('<!DOCTYPE html>', '<!DOCTYPE html><!DOCTYPE html>'),
+  (html) => html.replace('<html lang="en">', '<html lang="en"><!--outside-head-->'),
+  (html) => html.replace('</head>', '</head><!--outside-body-->'),
+  (html) => html.replace('</head>', '</head><?outside-body?>'),
+  (html) => html.replace('</body>', '</body><!--after-body-->'),
+  (html) => html.replace('<html lang="en">', '<html lang="en"><?outside-head?>'),
+  (html) => html.replace('</body>', '</body><?after-body?>'),
+  (html) => html.replace('<html lang="en">', '<html lang="en"><![CDATA[outside-head]]>'),
+  (html) => html.replace('</head>', '</head><![CDATA[outside-body]]>'),
+  (html) => html.replace('</body>', '</body><![CDATA[after-body]]>'),
   (html) => html.replace('name="feature-map-renderer-version" content="four-label-v1"', 'name="feature-map-renderer-version" name="feature-map-renderer-version" content="four-label-v1"'),
   (html) => html.replace('name="feature-map-renderer-version" content="four-label-v1"', 'name="feature-map-renderer-version" content="four-label-v1" content="changed"'),
   (html) => html.replace('</head>', '<meta name="feature-map-renderer-version" content="four-label-v1"></head>'),
   (html) => `${html}</html>outside-body-text`,
   (html) => `${html}<trailing-fragment>`,
-]) assert.equal(publisherAccepts(mutate(source)), false, 'unsafe renderer document shape is rejected');
+].entries()) assert.equal(publisherAccepts(mutate(source)), false, 'unsafe renderer document shape is rejected at probe '+i);
 
 const validControlData = clone(accepted);
-const rendered = await render(validControlData, [{ id: 'kept-comment', x: 5, y: 8, text: 'Keep this comment', author: 'Reviewer', ts: '2026-07-21T00:00:00Z' }]);
+const rendered = await render(acceptedRaw, [{ id: 'kept-comment', x: 5, y: 8, text: 'Keep this comment', author: 'Reviewer', ts: '2026-07-21T00:00:00Z' }]);
 const { document, dom, requests } = rendered;
 const renderer = dom.window.FeatureMapRenderer;
 
 assert.equal(renderer.version, 'four-label-v1');
+for (const vector of vectors.vectors) {
+  assert.equal(renderer.canonicalizePayload(renderer.parseStrictJson(JSON.stringify(vector.value))), vector.canonical, `${vector.name}: inline canonical form matches the shared vector`);
+  assert.equal(await renderer.sha256Hex(vector.canonical), vector.sha256, `${vector.name}: inline digest matches the shared vector`);
+  assert.equal(reference.canonicalizePayload(vector.value), vector.canonical, `${vector.name}: reference canonical form matches the shared vector`);
+  assert.equal(await reference.sha256Hex(vector.canonical), vector.sha256, `${vector.name}: reference digest matches the shared vector`);
+}
+for (const vector of vectors.invalid_numeric_vectors) {
+  assert.throws(() => renderer.parseStrictJson(vector.raw), undefined, `${vector.name}: inline parser rejects unsafe number spelling`);
+  assert.throws(() => reference.parseStrictJson(vector.raw), undefined, `${vector.name}: reference parser rejects unsafe number spelling`);
+}
+assert.equal(renderer.canonicalizePayload(renderer.parseStrictJson('{"2":"two","10":"ten","01":"leading"}')), '{"01":"leading","10":"ten","2":"two"}', 'numeric-looking keys use scalar order, not JavaScript property order');
+assert.throws(() => renderer.parseStrictJson('{"nested":{"id":1,"id":2}}'), /duplicate JSON object key/, 'duplicate keys are rejected before JSON.parse could erase them');
 const acceptedVerdict = renderer.validateMapData(validControlData);
 assert.equal(acceptedVerdict.ok, true, acceptedVerdict.error || 'the accepted control contract is valid');
 assert.equal(document.querySelectorAll('.stagecard').length, 7, 'all journey stories render');
@@ -117,10 +156,12 @@ assert.ok(document.querySelectorAll('.cnote').length >= 2, 'saved comment stays 
 
 const fourLabels = clone(validControlData);
 visibleFrom(fourLabels).slice(0, 4).forEach((feature, index) => { feature.status = ['Planned', 'Being built', 'Built — checking it', 'Proven on Windows'][index]; });
-const fourLabelRender = await render(fourLabels);
+fourLabels.payload_sha256 = await reference.sha256Hex(reference.canonicalizePayload(fourLabels));
+assert.equal(await renderer.sha256Hex(renderer.canonicalizePayload(renderer.parseStrictJson(raw(fourLabels)))), fourLabels.payload_sha256, 'the inline verifier agrees with the reference digest for the four-label fixture');
+const fourLabelRender = await render(raw(fourLabels));
 assert.deepEqual([...fourLabelRender.document.querySelectorAll('#counts .count')].map((chip) => chip.textContent.trim()), [
   '○ 75 Planned', '◐ 1 Being built', '◒ 1 Built — checking it', '✓ 1 Proven on Windows',
-], 'all and only the four public labels render as count chips');
+], 'all and only the four public labels render as count chips: '+(fourLabelRender.document.querySelector('.error')?.textContent||'no error'));
 
 for (const mutate of [
   (data) => { delete data.input_hash; },
@@ -143,9 +184,31 @@ for (const mutate of [
   assert.equal(renderer.validateMapData(invalid).ok, false, 'missing, malformed, duplicate, mismatched, or invented control data fails closed');
 }
 const rejected = clone(validControlData); delete rejected.requirementUniverse;
-const failedRender = await render(rejected);
-assert.equal(failedRender.document.querySelectorAll('.stagecard').length, 0, 'missing requirement universe prevents map rendering');
-assert.match(failedRender.document.querySelector('.error').textContent, /top-level control fields/, 'missing contract data has a clear error');
+const failedRender = await render(raw(rejected));
+assertRejected(failedRender, 'missing requirement universe');
+assert.match(failedRender.document.querySelector('.error').textContent, /fields differ from the exact contract/, 'missing contract data has a clear error');
+
+for (const mutate of [
+  (data) => { data.updated = 'changed'; },
+  (data) => { data.stages[0].groups[0].features[0].name = 'changed'; },
+  (data) => { data.foundation.features[0].name = 'changed'; },
+  (data) => { data.nonV1Features[0].name = 'changed'; },
+  (data) => { data.requirementUniverse.v1[0].label = 'Being built'; },
+  (data) => { data.stages.reverse(); },
+]) {
+  const changed = clone(validControlData); mutate(changed);
+  assertRejected(await render(raw(changed)), 'digest mismatch after nested payload mutation');
+}
+for (const [name, body, options] of [
+  ['duplicate key', acceptedRaw.replace('"updated":', '"updated":"duplicate","updated":'), {}],
+  ['missing digest', raw(Object.fromEntries(Object.entries(validControlData).filter(([key]) => key !== 'payload_sha256'))), {}],
+  ['bad digest', raw({ ...validControlData, payload_sha256: '0'.repeat(64) }), {}],
+  ['extra field', raw({ ...validControlData, invented: true }), {}],
+  ['malformed JSON', '{', {}],
+  ['unsafe float', acceptedRaw.replace('"version": 6', '"version": 6.0'), {}],
+  ['network error', acceptedRaw, { networkError: true }],
+  ['WebCrypto failure', acceptedRaw, { crypto: { subtle: { digest: async () => { throw new Error('digest unavailable'); } } } }],
+]) assertRejected(await render(body, [], options), name);
 
 assert.deepEqual({ ...renderer.countFeatures(visibleFrom(validControlData)) }, { planned: 78, 'being-built': 0, 'built-checking': 0, 'proven-windows': 0 });
 console.log('feature-map renderer DOM tests passed: 69 journey cards, 9 foundation cards, 238 V1 requirements, and 21 outside-V1 requirements');
