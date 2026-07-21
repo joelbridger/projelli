@@ -1,4 +1,5 @@
 import type { HouseholdDirectoryEntry } from '@/features/crm-clients';
+import { csvCell, csvDocument } from '@/platform/export/csvSafe';
 
 export const BULK_EXPORT_COLUMNS = [
   'Household ID',
@@ -13,16 +14,17 @@ export interface BulkExportOptions {
   readonly includeHeader: boolean;
 }
 
-function spreadsheetSafe(value: string): string {
-  let index = 0;
-  while (value.charCodeAt(index) <= 0x20) index += 1;
-  return /^[=+\-@]/.test(value.slice(index)) ? `'${value}` : value;
-}
-
-function quoteCsvCell(value: string | number): string {
-  const safe = spreadsheetSafe(String(value));
-  return `"${safe.replaceAll('"', '""')}"`;
-}
+/*
+ * This file used to carry its own `spreadsheetSafe` + `quoteCsvCell` pair.
+ * They were correct AND they were a second, independently-maintained opinion
+ * about which leading characters Excel treats as a formula — the audit
+ * exporter's copy guarded TAB and CR, this one did not. Two copies of a guard
+ * are two chances to drift. Both now call `@/platform/export/csvSafe`.
+ *
+ * `alwaysQuote` preserves this exporter's every-field-quoted output so the
+ * file diffs stay stable for firms that track exports in version control.
+ */
+const QUOTED = { alwaysQuote: true } as const;
 
 /**
  * Creates a stable RFC 4180-compatible CSV from already-authorized directory
@@ -43,9 +45,9 @@ export function createHouseholdCsv(
       household.primaryAdvisor,
       household.serviceTier,
       household.peopleCount,
-    ].map(quoteCsvCell).join(','));
+    ].map((value) => csvCell(value, QUOTED)));
   const header = options.includeHeader
-    ? [BULK_EXPORT_COLUMNS.map(quoteCsvCell).join(',')]
+    ? [BULK_EXPORT_COLUMNS.map((value) => csvCell(value, QUOTED))]
     : [];
-  return [...header, ...rows].join('\r\n');
+  return csvDocument([...header, ...rows]);
 }

@@ -13,6 +13,8 @@
 import mammoth from 'mammoth';
 import { renderAsync } from 'docx-preview';
 import JSZip from 'jszip';
+import { assertArchiveWithinBudget, readGuardedZip } from '@/platform/archive/safeZip';
+import { safeUrlAttribute } from '@/platform/render/htmlSanitize';
 import {
   AlignmentType,
   BorderStyle,
@@ -58,12 +60,19 @@ export interface DocxTextExtraction {
   plainText: string;
 }
 
-/** Normalize the input into an `ArrayBuffer` that the renderer can consume. */
+/**
+ * Normalize the input into an `ArrayBuffer` that the renderer can consume.
+ *
+ * R-17 — a `.docx` IS a zip, and BOTH readers below unzip it inside a
+ * third-party library (mammoth, docx-preview) where we cannot meter the
+ * decompression. The archive pre-flight runs here, on the single funnel every
+ * `.docx` reader passes through, so a new reader added downstream inherits it
+ * instead of having to remember it.
+ */
 export async function parseDocxForPreview(source: DocxSource): Promise<ArrayBuffer> {
-  if (typeof source === 'string') {
-    return dataUrlToArrayBuffer(source);
-  }
-  return source;
+  const buffer = typeof source === 'string' ? dataUrlToArrayBuffer(source) : source;
+  await assertArchiveWithinBudget(buffer, 'document .docx');
+  return buffer;
 }
 
 /**
@@ -97,6 +106,12 @@ export async function renderDocxPreview(
   bytes: ArrayBuffer,
   container: HTMLElement
 ): Promise<void> {
+  // R-17 — docx-preview unzips internally. Callers may hand us bytes that did
+  // not come through parseDocxForPreview, so the pre-flight runs here too.
+  // Repeating a cheap header check is the correct trade against a caller that
+  // silently skips it.
+  await assertArchiveWithinBudget(bytes, 'document .docx (preview)');
+
   // docx-preview accepts a Blob OR an ArrayBuffer. Wrap to be explicit and
   // because some bundlers strip ArrayBuffer recognition off of typed arrays.
   const blob = new Blob([bytes], {
@@ -687,6 +702,54 @@ function escapeHtml(s: string): string {
 }
 
 /**
+ * Invert `escapeHtml` for a span that is about to be RE-encoded for ATTRIBUTE
+ * position.
+ *
+ * R-49 defect 1c. `renderInline` escapes the whole line as TEXT before it
+ * knows which spans will end up in an attribute, so by the time the link rule
+ * runs a URL the author wrote as `?a=1&b=2` already reads `?a=1&amp;b=2`.
+ * Handing that to `safeUrlAttribute` escapes the `&` a SECOND time, and the
+ * `.docx` this file packs then stores
+ * `Target="https://example.com/s?a=1&amp;amp;b=2"` — Word opens a DIFFERENT
+ * URL. Every markdown link with a query string was broken this way.
+ *
+ * That is treated as a security defect, not a cosmetic one: the correctness of
+ * a security control IS a security property. A sanitizer that quietly breaks
+ * ordinary links is a sanitizer someone turns off, and a disabled control is a
+ * live hole reached by disuse, which no security test catches.
+ *
+ * It is the exact inverse of `escapeHtml`'s three replaces applied in REVERSE
+ * order, which is what makes it a true inverse: a URL containing the literal
+ * text `&lt;` round-trips to `&lt;` and not to `<`.
+ *
+ * SECURITY BOUND — why decoding here cannot widen the URL allowlist. The only
+ * characters this can reintroduce are `&`, `<` and `>`, and none of them
+ * appears in any prefix `safeUrlAttribute` allows (`https?:` `mailto:` `tel:`
+ * `#` `/` `./` `../`). So no input can cross BLOCKED → ALLOWED by being
+ * decoded; it can only alter the TAIL of an already-allowed URL, and
+ * `safeUrlAttribute` re-escapes that tail in full. That bound is pinned
+ * behaviourally by the `WIDENING:` cases in
+ * `tests/unit/security/docxio-url-sink.test.ts`, not merely asserted here.
+ *
+ * It is applied ONLY to the URL capture, which is immediately re-encoded by
+ * `safeUrlAttribute`. The link TEXT is deliberately NOT decoded — it stays in
+ * element position, where `escapeHtml`'s output is already correct, and
+ * decoding it would turn escaped source back into live markup.
+ *
+ * KNOWN DUPLICATION, stated rather than hidden: `MarkdownPreview.tsx` on
+ * branch `sec/r49-markdown-xss-c39` carries a private function of the same
+ * name and the same three replaces. This copy is deliberately local instead of
+ * shared through `@/platform/render/htmlSanitize`, because that module has two
+ * competing versions in flight and the merge drops one of them; an export
+ * added to the losing copy would vanish and take this call site's compile with
+ * it. Unifying the two into the shared module is a follow-on AFTER that merge,
+ * not a thing this lane can do safely.
+ */
+function decodePipelineEscape(s: string): string {
+  return s.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+}
+
+/**
  * Render a single line's inline markdown (bold / italic / code / link) into
  * HTML. Order matters: code spans must be handled first so that
  * `` `foo_bar_baz` `` doesn't get italic tags inside.
@@ -700,13 +763,22 @@ function renderInline(line: string): string {
 
   working = escapeHtml(working);
 
-  // Links: [text](url). URL kept raw inside href after quote escaping.
+  // Links: [text](url).
+  //
+  // R-14 — this was the FOURTH markdown→HTML renderer with its own link
+  // handling, and nobody had it on the list. It escaped the quote (which
+  // MarkdownPreview did not) and never checked the scheme (which pdf-export
+  // did). Four hand-rolled sanitizers, four different subsets of the same
+  // three rules. All four now call the one module.
+  //
+  // R-49 defect 1c adds `decodePipelineEscape` on the URL capture, which is
+  // the one span here that gets RE-encoded for attribute position. See that
+  // function for why it cannot widen the allowlist. `text` is NOT decoded: it
+  // stays in element position.
   working = working.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    (_m, text: string, href: string) => {
-      const safeHref = href.replace(/"/g, '&quot;');
-      return `<a href="${safeHref}">${text}</a>`;
-    }
+    (_m, text: string, href: string) =>
+      `<a href="${safeUrlAttribute(decodePipelineEscape(href), 'link')}">${text}</a>`
   );
 
   working = working.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -969,10 +1041,13 @@ import type { RedlineBlock } from './docx-table-utils';
  */
 export async function markdownToRedlineBlocks(markdown: string): Promise<RedlineBlock[]> {
   const bytes = await markdownToDocxBytes(markdown, 'redline-block.docx');
-  const zip = await JSZip.loadAsync(bytes);
-  const file = zip.file('word/document.xml');
-  if (!file) throw new Error('generated .docx is missing word/document.xml');
-  const documentXml = await file.async('string');
+  // The bytes were produced two lines up by our own packer, so this is not an
+  // untrusted archive. It still goes through the guarded reader: a reader that
+  // is exempt "because the input is ours" is one refactor away from being fed
+  // someone else's bytes, and the guard costs nothing here.
+  const zip = await readGuardedZip(bytes, 'generated redline .docx');
+  const documentXml = await zip.text('word/document.xml');
+  if (documentXml === null) throw new Error('generated .docx is missing word/document.xml');
 
   const dom = new DOMParser().parseFromString(documentXml, 'application/xml');
   if (dom.getElementsByTagName('parsererror').length > 0) {

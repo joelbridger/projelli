@@ -153,9 +153,7 @@ pub fn write_decrypted_archive(
     write_new_file(&path, &bytes)
 }
 
-fn csv_cell(value: &str) -> String {
-    format!("\"{}\"", value.replace('"', "\"\""))
-}
+use crate::safe_csv::{csv_cell, csv_row};
 
 /// Writes a Wealthbox-shaped contact CSV for imported household and person
 /// records. It deliberately labels its coverage so a user never mistakes it
@@ -165,7 +163,11 @@ pub fn write_rollback_csv(
     batch_id: &str,
     records: &[Value],
 ) -> Result<WrittenExport> {
-    let mut rows = vec!["Contact Type,Name,First Name,Last Name,Source ID,Notes".to_string()];
+    let mut rows = vec![csv_row(
+        ["Contact Type", "Name", "First Name", "Last Name", "Source ID", "Notes"]
+            .into_iter()
+            .map(csv_cell),
+    )];
     for record in records {
         let Some(source_type) = record.get("sourceType").and_then(Value::as_str) else {
             continue;
@@ -196,7 +198,15 @@ pub fn write_rollback_csv(
             "Exported by {} for rollback; verify Wealthbox's current import columns before use.",
             crate::generated_brand::PRODUCT_NAME,
         );
-        rows.push([contact_type, name, first_name, last_name, source_id, note.as_str()].into_iter().map(csv_cell).collect::<Vec<_>>().join(","));
+        // Every field here is third-party data from the source CRM. A contact
+        // named `=cmd|'/c calc'!A1` used to be written with quoting only, which
+        // a spreadsheet still evaluates; csv_cell prefixes it so the operator
+        // reads text instead of running a command.
+        rows.push(csv_row(
+            [contact_type, name, first_name, last_name, source_id, note.as_str()]
+                .into_iter()
+                .map(csv_cell),
+        ));
     }
     let bytes = rows.join("\n").into_bytes();
     let path = export_dir(workspace).join(format!(

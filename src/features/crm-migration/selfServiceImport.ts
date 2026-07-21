@@ -1,5 +1,10 @@
 import Papa from 'papaparse';
 import { BRAND } from '@/config/brand';
+import {
+  assertArchiveWithinBudget,
+  assertInputBytesWithinCap,
+  looksLikeZip,
+} from '@/platform/archive/safeZip';
 
 export type ImportRow = Record<string, string>;
 export type ImportFormat = 'csv' | 'excel' | 'vcard' | 'outlook';
@@ -86,7 +91,18 @@ export async function parseContactImportFile(file: File): Promise<ParsedContactF
     // Excel is a large optional reader. Load it only after an advisor chooses
     // a spreadsheet so opening the migration screen stays quick.
     const XLSX = await import('xlsx');
-    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const bytes = await file.arrayBuffer();
+    // R-17 — an .xlsx IS a zip and SheetJS unzips it internally, so this line
+    // is an archive read even though nothing here says "zip". Pre-flight the
+    // bomb caps before SheetJS ever sees the bytes. Legacy .xls is not a zip,
+    // so it gets the input-size cap only rather than a guard that pretends to
+    // inspect a central directory it does not have.
+    if (looksLikeZip(bytes)) {
+      await assertArchiveWithinBudget(bytes, `contact import ${name}`);
+    } else {
+      assertInputBytesWithinCap(bytes, `contact import ${name}`);
+    }
+    const workbook = XLSX.read(bytes, { type: 'array' });
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) throw new Error('This spreadsheet has no sheet to import.');
     const sheet = workbook.Sheets[sheetName];

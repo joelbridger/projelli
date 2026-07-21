@@ -5,6 +5,7 @@
 import { Sparkles, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import i18n from '@/i18n';
+import { escapeHtmlText } from '@/platform/render/htmlSanitize';
 import { OCR_LOW_CONFIDENCE } from '@/platform/utils/tauri-commands';
 import { parseCitations, resolveCitationPath, resolveCitationTarget } from '@/platform/rag/workspaceCommand';
 import type { AIChatFile, ChatMessage, PersistedCitation, WorkspaceSource } from '@/platform/types/ai';
@@ -13,13 +14,12 @@ import type { AIChatFile, ChatMessage, PersistedCitation, WorkspaceSource } from
  * Render markdown-like formatting for messages
  */
 export function renderMessage(content: string): string {
-  let html = content;
-
-  // Escape HTML
-  html = html
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  // R-14 — this was one of four hand-rolled markdown→HTML escapes, each with a
+  // different subset of the rules. This one emits no `<a>`/`<img>` at all, so
+  // it never had the attribute hole MarkdownPreview did; it routes through the
+  // shared escape anyway, because "this renderer happens not to build an
+  // attribute today" is the assumption that produced the other three.
+  let html = escapeHtmlText(content);
 
   // Code blocks
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, _lang, code) => {

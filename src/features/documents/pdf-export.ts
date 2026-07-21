@@ -33,6 +33,7 @@
 //     accepted limitation; the text content is still present.
 
 import { renderMarkdownToHtml } from '@/features/documents/editor/MarkdownPreview';
+import { sanitizeHtmlIntoDocument } from '@/platform/render/htmlSanitize';
 
 /** CSS rules for the print document, as a single string injected via a stylesheet node. */
 const PRINT_CSS = `
@@ -122,62 +123,18 @@ export function titleFromFileName(fileName: string): string {
   return fileName.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
 }
 
-/**
- * Parse the rendered HTML string into an inert DOM tree using DOMParser, then
- * import every child node from its <body> into the target document via
- * importNode. This avoids innerHTML on the live print document entirely.
+/*
+ * R-14 SETTLED. The DOM sanitiser that used to live here was the THIRD one in
+ * the codebase and, when the four were actually compared, the STRONGEST: the
+ * only one that filtered URL schemes, and the only one that stripped inline
+ * event handlers. So the finding "a third sanitizer outside the tracked
+ * unification" was true about the enumeration and inverted about the risk —
+ * this file was never the gap.
  *
- * DOMParser produces an inert document: scripts inside it are never executed,
- * and event handlers on parsed nodes are dropped when imported into a new
- * context via importNode. The rendered HTML may still contain unsafe href
- * values (e.g. javascript: links authored in the markdown), so after import we
- * strip those by walking <a> and <img> elements and removing dangerous schemes.
+ * It has moved to `@/platform/render/htmlSanitize` unchanged in behaviour, so
+ * the other three renderers can unify ONTO it rather than each keep their own
+ * weaker copy.
  */
-function safeImportRenderedHtml(targetDoc: Document, renderedHtml: string): void {
-  // Parse into an inert document — scripts do not run here.
-  const parser = new DOMParser();
-  const inert = parser.parseFromString(renderedHtml, 'text/html');
-
-  // Strip dangerous URL schemes from href/src attributes before importing.
-  const SAFE_URL_PATTERN = /^(https?|mailto|tel|#)/i;
-  const DANGEROUS_ATTRS: Array<[string, string]> = [
-    ['a', 'href'],
-    ['img', 'src'],
-    ['area', 'href'],
-  ];
-  for (const [tag, attr] of DANGEROUS_ATTRS) {
-    for (const el of Array.from(inert.querySelectorAll(tag))) {
-      const val = el.getAttribute(attr);
-      if (val !== null && !SAFE_URL_PATTERN.test(val.trim())) {
-        el.removeAttribute(attr);
-      }
-    }
-  }
-
-  // Remove any <script> and <style> elements that could have been injected
-  // through markdown constructs that our pipeline does not explicitly filter.
-  for (const el of Array.from(inert.querySelectorAll('script, style, iframe, object, embed'))) {
-    el.remove();
-  }
-
-  // Strip inline event handlers (onclick, onerror, onload, etc.).
-  const walker = inert.createTreeWalker(inert.body, NodeFilter.SHOW_ELEMENT);
-  let node: Node | null = walker.currentNode;
-  while (node) {
-    const el = node as Element;
-    const toRemove: string[] = [];
-    for (const { name } of Array.from(el.attributes ?? [])) {
-      if (/^on/i.test(name)) toRemove.push(name);
-    }
-    for (const name of toRemove) el.removeAttribute(name);
-    node = walker.nextNode();
-  }
-
-  // Import the sanitised body children into the live print document.
-  for (const child of Array.from(inert.body.childNodes)) {
-    targetDoc.body.appendChild(targetDoc.importNode(child, true));
-  }
-}
 
 /**
  * Build the print document entirely through safe DOM construction.
@@ -201,7 +158,7 @@ function populatePrintDocument(doc: Document, renderedHtml: string, title: strin
   style.textContent = PRINT_CSS; // static CSS — no user content
   doc.head.appendChild(style);
 
-  safeImportRenderedHtml(doc, renderedHtml);
+  sanitizeHtmlIntoDocument(doc, renderedHtml);
 }
 
 /**
