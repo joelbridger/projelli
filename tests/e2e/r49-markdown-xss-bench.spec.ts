@@ -78,11 +78,12 @@ const PAYLOAD_MARKDOWN = [
 async function armSentinels(page: Page) {
   await page.addInitScript(() => {
     const w = window as unknown as Record<string, unknown>;
-    w.XSSFIRED = 0;
-    w.__ALERTS__ = 0;
+    w['XSSFIRED'] = 0;
+    w['__ALERTS__'] = 0;
     const realAlert = window.alert;
     window.alert = function (...args: unknown[]) {
-      (window as unknown as Record<string, number>).__ALERTS__++;
+      const counters = window as unknown as Record<string, number>;
+      counters['__ALERTS__'] = (counters['__ALERTS__'] ?? 0) + 1;
       return (realAlert as unknown as (...a: unknown[]) => void).apply(window, args);
     } as typeof window.alert;
   });
@@ -131,9 +132,14 @@ async function provoke(page: Page) {
 }
 
 async function sentinels(page: Page) {
+  // NOTE: deliberately NOT defaulted with `?? 0`. Under `noUncheckedIndexedAccess`
+  // these read as `number | undefined`, and `undefined` means the init script never
+  // armed the sentinel. A `?? 0` here would make an UNARMED page report "no XSS and
+  // no alerts" and the assertions below would pass hollowly. Leaving it undefined
+  // makes `expect(...).toBe(0)` FAIL in exactly that case, which is the honest result.
   return page.evaluate(() => ({
-    xss: (window as unknown as Record<string, number>).XSSFIRED,
-    alerts: (window as unknown as Record<string, number>).__ALERTS__,
+    xss: (window as unknown as Record<string, number>)['XSSFIRED'],
+    alerts: (window as unknown as Record<string, number>)['__ALERTS__'],
   }));
 }
 
