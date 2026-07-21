@@ -224,6 +224,10 @@ mod tests {
 
     #[test]
     fn auth_url_uses_docs_scopes() {
+        // BOUND: these are `contains` checks — PRESENCE only. They can notice a
+        // scope going MISSING; they are structurally blind to one being ADDED
+        // (measured: a planted widening left the whole suite green). Exactness
+        // lives in src/scope_freeze.rs, which pins this constant token-for-token.
         let url = build_ms_auth_url("client", "http://localhost:1234", "challenge", "state");
         assert!(url.contains("Files.Read.All"));
         assert!(url.contains("Sites.Read.All"));

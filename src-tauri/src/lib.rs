@@ -35,6 +35,13 @@ mod dev_bridge;
 // which is what prevents the 0x8007139F (ERROR_INVALID_STATE) crash when a
 // second webview is created with mismatched options. See the module docs.
 pub mod webview_env;
+// Test-only: the exact, frozen OAuth scope requests every connector asks the
+// advisor to grant. Six of these constants were previously "asserted" with
+// `contains`, which is structurally blind to an ADDITION — a measured fact, not a
+// suspicion: with a privilege widening planted into all seven at once the whole
+// workspace suite still ran 1836 passed / 0 failed. See the module docs.
+#[cfg(test)]
+mod scope_freeze;
 
 /// A debug-only, startup-only bridge from the process environment to the
 /// renderer. The webview executes this before its application JavaScript, so

@@ -211,6 +211,10 @@ mod tests {
 
     #[test]
     fn ms_auth_url_requests_calendar_read_scope_only() {
+        // NAME CORRECTED DOWN in effect: the `_only` in this test's name was never
+        // proven by its body — an enumerated two-entry denylist (Files/Mail) cannot
+        // establish 'only'. Contacts.Read passed it. `only` is now genuinely proven,
+        // but in src/scope_freeze.rs, not here.
         let url = build_ms_auth_url("cid", "http://localhost:1/", "chal", "st");
         assert!(url.contains("Calendars.Read"));
         assert!(!url.contains("Files.Read"), "calendar must not request drive scopes");
@@ -220,6 +224,10 @@ mod tests {
 
     #[test]
     fn google_auth_url_requests_calendar_readonly_offline() {
+        // BOUND: these are `contains` checks — PRESENCE only. They can notice a
+        // scope going MISSING; they are structurally blind to one being ADDED
+        // (measured: a planted widening left the whole suite green). Exactness
+        // lives in src/scope_freeze.rs, which pins this constant token-for-token.
         let url = build_google_auth_url("cid", "http://127.0.0.1:1/", "chal", "st");
         assert!(url.contains("calendar.readonly"));
         assert!(!url.contains("gmail."), "calendar must not request gmail scopes");

@@ -255,6 +255,9 @@ mod tests {
 
     #[test]
     fn auth_url_uses_signature_extended_pkce_without_secret() {
+        // BOUND: `url.contains("scope=signature%20extended")` is a PREFIX match on a
+        // query parameter — "signature extended impersonation" still contains it, and
+        // did pass. Exactness lives in src/scope_freeze.rs.
         let url = build_auth_url(
             "https://account-d.docusign.com",
             "client-1",
