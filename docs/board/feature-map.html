@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="feature-map-renderer-version" content="four-label-v1">
 <title>Lantern Feature Map</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,9 +14,10 @@
     --card:#ffffff; --line:#e7e2d8; --line-soft:#efebe2;
     --ink:#292520; --ink-soft:#6f6a60; --ink-mute:#98917f;
     --gold:#c07c18; --gold-soft:#f7ead2;
-    --live:#177a53; --live-bg:#e5f3ec;
-    --build:#a26400; --build-bg:#faf0dc;
-    --plan:#67788f; --plan-bg:#eceff4;
+    --planned:#67788f; --planned-bg:#eceff4;
+    --being-built:#a26400; --being-built-bg:#faf0dc;
+    --built-checking:#8b4c98; --built-checking-bg:#f5e9f7;
+    --proven-windows:#177a53; --proven-windows-bg:#e5f3ec;
     --flow:#ded7c7;
     --serif:"Fraunces",Georgia,serif;
     --sans:"Albert Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -41,9 +43,10 @@
   .titlecard p{margin-top:4px; color:var(--ink-soft); font-size:12.8px; line-height:1.45}
   .titlecard .counts{margin-top:9px; display:flex; gap:6px; flex-wrap:wrap}
   .count{border-radius:999px; padding:3px 10px; font-weight:600; font-size:11.5px; border:1px solid}
-  .count.c-live{color:var(--live); background:var(--live-bg); border-color:#cfe7db}
-  .count.c-build{color:var(--build); background:var(--build-bg); border-color:#eeddb9}
-  .count.c-plan{color:var(--plan); background:var(--plan-bg); border-color:#dbe1ea}
+  .count.c-planned{color:var(--planned); background:var(--planned-bg); border-color:#dbe1ea}
+  .count.c-being-built{color:var(--being-built); background:var(--being-built-bg); border-color:#eeddb9}
+  .count.c-built-checking{color:var(--built-checking); background:var(--built-checking-bg); border-color:#e6cdeb}
+  .count.c-proven-windows{color:var(--proven-windows); background:var(--proven-windows-bg); border-color:#cfe7db}
   .filters{display:flex; gap:7px; flex-wrap:wrap; background:rgba(255,255,255,.9); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:999px; padding:6px; box-shadow:0 4px 18px rgba(41,37,32,.05); height:fit-content}
   .chip{font:inherit; font-size:12.5px; font-weight:600; border:none; background:transparent; color:var(--ink-soft); border-radius:999px; padding:7px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:7px}
   .chip:hover{background:#f3f0e9}
@@ -57,6 +60,8 @@
   .hud-zoom .fit{width:auto; padding:0 14px; font-size:12.5px}
   .hud-zoom .sep{width:1px; height:20px; background:var(--line); margin:0 3px}
   .updated{position:fixed; bottom:22px; right:20px; z-index:20; color:var(--ink-mute); font-size:11.5px}
+  .nonv1{position:fixed; right:20px; bottom:48px; z-index:20; max-width:300px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:12px; padding:9px 12px; color:var(--ink-soft); font-size:11.5px; line-height:1.4; box-shadow:0 4px 18px rgba(41,37,32,.05)}
+  .nonv1 strong{display:block; color:var(--ink); font-size:12px}.nonv1 details{margin-top:5px}.nonv1 summary{cursor:pointer;color:var(--ink)}.nonv1 ul{margin:6px 0 0 16px}.nonv1 li+li{margin-top:4px}
 
   /* ── stage cards ───────────────────────────────────────── */
   .stagecard{position:absolute; width:330px; background:var(--card); border:1px solid var(--line-soft); border-radius:14px; box-shadow:0 4px 18px rgba(41,37,32,.04)}
@@ -71,15 +76,18 @@
   li.group .glabel{font-size:13.5px; font-weight:700; color:var(--ink)}
   li.feat{display:flex; gap:10px; align-items:flex-start; padding:8px 2px 8px 0; border-radius:10px; transition:opacity .25s}
   .stop{flex:none; width:18px; height:18px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:800; border:1.5px solid; background:#fff; margin-top:2px}
-  .s-shipped .stop{color:var(--live); border-color:var(--live); background:var(--live-bg)}
-  .s-building .stop{color:var(--build); border-color:var(--build); background:var(--build-bg)}
-  .s-planned .stop{color:var(--plan); border-color:var(--plan); background:var(--plan-bg)}
+  .s-planned .stop{color:var(--planned); border-color:var(--planned); background:var(--planned-bg)}
+  .s-being-built .stop{color:var(--being-built); border-color:var(--being-built); background:var(--being-built-bg)}
+  .s-built-checking .stop{color:var(--built-checking); border-color:var(--built-checking); background:var(--built-checking-bg)}
+  .s-proven-windows .stop{color:var(--proven-windows); border-color:var(--proven-windows); background:var(--proven-windows-bg)}
   .feat .name{font-size:13.2px; font-weight:600; line-height:1.4}
   .s-planned .name{color:#4d5a70}
   .feat .note{font-size:11.8px; color:var(--ink-mute); margin-top:2px; line-height:1.45}
   .feat .badge{display:none; font-size:9.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; border-radius:5px; padding:1px 6px; margin-left:7px; vertical-align:1px}
-  .s-building .badge{display:inline-block; color:var(--build); background:transparent; border:1px solid #e5cfa2}
-  .s-planned .badge{display:inline-block; color:var(--plan); background:transparent; border:1px solid #ccd4e0}
+  .s-being-built .badge{display:inline-block; color:var(--being-built); background:transparent; border:1px solid #e5cfa2}
+  .s-built-checking .badge{display:inline-block; color:var(--built-checking); background:transparent; border:1px solid #e6cdeb}
+  .s-planned .badge{display:inline-block; color:var(--planned); background:transparent; border:1px solid #ccd4e0}
+  .s-proven-windows .badge{display:inline-block; color:var(--proven-windows); background:transparent; border:1px solid #99bba9}
   li.feat.hero{border-left:3px solid var(--gold); border-radius:2px; padding:8px 4px 8px 10px; margin:2px 0}
   li.feat.hero .name{font-size:14.2px; font-weight:750}
   li.feat.hero .star{color:var(--gold); font-size:12px; margin-left:6px}
@@ -101,8 +109,8 @@
   .foundation li .note{font-weight:400; color:var(--ink-mute); font-size:11.3px}
   .foundation-status{display:none}
 
-  body.f-shipped li.feat:not(.s-shipped), body.f-building li.feat:not(.s-building), body.f-planned li.feat:not(.s-planned),
-  body.f-shipped .foundation li:not(.s-shipped), body.f-building .foundation li:not(.s-building), body.f-planned .foundation li:not(.s-planned){opacity:.14}
+  body.f-planned li.feat:not(.s-planned), body.f-being-built li.feat:not(.s-being-built), body.f-built-checking li.feat:not(.s-built-checking), body.f-proven-windows li.feat:not(.s-proven-windows),
+  body.f-planned .foundation li:not(.s-planned), body.f-being-built .foundation li:not(.s-being-built), body.f-built-checking .foundation li:not(.s-built-checking), body.f-proven-windows .foundation li:not(.s-proven-windows){opacity:.14}
 
   /* ── THEME: Editorial — an annual-report spread ───────── */
   body.style-editorial{
@@ -139,7 +147,7 @@
   body.style-editorial li.feat.hero .name{font-size:19px;font-weight:700}
   body.style-editorial li.feat.sub{padding-left:20px}
   body.style-editorial .feat .badge{display:inline-block!important;border-radius:0;margin-left:7px;padding:2px 5px;font-family:var(--sans);font-size:8.5px;letter-spacing:.7px;vertical-align:2px}
-  body.style-editorial .s-shipped .badge{color:var(--live);border:1px solid #99bba9;background:transparent}
+  body.style-editorial .s-proven-windows .badge{color:var(--proven-windows);border:1px solid #99bba9;background:transparent}
   body.style-editorial .alabel{border-radius:0;background:var(--paper);box-shadow:none;font-family:var(--serif);font-size:13px;border-color:var(--line)}
   body.style-editorial .alabel.fly{background:var(--paper);border-color:var(--gold);color:var(--gold)}
   body.style-editorial .foundation{background:transparent;border:0;border-top:3px solid var(--ink);border-bottom:1px solid var(--ink);border-radius:0;box-shadow:none;padding:22px 0 24px}
@@ -153,7 +161,7 @@
   body.style-metro{
     --paper:#f5fbff; --dot:#dfeef5; --card:transparent; --line:#c6dae6; --line-soft:#dcebf2;
     --ink:#172b3a; --ink-soft:#506b7b; --ink-mute:#7892a1; --gold:#f0523e; --gold-soft:#ffe3dc;
-    --live:#087d63; --live-bg:#d9f4eb; --build:#b65b05; --build-bg:#ffedcf; --plan:#466e9c; --plan-bg:#e2edf8;
+    --planned:#466e9c; --planned-bg:#e2edf8; --being-built:#b65b05; --being-built-bg:#ffedcf; --built-checking:#954e9d; --built-checking-bg:#f7e8f8; --proven-windows:#087d63; --proven-windows-bg:#d9f4eb;
     --flow:#f0523e; --serif:"Space Grotesk",ui-sans-serif,sans-serif; --sans:"Space Grotesk",ui-sans-serif,sans-serif;
   }
   body.style-metro #world{background-image:linear-gradient(rgba(39,119,170,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(39,119,170,.055) 1px,transparent 1px);background-size:32px 32px}
@@ -185,7 +193,7 @@
   body.style-metro li.feat.hero .name{font-size:12.8px;font-weight:700}
   body.style-metro li.feat.sub{padding-left:0}
   body.style-metro .feat .badge{display:inline-block!important;border-radius:4px;margin:3px 0 0;padding:2px 4px;font-size:8px;letter-spacing:.3px}
-  body.style-metro .s-shipped .badge{color:var(--live);background:var(--live-bg);border:1px solid #a7d8c7}
+  body.style-metro .s-proven-windows .badge{color:var(--proven-windows);background:var(--proven-windows-bg);border:1px solid #a7d8c7}
   body.style-metro .alabel{border:0;border-radius:4px;background:#fff;color:#2378a9;box-shadow:none;font-size:10px;font-weight:700;padding:4px 6px}
   body.style-metro .alabel.fly{background:#fff3c8;border:2px solid #f6c847;color:#73590c}
   body.style-metro .foundation{background:#e8f4f9;border:0;border-top:9px solid var(--ink);border-radius:0;box-shadow:none;padding:17px 24px 22px}
@@ -200,7 +208,7 @@
   body.style-bento{
     --paper:#fff9f5; --dot:#f1e5dc; --card:#fff; --line:#eadfd8; --line-soft:#f0e7e1;
     --ink:#342b44; --ink-soft:#6d6279; --ink-mute:#95899d; --gold:#7457d9; --gold-soft:#ebe5ff;
-    --live:#087b60; --live-bg:#dff5ec; --build:#aa5a16; --build-bg:#fff0d9; --plan:#5d66a1; --plan-bg:#e8ebff;
+    --planned:#5d66a1; --planned-bg:#e8ebff; --being-built:#aa5a16; --being-built-bg:#fff0d9; --built-checking:#914e99; --built-checking-bg:#f5e7f8; --proven-windows:#087b60; --proven-windows-bg:#dff5ec;
     --flow:#b49cff; --serif:"Nunito Sans",ui-sans-serif,sans-serif; --sans:"Nunito Sans",ui-sans-serif,sans-serif;
   }
   body.style-bento #world{background-image:radial-gradient(circle at 12% 14%,rgba(255,196,171,.42) 0 2px,transparent 2.5px),radial-gradient(circle at 82% 24%,rgba(187,171,255,.35) 0 2px,transparent 2.5px);background-size:38px 38px,52px 52px}
@@ -244,7 +252,7 @@
   body.style-bento li.feat.hero .stop{background:#fff;border-color:#fff;color:#392c67}
   body.style-bento li.feat.sub{padding-left:9px}
   body.style-bento .feat .badge{display:inline-block!important;border-radius:999px;margin-left:4px;padding:2px 6px;font-size:8px;letter-spacing:.2px;vertical-align:1px}
-  body.style-bento .s-shipped .badge{color:var(--live);background:var(--live-bg);border:1px solid #bae5d5}
+  body.style-bento .s-proven-windows .badge{color:var(--proven-windows);background:var(--proven-windows-bg);border:1px solid #bae5d5}
   body.style-bento li.feat.hero .badge{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.35);color:#fff}
   body.style-bento .alabel{background:rgba(255,255,255,.82);border:1px solid rgba(255,255,255,.95);border-radius:999px;box-shadow:0 8px 18px rgba(100,77,98,.1);color:#65547e;font-weight:700}
   body.style-bento .alabel.fly{background:#ede7ff;border-color:#d5c8ff;color:#6047bd}
@@ -291,7 +299,7 @@
   body.style-bento .foundation ul{gap:14px; margin-top:20px}
   .error{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:30}
   .error>div{background:#fdeaea; border:1px solid #f2c4c4; color:#8a2222; border-radius:14px; padding:18px 22px; font-size:14px}
-  @media (max-width:700px){ .hud-hint{display:none} .titlecard{max-width:78vw} }
+  @media (max-width:700px){ .hud-hint{display:none} .titlecard{max-width:78vw} .nonv1{left:12px;right:12px;bottom:48px;max-width:none} }
 </style>
 </head>
 <body>
@@ -308,9 +316,10 @@
   <div class="filters styles" id="styles" role="group" aria-label="Style"><span class="picker-label">Style</span></div>
   <div class="filters" id="statusfilters" role="group" aria-label="Filter by status">
     <button class="chip active" data-f="all">All</button>
-    <button class="chip" data-f="shipped"><span class="dot" style="background:var(--live)"></span>✓ Live now</button>
-    <button class="chip" data-f="building"><span class="dot" style="background:var(--build)"></span>◐ Being built</button>
-    <button class="chip" data-f="planned"><span class="dot" style="background:var(--plan)"></span>○ Planned</button>
+    <button class="chip" data-f="planned"><span class="dot" style="background:var(--planned)"></span>○ Planned</button>
+    <button class="chip" data-f="being-built"><span class="dot" style="background:var(--being-built)"></span>◐ Being built</button>
+    <button class="chip" data-f="built-checking"><span class="dot" style="background:var(--built-checking)"></span>◒ Built — checking it</button>
+    <button class="chip" data-f="proven-windows"><span class="dot" style="background:var(--proven-windows)"></span>✓ Proven on Windows</button>
   </div>
 </div>
 <div class="hud-hint">✋ drag to move around · scroll to zoom · double-click to zoom in</div>
@@ -330,19 +339,73 @@
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.panzoom=f()}})(function(){var define,module,exports;return function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r}()({1:[function(require,module,exports){"use strict";var wheel=require("wheel");var animate=require("amator");var eventify=require("ngraph.events");var kinetic=require("./lib/kinetic.js");var createTextSelectionInterceptor=require("./lib/createTextSelectionInterceptor.js");var domTextSelectionInterceptor=createTextSelectionInterceptor();var fakeTextSelectorInterceptor=createTextSelectionInterceptor(true);var Transform=require("./lib/transform.js");var makeSvgController=require("./lib/svgController.js");var makeDomController=require("./lib/domController.js");var defaultZoomSpeed=1;var defaultDoubleTapZoomSpeed=1.75;var doubleTapSpeedInMS=300;var clickEventTimeInMS=200;module.exports=createPanZoom;function createPanZoom(domElement,options){options=options||{};var panController=options.controller;if(!panController){if(makeSvgController.canAttach(domElement)){panController=makeSvgController(domElement,options)}else if(makeDomController.canAttach(domElement)){panController=makeDomController(domElement,options)}}if(!panController){throw new Error("Cannot create panzoom for the current type of dom element")}var owner=panController.getOwner();var storedCTMResult={x:0,y:0};var isDirty=false;var transform=new Transform;if(panController.initTransform){panController.initTransform(transform)}var filterKey=typeof options.filterKey==="function"?options.filterKey:noop;var pinchSpeed=typeof options.pinchSpeed==="number"?options.pinchSpeed:1;var bounds=options.bounds;var maxZoom=typeof options.maxZoom==="number"?options.maxZoom:Number.POSITIVE_INFINITY;var minZoom=typeof options.minZoom==="number"?options.minZoom:0;var boundsPadding=typeof options.boundsPadding==="number"?options.boundsPadding:.05;var zoomDoubleClickSpeed=typeof options.zoomDoubleClickSpeed==="number"?options.zoomDoubleClickSpeed:defaultDoubleTapZoomSpeed;var beforeWheel=options.beforeWheel||noop;var beforeMouseDown=options.beforeMouseDown||noop;var speed=typeof options.zoomSpeed==="number"?options.zoomSpeed:defaultZoomSpeed;var transformOrigin=parseTransformOrigin(options.transformOrigin);var textSelection=options.enableTextSelection?fakeTextSelectorInterceptor:domTextSelectionInterceptor;validateBounds(bounds);if(options.autocenter){autocenter()}var frameAnimation;var lastTouchEndTime=0;var lastTouchStartTime=0;var pendingClickEventTimeout=0;var lastMouseDownedEvent=null;var lastMouseDownTime=new Date;var lastSingleFingerOffset;var touchInProgress=false;var panstartFired=false;var mouseX;var mouseY;var clickX;var clickY;var pinchZoomLength;var smoothScroll;if("smoothScroll"in options&&!options.smoothScroll){smoothScroll=rigidScroll()}else{smoothScroll=kinetic(getPoint,scroll,options.smoothScroll)}var moveByAnimation;var zoomToAnimation;var multiTouch;var paused=false;listenForEvents();var api={dispose:dispose,moveBy:internalMoveBy,moveTo:moveTo,smoothMoveTo:smoothMoveTo,centerOn:centerOn,zoomTo:publicZoomTo,zoomAbs:zoomAbs,smoothZoom:smoothZoom,smoothZoomAbs:smoothZoomAbs,showRectangle:showRectangle,pause:pause,resume:resume,isPaused:isPaused,getTransform:getTransformModel,getMinZoom:getMinZoom,setMinZoom:setMinZoom,getMaxZoom:getMaxZoom,setMaxZoom:setMaxZoom,getTransformOrigin:getTransformOrigin,setTransformOrigin:setTransformOrigin,getZoomSpeed:getZoomSpeed,setZoomSpeed:setZoomSpeed};eventify(api);var initialX=typeof options.initialX==="number"?options.initialX:transform.x;var initialY=typeof options.initialY==="number"?options.initialY:transform.y;var initialZoom=typeof options.initialZoom==="number"?options.initialZoom:transform.scale;if(initialX!=transform.x||initialY!=transform.y||initialZoom!=transform.scale){zoomAbs(initialX,initialY,initialZoom)}return api;function pause(){releaseEvents();paused=true}function resume(){if(paused){listenForEvents();paused=false}}function isPaused(){return paused}function showRectangle(rect){var clientRect=owner.getBoundingClientRect();var size=transformToScreen(clientRect.width,clientRect.height);var rectWidth=rect.right-rect.left;var rectHeight=rect.bottom-rect.top;if(!Number.isFinite(rectWidth)||!Number.isFinite(rectHeight)){throw new Error("Invalid rectangle")}var dw=size.x/rectWidth;var dh=size.y/rectHeight;var scale=Math.min(dw,dh);transform.x=-(rect.left+rectWidth/2)*scale+size.x/2;transform.y=-(rect.top+rectHeight/2)*scale+size.y/2;transform.scale=scale}function transformToScreen(x,y){if(panController.getScreenCTM){var parentCTM=panController.getScreenCTM();var parentScaleX=parentCTM.a;var parentScaleY=parentCTM.d;var parentOffsetX=parentCTM.e;var parentOffsetY=parentCTM.f;storedCTMResult.x=x*parentScaleX-parentOffsetX;storedCTMResult.y=y*parentScaleY-parentOffsetY}else{storedCTMResult.x=x;storedCTMResult.y=y}return storedCTMResult}function autocenter(){var w;var h;var left=0;var top=0;var sceneBoundingBox=getBoundingBox();if(sceneBoundingBox){left=sceneBoundingBox.left;top=sceneBoundingBox.top;w=sceneBoundingBox.right-sceneBoundingBox.left;h=sceneBoundingBox.bottom-sceneBoundingBox.top}else{var ownerRect=owner.getBoundingClientRect();w=ownerRect.width;h=ownerRect.height}var bbox=panController.getBBox();if(bbox.width===0||bbox.height===0){return}var dh=h/bbox.height;var dw=w/bbox.width;var scale=Math.min(dw,dh);transform.x=-(bbox.left+bbox.width/2)*scale+w/2+left;transform.y=-(bbox.top+bbox.height/2)*scale+h/2+top;transform.scale=scale}function getTransformModel(){return transform}function getMinZoom(){return minZoom}function setMinZoom(newMinZoom){minZoom=newMinZoom}function getMaxZoom(){return maxZoom}function setMaxZoom(newMaxZoom){maxZoom=newMaxZoom}function getTransformOrigin(){return transformOrigin}function setTransformOrigin(newTransformOrigin){transformOrigin=parseTransformOrigin(newTransformOrigin)}function getZoomSpeed(){return speed}function setZoomSpeed(newSpeed){if(!Number.isFinite(newSpeed)){throw new Error("Zoom speed should be a number")}speed=newSpeed}function getPoint(){return{x:transform.x,y:transform.y}}function moveTo(x,y){transform.x=x;transform.y=y;keepTransformInsideBounds();triggerEvent("pan");makeDirty()}function moveBy(dx,dy){moveTo(transform.x+dx,transform.y+dy)}function keepTransformInsideBounds(){var boundingBox=getBoundingBox();if(!boundingBox)return;var adjusted=false;var clientRect=getClientRect();var diff=boundingBox.left-clientRect.right;if(diff>0){transform.x+=diff;adjusted=true}diff=boundingBox.right-clientRect.left;if(diff<0){transform.x+=diff;adjusted=true}diff=boundingBox.top-clientRect.bottom;if(diff>0){transform.y+=diff;adjusted=true}diff=boundingBox.bottom-clientRect.top;if(diff<0){transform.y+=diff;adjusted=true}return adjusted}function getBoundingBox(){if(!bounds)return;if(typeof bounds==="boolean"){var ownerRect=owner.getBoundingClientRect();var sceneWidth=ownerRect.width;var sceneHeight=ownerRect.height;return{left:sceneWidth*boundsPadding,top:sceneHeight*boundsPadding,right:sceneWidth*(1-boundsPadding),bottom:sceneHeight*(1-boundsPadding)}}return bounds}function getClientRect(){var bbox=panController.getBBox();var leftTop=client(bbox.left,bbox.top);return{left:leftTop.x,top:leftTop.y,right:bbox.width*transform.scale+leftTop.x,bottom:bbox.height*transform.scale+leftTop.y}}function client(x,y){return{x:x*transform.scale+transform.x,y:y*transform.scale+transform.y}}function makeDirty(){isDirty=true;frameAnimation=window.requestAnimationFrame(frame)}function zoomByRatio(clientX,clientY,ratio){if(isNaN(clientX)||isNaN(clientY)||isNaN(ratio)){throw new Error("zoom requires valid numbers")}var newScale=transform.scale*ratio;if(newScale<minZoom){if(transform.scale===minZoom)return;ratio=minZoom/transform.scale}if(newScale>maxZoom){if(transform.scale===maxZoom)return;ratio=maxZoom/transform.scale}var size=transformToScreen(clientX,clientY);transform.x=size.x-ratio*(size.x-transform.x);transform.y=size.y-ratio*(size.y-transform.y);if(bounds&&boundsPadding===1&&minZoom===1){transform.scale*=ratio;keepTransformInsideBounds()}else{var transformAdjusted=keepTransformInsideBounds();if(!transformAdjusted)transform.scale*=ratio}triggerEvent("zoom");makeDirty()}function zoomAbs(clientX,clientY,zoomLevel){var ratio=zoomLevel/transform.scale;zoomByRatio(clientX,clientY,ratio)}function centerOn(ui){var parent=ui.ownerSVGElement;if(!parent)throw new Error("ui element is required to be within the scene");var clientRect=ui.getBoundingClientRect();var cx=clientRect.left+clientRect.width/2;var cy=clientRect.top+clientRect.height/2;var container=parent.getBoundingClientRect();var dx=container.width/2-cx;var dy=container.height/2-cy;internalMoveBy(dx,dy,true)}function smoothMoveTo(x,y){internalMoveBy(x-transform.x,y-transform.y,true)}function internalMoveBy(dx,dy,smooth){if(!smooth){return moveBy(dx,dy)}if(moveByAnimation)moveByAnimation.cancel();var from={x:0,y:0};var to={x:dx,y:dy};var lastX=0;var lastY=0;moveByAnimation=animate(from,to,{step:function(v){moveBy(v.x-lastX,v.y-lastY);lastX=v.x;lastY=v.y}})}function scroll(x,y){cancelZoomAnimation();moveTo(x,y)}function dispose(){releaseEvents()}function listenForEvents(){owner.addEventListener("mousedown",onMouseDown,{passive:false});owner.addEventListener("dblclick",onDoubleClick,{passive:false});owner.addEventListener("touchstart",onTouch,{passive:false});owner.addEventListener("keydown",onKeyDown,{passive:false});wheel.addWheelListener(owner,onMouseWheel,{passive:false});makeDirty()}function releaseEvents(){wheel.removeWheelListener(owner,onMouseWheel);owner.removeEventListener("mousedown",onMouseDown);owner.removeEventListener("keydown",onKeyDown);owner.removeEventListener("dblclick",onDoubleClick);owner.removeEventListener("touchstart",onTouch);if(frameAnimation){window.cancelAnimationFrame(frameAnimation);frameAnimation=0}smoothScroll.cancel();releaseDocumentMouse();releaseTouches();textSelection.release();triggerPanEnd()}function frame(){if(isDirty)applyTransform()}function applyTransform(){isDirty=false;panController.applyTransform(transform);triggerEvent("transform");frameAnimation=0}function onKeyDown(e){var x=0,y=0,z=0;if(e.keyCode===38){y=1}else if(e.keyCode===40){y=-1}else if(e.keyCode===37){x=1}else if(e.keyCode===39){x=-1}else if(e.keyCode===189||e.keyCode===109){z=1}else if(e.keyCode===187||e.keyCode===107){z=-1}if(filterKey(e,x,y,z)){return}if(x||y){e.preventDefault();e.stopPropagation();var clientRect=owner.getBoundingClientRect();var offset=Math.min(clientRect.width,clientRect.height);var moveSpeedRatio=.05;var dx=offset*moveSpeedRatio*x;var dy=offset*moveSpeedRatio*y;internalMoveBy(dx,dy)}if(z){var scaleMultiplier=getScaleMultiplier(z*100);var offset=transformOrigin?getTransformOriginOffset():midPoint();publicZoomTo(offset.x,offset.y,scaleMultiplier)}}function midPoint(){var ownerRect=owner.getBoundingClientRect();return{x:ownerRect.width/2,y:ownerRect.height/2}}function onTouch(e){beforeTouch(e);clearPendingClickEventTimeout();if(e.touches.length===1){return handleSingleFingerTouch(e,e.touches[0])}else if(e.touches.length===2){pinchZoomLength=getPinchZoomLength(e.touches[0],e.touches[1]);multiTouch=true;startTouchListenerIfNeeded()}}function beforeTouch(e){if(options.onTouch&&!options.onTouch(e)){return}e.stopPropagation();e.preventDefault()}function beforeDoubleClick(e){clearPendingClickEventTimeout();if(options.onDoubleClick&&!options.onDoubleClick(e)){return}e.preventDefault();e.stopPropagation()}function handleSingleFingerTouch(e){lastTouchStartTime=new Date;var touch=e.touches[0];var offset=getOffsetXY(touch);lastSingleFingerOffset=offset;var point=transformToScreen(offset.x,offset.y);mouseX=point.x;mouseY=point.y;clickX=mouseX;clickY=mouseY;smoothScroll.cancel();startTouchListenerIfNeeded()}function startTouchListenerIfNeeded(){if(touchInProgress){return}touchInProgress=true;document.addEventListener("touchmove",handleTouchMove);document.addEventListener("touchend",handleTouchEnd);document.addEventListener("touchcancel",handleTouchEnd)}function handleTouchMove(e){if(e.touches.length===1){e.stopPropagation();var touch=e.touches[0];var offset=getOffsetXY(touch);var point=transformToScreen(offset.x,offset.y);var dx=point.x-mouseX;var dy=point.y-mouseY;if(dx!==0&&dy!==0){triggerPanStart()}mouseX=point.x;mouseY=point.y;internalMoveBy(dx,dy)}else if(e.touches.length===2){multiTouch=true;var t1=e.touches[0];var t2=e.touches[1];var currentPinchLength=getPinchZoomLength(t1,t2);var scaleMultiplier=1+(currentPinchLength/pinchZoomLength-1)*pinchSpeed;var firstTouchPoint=getOffsetXY(t1);var secondTouchPoint=getOffsetXY(t2);mouseX=(firstTouchPoint.x+secondTouchPoint.x)/2;mouseY=(firstTouchPoint.y+secondTouchPoint.y)/2;if(transformOrigin){var offset=getTransformOriginOffset();mouseX=offset.x;mouseY=offset.y}publicZoomTo(mouseX,mouseY,scaleMultiplier);pinchZoomLength=currentPinchLength;e.stopPropagation();e.preventDefault()}}function clearPendingClickEventTimeout(){if(pendingClickEventTimeout){clearTimeout(pendingClickEventTimeout);pendingClickEventTimeout=0}}function handlePotentialClickEvent(e){if(!options.onClick)return;clearPendingClickEventTimeout();var dx=mouseX-clickX;var dy=mouseY-clickY;var l=Math.sqrt(dx*dx+dy*dy);if(l>5)return;pendingClickEventTimeout=setTimeout(function(){pendingClickEventTimeout=0;options.onClick(e)},doubleTapSpeedInMS)}function handleTouchEnd(e){clearPendingClickEventTimeout();if(e.touches.length>0){var offset=getOffsetXY(e.touches[0]);var point=transformToScreen(offset.x,offset.y);mouseX=point.x;mouseY=point.y}else{var now=new Date;if(now-lastTouchEndTime<doubleTapSpeedInMS){if(transformOrigin){var offset=getTransformOriginOffset();smoothZoom(offset.x,offset.y,zoomDoubleClickSpeed)}else{smoothZoom(lastSingleFingerOffset.x,lastSingleFingerOffset.y,zoomDoubleClickSpeed)}}else if(now-lastTouchStartTime<clickEventTimeInMS){handlePotentialClickEvent(e)}lastTouchEndTime=now;triggerPanEnd();releaseTouches()}}function getPinchZoomLength(finger1,finger2){var dx=finger1.clientX-finger2.clientX;var dy=finger1.clientY-finger2.clientY;return Math.sqrt(dx*dx+dy*dy)}function onDoubleClick(e){beforeDoubleClick(e);var offset=getOffsetXY(e);if(transformOrigin){offset=getTransformOriginOffset()}smoothZoom(offset.x,offset.y,zoomDoubleClickSpeed)}function onMouseDown(e){clearPendingClickEventTimeout();if(beforeMouseDown(e))return;lastMouseDownedEvent=e;lastMouseDownTime=new Date;if(touchInProgress){e.stopPropagation();return false}var isLeftButton=e.button===1&&window.event!==null||e.button===0;if(!isLeftButton)return;smoothScroll.cancel();var offset=getOffsetXY(e);var point=transformToScreen(offset.x,offset.y);clickX=mouseX=point.x;clickY=mouseY=point.y;document.addEventListener("mousemove",onMouseMove);document.addEventListener("mouseup",onMouseUp);textSelection.capture(e.target||e.srcElement);return false}function onMouseMove(e){if(touchInProgress)return;triggerPanStart();var offset=getOffsetXY(e);var point=transformToScreen(offset.x,offset.y);var dx=point.x-mouseX;var dy=point.y-mouseY;mouseX=point.x;mouseY=point.y;internalMoveBy(dx,dy)}function onMouseUp(){var now=new Date;if(now-lastMouseDownTime<clickEventTimeInMS)handlePotentialClickEvent(lastMouseDownedEvent);textSelection.release();triggerPanEnd();releaseDocumentMouse()}function releaseDocumentMouse(){document.removeEventListener("mousemove",onMouseMove);document.removeEventListener("mouseup",onMouseUp);panstartFired=false}function releaseTouches(){document.removeEventListener("touchmove",handleTouchMove);document.removeEventListener("touchend",handleTouchEnd);document.removeEventListener("touchcancel",handleTouchEnd);panstartFired=false;multiTouch=false;touchInProgress=false}function onMouseWheel(e){if(beforeWheel(e))return;smoothScroll.cancel();var delta=e.deltaY;if(e.deltaMode>0)delta*=100;var scaleMultiplier=getScaleMultiplier(delta);if(scaleMultiplier!==1){var offset=transformOrigin?getTransformOriginOffset():getOffsetXY(e);publicZoomTo(offset.x,offset.y,scaleMultiplier);e.preventDefault()}}function getOffsetXY(e){var offsetX,offsetY;var ownerRect=owner.getBoundingClientRect();offsetX=e.clientX-ownerRect.left;offsetY=e.clientY-ownerRect.top;return{x:offsetX,y:offsetY}}function smoothZoom(clientX,clientY,scaleMultiplier){var fromValue=transform.scale;var from={scale:fromValue};var to={scale:scaleMultiplier*fromValue};smoothScroll.cancel();cancelZoomAnimation();zoomToAnimation=animate(from,to,{step:function(v){zoomAbs(clientX,clientY,v.scale)},done:triggerZoomEnd})}function smoothZoomAbs(clientX,clientY,toScaleValue){var fromValue=transform.scale;var from={scale:fromValue};var to={scale:toScaleValue};smoothScroll.cancel();cancelZoomAnimation();zoomToAnimation=animate(from,to,{step:function(v){zoomAbs(clientX,clientY,v.scale)}})}function getTransformOriginOffset(){var ownerRect=owner.getBoundingClientRect();return{x:ownerRect.width*transformOrigin.x,y:ownerRect.height*transformOrigin.y}}function publicZoomTo(clientX,clientY,scaleMultiplier){smoothScroll.cancel();cancelZoomAnimation();return zoomByRatio(clientX,clientY,scaleMultiplier)}function cancelZoomAnimation(){if(zoomToAnimation){zoomToAnimation.cancel();zoomToAnimation=null}}function getScaleMultiplier(delta){var sign=Math.sign(delta);var deltaAdjustedSpeed=Math.min(.25,Math.abs(speed*delta/128));return 1-sign*deltaAdjustedSpeed}function triggerPanStart(){if(!panstartFired){triggerEvent("panstart");panstartFired=true;smoothScroll.start()}}function triggerPanEnd(){if(panstartFired){if(!multiTouch)smoothScroll.stop();triggerEvent("panend")}}function triggerZoomEnd(){triggerEvent("zoomend")}function triggerEvent(name){api.fire(name,api)}}function parseTransformOrigin(options){if(!options)return;if(typeof options==="object"){if(!isNumber(options.x)||!isNumber(options.y))failTransformOrigin(options);return options}failTransformOrigin()}function failTransformOrigin(options){console.error(options);throw new Error(["Cannot parse transform origin.","Some good examples:",'  "center center" can be achieved with {x: 0.5, y: 0.5}','  "top center" can be achieved with {x: 0.5, y: 0}','  "bottom right" can be achieved with {x: 1, y: 1}'].join("\n"))}function noop(){}function validateBounds(bounds){var boundsType=typeof bounds;if(boundsType==="undefined"||boundsType==="boolean")return;var validBounds=isNumber(bounds.left)&&isNumber(bounds.top)&&isNumber(bounds.bottom)&&isNumber(bounds.right);if(!validBounds)throw new Error("Bounds object is not valid. It can be: "+"undefined, boolean (true|false) or an object {left, top, right, bottom}")}function isNumber(x){return Number.isFinite(x)}function isNaN(value){if(Number.isNaN){return Number.isNaN(value)}return value!==value}function rigidScroll(){return{start:noop,stop:noop,cancel:noop}}function autoRun(){if(typeof document==="undefined")return;var scripts=document.getElementsByTagName("script");if(!scripts)return;var panzoomScript;for(var i=0;i<scripts.length;++i){var x=scripts[i];if(x.src&&x.src.match(/\bpanzoom(\.min)?\.js/)){panzoomScript=x;break}}if(!panzoomScript)return;var query=panzoomScript.getAttribute("query");if(!query)return;var globalName=panzoomScript.getAttribute("name")||"pz";var started=Date.now();tryAttach();function tryAttach(){var el=document.querySelector(query);if(!el){var now=Date.now();var elapsed=now-started;if(elapsed<2e3){setTimeout(tryAttach,100);return}console.error("Cannot find the panzoom element",globalName);return}var options=collectOptions(panzoomScript);console.log(options);window[globalName]=createPanZoom(el,options)}function collectOptions(script){var attrs=script.attributes;var options={};for(var j=0;j<attrs.length;++j){var attr=attrs[j];var nameValue=getPanzoomAttributeNameValue(attr);if(nameValue){options[nameValue.name]=nameValue.value}}return options}function getPanzoomAttributeNameValue(attr){if(!attr.name)return;var isPanZoomAttribute=attr.name[0]==="p"&&attr.name[1]==="z"&&attr.name[2]==="-";if(!isPanZoomAttribute)return;var name=attr.name.substr(3);var value=JSON.parse(attr.value);return{name:name,value:value}}}autoRun()},{"./lib/createTextSelectionInterceptor.js":2,"./lib/domController.js":3,"./lib/kinetic.js":4,"./lib/svgController.js":5,"./lib/transform.js":6,amator:7,"ngraph.events":9,wheel:10}],2:[function(require,module,exports){module.exports=createTextSelectionInterceptor;function createTextSelectionInterceptor(useFake){if(useFake){return{capture:noop,release:noop}}var dragObject;var prevSelectStart;var prevDragStart;var wasCaptured=false;return{capture:capture,release:release};function capture(domObject){wasCaptured=true;prevSelectStart=window.document.onselectstart;prevDragStart=window.document.ondragstart;window.document.onselectstart=disabled;dragObject=domObject;dragObject.ondragstart=disabled}function release(){if(!wasCaptured)return;wasCaptured=false;window.document.onselectstart=prevSelectStart;if(dragObject)dragObject.ondragstart=prevDragStart}}function disabled(e){e.stopPropagation();return false}function noop(){}},{}],3:[function(require,module,exports){module.exports=makeDomController;module.exports.canAttach=isDomElement;function makeDomController(domElement,options){var elementValid=isDomElement(domElement);if(!elementValid){throw new Error("panzoom requires DOM element to be attached to the DOM tree")}var owner=domElement.parentElement;domElement.scrollTop=0;if(!options.disableKeyboardInteraction){owner.setAttribute("tabindex",0)}var api={getBBox:getBBox,getOwner:getOwner,applyTransform:applyTransform};return api;function getOwner(){return owner}function getBBox(){return{left:0,top:0,width:domElement.clientWidth,height:domElement.clientHeight}}function applyTransform(transform){domElement.style.transformOrigin="0 0 0";domElement.style.transform="matrix("+transform.scale+", 0, 0, "+transform.scale+", "+transform.x+", "+transform.y+")"}}function isDomElement(element){return element&&element.parentElement&&element.style}},{}],4:[function(require,module,exports){module.exports=kinetic;function kinetic(getPoint,scroll,settings){if(typeof settings!=="object"){settings={}}var minVelocity=typeof settings.minVelocity==="number"?settings.minVelocity:5;var amplitude=typeof settings.amplitude==="number"?settings.amplitude:.25;var cancelAnimationFrame=typeof settings.cancelAnimationFrame==="function"?settings.cancelAnimationFrame:getCancelAnimationFrame();var requestAnimationFrame=typeof settings.requestAnimationFrame==="function"?settings.requestAnimationFrame:getRequestAnimationFrame();var lastPoint;var timestamp;var timeConstant=342;var ticker;var vx,targetX,ax;var vy,targetY,ay;var raf;return{start:start,stop:stop,cancel:dispose};function dispose(){cancelAnimationFrame(ticker);cancelAnimationFrame(raf)}function start(){lastPoint=getPoint();ax=ay=vx=vy=0;timestamp=new Date;cancelAnimationFrame(ticker);cancelAnimationFrame(raf);ticker=requestAnimationFrame(track)}function track(){var now=Date.now();var elapsed=now-timestamp;timestamp=now;var currentPoint=getPoint();var dx=currentPoint.x-lastPoint.x;var dy=currentPoint.y-lastPoint.y;lastPoint=currentPoint;var dt=1e3/(1+elapsed);vx=.8*dx*dt+.2*vx;vy=.8*dy*dt+.2*vy;ticker=requestAnimationFrame(track)}function stop(){cancelAnimationFrame(ticker);cancelAnimationFrame(raf);var currentPoint=getPoint();targetX=currentPoint.x;targetY=currentPoint.y;timestamp=Date.now();if(vx<-minVelocity||vx>minVelocity){ax=amplitude*vx;targetX+=ax}if(vy<-minVelocity||vy>minVelocity){ay=amplitude*vy;targetY+=ay}raf=requestAnimationFrame(autoScroll)}function autoScroll(){var elapsed=Date.now()-timestamp;var moving=false;var dx=0;var dy=0;if(ax){dx=-ax*Math.exp(-elapsed/timeConstant);if(dx>.5||dx<-.5)moving=true;else dx=ax=0}if(ay){dy=-ay*Math.exp(-elapsed/timeConstant);if(dy>.5||dy<-.5)moving=true;else dy=ay=0}if(moving){scroll(targetX+dx,targetY+dy);raf=requestAnimationFrame(autoScroll)}}}function getCancelAnimationFrame(){if(typeof cancelAnimationFrame==="function")return cancelAnimationFrame;return clearTimeout}function getRequestAnimationFrame(){if(typeof requestAnimationFrame==="function")return requestAnimationFrame;return function(handler){return setTimeout(handler,16)}}},{}],5:[function(require,module,exports){module.exports=makeSvgController;module.exports.canAttach=isSVGElement;function makeSvgController(svgElement,options){if(!isSVGElement(svgElement)){throw new Error("svg element is required for svg.panzoom to work")}var owner=svgElement.ownerSVGElement;if(!owner){throw new Error("Do not apply panzoom to the root <svg> element. "+"Use its child instead (e.g. <g></g>). "+"As of March 2016 only FireFox supported transform on the root element")}if(!options.disableKeyboardInteraction){owner.setAttribute("tabindex",0)}var api={getBBox:getBBox,getScreenCTM:getScreenCTM,getOwner:getOwner,applyTransform:applyTransform,initTransform:initTransform};return api;function getOwner(){return owner}function getBBox(){var bbox=svgElement.getBBox();return{left:bbox.x,top:bbox.y,width:bbox.width,height:bbox.height}}function getScreenCTM(){var ctm=owner.getCTM();if(!ctm){return owner.getScreenCTM()}return ctm}function initTransform(transform){var screenCTM=svgElement.getCTM();if(screenCTM===null){screenCTM=document.createElementNS("http://www.w3.org/2000/svg","svg").createSVGMatrix()}transform.x=screenCTM.e;transform.y=screenCTM.f;transform.scale=screenCTM.a;owner.removeAttributeNS(null,"viewBox")}function applyTransform(transform){svgElement.setAttribute("transform","matrix("+transform.scale+" 0 0 "+transform.scale+" "+transform.x+" "+transform.y+")")}}function isSVGElement(element){return element&&element.ownerSVGElement&&element.getCTM}},{}],6:[function(require,module,exports){module.exports=Transform;function Transform(){this.x=0;this.y=0;this.scale=1}},{}],7:[function(require,module,exports){var BezierEasing=require("bezier-easing");var animations={ease:BezierEasing(.25,.1,.25,1),easeIn:BezierEasing(.42,0,1,1),easeOut:BezierEasing(0,0,.58,1),easeInOut:BezierEasing(.42,0,.58,1),linear:BezierEasing(0,0,1,1)};module.exports=animate;module.exports.makeAggregateRaf=makeAggregateRaf;module.exports.sharedScheduler=makeAggregateRaf();function animate(source,target,options){var start=Object.create(null);var diff=Object.create(null);options=options||{};var easing=typeof options.easing==="function"?options.easing:animations[options.easing];if(!easing){if(options.easing){console.warn("Unknown easing function in amator: "+options.easing)}easing=animations.ease}var step=typeof options.step==="function"?options.step:noop;var done=typeof options.done==="function"?options.done:noop;var scheduler=getScheduler(options.scheduler);var keys=Object.keys(target);keys.forEach(function(key){start[key]=source[key];diff[key]=target[key]-source[key]});var durationInMs=typeof options.duration==="number"?options.duration:400;var durationInFrames=Math.max(1,durationInMs*.06);var previousAnimationId;var frame=0;previousAnimationId=scheduler.next(loop);return{cancel:cancel};function cancel(){scheduler.cancel(previousAnimationId);previousAnimationId=0}function loop(){var t=easing(frame/durationInFrames);frame+=1;setValues(t);if(frame<=durationInFrames){previousAnimationId=scheduler.next(loop);step(source)}else{previousAnimationId=0;setTimeout(function(){done(source)},0)}}function setValues(t){keys.forEach(function(key){source[key]=diff[key]*t+start[key]})}}function noop(){}function getScheduler(scheduler){if(!scheduler){var canRaf=typeof window!=="undefined"&&window.requestAnimationFrame;return canRaf?rafScheduler():timeoutScheduler()}if(typeof scheduler.next!=="function")throw new Error("Scheduler is supposed to have next(cb) function");if(typeof scheduler.cancel!=="function")throw new Error("Scheduler is supposed to have cancel(handle) function");return scheduler}function rafScheduler(){return{next:window.requestAnimationFrame.bind(window),cancel:window.cancelAnimationFrame.bind(window)}}function timeoutScheduler(){return{next:function(cb){return setTimeout(cb,1e3/60)},cancel:function(id){return clearTimeout(id)}}}function makeAggregateRaf(){var frontBuffer=new Set;var backBuffer=new Set;var frameToken=0;return{next:next,cancel:next,clearAll:clearAll};function clearAll(){frontBuffer.clear();backBuffer.clear();cancelAnimationFrame(frameToken);frameToken=0}function next(callback){backBuffer.add(callback);renderNextFrame()}function renderNextFrame(){if(!frameToken)frameToken=requestAnimationFrame(renderFrame)}function renderFrame(){frameToken=0;var t=backBuffer;backBuffer=frontBuffer;frontBuffer=t;frontBuffer.forEach(function(callback){callback()});frontBuffer.clear()}function cancel(callback){backBuffer.delete(callback)}}},{"bezier-easing":8}],8:[function(require,module,exports){var NEWTON_ITERATIONS=4;var NEWTON_MIN_SLOPE=.001;var SUBDIVISION_PRECISION=1e-7;var SUBDIVISION_MAX_ITERATIONS=10;var kSplineTableSize=11;var kSampleStepSize=1/(kSplineTableSize-1);var float32ArraySupported=typeof Float32Array==="function";function A(aA1,aA2){return 1-3*aA2+3*aA1}function B(aA1,aA2){return 3*aA2-6*aA1}function C(aA1){return 3*aA1}function calcBezier(aT,aA1,aA2){return((A(aA1,aA2)*aT+B(aA1,aA2))*aT+C(aA1))*aT}function getSlope(aT,aA1,aA2){return 3*A(aA1,aA2)*aT*aT+2*B(aA1,aA2)*aT+C(aA1)}function binarySubdivide(aX,aA,aB,mX1,mX2){var currentX,currentT,i=0;do{currentT=aA+(aB-aA)/2;currentX=calcBezier(currentT,mX1,mX2)-aX;if(currentX>0){aB=currentT}else{aA=currentT}}while(Math.abs(currentX)>SUBDIVISION_PRECISION&&++i<SUBDIVISION_MAX_ITERATIONS);return currentT}function newtonRaphsonIterate(aX,aGuessT,mX1,mX2){for(var i=0;i<NEWTON_ITERATIONS;++i){var currentSlope=getSlope(aGuessT,mX1,mX2);if(currentSlope===0){return aGuessT}var currentX=calcBezier(aGuessT,mX1,mX2)-aX;aGuessT-=currentX/currentSlope}return aGuessT}function LinearEasing(x){return x}module.exports=function bezier(mX1,mY1,mX2,mY2){if(!(0<=mX1&&mX1<=1&&0<=mX2&&mX2<=1)){throw new Error("bezier x values must be in [0, 1] range")}if(mX1===mY1&&mX2===mY2){return LinearEasing}var sampleValues=float32ArraySupported?new Float32Array(kSplineTableSize):new Array(kSplineTableSize);for(var i=0;i<kSplineTableSize;++i){sampleValues[i]=calcBezier(i*kSampleStepSize,mX1,mX2)}function getTForX(aX){var intervalStart=0;var currentSample=1;var lastSample=kSplineTableSize-1;for(;currentSample!==lastSample&&sampleValues[currentSample]<=aX;++currentSample){intervalStart+=kSampleStepSize}--currentSample;var dist=(aX-sampleValues[currentSample])/(sampleValues[currentSample+1]-sampleValues[currentSample]);var guessForT=intervalStart+dist*kSampleStepSize;var initialSlope=getSlope(guessForT,mX1,mX2);if(initialSlope>=NEWTON_MIN_SLOPE){return newtonRaphsonIterate(aX,guessForT,mX1,mX2)}else if(initialSlope===0){return guessForT}else{return binarySubdivide(aX,intervalStart,intervalStart+kSampleStepSize,mX1,mX2)}}return function BezierEasing(x){if(x===0){return 0}if(x===1){return 1}return calcBezier(getTForX(x),mY1,mY2)}}},{}],9:[function(require,module,exports){module.exports=function eventify(subject){validateSubject(subject);var eventsStorage=createEventsStorage(subject);subject.on=eventsStorage.on;subject.off=eventsStorage.off;subject.fire=eventsStorage.fire;return subject};function createEventsStorage(subject){var registeredEvents=Object.create(null);return{on:function(eventName,callback,ctx){if(typeof callback!=="function"){throw new Error("callback is expected to be a function")}var handlers=registeredEvents[eventName];if(!handlers){handlers=registeredEvents[eventName]=[]}handlers.push({callback:callback,ctx:ctx});return subject},off:function(eventName,callback){var wantToRemoveAll=typeof eventName==="undefined";if(wantToRemoveAll){registeredEvents=Object.create(null);return subject}if(registeredEvents[eventName]){var deleteAllCallbacksForEvent=typeof callback!=="function";if(deleteAllCallbacksForEvent){delete registeredEvents[eventName]}else{var callbacks=registeredEvents[eventName];for(var i=0;i<callbacks.length;++i){if(callbacks[i].callback===callback){callbacks.splice(i,1)}}}}return subject},fire:function(eventName){var callbacks=registeredEvents[eventName];if(!callbacks){return subject}var fireArguments;if(arguments.length>1){fireArguments=Array.prototype.splice.call(arguments,1)}for(var i=0;i<callbacks.length;++i){var callbackInfo=callbacks[i];callbackInfo.callback.apply(callbackInfo.ctx,fireArguments)}return subject}}}function validateSubject(subject){if(!subject){throw new Error("Eventify cannot use falsy object as events subject")}var reservedWords=["on","fire","off"];for(var i=0;i<reservedWords.length;++i){if(subject.hasOwnProperty(reservedWords[i])){throw new Error("Subject cannot be eventified, since it already has property '"+reservedWords[i]+"'")}}}},{}],10:[function(require,module,exports){module.exports=addWheelListener;module.exports.addWheelListener=addWheelListener;module.exports.removeWheelListener=removeWheelListener;function addWheelListener(element,listener,useCapture){element.addEventListener("wheel",listener,useCapture)}function removeWheelListener(element,listener,useCapture){element.removeEventListener("wheel",listener,useCapture)}},{}]},{},[1])(1)});
 </script>
 <script>
-var GLYPH={shipped:'✓', building:'◐', planned:'○'};
-var LABEL={shipped:'Live now', building:'Being built', planned:'Planned'};
+/* renderer-contract:start */
+var STATUS_ADAPTER={
+  'Planned':{slug:'planned',glyph:'○'},
+  'Being built':{slug:'being-built',glyph:'◐'},
+  'Built — checking it':{slug:'built-checking',glyph:'◒'},
+  'Proven on Windows':{slug:'proven-windows',glyph:'✓'}
+};
+var STATUS_LABELS=Object.keys(STATUS_ADAPTER);
+function statusAdapter(label){ return STATUS_ADAPTER[label]||null; }
+function visibleFeatures(data){
+  var out=[];
+  data.stages.forEach(function(stage){ stage.groups.forEach(function(group){ out=out.concat(group.features); }); });
+  return out.concat(data.foundation.features);
+}
+function validationError(message){ return {ok:false,error:message}; }
+function validateFeature(feature,where){
+  if(!feature||typeof feature.name!=='string'||!feature.name.trim()) return where+' needs a feature name';
+  if(!statusAdapter(feature.status)) return where+' has an unknown status label';
+  if(typeof feature.id!=='string'||!feature.id.trim()) return where+' needs a feature id';
+  if(!Array.isArray(feature.requirementIds)||!feature.requirementIds.length||feature.requirementIds.some(function(id){return typeof id!=='string'||!id.trim();})) return where+' needs requirement ids';
+  return null;
+}
+function validateMapData(data){
+  if(!data||typeof data!=='object') return validationError('The map data is not an object.');
+  if(!Array.isArray(data.statusLabels)||data.statusLabels.length!==STATUS_LABELS.length||data.statusLabels.some(function(label,i){return label!==STATUS_LABELS[i];})) return validationError('The map must use exactly these four truth labels, in order: '+STATUS_LABELS.join(' · ')+'.');
+  if(!Array.isArray(data.stages)||!data.stages.length) return validationError('The map needs usable journey stages.');
+  if(!data.foundation||!Array.isArray(data.foundation.features)||!data.foundation.features.length) return validationError('The map needs a usable foundation feature list.');
+  if(!Array.isArray(data.nonV1Features)) return validationError('The map needs a usable Not in V1 list.');
+  for(var i=0;i<data.stages.length;i++){
+    var stage=data.stages[i];
+    if(!stage||typeof stage.id!=='string'||!stage.id||!Number.isFinite(stage.num)||!Array.isArray(stage.groups)||!stage.groups.length) return validationError('A journey stage is malformed.');
+    for(var g=0;g<stage.groups.length;g++){
+      var group=stage.groups[g];
+      if(!group||typeof group.label!=='string'||!Array.isArray(group.features)||!group.features.length) return validationError('A journey group is malformed.');
+      for(var f=0;f<group.features.length;f++){ var err=validateFeature(group.features[f],'A journey feature'); if(err)return validationError(err); }
+    }
+  }
+  var all=visibleFeatures(data).concat(data.nonV1Features);
+  for(var n=0;n<all.length;n++){ var featureError=validateFeature(all[n],n<visibleFeatures(data).length?'A visible feature':'A Not in V1 feature'); if(featureError)return validationError(featureError); }
+  var counts=countFeatures(visibleFeatures(data));
+  if(!STATUS_LABELS.every(function(label){return Number.isFinite(counts[statusAdapter(label).slug]);})) return validationError('The map produced invalid feature counts.');
+  return {ok:true,counts:counts,visibleCount:visibleFeatures(data).length};
+}
+function countFeatures(features){
+  var counts={planned:0,'being-built':0,'built-checking':0,'proven-windows':0};
+  features.forEach(function(feature){ counts[statusAdapter(feature.status).slug]++; });
+  return counts;
+}
+function inputFingerprint(data){
+  var text=JSON.stringify(data), hash=2166136261;
+  for(var i=0;i<text.length;i++){hash^=text.charCodeAt(i);hash=Math.imul(hash,16777619);}
+  return ('00000000'+(hash>>>0).toString(16)).slice(-8);
+}
+window.FeatureMapRenderer={version:'four-label-v1',statusAdapter:statusAdapter,validateMapData:validateMapData,countFeatures:countFeatures,inputFingerprint:inputFingerprint};
+/* renderer-contract:end */
+var GLYPH={planned:'○','being-built':'◐','built-checking':'◒','proven-windows':'✓'};
+var LABEL={planned:'Planned','being-built':'Being built','built-checking':'Built — checking it','proven-windows':'Proven on Windows'};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
 // ── LAYERS ──────────────────────────────────────────────────────────────────
 // A layer is a way of looking at the same map. Add one here and it appears in
 // the picker automatically. Fields a layer can use:
-//   statuses:false → every feature renders as done: green check, no badges,
-//                    no status filters, and per-feature `statusNote` + per-group
-//                    `visionLabel` from the data are applied.
+//   statuses:false → future vision labels replace current group labels, while
+//                    the exact current evidence labels remain available in Today.
 var LAYERS=[
-  {id:'today',  name:'🚦 Today',      title:'What is live, being built, and planned', statuses:true},
-  {id:'vision', name:'✨ The vision', title:'The finished product — everything built', statuses:false}
+  {id:'today',  name:'🚦 Today',      title:'Verified current evidence, using the four truth labels', statuses:true},
+  {id:'vision', name:'✨ Future vision', title:'A finished-product picture for the future, not current proof', statuses:false}
 ];
 // Styles are deliberately visual only. They use the same data, layer, filters,
 // pins, and map controls — so a shared URL can always show the same story.
@@ -485,7 +548,7 @@ function buildMap(){
     : {W:330, G:170, M:140, S:[0,64,18,80,10,70,32],  F:90};
   STAGE_W=LY.W; GAP_X=LY.G; MARGIN=LY.M; STAGGER=LY.S;
 
-  var tot={shipped:0,building:0,planned:0}, total=0;
+  var tot=countFeatures(visibleFeatures(d)), total=visibleFeatures(d).length;
   mapc.innerHTML='';
   mapc.className='theme-layout-'+state.style;
   var svgEl=document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -499,8 +562,7 @@ function buildMap(){
       if(glabel) rows+='<li class="group"><span class="glabel">'+esc(glabel)+'</span></li>';
       var fs=(gr.features||[]).slice().sort(function(a,b){return (b.hero?1:0)-(a.hero?1:0);});
       fs.forEach(function(f){
-        var real=f.status||'planned'; tot[real]=(tot[real]||0)+1; total++;
-        var st=L.statuses?real:'shipped';
+        var st=statusAdapter(f.status).slug;
         var cls=f.hero?'hero':(fs.length>1&&fs.some(function(x){return x.hero;})?'sub':'');
         var notes='';
         if(f.note) notes+='<div class="note">'+esc(f.note)+'</div>';
@@ -527,8 +589,7 @@ function buildMap(){
 
   var f=d.foundation||{features:[]};
   var chips=(f.features||[]).map(function(x){
-    var real=x.status||'planned'; tot[real]=(tot[real]||0)+1; total++;
-    var st=L.statuses?real:'shipped';
+    var st=statusAdapter(x.status).slug;
     return '<li class="s-'+st+'"><span class="stop" title="'+LABEL[st]+'">'+GLYPH[st]+'</span>'+esc(x.name)+
       (L.statuses?'<span class="foundation-status">'+GLYPH[st]+' '+LABEL[st]+'</span>':'')+
       (x.note?' <span class="note">· '+esc(x.note)+'</span>':'')+
@@ -552,8 +613,18 @@ function buildMap(){
   if(state.style==='metro') drawMetroConnections(cards,d); else drawDefaultConnections(cards,d);
 
   document.getElementById('counts').innerHTML = L.statuses
-    ? '<span class="count c-live">✓ '+tot.shipped+' live now</span><span class="count c-build">◐ '+tot.building+' being built</span><span class="count c-plan">○ '+tot.planned+' planned</span>'
-    : '<span class="count c-live">✨ all '+total+' features, as one finished product</span>';
+    ? STATUS_LABELS.map(function(label){var a=statusAdapter(label);return '<span class="count c-'+a.slug+'">'+a.glyph+' '+tot[a.slug]+' '+esc(label)+'</span>';}).join('')
+    : '<span class="count c-built-checking">✨ Future vision: '+total+' V1 features pictured here. This is not current proof.</span>';
+
+  renderNonV1(d.nonV1Features);
+}
+
+function renderNonV1(features){
+  var previous=document.getElementById('nonv1'); if(previous) previous.remove();
+  if(!features.length) return;
+  var aside=document.createElement('aside'); aside.id='nonv1'; aside.className='nonv1';
+  aside.innerHTML='<strong>Not in V1 · '+features.length+'</strong><span>These are separate future ideas, not missing V1 work.</span><details><summary>See the names and reasons</summary><ul>'+features.map(function(feature){return '<li><b>'+esc(feature.name)+'</b> — '+esc(feature.statusNote||'No separate reason supplied.')+'</li>';}).join('')+'</ul></details>';
+  document.body.appendChild(aside);
 }
 
 // layer picker (generated from LAYERS so future layers just work)
@@ -590,9 +661,12 @@ STYLES.forEach(function(S){
 applyBodyState();
 
 fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('status '+r.status);return r.json();}).then(function(d){
+  var verdict=validateMapData(d);
+  if(!verdict.ok) throw new Error(verdict.error);
   MAPDATA=d;
   buildMap();
-  document.getElementById('updated').textContent='Last updated '+(d.updated||'');
+  var hashPrefix=(typeof d.inputHash==='string'&&d.inputHash.trim()?d.inputHash.trim():inputFingerprint(d)).slice(0,12);
+  document.getElementById('updated').textContent='Generated '+(d.updated||'unknown date')+' · input '+hashPrefix+' · renderer four-label-v1';
 
   // ── pan/zoom (open-source panzoom by @anvaka, inlined above) ──
   function ignorePan(e){
