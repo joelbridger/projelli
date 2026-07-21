@@ -22,7 +22,8 @@ use crate::commands::crm::source::CrmSource;
 pub const SALESFORCE_TOKEN_ENDPOINT: &str = "https://login.salesforce.com/services/oauth2/token";
 const SALESFORCE_AUTH_ENDPOINT: &str = "https://login.salesforce.com/services/oauth2/authorize";
 const API_VERSION: &str = "v60.0";
-const SALESFORCE_SCOPE: &str = "api refresh_token";
+// `pub(crate)` only so src/scope_freeze.rs can pin it. Not part of any public API.
+pub(crate) const SALESFORCE_SCOPE: &str = "api refresh_token";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SalesforceTokenSet {
@@ -904,6 +905,10 @@ mod tests {
 
     #[test]
     fn salesforce_auth_url_uses_pkce_and_read_refresh_scopes() {
+        // BOUND: these are `contains` checks — PRESENCE only. They can notice a
+        // scope going MISSING; they are structurally blind to one being ADDED
+        // (measured: a planted widening left the whole suite green). Exactness
+        // lives in src/scope_freeze.rs, which pins this constant token-for-token.
         let url = build_salesforce_auth_url("cid", "http://localhost:8123", "challenge", "state");
         assert!(url.starts_with(SALESFORCE_AUTH_ENDPOINT));
         assert!(url.contains("client_id=cid"));

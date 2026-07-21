@@ -1396,8 +1396,53 @@ mod tests {
 
     #[test]
     fn validate_external_source_type_accepts_only_known_values() {
-        for source_type in EXTERNAL_SOURCE_TYPE_ALLOWLIST {
-            assert!(validate_external_source_type(source_type).is_ok());
+        // 🔴 THIS TEST USED TO PROVE NOTHING ABOUT ITS OWN NAME.
+        //
+        // It opened with `for source_type in EXTERNAL_SOURCE_TYPE_ALLOWLIST` and
+        // asserted each one is accepted — deriving its expectation from the very
+        // constant under test. Adding ANY value to the allowlist made the loop
+        // assert that the new value is accepted, which it is, BY CONSTRUCTION.
+        // The test was structurally incapable of detecting a widening while its
+        // name claimed exactly that property.
+        //
+        // Measured, not assumed: with `"sql"` planted into the allowlist, the
+        // whole Rust workspace suite ran 1836 passed / 0 failed, exit 0, and this
+        // test printed `ok`.
+        //
+        // The general class is broader than substring-vs-exact:
+        // AN ASSERTION WHOSE SOURCE OF TRUTH IS THE THING UNDER TEST PROVES
+        // NOTHING, even with `assert_eq!`. The fix is a frozen expectation that
+        // is written down independently of the constant.
+        const APPROVED: &[&str] = &[
+            "text", "pdf", "mail", "docx", "rtf", "xlsx", "pptx", "transcript", "crm", "onedrive",
+            "esign", "meeting", "box", "jotform", "sharefile", "zocks", "addepar",
+        ];
+
+        let shipped: std::collections::BTreeSet<&str> =
+            EXTERNAL_SOURCE_TYPE_ALLOWLIST.iter().copied().collect();
+        let approved: std::collections::BTreeSet<&str> = APPROVED.iter().copied().collect();
+
+        let added: Vec<&str> = shipped.difference(&approved).copied().collect();
+        let removed: Vec<&str> = approved.difference(&shipped).copied().collect();
+        assert!(
+            added.is_empty(),
+            "EXTERNAL_SOURCE_TYPE_ALLOWLIST was WIDENED by {added:?}. Every entry here is a \
+             source_type string that reaches the store's SQL predicate; a new one must be \
+             approved in this test in the same change."
+        );
+        assert!(
+            removed.is_empty(),
+            "EXTERNAL_SOURCE_TYPE_ALLOWLIST LOST {removed:?}. Removing a kind silently stops \
+             indexing it; update APPROVED deliberately if that is intended."
+        );
+
+        // The allowlist is still exercised behaviourally — but against the frozen
+        // list, so the expectation cannot follow the constant.
+        for source_type in APPROVED {
+            assert!(
+                validate_external_source_type(source_type).is_ok(),
+                "approved source_type {source_type:?} was rejected"
+            );
         }
         assert!(validate_external_source_type("").is_err());
         assert!(validate_external_source_type("docusign").is_err());

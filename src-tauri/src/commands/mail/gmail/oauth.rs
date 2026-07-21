@@ -502,6 +502,10 @@ mod tests {
 
     #[test]
     fn build_auth_url_contains_required_params() {
+        // BOUND: these are `contains` checks — PRESENCE only. They can notice a
+        // scope going MISSING; they are structurally blind to one being ADDED
+        // (measured: a planted widening left the whole suite green). Exactness
+        // lives in src/scope_freeze.rs, which pins this constant token-for-token.
         let url = build_auth_url(
             "my-client-id",
             "http://127.0.0.1:54321",
