@@ -253,6 +253,83 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    /// 🔴 THE CALL SITE'S OWN TEST. Read why this exists before changing it.
+    ///
+    /// `safe_csv` has five unit tests and they are genuinely non-decorative —
+    /// neutering the chokepoint guard reds two of them by name. But they test
+    /// the MODULE, and nothing asserted that this call site USES it. That gap
+    /// was measured, not suspected: with the guard fully REMOVED from
+    /// `safe_csv`, all four tests in this file still passed; and restoring the
+    /// exact pre-fix local encoder here —
+    ///
+    ///     fn csv_cell(v: &str) -> String { format!("\"{}\"", v.replace('"', "\"\"")) }
+    ///
+    /// i.e. the live defect exactly as it shipped — left the ENTIRE Rust suite
+    /// GREEN, exit 0. No Rust test anywhere put a formula payload through
+    /// `write_rollback_csv`. The only thing that caught it was the JS
+    /// derivation gate (`scripts/check-untrusted-sink-derivation.mjs`), which
+    /// reds and names this file. That gate is real and blocking — but it means
+    /// anything that weakens or bypasses the JS gate silently un-defends this
+    /// Rust call site, because no cargo run would notice.
+    ///
+    /// This is the unit-test half of the hollow class: a guard with a passing
+    /// unit test and no call-site coverage is indistinguishable from a guard
+    /// that is not wired in at all.
+    ///
+    /// So this test is deliberately END-TO-END and file-level: it drives the
+    /// real `write_rollback_csv`, reads the bytes back off disk, and asserts on
+    /// the payload's leading character. It does NOT call `csv_cell` — a test
+    /// that called the chokepoint directly would prove the chokepoint works
+    /// (already covered) rather than that this writer reaches it.
+    #[test]
+    fn rollback_csv_neutralises_a_formula_payload_from_the_source_crm() {
+        let root = temp_workspace("formula");
+        // The classic DDE payload, in a field that is third-party data from the
+        // source CRM: a Wealthbox contact's display name.
+        const PAYLOAD: &str = "=cmd|'/c calc'!A1";
+        let record = json!({
+            "id": "person:1",
+            "label": PAYLOAD,
+            "sourceType": "contact",
+            "sourceId": "1",
+            "sourcePayload": { "type": "person", "first_name": "+1", "last_name": "@SUM(A1)" }
+        });
+        let written = write_rollback_csv(&root, "batch-1", &[record]).unwrap();
+        let body = fs::read_to_string(&written.path).unwrap();
+
+        // POSITIVE CONTROL: prove the payload actually reached the file, so a
+        // silently-empty export can never satisfy the assertions below.
+        assert!(
+            body.contains(PAYLOAD),
+            "the payload never reached the CSV at all, so this test would pass \
+             vacuously. Body was:\n{body}"
+        );
+
+        // The guard's contract: a formula-leading cell is emitted quoted AND
+        // apostrophe-prefixed, so the spreadsheet reads text instead of running
+        // a command. Quoting alone is NOT the guard — Excel evaluates "=1+1"
+        // just the same — so asserting on the quote would prove nothing.
+        assert!(
+            body.contains(&format!("\"'{PAYLOAD}\"")),
+            "the formula payload was written WITHOUT the apostrophe prefix, so a \
+             spreadsheet would execute it. write_rollback_csv is not reaching \
+             crate::safe_csv::csv_cell. Body was:\n{body}"
+        );
+        // `+` and `@` lead a formula too, and they arrive in different columns —
+        // so this also proves the guard is applied per-cell across the row, not
+        // to one field someone remembered.
+        assert!(
+            body.contains("\"'+1\""),
+            "a `+`-leading cell was not neutralised. Body was:\n{body}"
+        );
+        assert!(
+            body.contains("\"'@SUM(A1)\""),
+            "an `@`-leading cell was not neutralised. Body was:\n{body}"
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn retry_keeps_the_first_export_and_writes_a_new_copy() {
         let root = temp_workspace("retry");
