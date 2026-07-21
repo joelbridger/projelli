@@ -347,6 +347,8 @@ var STATUS_ADAPTER={
   'Proven on Windows':{slug:'proven-windows',glyph:'✓'}
 };
 var STATUS_LABELS=Object.keys(STATUS_ADAPTER);
+var TOP_LEVEL_FIELDS=['updated','version','flywheel','stages','foundation','nonV1Features','legacyHistory','generated_at','input_hash','statusLabels','requirementUniverse'];
+var REQUIREMENT_COUNTS={WB:151,JP:63,SC:24,v1:238,outside_v1:21};
 function statusAdapter(label){ return STATUS_ADAPTER[label]||null; }
 function visibleFeatures(data){
   var out=[];
@@ -355,6 +357,37 @@ function visibleFeatures(data){
 }
 function validationError(message){ return {ok:false,error:message}; }
 function normalizeRequirementId(id){ return id.trim().toLowerCase(); }
+function exactKeys(value,keys){
+  if(!value||typeof value!=='object'||Array.isArray(value)) return false;
+  var actual=Object.keys(value);
+  return actual.length===keys.length&&keys.every(function(key){return Object.prototype.hasOwnProperty.call(value,key);});
+}
+function stringsOnly(value){ return Array.isArray(value)&&value.every(function(item){return typeof item==='string'&&item.trim();}); }
+function validateRequirementUniverse(universe){
+  if(!exactKeys(universe,['v1','outside_v1','labels'])) return 'The requirement universe fields are malformed.';
+  if(!Array.isArray(universe.v1)||!Array.isArray(universe.outside_v1)||universe.v1.length!==REQUIREMENT_COUNTS.v1||universe.outside_v1.length!==REQUIREMENT_COUNTS.outside_v1) return 'The requirement universe counts do not match control.';
+  if(!Array.isArray(universe.labels)||universe.labels.length!==STATUS_LABELS.length||universe.labels.some(function(label,index){return label!==STATUS_LABELS[index];})) return 'The requirement universe labels do not match control.';
+  var ids={}, v1Ids={}, outsideIds={}, v1Counts={WB:0,JP:0,SC:0};
+  function validateRows(rows,expectedScope,inV1){
+    for(var index=0;index<rows.length;index++){
+      var row=rows[index];
+      if(!exactKeys(row,['id','requirement','scope','label','proof_links','risk_links'])) return 'A requirement row has invented or missing fields.';
+      if(typeof row.id!=='string'||!/^((WB|JP)-\d{3}|SC-\d{3})$/.test(row.id)||ids[row.id]) return 'A requirement row id is malformed or duplicated.';
+      if(typeof row.requirement!=='string'||!row.requirement.trim()||row.scope!==expectedScope(row.scope)||!statusAdapter(row.label)||!stringsOnly(row.proof_links)||!stringsOnly(row.risk_links)) return 'A requirement row is malformed.';
+      if(new Set(row.proof_links).size!==row.proof_links.length||new Set(row.risk_links).size!==row.risk_links.length) return 'A requirement row has duplicate links.';
+      ids[row.id]=true;
+      if(inV1){ v1Ids[row.id]=true; var prefix=row.id.slice(0,2); v1Counts[prefix]++; }
+      else outsideIds[row.id]=true;
+    }
+    return null;
+  }
+  var error=validateRows(universe.v1,function(scope){return scope==='v1-now'||scope==='v1-later'?scope:null;},true);
+  if(error) return error;
+  error=validateRows(universe.outside_v1,function(scope){return scope==='post-v1'?scope:null;},false);
+  if(error) return error;
+  if(v1Counts.WB!==REQUIREMENT_COUNTS.WB||v1Counts.JP!==REQUIREMENT_COUNTS.JP||v1Counts.SC!==REQUIREMENT_COUNTS.SC) return 'The V1 requirement source split does not match control.';
+  return {ids:ids,v1Ids:v1Ids,outsideIds:outsideIds};
+}
 function validateFeature(feature,where){
   if(!feature||typeof feature.name!=='string'||!feature.name.trim()) return where+' needs a feature name';
   if(!statusAdapter(feature.status)) return where+' has an unknown status label';
@@ -370,20 +403,25 @@ function validateFeature(feature,where){
 }
 function validateMapData(data){
   if(!data||typeof data!=='object') return validationError('The map data is not an object.');
+  if(!exactKeys(data,TOP_LEVEL_FIELDS)) return validationError('The map has invented or missing top-level control fields.');
   if(typeof data.input_hash!=='string'||!/^[a-f0-9]{64}$/i.test(data.input_hash)) return validationError('The map needs a valid input_hash.');
   if(!Array.isArray(data.statusLabels)||data.statusLabels.length!==STATUS_LABELS.length||data.statusLabels.some(function(label,i){return label!==STATUS_LABELS[i];})) return validationError('The map must use exactly these four truth labels, in order: '+STATUS_LABELS.join(' · ')+'.');
+  if(typeof data.updated!=='string'||!data.updated||typeof data.generated_at!=='string'||!data.generated_at||!Number.isInteger(data.version)||typeof data.flywheel!=='string'||!data.flywheel.trim()||!exactKeys(data.legacyHistory,['as_of','version'])||typeof data.legacyHistory.as_of!=='string'||!data.legacyHistory.as_of||!Number.isInteger(data.legacyHistory.version)) return validationError('The map has malformed control metadata.');
+  var universe=validateRequirementUniverse(data.requirementUniverse);
+  if(typeof universe==='string') return validationError(universe);
   if(!Array.isArray(data.stages)||!data.stages.length) return validationError('The map needs usable journey stages.');
   if(!data.foundation||!Array.isArray(data.foundation.features)||!data.foundation.features.length) return validationError('The map needs a usable foundation feature list.');
   if(!Array.isArray(data.nonV1Features)) return validationError('The map needs a usable Not in V1 list.');
   for(var i=0;i<data.stages.length;i++){
     var stage=data.stages[i];
-    if(!stage||typeof stage.id!=='string'||!stage.id||!Number.isFinite(stage.num)||!Array.isArray(stage.groups)||!stage.groups.length) return validationError('A journey stage is malformed.');
+    if(!stage||typeof stage.id!=='string'||!stage.id||!Number.isFinite(stage.num)||typeof stage.name!=='string'||!stage.name.trim()||typeof stage.icon!=='string'||typeof stage.story!=='string'||!stage.story.trim()||typeof stage.arrow!=='string'||!Array.isArray(stage.groups)||!stage.groups.length) return validationError('A journey stage is malformed.');
     for(var g=0;g<stage.groups.length;g++){
       var group=stage.groups[g];
       if(!group||typeof group.label!=='string'||!group.label.trim()||typeof group.visionLabel!=='string'||!group.visionLabel.trim()||!Array.isArray(group.features)||!group.features.length) return validationError('A journey group is malformed.');
       for(var f=0;f<group.features.length;f++){ var err=validateFeature(group.features[f],'A journey feature'); if(err)return validationError(err); }
     }
   }
+  if(typeof data.foundation.name!=='string'||!data.foundation.name.trim()||typeof data.foundation.icon!=='string'||typeof data.foundation.story!=='string'||!data.foundation.story.trim()) return validationError('The foundation is malformed.');
   var all=visibleFeatures(data).concat(data.nonV1Features);
   var featureIds={};
   var visible=visibleFeatures(data);
@@ -393,13 +431,20 @@ function validateMapData(data){
     if(isNonV1&&Object.prototype.hasOwnProperty.call(all[n],'outsideV1Reason')&&(typeof all[n].outsideV1Reason!=='string'||!all[n].outsideV1Reason.trim())) return validationError('A Not in V1 reason must be usable when supplied.');
   }
   for(var idIndex=0;idIndex<all.length;idIndex++){
+    var featureIsNonV1=idIndex>=visible.length;
     var featureId=all[idIndex].id.trim();
     if(featureIds[featureId]) return validationError('The map has duplicate feature ids.');
     featureIds[featureId]=true;
+    for(var requirementIndex=0;requirementIndex<all[idIndex].requirementIds.length;requirementIndex++){
+      var requirementId=all[idIndex].requirementIds[requirementIndex];
+      if(!universe.ids[requirementId]) return validationError('A feature refers to a requirement outside the accepted universe.');
+      if(featureIsNonV1?!universe.outsideIds[requirementId]:!universe.v1Ids[requirementId]) return validationError('A feature puts a requirement in the wrong V1 collection.');
+    }
   }
   var counts=countFeatures(visibleFeatures(data));
   if(!STATUS_LABELS.every(function(label){return Number.isFinite(counts[statusAdapter(label).slug]);})) return validationError('The map produced invalid feature counts.');
-  return {ok:true,counts:counts,visibleCount:visibleFeatures(data).length};
+  if(visibleFeatures(data).length!==78||data.stages.reduce(function(total,stage){return total+stage.groups.reduce(function(groupTotal,group){return groupTotal+group.features.length;},0);},0)!==69||data.foundation.features.length!==9||data.nonV1Features.length!==1) return validationError('The feature-map card counts do not match control.');
+  return {ok:true,counts:counts,visibleCount:visibleFeatures(data).length,requirementUniverse:universe};
 }
 function countFeatures(features){
   var counts={planned:0,'being-built':0,'built-checking':0,'proven-windows':0};
@@ -686,6 +731,9 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
   var hashPrefix=d.input_hash.slice(0,12);
   var updated=document.getElementById('updated');
   updated.dataset.inputHash=d.input_hash;
+  updated.dataset.requirementV1Count=String(d.requirementUniverse.v1.length);
+  updated.dataset.requirementOutsideV1Count=String(d.requirementUniverse.outside_v1.length);
+  updated.dataset.requirementSourceSplit='Wealthbox 151, Jump 63, shared 24';
   updated.textContent='Generated '+(d.updated||'unknown date')+' · input '+hashPrefix+'... · renderer four-label-v1';
 
   // ── pan/zoom (open-source panzoom by @anvaka, inlined above) ──
