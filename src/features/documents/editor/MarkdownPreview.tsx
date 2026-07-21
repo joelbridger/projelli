@@ -22,7 +22,11 @@ import mermaid from 'mermaid';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { cn } from '@/lib/utils';
-import { safeUrlAttribute, escapeHtmlText as escapeHtmlAttribute } from '@/platform/render/htmlSanitize';
+import {
+  safeUrlAttribute,
+  escapeHtmlText as escapeHtmlAttribute,
+  sanitizeHtmlString,
+} from '@/platform/render/htmlSanitize';
 
 interface MarkdownPreviewProps {
   content: string;
@@ -52,6 +56,36 @@ function ensureMermaidInit(theme: 'default' | 'dark') {
  */
 function escapeHtmlString(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Invert the element-position escape that `markdownToHtml` applies to the
+ * WHOLE source before it knows which spans will land in an ATTRIBUTE.
+ *
+ * R-49. By the time the link/image rules run, a URL the author wrote as
+ * `?a=1&b=2` has already become `?a=1&amp;b=2`. Handing that to
+ * `safeUrlAttribute` escapes the `&` a SECOND time, so the browser resolves
+ * `?a=1&amp;b=2` — a DIFFERENT URL. Same for `&` inside alt text. A sanitizer
+ * that quietly corrupts ordinary links is a sanitizer someone turns off, so
+ * the double encode is treated as part of the fix, not as cosmetic.
+ *
+ * This is the exact inverse of the three replaces in `markdownToHtml`, applied
+ * in REVERSE order, which makes it a true inverse: `&amp;lt;` round-trips to
+ * `&lt;` and not to `<`.
+ *
+ * SECURITY BOUND — why decoding here cannot widen the URL allowlist: the only
+ * characters this can reintroduce are `&`, `<` and `>`, and NONE of them
+ * appears in any allowed prefix (`https?:` `mailto:` `tel:` `#` `/` `./`
+ * `../`). So no input can cross from BLOCKED to ALLOWED by being decoded. It
+ * can only alter the TAIL of an already-allowed URL, and `safeUrlAttribute`
+ * re-escapes that tail in full. Pinned by the `decode cannot widen the
+ * allowlist` cases in `tests/unit/security/r49-markdown-xss-attack.test.ts`.
+ *
+ * It is applied ONLY to a capture that is immediately re-encoded for attribute
+ * position — never to a span that reaches the output un-escaped.
+ */
+function decodePipelineEscape(s: string): string {
+  return s.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
 }
 
 /**
@@ -190,13 +224,18 @@ function markdownToHtml(markdown: string): string {
   // output goes to dangerouslySetInnerHTML, and the app's CSP allows
   // 'unsafe-inline'. safeUrlAttribute() applies the scheme allowlist AND the
   // attribute escape, so neither hole can be reopened by editing this line.
+  //
+  // R-49 adds `decodePipelineEscape` on the two captures that are about to be
+  // RE-encoded for attribute position. See that function for why it cannot
+  // widen the allowlist. The link TEXT is deliberately NOT decoded: it stays
+  // in element position, where the pipeline's own escape is already correct.
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt: string, url: string) =>
-    `<img src="${safeUrlAttribute(url, 'image')}" alt="${escapeHtmlAttribute(alt)}" class="max-w-full h-auto my-4 rounded" />`
+    `<img src="${safeUrlAttribute(decodePipelineEscape(url), 'image')}" alt="${escapeHtmlAttribute(decodePipelineEscape(alt))}" class="max-w-full h-auto my-4 rounded" />`
   );
 
   // Links
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text: string, url: string) =>
-    `<a href="${safeUrlAttribute(url, 'link')}" class="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">${text}</a>`
+    `<a href="${safeUrlAttribute(decodePipelineEscape(url), 'link')}" class="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">${text}</a>`
   );
 
   // Task lists (must be before regular lists)
@@ -270,6 +309,33 @@ export function renderMarkdownToHtml(content: string): {
   for (const [token, replacement] of placeholders) {
     html = html.split(token).join(replacement);
   }
+  // R-49 — THE STRUCTURAL BELT, and the reason this lane did not stop at the
+  // two call sites.
+  //
+  // Escaping the link and image captures fixes the two attribute sites that
+  // were KNOWN. It does nothing for the next one. This function builds markup
+  // with fourteen regexes and then splices in the output of two third-party
+  // renderers (KaTeX, and mermaid's placeholder), and the result goes straight
+  // to `dangerouslySetInnerHTML` under a CSP that allows 'unsafe-inline' with
+  // `withGlobalTauri: true` — so an escaped-wrong attribute anywhere in this
+  // file is a native-API reach, not a display bug.
+  //
+  // The string escapes are a per-site defence and cannot be complete by
+  // construction. This pass is structural: it PARSES the finished markup and
+  // deletes every `on*` handler and every non-allowlisted URL that actually
+  // materialised as an attribute, whatever produced it. A new regex added
+  // below inherits it without its author having to know it exists.
+  //
+  // It is not a substitute for the escapes — a value that survives escaping
+  // correctly should never reach here — which is why both run.
+  //
+  // BOUND — what this does NOT cover: the mermaid effect below assigns
+  // `target.innerHTML = svg` AFTER this function has returned, so that sink is
+  // outside this pass. It is covered instead by mermaid's own
+  // `securityLevel: 'strict'` (DOMPurify), set in `ensureMermaidInit`. That is
+  // a dependency default, not our guard, and it is stated here rather than
+  // assumed silently.
+  html = sanitizeHtmlString(html);
   return { html, mermaidBlocks };
 }
 

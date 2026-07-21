@@ -1,0 +1,368 @@
+// R-49 — the markdown preview injection chain, attacked.
+//
+// The fix under test is the shared chokepoint (`@/platform/render/htmlSanitize`)
+// wired into `MarkdownPreview.tsx`. `html-url-sink.test.ts` pins that the two
+// KNOWN holes are shut. This file exists to attack the SHAPES that file does
+// not cover, so the bound we report is measured rather than assumed:
+//
+//   - single-quoted and unquoted attribute contexts
+//   - scheme obfuscation (case, leading whitespace, embedded TAB/NUL/newline,
+//     HTML-entity encoding)
+//   - a URL whose PREFIX passes the allowlist and whose TAIL carries the
+//     breakout (`#" onmouseover="…`) — this is the case where the allowlist
+//     alone is NOT what saves us, and only the escape does
+//   - the two sinks in MarkdownPreview that are NOT the link/image regex:
+//     the KaTeX render path and the mermaid SVG path
+//
+// Assertions read the PARSED DOM, never the string. A string match on
+// /onerror=/ reds on the harmless case where the payload survives correctly
+// ESCAPED inside an attribute VALUE, and greens on a real handler spelled with
+// an entity. Only the parser knows whether an ATTRIBUTE was created.
+
+import { describe, it, expect } from 'vitest';
+
+import { BLOCKED_URL, isSafeUrl, sanitizeHtmlString } from '@/platform/render/htmlSanitize';
+import { renderMarkdownToHtml } from '@/features/documents/editor/MarkdownPreview';
+
+/**
+ * Parse the rendered HTML and report the real attack surface: every event
+ * handler the PARSER actually materialised as an attribute, and every URL-ish
+ * attribute value the parser actually assigned.
+ */
+function attackSurface(html: string): {
+  handlers: string[];
+  urls: string[];
+  tags: string[];
+} {
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  const handlers: string[] = [];
+  const urls: string[] = [];
+  const tags: string[] = [];
+  for (const el of Array.from(doc.body.querySelectorAll('*'))) {
+    tags.push(el.tagName.toLowerCase());
+    for (const attr of Array.from(el.attributes)) {
+      if (/^on/i.test(attr.name)) handlers.push(`${el.tagName.toLowerCase()}.${attr.name}`);
+      if (/^(?:href|src|data|action|srcdoc|formaction)$/i.test(attr.name)) urls.push(attr.value);
+    }
+  }
+  return { handlers, urls, tags };
+}
+
+/** True when the parser assigned a URL that a browser would EXECUTE. */
+function hasExecutableUrl(urls: string[]): boolean {
+  return urls.some((u) => /^\s*(?:javascript|data:text\/html|vbscript)/i.test(u.replace(/[ \t\n\r\u0000]/g, '')));
+}
+
+// ---------------------------------------------------------------------------
+// CONTROL. The helper must red on the PRE-FIX output, or every green below is
+// worthless. These are the literal strings the un-fixed `markdownToHtml`
+// emitted for the corresponding payloads.
+// ---------------------------------------------------------------------------
+describe('R-49 control — the detector sees the pre-fix output', () => {
+  it('detects the attribute breakout the old link line produced', () => {
+    const preFix = '<a href="" onmouseover="alert(1" class="text-primary">click</a>';
+    expect(attackSurface(preFix).handlers).toEqual(['a.onmouseover']);
+  });
+
+  it('detects the javascript: href the old link line produced', () => {
+    const preFix = '<a href="javascript:alert(1)" class="text-primary">click</a>';
+    expect(hasExecutableUrl(attackSurface(preFix).urls)).toBe(true);
+  });
+
+  it('detects the image breakout the old image line produced', () => {
+    const preFix = '<img src="" onerror="alert(1)" alt="x" />';
+    expect(attackSurface(preFix).handlers).toEqual(['img.onerror']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE FILED PAYLOAD, plus the shapes the filed payload does NOT cover.
+// ---------------------------------------------------------------------------
+describe('R-49 — attribute-context breakouts', () => {
+  const breakouts: Array<[string, string]> = [
+    ['the exact filed payload (double-quoted attr)', '[click](" onmouseover="alert(1))'],
+    ['single-quoted attribute shape', "[click](' onmouseover='alert(1))"],
+    ['unquoted attribute shape', '[click](x onmouseover=alert(1))'],
+    ['backtick attribute shape', '[click](x onmouseover=`alert(1)`)'],
+    ['tag close attempt', '[click](x><script>alert(1)</script>)'],
+    ['image: double-quoted attr', '![alt](" onerror="alert(1))'],
+    ['image: single-quoted attr', "![alt](' onerror='alert(1))"],
+    ['image: unquoted attr', '![alt](x onerror=alert(1))'],
+    ['alt text breakout', '![" onerror="alert(1)](https://e.com/a.png)'],
+    ["alt text breakout, single-quoted", "![' onerror='alert(1)](https://e.com/a.png)"],
+    ['link text cannot reopen a tag', '[<img src=x onerror=alert(1)>](https://e.com)'],
+  ];
+
+  it.each(breakouts)('creates NO event-handler attribute: %s', (_name, markdown) => {
+    const { handlers } = attackSurface(renderMarkdownToHtml(markdown).html);
+    expect(handlers).toEqual([]);
+  });
+
+  it.each(breakouts)('creates NO executable URL: %s', (_name, markdown) => {
+    const { urls } = attackSurface(renderMarkdownToHtml(markdown).html);
+    expect(hasExecutableUrl(urls)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE ALLOWLIST-PASSING PREFIX. `#…` and `/…` pass SAFE_URL_PATTERN, so on
+// these the allowlist does NOT fire — only the quote escape stands between the
+// payload and a handler. If someone ever "optimises" safeUrlAttribute to skip
+// escaping for allowed URLs, THESE are the tests that red.
+// ---------------------------------------------------------------------------
+describe('R-49 — breakout behind an ALLOWED scheme prefix (escape-only defence)', () => {
+  const allowedPrefixPayloads = [
+    '[click](#" onmouseover="alert(1))',
+    "[click](#' onmouseover='alert(1))",
+    '[click](/a" onmouseover="alert(1))',
+    '[click](./a" onmouseover="alert(1))',
+    '[click](https://e.com/" onmouseover="alert(1))',
+    '![alt](https://e.com/a.png" onerror="alert(1))',
+  ];
+
+  it.each(allowedPrefixPayloads)('no handler from %j', (markdown) => {
+    const { handlers } = attackSurface(renderMarkdownToHtml(markdown).html);
+    expect(handlers).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SCHEME OBFUSCATION. Browsers strip TAB / LF / CR (and treat NUL loosely)
+// inside a URL before resolving the scheme, so `java&#9;script:` navigates.
+// The defence here is that the allowlist FAILS CLOSED — anything that is not
+// recognisably http/https/mailto/tel/#/relative is replaced outright.
+// ---------------------------------------------------------------------------
+describe('R-49 — scheme obfuscation must fail CLOSED', () => {
+  const schemePayloads = [
+    '[x](javascript:alert(1))',
+    '[x](JaVaScRiPt:alert(1))',
+    '[x](  javascript:alert(1))',
+    '[x](\tjavascript:alert(1))',
+    '[x](java\tscript:alert(1))',
+    '[x](java\nscript:alert(1))',
+    '[x](java script:alert(1))',
+    '[x](java\u0000script:alert(1))',
+    '[x](&#106;avascript:alert(1))',
+    '[x](&#x6a;avascript:alert(1))',
+    '[x](vbscript:msgbox(1))',
+    '[x](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)',
+    '[x](file:///etc/passwd)',
+    '[x](jAvAsCrIpT&colon;alert(1))',
+    '![x](javascript:alert(1))',
+    '![x](data:text/html;base64,PHNjcmlwdD4=)',
+  ];
+
+  it.each(schemePayloads)('neutralises %j', (markdown) => {
+    const { urls, handlers } = attackSurface(renderMarkdownToHtml(markdown).html);
+    expect(handlers).toEqual([]);
+    expect(hasExecutableUrl(urls)).toBe(false);
+    // Fail-closed means REPLACED, not merely escaped.
+    expect(urls).toEqual([BLOCKED_URL]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE OTHER TWO SINKS IN THIS FILE. Neither goes through the link/image regex,
+// so neither is covered by the chokepoint wiring alone. These tests state what
+// is true TODAY; if a dependency default changes underneath us they red.
+// ---------------------------------------------------------------------------
+describe('R-49 — the non-link sinks in MarkdownPreview', () => {
+  it('KaTeX \\href does not become a live anchor (katex trust:false)', () => {
+    const { html } = renderMarkdownToHtml('$\\href{javascript:alert(1)}{click}$');
+    const surface = attackSurface(html);
+    expect(surface.handlers).toEqual([]);
+    expect(hasExecutableUrl(surface.urls)).toBe(false);
+  });
+
+  it('KaTeX \\includegraphics does not become a live image', () => {
+    const { html } = renderMarkdownToHtml(
+      '$\\includegraphics{javascript:alert(1)}$',
+    );
+    const surface = attackSurface(html);
+    expect(surface.handlers).toEqual([]);
+    expect(hasExecutableUrl(surface.urls)).toBe(false);
+  });
+
+  it('KaTeX \\htmlData / raw html is not emitted (katex trust:false)', () => {
+    const { html } = renderMarkdownToHtml('$\\html{<img src=x onerror=alert(1)>}$');
+    expect(attackSurface(html).handlers).toEqual([]);
+  });
+
+  it('a mermaid block yields only an inert placeholder div at render time', () => {
+    const { html, mermaidBlocks } = renderMarkdownToHtml(
+      '```mermaid\ngraph TD;A["<img src=x onerror=alert(1)>"]-->B;\n```',
+    );
+    expect(mermaidBlocks).toHaveLength(1);
+    const surface = attackSurface(html);
+    expect(surface.handlers).toEqual([]);
+    // The diagram source must NOT be in the initial HTML at all — it is handed
+    // to mermaid.render() in an effect, not interpolated here.
+    expect(html).not.toContain('onerror');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// REGRESSION FLOOR. A sanitizer that breaks ordinary documents gets turned off.
+// ---------------------------------------------------------------------------
+describe('R-49 — ordinary markdown still renders', () => {
+  it('keeps a normal link, image and anchor', () => {
+    const { html } = renderMarkdownToHtml(
+      '[site](https://example.com) ![pic](https://e.com/a.png) [top](#top) [mail](mailto:a@b.c)',
+    );
+    const { urls } = attackSurface(html);
+    expect(urls).toEqual([
+      'https://example.com',
+      'https://e.com/a.png',
+      '#top',
+      'mailto:a@b.c',
+    ]);
+  });
+
+  // REGRESSION THE FIX ITSELF INTRODUCED, found by this lane. The pipeline
+  // escapes the whole source as TEXT first, so by the time the link rule runs
+  // the URL already reads `?a=1&amp;b=2`; escaping it again for attribute
+  // position produced `&amp;amp;` and the browser resolved a DIFFERENT URL.
+  // FLIP: delete `decodePipelineEscape` from the href interpolation.
+  it('keeps a query string with an ampersand usable', () => {
+    const { urls } = attackSurface(
+      renderMarkdownToHtml('[q](https://example.com/s?a=1&b=2)').html,
+    );
+    expect(urls).toEqual(['https://example.com/s?a=1&b=2']);
+  });
+
+  // FLIP: delete `decodePipelineEscape` from the alt interpolation.
+  it('keeps an ampersand in alt text readable', () => {
+    const doc = new DOMParser().parseFromString(
+      `<body>${renderMarkdownToHtml('![Jones & Co](https://e.com/a.png)').html}</body>`,
+      'text/html',
+    );
+    expect(doc.querySelector('img')?.getAttribute('alt')).toBe('Jones & Co');
+  });
+
+  it('keeps an angle bracket in a url usable', () => {
+    const { urls } = attackSurface(
+      renderMarkdownToHtml('[q](https://example.com/a<b>c)').html,
+    );
+    expect(urls).toEqual(['https://example.com/a<b>c']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE DECODE MUST NOT WIDEN THE ALLOWLIST. `decodePipelineEscape` reintroduces
+// `&`, `<` and `>` before the scheme check. None of those appears in any
+// allowed prefix, so no input can cross BLOCKED → ALLOWED by being decoded.
+// These are the cases that red if that argument ever stops holding.
+// ---------------------------------------------------------------------------
+describe('R-49 — decode cannot widen the allowlist', () => {
+  const decodeAttempts = [
+    '[x](&lt;javascript:alert(1))',
+    '[x](&gt;javascript:alert(1))',
+    '[x](&amp;javascript:alert(1))',
+    '[x](&amp;#106;avascript:alert(1))',
+    '[x](&lt;script&gt;alert(1)&lt;/script&gt;)',
+    '![x](&lt;javascript:alert(1))',
+  ];
+
+  it.each(decodeAttempts)('%j stays blocked', (markdown) => {
+    const { urls, handlers } = attackSurface(renderMarkdownToHtml(markdown).html);
+    expect(handlers).toEqual([]);
+    expect(urls).toEqual([BLOCKED_URL]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE STRUCTURAL BELT at the sink, and the idempotence defect that only shows
+// up when the string half and the DOM half are actually composed.
+// ---------------------------------------------------------------------------
+describe('R-49 — the DOM belt over the finished markup', () => {
+  // FLIP: remove `if (url.trim() === BLOCKED_URL) return true;` from isSafeUrl.
+  // Without it the DOM pass deletes the href the string pass just wrote, and
+  // every `expect(urls).toEqual([BLOCKED_URL])` above reds with `[]`.
+  it('the chokepoint is idempotent: its own placeholder survives its own DOM pass', () => {
+    expect(isSafeUrl(BLOCKED_URL)).toBe(true);
+    expect(sanitizeHtmlString(`<a href="${BLOCKED_URL}">x</a>`)).toContain(BLOCKED_URL);
+    const { urls } = attackSurface(renderMarkdownToHtml('[x](javascript:alert(1))').html);
+    expect(urls).toEqual([BLOCKED_URL]);
+  });
+
+  // FLIP: delete `html = sanitizeHtmlString(html)` from renderMarkdownToHtml.
+  //
+  // This is what the belt buys that the two per-site escapes cannot: it is the
+  // shape a FUTURE regex in markdownToHtml would emit if its author forgot the
+  // escape, exactly as the link rule did before R-49. The escapes are indexed
+  // by call site and cannot cover a site that does not exist yet; this pass is
+  // indexed by the finished markup and does.
+  it.each([
+    ['a handler on an element we build', '<span title="x" onmouseover="alert(1)">t</span>'],
+    ['a handler spelled in mixed case', '<span OnMouseOver="alert(1)">t</span>'],
+    ['a javascript: href from any source', '<a href="javascript:alert(1)">t</a>'],
+    ['an injected script element', '<p>t</p><script>alert(1)</script>'],
+    ['an injected iframe', '<iframe src="https://evil.example"></iframe>'],
+    ['a srcdoc payload', '<iframe srcdoc="<script>alert(1)</script>"></iframe>'],
+    ['a form action', '<form action="javascript:alert(1)"><input /></form>'],
+  ])('neutralises %s', (_name, markup) => {
+    const cleaned = sanitizeHtmlString(markup);
+    const surface = attackSurface(cleaned);
+    expect(surface.handlers).toEqual([]);
+    expect(hasExecutableUrl(surface.urls)).toBe(false);
+    expect(surface.tags).not.toContain('script');
+    expect(surface.tags).not.toContain('iframe');
+  });
+
+  // WIRING PROOF — and the reason this test exists at all.
+  //
+  // This lane's flip battery found that deleting `sanitizeHtmlString(html)`
+  // from `renderMarkdownToHtml` reds NOTHING security-shaped: the string
+  // escapes already close every hole reachable through today's regexes, so a
+  // second layer has no live defeat while the first layer holds. That is
+  // precisely the shape that lets a belt be deleted by a future refactor with
+  // a fully green suite — a guard whose only coverage is a unit test of the
+  // function it calls, never of the CALL.
+  //
+  // So this test reds on the deletion itself, on a property that is true only
+  // if the pass actually ran: the rendered HTML must be a FIXED POINT of the
+  // sanitizer. Without the call the output still carries `<hr … />` and
+  // `<input … />`, which the sanitizer's DOM round-trip re-serialises, so the
+  // two strings differ. It proves the belt is WIRED. What the belt is WORTH is
+  // proven separately, by restoring BOTH call sites to their pre-fix form and
+  // observing that the belt alone still creates no event handler.
+  it('WIRING: the rendered HTML is a fixed point of the sanitizer', () => {
+    const md = [
+      '# Title',
+      '',
+      '---',
+      '',
+      '- [x] done',
+      '- [ ] todo',
+      '',
+      '[a](https://e.com) ![b](https://e.com/b.png)',
+    ].join('\n');
+    const { html } = renderMarkdownToHtml(md);
+    expect(sanitizeHtmlString(html)).toBe(html);
+  });
+
+  it('leaves the markup this file legitimately produces intact', () => {
+    const { html } = renderMarkdownToHtml(
+      '# Title\n\n- one\n- two\n\n[site](https://example.com)\n\n`code`\n\n**bold**',
+    );
+    expect(html).toContain('<h1');
+    expect(html).toContain('<li');
+    expect(html).toContain('<ul');
+    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain('<code');
+    expect(html).toContain('<strong>bold</strong>');
+  });
+
+  // PRE-EXISTING, NOT CAUSED BY THIS BRANCH, and NOT a security issue —
+  // recorded because it was found while proving the belt does not break
+  // ordinary rendering, and a silent "we checked" is worth less than a stated
+  // bound. `markdownToHtml` escapes `>` to `&gt;` at the top, so the
+  // blockquote rule `/^>\s+(.*)$/gm` can never match and blockquotes render as
+  // literal `&gt; text` paragraphs. Verified identical at the base commit
+  // ded7f3b96 with the branch's changes absent. Pinned so that whoever fixes
+  // it sees this test rather than assuming the belt caused it.
+  it('BOUND: blockquotes were already dead at the base commit', () => {
+    const { html } = renderMarkdownToHtml('> quote');
+    expect(html).toBe('<p class="my-3">&gt; quote</p>');
+  });
+});

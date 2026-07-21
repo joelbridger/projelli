@@ -75,6 +75,17 @@ export function safeUrlAttribute(url: string, kind: 'link' | 'image' = 'link'): 
 /** True when the URL would be permitted. Exposed for tests and for callers
  *  that want to drop the element entirely rather than neutralise its URL. */
 export function isSafeUrl(url: string, kind: 'link' | 'image' = 'link'): boolean {
+  // R-49 — IDEMPOTENCE. The header above says "where both can run, both run",
+  // but running both DELETED the marker: `about:blank#blocked` is not on the
+  // allowlist, so `sanitizeInertDocument` stripped the very href
+  // `safeUrlAttribute` had just written. The string half and the DOM half were
+  // therefore never composable, which is only visible if you actually run them
+  // together — MarkdownPreview is the first caller that does.
+  //
+  // The placeholder is the one URL that is safe BECAUSE we wrote it: it
+  // navigates nowhere and executes nothing. Treating it as safe here makes the
+  // DOM pass a no-op over the string pass's output instead of an eraser.
+  if (url.trim() === BLOCKED_URL) return true;
   return safeUrlAttribute(url, kind) !== BLOCKED_URL;
 }
 
