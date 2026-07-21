@@ -547,6 +547,8 @@
   "tests/unit/research-reliability.test.ts|@/features/workflows/engine/templates/tax/EngagementLetterBuilder|Non-feature code must import feature:workflows only through its public index module.": 1,
   "tests/unit/research-reliability.test.ts|@/features/workflows/engine/templates/tax/TaxResearchMemo|Non-feature code must import feature:workflows only through its public index module.": 1,
   "tests/unit/run-on-all-3.test.tsx|@/features/ask/chat/RunOnAllButton|Non-feature code must import feature:ask only through its public index module.": 1,
+  "tests/unit/security/html-url-sink.test.ts|@/features/documents/editor/MarkdownPreview|Non-feature code must import feature:documents only through its public index module.": 1,
+  "tests/unit/security/r49-markdown-xss-attack.test.ts|@/features/documents/editor/MarkdownPreview|Non-feature code must import feature:documents only through its public index module.": 1,
   "tests/unit/selection-anchor.test.tsx|@/features/documents/editor/InlineChatAnchor|Non-feature code must import feature:documents only through its public index module.": 1,
   "tests/unit/selection-anchor.test.tsx|@/features/documents/editor/useInlineAiEdit|Non-feature code must import feature:documents only through its public index module.": 1,
   "tests/unit/settings-nested-sections.test.tsx|@/features/settings/SettingsContent|Non-feature code must import feature:settings only through its public index module.": 1,
