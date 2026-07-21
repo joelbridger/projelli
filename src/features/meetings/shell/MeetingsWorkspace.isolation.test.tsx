@@ -46,6 +46,15 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { meetingsSurface } from './appSurface';
 import { resolveMeetingsSurfaceNavigation } from './navigation';
 
+/**
+ * Every absolute instant in this file's fixtures is anchored to this clock, and
+ * `beforeEach` pins the whole `Date` object to it. It is deliberately BEFORE
+ * `scheduledEndUtc: '2026-07-20T10:00:00.000Z'` so the seeded meetings are
+ * "upcoming". Moving a fixture date forward instead would only re-arm the same
+ * bomb with a longer fuse.
+ */
+const FIXED_TEST_CLOCK_UTC = '2026-07-20T08:00:00.000Z';
+
 const MEETING_A_DIR = 'Clients/Client A/Meetings/2026-07-20';
 const CLIENT_A = {
   provider: 'wealthbox' as const,
@@ -249,6 +258,20 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
   };
 
   beforeEach(async () => {
+    // The fixtures below carry absolute wall-clock instants
+    // (`scheduledEndUtc: '2026-07-20T10:00:00.000Z'`) and the mounted shell
+    // splits rows into "upcoming"/"past" by comparing them against the REAL
+    // clock (`MeetingsWorkspace.tsx` -> `useState(() => Date.now())`, compared
+    // in `contracts.tsx`). Without a pinned clock this file passed for one day
+    // and turned permanently red at 2026-07-20T10:00:00Z.
+    //
+    // `toFake: ['Date']` replaces the WHOLE Date object — `Date.now()` AND the
+    // `new Date()` constructor — so the clock cannot tear. `setTimeout`/
+    // `setInterval` are deliberately left REAL, because Testing Library's
+    // `findBy*`/`waitFor` polls on them and faking them would deadlock this
+    // test rather than fix it.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(FIXED_TEST_CLOCK_UTC));
     localStorage.clear();
     nativeRecords.commands = [];
     nativeRecords.invoke.mockReset();
@@ -350,6 +373,7 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     setDevFlagOverride('meetings-shell-v1', undefined);
     setDevFlagOverride('selection-authority-boot-gate', undefined);
     localStorage.clear();
+    vi.useRealTimers();
   });
 
   it('selects A before opening, then removes every A detail and row under B and blocked-none', async () => {

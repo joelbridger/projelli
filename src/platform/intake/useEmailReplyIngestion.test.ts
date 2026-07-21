@@ -23,6 +23,13 @@ const authPass = {
   source: 'graph' as const,
 };
 
+/**
+ * `beforeEach` pins the whole `Date` object to this instant. It sits after the
+ * fixture mail's `receivedDateTime` and before the intake's `expiresAt`, so the
+ * intake is live and the reply is recent regardless of the real calendar.
+ */
+const FIXED_TEST_CLOCK_UTC = '2026-07-10T12:00:00.000Z';
+
 function intake(): IntakeRecord {
   return {
     intakeId: 'intake-1',
@@ -94,6 +101,18 @@ function mailView(overrides: Partial<MailView> = {}): MailView {
 
 describe('useEmailReplyIngestion', () => {
   beforeEach(() => {
+    // The intake fixture carries an absolute expiry
+    // (`expiresAt: '2026-08-10T00:00:00.000Z'`) and the reply matcher refuses
+    // an expired intake by comparing it against the REAL clock, so on
+    // 2026-08-10T00:00Z five of these six tests would have gone permanently
+    // red with no code change. Pinning the clock removes the fuse; moving the
+    // expiry forward would only re-arm it.
+    //
+    // `toFake: ['Date']` replaces the WHOLE Date object (`Date.now()` AND the
+    // `new Date()` constructor) so the clock cannot tear. `setTimeout`/
+    // `setInterval` stay REAL because this file awaits async ingestion.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(FIXED_TEST_CLOCK_UTC));
     useIntakeStore.getState().resetForTests();
     useSettingsStore.getState().resetAll();
     clearInMemoryEmailReplyQueuesForTests();
@@ -102,6 +121,7 @@ describe('useEmailReplyIngestion', () => {
 
   afterEach(() => {
     setIntakeEmailReplyAuditEmitter(null);
+    vi.useRealTimers();
   });
 
   it('runs the matcher over synced mail and enqueues a proposal idempotently', async () => {
