@@ -16,7 +16,7 @@ import type { Matter } from '@/platform/types/matter';
 import {
   validateMeetingVisibilityPolicy,
   type MeetingVisibilityPolicy,
-} from './visibilityPolicy';
+} from '@/platform/meeting-visibility';
 
 export { validateMeetingVisibilityPolicy };
 export type { MeetingVisibilityPolicy };

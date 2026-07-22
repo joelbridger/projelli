@@ -110,7 +110,7 @@ export {
 // doorway rather than the legacy capture screen or raw live-record store.
 export * from './foundation/contract';
 export * from './foundation/manifest';
-export * from './foundation/visibilityPolicy';
+export * from '@/platform/meeting-visibility';
 export {
   createMeetingKeywordCatalogueStore,
   useMeetingKeywordCatalogueStore,
