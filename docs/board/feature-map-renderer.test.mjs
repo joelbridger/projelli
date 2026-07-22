@@ -49,8 +49,9 @@ async function render(raw = acceptedRaw, comments = [], options = {}) {
       Object.defineProperty(window, 'crypto', { configurable: true, value: options.crypto === undefined ? webcrypto : options.crypto });
     },
   });
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  return { dom, document: dom.window.document, requests };
+  const result = { dom, document: dom.window.document, requests };
+  if (options.waitFor !== false) await waitForRendererState(result, options.expectState || 'success', options.label || 'renderer');
+  return result;
 }
 
 function clone(value) { return structuredClone(value); }
@@ -61,6 +62,24 @@ function publisherAccepts(bytes) {
 function raw(value) { return JSON.stringify(value); }
 function renderCounts(document) {
   return [document.querySelectorAll('li.feat').length, document.querySelectorAll('.foundation li').length, document.querySelectorAll('#nonv1').length];
+}
+function rendererState(result) {
+  const controls = [...result.document.querySelectorAll('#layers button,#styles button,#statusfilters button,#zin,#zout,#zfit,#cmode')];
+  const cards = renderCounts(result.document);
+  const commentRequests = result.requests.filter((request) => request.url.includes('/api/feature-map/comments')).length;
+  if (result.document.querySelector('.error')) return { state: 'error', cards, controlsEnabled: controls.every((button) => !button.disabled), commentRequests };
+  if (cards[0] === 69 && controls.length > 0 && controls.every((button) => !button.disabled) && commentRequests > 0) return { state: 'success', cards, controlsEnabled: true, commentRequests };
+  return { state: 'pending', cards, controlsEnabled: controls.every((button) => !button.disabled), commentRequests };
+}
+async function waitForRendererState(result, expected, label) {
+  const deadline = Date.now() + 2_000;
+  for (;;) {
+    const current = rendererState(result);
+    if (current.state === expected) return current;
+    if (current.state !== 'pending') throw new Error(`${label}: expected ${expected} renderer state, got ${current.state} (${JSON.stringify(current)})`);
+    if (Date.now() >= deadline) throw new Error(`${label}: timed out waiting for ${expected} renderer state (${JSON.stringify(current)})`);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 function assertRejected(result, message) {
   assert.deepEqual(renderCounts(result.document), [0, 0, 0], `${message}: no journey, foundation, or outside-V1 cards render`);
@@ -102,7 +121,7 @@ const renderer = dom.window.FeatureMapRenderer;
 assert.equal(renderer.version, 'four-label-v1');
 let releaseDelayedPayload;
 const delayedPayload = new Promise((resolve) => { releaseDelayedPayload = resolve; });
-const delayed = await render(acceptedRaw, [], { dataPromise: delayedPayload });
+const delayed = await render(acceptedRaw, [], { dataPromise: delayedPayload, waitFor: false });
 const delayedBefore = {
   hash: delayed.dom.window.location.hash,
   body: delayed.document.body.className,
@@ -122,7 +141,7 @@ assert.deepEqual(delayedAfter, delayedBefore, 'a delayed payload keeps hash, bod
 assert.equal(delayed.requests.filter((request) => request.url.includes('/api/feature-map/comments')).length, 0, 'a delayed payload makes no comment request');
 assert.ok([...delayed.document.querySelectorAll('#layers button,#styles button,#statusfilters button,#zin,#zout,#zfit,#cmode')].every((button) => button.disabled), 'a delayed payload keeps every map control disabled');
 releaseDelayedPayload({ ok: true, text: async () => acceptedRaw });
-await new Promise((resolve) => setTimeout(resolve, 20));
+await waitForRendererState(delayed, 'success', 'delayed valid payload');
 assert.equal(delayed.document.querySelectorAll('.error').length, 0, 'the delayed valid payload can still finish normally');
 delayed.dom.window.close();
 
@@ -236,7 +255,7 @@ const failureCases = [
   ['WebCrypto rejects', acceptedRaw, { crypto: { subtle: { digest: async () => { throw new Error('digest unavailable'); } } } }],
 ];
 for (const vector of vectors.invalid_numeric_vectors) failureCases.push([vector.name, vector.raw, {}]);
-for (const [name, body, options] of failureCases) assertRejected(await render(body, [], options), name);
+for (const [name, body, options] of failureCases) assertRejected(await render(body, [], { ...options, expectState: 'error', label: name }), name);
 
 for (const [name, mutate] of [
   ['input hash', (data) => { data.input_hash = '0'.repeat(64); }],
@@ -251,7 +270,7 @@ for (const [name, mutate] of [
   ['stage order', (data) => { data.stages.reverse(); }],
 ]) {
   const changed = clone(validControlData); mutate(changed);
-  assertRejected(await render(raw(changed)), 'digest mismatch after '+name+' mutation');
+  assertRejected(await render(raw(changed), [], { expectState: 'error', label: 'digest mismatch after '+name+' mutation' }), 'digest mismatch after '+name+' mutation');
 }
 
 assert.deepEqual({ ...renderer.countFeatures(visibleFrom(validControlData)) }, { planned: 78, 'being-built': 0, 'built-checking': 0, 'proven-windows': 0 });
