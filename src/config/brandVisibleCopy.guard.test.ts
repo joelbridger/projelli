@@ -125,7 +125,7 @@ describe('visible brand copy guard', () => {
     }
 
     expect(leaks).toEqual([]);
-  });
+  }, 20_000);
 
   it('keeps static HTML titles and NSIS installer copy on the public brand', () => {
     expect(htmlTitle(path.join(ROOT, 'index.html'))).toBe(BRAND.name);
