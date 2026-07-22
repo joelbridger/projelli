@@ -21,6 +21,7 @@ export const READINESS_TIMEOUT_MS = positiveBound('GOLDEN_LOOP_READINESS_BOUND_M
 export const SNAPSHOT_TIMEOUT_MS = positiveBound('GOLDEN_LOOP_SNAPSHOT_BOUND_MS', 3_000);
 export const ARTIFACT_TIMEOUT_MS = positiveBound('GOLDEN_LOOP_ARTIFACT_BOUND_MS', 2_000);
 const BRIDGE_TRANSPORT_ALLOWANCE_MS = 1_000;
+const MIN_BRIDGE_OPERATION_MS = 100;
 const reportProgress = createProgressReporter();
 let activeBridgeDeadlineMs;
 
@@ -38,7 +39,7 @@ async function request(endpoint, query = {}, { signal, timeoutMs: requestedTimeo
     : (Number.isFinite(operationTimeoutMs) && operationTimeoutMs > 0 ? operationTimeoutMs : 20_000) + BRIDGE_TRANSPORT_ALLOWANCE_MS;
   const absoluteDeadlineMs = deadlineMs ?? activeBridgeDeadlineMs ?? (Date.now() + normalRequestTimeoutMs);
   const remainingMs = Math.floor(absoluteDeadlineMs - Date.now());
-  if (remainingMs <= (endpoint === '/health' ? 0 : BRIDGE_TRANSPORT_ALLOWANCE_MS + 100)) {
+  if (remainingMs < (endpoint === '/health' ? 1 : BRIDGE_TRANSPORT_ALLOWANCE_MS + MIN_BRIDGE_OPERATION_MS)) {
     const url = new URL(endpoint, base);
     throw new BridgeRequestTimeoutError(`golden loop bridge request timed out: endpoint=${url.pathname} bound=0ms`);
   }
@@ -181,6 +182,7 @@ export function createRendererReadiness({
   healthRequest,
   readinessEvaluate,
   publishProgress = async () => {},
+  healthTimeoutMs = HEALTH_REQUEST_TIMEOUT_MS,
   readinessTimeoutMs = READINESS_TIMEOUT_MS,
   now = Date.now,
   pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
@@ -188,15 +190,22 @@ export function createRendererReadiness({
   let rendererReady = false;
   return async function waitForRendererCallback() {
     if (rendererReady) return;
-    const deadlineMs = now() + readinessTimeoutMs;
-    await healthRequest(deadlineMs);
+    // Health and renderer readiness are separate bounded operations. Starting
+    // the renderer clock only after health succeeds preserves the full,
+    // already-budgeted readiness window without extending either deadline.
+    await healthRequest(now() + healthTimeoutMs);
     await publishProgress('bridge-healthy');
+    const deadlineMs = now() + readinessTimeoutMs;
     let lastError;
     while (now() < deadlineMs) {
       try {
-        const remainingMs = Math.max(1, deadlineMs - now());
-        const state = await readinessEvaluate(deadlineMs, Math.min(2_000, remainingMs));
-        if (state?.hasTauriInvoke && state.readyState !== 'loading') {
+        const remainingMs = deadlineMs - now();
+        const operationTimeoutMs = Math.min(2_000, remainingMs - BRIDGE_TRANSPORT_ALLOWANCE_MS);
+        // Do not enqueue a native evaluation unless both the native callback
+        // and its HTTP response have real time inside this same deadline.
+        if (operationTimeoutMs < MIN_BRIDGE_OPERATION_MS) break;
+        const state = await readinessEvaluate(deadlineMs, operationTimeoutMs);
+        if (state?.hasTauriInvoke && state.readyState !== 'loading' && state.rootHasChildren) {
           rendererReady = true;
           await publishProgress('renderer-ready');
           return;
@@ -220,7 +229,8 @@ const waitForRendererCallback = createRendererReadiness({
   readinessEvaluate: (deadlineMs, operationTimeoutMs) => rawEvaluate(`({
     href: location.href,
     readyState: document.readyState,
-    hasTauriInvoke: typeof window.__TAURI_INTERNALS__?.invoke === 'function'
+    hasTauriInvoke: typeof window.__TAURI_INTERNALS__?.invoke === 'function',
+    rootHasChildren: Boolean(document.getElementById('root')?.childElementCount)
   })`, operationTimeoutMs, { deadlineMs }),
   publishProgress: reportProgress,
 });
