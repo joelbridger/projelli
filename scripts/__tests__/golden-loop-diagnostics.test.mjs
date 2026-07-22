@@ -13,7 +13,7 @@ const execFileAsync = promisify(execFile);
 
 const testDirectory = () => path.join(os.tmpdir(), `golden-loop-diagnostic-test-${process.pid}-${Date.now()}`);
 
-async function installedRecorder() {
+async function installedRecorder(fetchImpl = async () => ({ status: 200 })) {
   const source = await readFile(new URL('../../src-tauri/src/dev_bridge.rs', import.meta.url), 'utf8');
   const script = source.match(/Some\(r#"([\s\S]*?)"#\.to_string\(\)\)/)?.[1];
   assert.ok(script, 'could not extract the installed initialization script');
@@ -24,10 +24,22 @@ async function installedRecorder() {
     console: undefined,
   };
   const console = { error() {} };
-  window.fetch = async () => ({ status: 200 });
+  window.fetch = fetchImpl;
   vm.runInNewContext(script, { window, console, URL });
   return { window, listeners, console };
 }
+
+test('installed early recorder preserves the browser fetch receiver', async () => {
+  let window;
+  const receiverSensitiveFetch = function () {
+    if (this !== window) throw new TypeError('Illegal invocation');
+    return Promise.resolve({ status: 200 });
+  };
+  ({ window } = await installedRecorder(receiverSensitiveFetch));
+
+  const response = await window.fetch('/src/main.tsx');
+  assert.equal(response.status, 200);
+});
 
 test('installed early recorder retains only categories, safe locations, and HTTP status', async () => {
   const { window, listeners, console } = await installedRecorder();
@@ -134,9 +146,11 @@ async function runShellFailure(mode) {
   const bin = path.join(root, 'bin');
   const repo = path.join(root, 'repo');
   const diagnostics = path.join(root, 'diagnostics');
+  const temporaryDirectory = path.join(root, 'tmp');
   await mkdir(path.join(repo, 'src-tauri'), { recursive: true });
   await mkdir(path.join(repo, 'node_modules'));
   await mkdir(bin);
+  await mkdir(temporaryDirectory);
   await writeFile(path.join(repo, 'src-tauri', 'tauri.conf.json'), JSON.stringify({ build: { devUrl: 'http://127.0.0.1:4173/' } }));
   const app = path.join(root, 'app');
   const launcher = path.join(root, 'launcher');
@@ -195,6 +209,12 @@ echo $! >"$LANTERN_APP_PID_FILE"
 `);
   await writeExecutable(driver, `#!/usr/bin/env node
 if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-startup') process.exit(1);
+if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_PID, String(process.pid));
+  process.on('SIGTERM', () => {});
+  setInterval(() => {}, 1_000);
+}
 `);
   await writeFile(invalidWriter, 'this is not valid JavaScript');
   await writeFile(failingWriter, `if (process.argv[2] === '--validate') process.exit(0); process.exit(9);`);
@@ -205,17 +225,22 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-startup') process.exit(1);
     GOLDEN_LOOP_TEST_MODE: mode,
     GOLDEN_LOOP_TEST_CURL_COUNT: path.join(root, 'curl-count'),
     GOLDEN_LOOP_TEST_LAUNCH_COUNT: path.join(root, 'launch-count'),
+    GOLDEN_LOOP_TEST_DRIVER_PID: path.join(root, 'driver-pid'),
     GOLDEN_LOOP_DIAGNOSTIC_DIR: diagnostics,
     GOLDEN_LOOP_LAUNCHER: launcher,
     GOLDEN_LOOP_DRIVER: driver,
     GOLDEN_LOOP_TIMEOUT_SECONDS: '1',
+    TMPDIR: temporaryDirectory,
     ...(mode === 'diagnostic-writer-validation' ? { GOLDEN_LOOP_DIAGNOSTIC_WRITER: invalidWriter } : {}),
     ...(mode === 'diagnostic-write-failure' ? { GOLDEN_LOOP_DIAGNOSTIC_WRITER: failingWriter } : {}),
   };
   try {
     let failure;
     try {
-      await execFileAsync('bash', [new URL('../golden-loop.sh', import.meta.url).pathname, repo, app], { env, timeout: 10_000 });
+      await execFileAsync('bash', [new URL('../golden-loop.sh', import.meta.url).pathname, repo, app], {
+        env,
+        timeout: mode === 'driver-timeout' ? 20_000 : 10_000,
+      });
     } catch (error) {
       failure = error;
     }
@@ -225,6 +250,11 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-startup') process.exit(1);
     assert.ok(names.length >= 1, `${mode} left no artifact`);
     const artifact = JSON.parse(await readFile(path.join(diagnostics, names.at(-1)), 'utf8'));
     assert.match(failure.stderr, /GOLDEN LOOP DIAGNOSTIC: path=.* sha256=[a-f0-9]{64} classification=/);
+    if (mode === 'driver-timeout') {
+      const driverPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_PID, 'utf8'));
+      assert.throws(() => process.kill(driverPid, 0), { code: 'ESRCH' });
+      assert.deepEqual(await (await import('node:fs/promises')).readdir(temporaryDirectory), []);
+    }
     return artifact;
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -252,6 +282,13 @@ test('real shell routes every injected early failure to a red, bounded artifact'
     assert.equal(artifact.renderer.locationClass, 'unavailable', mode);
     assert.equal(JSON.stringify(artifact).includes('client'), false, mode);
   }
+});
+
+test('a never-exiting driver is killed within the wall-clock bound and fully cleaned up', async () => {
+  const startedAt = Date.now();
+  const artifact = await runShellFailure('driver-timeout');
+  assert.equal(artifact.classification, 'driver-startup-failure');
+  assert.ok(Date.now() - startedAt < 15_000, 'driver timeout exceeded its TERM plus KILL grace');
 });
 
 test('real product-gate shell routes build and provenance failures to artifacts', async () => {
