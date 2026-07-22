@@ -13,6 +13,13 @@ import {
   type LiveCrmRecord,
 } from '@/platform/crm/liveRecords';
 import type { Matter } from '@/platform/types/matter';
+import {
+  validateMeetingVisibilityPolicy,
+  type MeetingVisibilityPolicy,
+} from './visibilityPolicy';
+
+export { validateMeetingVisibilityPolicy };
+export type { MeetingVisibilityPolicy };
 
 export type MeetingRef = string;
 export type MeetingArtifactRef = string;
@@ -684,10 +691,6 @@ export interface MeetingIntelligenceSettingsProjection {
   readonly keywordTrackingEnabled: boolean;
   readonly clientSignalsEnabled: boolean;
   readonly displayPreference: 'compact' | 'comfortable';
-}
-export interface MeetingVisibilityPolicy {
-  readonly id: string;
-  readonly mode: 'inherit-household' | 'explicit-review';
 }
 export interface MeetingTypeDefinition {
   readonly id: string;
@@ -3267,13 +3270,6 @@ export function validateMeetingKeywordCatalogue(
     normalized.add(key);
     return term;
   });
-}
-export function validateMeetingVisibilityPolicy(
-  value: MeetingVisibilityPolicy
-): MeetingVisibilityPolicy {
-  if (!['inherit-household', 'explicit-review'].includes(value.mode))
-    throw new Error('Meeting visibility policy is invalid.');
-  return { id: nonEmpty(value.id, 'Visibility policy ID'), mode: value.mode };
 }
 export function validateMeetingDeferredDescriptor(
   value: MeetingDeferredDescriptor
