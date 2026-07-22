@@ -1,4 +1,18 @@
-import { describe, expect, it, vi } from 'vitest';
+/* eslint-disable @typescript-eslint/no-base-to-string, @typescript-eslint/require-await, @typescript-eslint/no-invalid-void-type, @typescript-eslint/no-unsafe-assignment -- Existing lightweight unit fixtures moved beside the feature so their module mock cannot become a production authorization seam. */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+const meetingVisibilityMocks = vi.hoisted(() => ({
+  requireCurrentMeetingFileAccess: vi.fn(),
+}));
+
+vi.mock('./meetingFileVisibility', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./meetingFileVisibility')>();
+  return {
+    ...actual,
+    requireCurrentMeetingFileAccess:
+      meetingVisibilityMocks.requireCurrentMeetingFileAccess,
+  };
+});
+
 import {
   buildMeetingArtifactAvailability,
   buildMeetingSendPreview,
@@ -9,18 +23,18 @@ import {
   type MeetingDeliveryStatus,
   type MeetingArtifactAvailability,
   type MeetingSendPreview,
-} from '@/features/meetings/meetingArtifactDelivery';
+} from './meetingArtifactDelivery';
 import {
   emptyMeetingRecipientArtifacts,
   type MeetingDeliveryPlan,
-} from '@/features/meetings/meetingRecipientPlan';
-import type { MeetingMeta } from '@/features/meetings/meetingStore';
+} from './meetingRecipientPlan';
+import type { MeetingMeta } from './meetingStore';
 import type { AuditService } from '@/platform/audit/AuditService';
 import type {
   ConnectedAccount,
   MailAttachmentInput,
 } from '@/platform/utils/mail-commands';
-import { MeetingFileVisibilityRevokedError } from '@/features/meetings';
+import { MeetingFileVisibilityRevokedError } from './meetingFileVisibility';
 
 vi.mock('@/platform/privacy/localOnlyGuard', () => ({
   isPersistedLocalOnly: vi.fn(() => false),
@@ -38,7 +52,6 @@ function sendMeetingArtifacts(
   deps: Omit<MeetingSendDeps, 'workspaceRoot' | 'workspaceGeneration'>
 ) {
   return sendMeetingArtifactsRaw({
-    requireFileAccess: () => Promise.resolve(),
     ...deps,
     workspaceRoot: '/client',
     workspaceGeneration: 1,
@@ -179,6 +192,9 @@ function previewFor(
 describe('meeting artifact delivery', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    meetingVisibilityMocks.requireCurrentMeetingFileAccess.mockResolvedValue(
+      undefined
+    );
   });
 
   it('builds a reviewed send preview only for chosen recipients and ready artifacts', () => {
@@ -393,7 +409,7 @@ describe('meeting artifact delivery', () => {
     const attachment = deferred<Uint8Array>();
     const attachmentStarted = deferred<void>();
     let revoked = false;
-    const requireAccessMock = vi.fn<(input: { path: string }) => Promise<void>>(
+    meetingVisibilityMocks.requireCurrentMeetingFileAccess.mockImplementation(
       async () => {
         if (revoked) throw new MeetingFileVisibilityRevokedError();
       }
@@ -416,7 +432,6 @@ describe('meeting artifact delivery', () => {
       },
       audit: { logDurable: vi.fn() } as never,
       sendMail: sendMail as never,
-      requireFileAccess: requireAccessMock,
     });
 
     await attachmentStarted.promise;
@@ -427,9 +442,11 @@ describe('meeting artifact delivery', () => {
       MeetingFileVisibilityRevokedError
     );
     expect(sendMail).not.toHaveBeenCalled();
-    expect(requireAccessMock.mock.calls.map(([input]) => input.path)).toContain(
-      '/client/Meetings/one/notes.docx'
-    );
+    expect(
+      meetingVisibilityMocks.requireCurrentMeetingFileAccess.mock.calls.map(
+        ([input]) => (input as { path: string }).path
+      )
+    ).toContain('/client/Meetings/one/notes.docx');
   });
 
   it('refuses to write a send log for a meeting from another client', async () => {

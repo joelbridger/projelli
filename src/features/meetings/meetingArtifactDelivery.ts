@@ -81,9 +81,6 @@ export interface MeetingSendDeps {
   buildSummaryDocxBytes?: () => Promise<Uint8Array>;
   audit: Pick<AuditService, 'logDurable'>;
   sendMail?: typeof defaultMailSend;
-  /** Narrow test/integration seam; production uses the live file-authority
-   * resolver below. */
-  requireFileAccess?: typeof requireCurrentMeetingFileAccess;
   nowIso?: string;
   idFactory?: () => string;
 }
@@ -329,7 +326,7 @@ function requireSendFileAccess(
   path: string,
   deps: MeetingSendDeps
 ): Promise<void> {
-  return (deps.requireFileAccess ?? requireCurrentMeetingFileAccess)({
+  return requireCurrentMeetingFileAccess({
     path,
     workspace: deps.workspaceService,
     workspaceRoot: deps.workspaceRoot,
