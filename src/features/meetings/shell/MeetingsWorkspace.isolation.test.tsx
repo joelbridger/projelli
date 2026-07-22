@@ -1,4 +1,5 @@
 import '@/i18n';
+import { useLayoutEffect, useRef } from 'react';
 import {
   act,
   cleanup,
@@ -45,6 +46,7 @@ import { useFirmStore } from '@/platform/firm/firmStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { meetingsSurface } from './appSurface';
 import { TemplateManagement } from './MeetingsWorkspace';
+import { MeetingEntry } from '../MeetingEntry';
 import { resolveMeetingsSurfaceNavigation } from './navigation';
 
 /**
@@ -57,6 +59,7 @@ import { resolveMeetingsSurfaceNavigation } from './navigation';
 const FIXED_TEST_CLOCK_UTC = '2026-07-20T08:00:00.000Z';
 
 const MEETING_A_DIR = 'Clients/Client A/Meetings/2026-07-20';
+const FIRM_A_TRANSCRIPT = 'Firm A private retirement plan';
 const CLIENT_A = {
   provider: 'wealthbox' as const,
   householdId: 'household-a',
@@ -75,11 +78,23 @@ async function selectClient(client: typeof CLIENT_A | typeof CLIENT_B) {
 class IsolationBackend implements FSBackend {
   private rootPath = '/workspace';
 
+  constructor(private readonly transcriptText = '') {}
+
   read(path: string): Promise<string> {
     if (path.endsWith('transcript.json')) {
       return Promise.resolve(
         JSON.stringify({
-          segments: [],
+          segments: this.transcriptText
+            ? [
+                {
+                  startMs: 0,
+                  endMs: 1_000,
+                  channel: 'mic',
+                  speaker: 'You',
+                  text: this.transcriptText,
+                },
+              ]
+            : [],
           meta: {
             startedAt: '2026-07-20T09:00:00.000Z',
             durationMs: 3_600_000,
@@ -347,7 +362,10 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     });
     useWorkspaceStore.setState({ rootPath: '/workspace' });
     service = new WorkspaceService();
-    await service.initialize(new IsolationBackend(), '/workspace');
+    await service.initialize(
+      new IsolationBackend(FIRM_A_TRANSCRIPT),
+      '/workspace'
+    );
     setActiveWorkspaceService(service);
     runtime.workspace.serviceRef.current = service;
     runtime.navigation.setSurface.mockReset();
@@ -566,6 +584,176 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
       // itself must still suppress the transcript loaded for advisor-1.
       expect(deferredClears).toHaveLength(1);
       expect(screen.getByTestId('meetings-templates-unavailable')).toBeTruthy();
+    } finally {
+      queueSpy.mockRestore();
+    }
+  });
+
+  it('never paints firm A meeting content in the first firm B render when viewer, policy, and IDs match', async () => {
+    useMatterStore.setState({ activeMatterId: 'matter-a' });
+    await expect(selectClient(CLIENT_A)).resolves.toMatchObject({
+      kind: 'selected',
+    });
+    const makePort = (workspaceRoot: string) => ({
+      records: nativeRecords.records,
+      workspaceRoot,
+      error: null,
+      getActiveClientBoundary: readActiveMeetingClientBoundary,
+      getSelectionError: () => null,
+      save: (record: LiveCrmRecord) => Promise.resolve(record),
+      reloadRecords: () => Promise.resolve(nativeRecords.records),
+    });
+    const targetA = await resolveMeetingOpenTarget(
+      createMeetingStore(makePort('/workspace')),
+      'meeting-a',
+      readActiveMeetingClientBoundary
+    );
+    const boundaryA = readActiveMeetingClientBoundary();
+    if (!boundaryA) throw new Error('Expected firm A meeting boundary.');
+
+    const serviceB = new WorkspaceService();
+    await serviceB.initialize(
+      new IsolationBackend('Firm B private estate plan'),
+      '/workspace-b'
+    );
+    const mattersA = useMatterStore.getState().matters;
+    const mattersB = mattersA.map((matter) => ({
+      ...matter,
+      folderPaths: matter.folderPaths.map((path) =>
+        path.replace(/^\/workspace/, '/workspace-b')
+      ),
+    }));
+    setActiveWorkspaceService(serviceB);
+    useWorkspaceStore.getState().setRootPath('/workspace-b');
+    useMatterStore.setState({ matters: mattersB, activeMatterId: 'matter-a' });
+    const targetB = await resolveMeetingOpenTarget(
+      createMeetingStore(makePort('/workspace-b')),
+      'meeting-a',
+      readActiveMeetingClientBoundary
+    );
+    const boundaryB = readActiveMeetingClientBoundary();
+    if (!boundaryB) throw new Error('Expected firm B meeting boundary.');
+
+    setActiveWorkspaceService(service);
+    useWorkspaceStore.getState().setRootPath('/workspace');
+    useMatterStore.setState({ matters: mattersA, activeMatterId: 'matter-a' });
+
+    const runtimeB = {
+      ...runtime,
+      workspace: {
+        ...runtime.workspace,
+        rootPath: '/workspace-b',
+        serviceRef: { current: serviceB },
+      },
+    };
+    const firstFirmBPaint: Array<{
+      templateTranscriptAbsent: boolean;
+      detailAbsent: boolean;
+      firmAProseAbsent: boolean;
+    }> = [];
+
+    function AuthorityPaintProbe({
+      phase,
+      target,
+      boundary,
+      runtimeValue,
+      workspaceRoot,
+      workspaceService,
+    }: {
+      phase: 'A' | 'B';
+      target: typeof targetA;
+      boundary: Parameters<typeof MeetingEntry>[0]['activeClientBoundary'];
+      runtimeValue: Parameters<typeof TemplateManagement>[0]['runtime'];
+      workspaceRoot: string;
+      workspaceService: WorkspaceService;
+    }) {
+      const rootRef = useRef<HTMLDivElement>(null);
+      useLayoutEffect(() => {
+        if (phase !== 'B') return;
+        const node = rootRef.current;
+        firstFirmBPaint.push({
+          templateTranscriptAbsent:
+            node?.querySelector(
+              '[data-testid="meetings-templates-unavailable"]'
+            ) !== null,
+          detailAbsent:
+            node?.querySelector('[data-testid="meeting-entry"]') === null,
+          firmAProseAbsent: !node?.textContent?.includes(FIRM_A_TRANSCRIPT),
+        });
+      }, [phase]);
+      return (
+        <div ref={rootRef}>
+          <TemplateManagement
+            target={target}
+            activeClientBoundary={boundary}
+            runtime={runtimeValue}
+          />
+          <MeetingEntry
+            activeClientBoundary={boundary}
+            target={target}
+            clientName="Client A"
+            workspaceRoot={workspaceRoot}
+            workspaceService={workspaceService}
+            onBack={vi.fn()}
+          />
+        </div>
+      );
+    }
+
+    const mounted = render(
+      <AuthorityPaintProbe
+        phase="A"
+        target={targetA}
+        boundary={boundaryA}
+        runtimeValue={runtime}
+        workspaceRoot="/workspace"
+        workspaceService={service}
+      />
+    );
+    expect(await screen.findByTestId('meeting-entry')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('meeting-subtab-transcript'));
+    expect(await screen.findByText(FIRM_A_TRANSCRIPT)).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByTestId('meetings-templates-loading')).toBeNull();
+      expect(screen.queryByTestId('meetings-templates-unavailable')).toBeNull();
+    });
+
+    const deferredClears: Array<() => void> = [];
+    const queueSpy = vi
+      .spyOn(globalThis, 'queueMicrotask')
+      .mockImplementation((callback) => {
+        deferredClears.push(callback);
+      });
+    try {
+      act(() => {
+        setActiveWorkspaceService(serviceB);
+        useWorkspaceStore.getState().setRootPath('/workspace-b');
+        useMatterStore.setState({
+          matters: mattersB,
+          activeMatterId: 'matter-a',
+        });
+        mounted.rerender(
+          <AuthorityPaintProbe
+            phase="B"
+            target={targetB}
+            boundary={boundaryB}
+            runtimeValue={runtimeB}
+            workspaceRoot="/workspace-b"
+            workspaceService={serviceB}
+          />
+        );
+      });
+
+      // The parent layout probe runs after B's first DOM commit but before the
+      // children's passive load/clear effects. Holding queued clears makes the
+      // stale A state remain available, so only the render authority gate can
+      // make this snapshot safe.
+      expect(firstFirmBPaint[0]).toEqual({
+        templateTranscriptAbsent: true,
+        detailAbsent: true,
+        firmAProseAbsent: true,
+      });
+      expect(deferredClears.length).toBeGreaterThan(0);
     } finally {
       queueSpy.mockRestore();
     }

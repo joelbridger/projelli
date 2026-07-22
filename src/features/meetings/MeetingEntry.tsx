@@ -60,7 +60,10 @@ import { meetingNoteOutboundGate } from './outboundNoteGate';
 import { deriveNoticeState } from './noticeLedger';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import {
+  normalizeRecentWorkspacePath,
+  useWorkspaceStore,
+} from '@/platform/fs/workspaceStore';
 import {
   getMeetingPanelComposition,
   type MeetingPanelId,
@@ -114,6 +117,22 @@ export interface MeetingEntryProps {
 }
 
 const audit = new AuditService('meetings');
+
+function detailRenderedAuthorityIdentity(input: {
+  readonly workspaceRoot: string;
+  readonly workspaceGeneration: number;
+  readonly visibilityIdentity: string;
+  readonly meetingDir: string;
+  readonly matterId: string;
+}): string {
+  return JSON.stringify([
+    normalizeRecentWorkspacePath(input.workspaceRoot),
+    input.workspaceGeneration,
+    input.visibilityIdentity,
+    normalizeRecentWorkspacePath(input.meetingDir),
+    input.matterId,
+  ]);
+}
 
 function consentLabel(
   meta: MeetingMeta | null,
@@ -245,6 +264,17 @@ function MeetingEntryHost({
     () => meetingFileVisibilityContextIdentity(visibilityContext),
     [visibilityContext]
   );
+  const renderedAuthorityIdentity = useMemo(
+    () =>
+      detailRenderedAuthorityIdentity({
+        workspaceRoot,
+        workspaceGeneration,
+        visibilityIdentity,
+        meetingDir,
+        matterId,
+      }),
+    [matterId, meetingDir, visibilityIdentity, workspaceGeneration, workspaceRoot]
+  );
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
   const [hasNotes, setHasNotes] = useState(false);
@@ -266,8 +296,10 @@ function MeetingEntryHost({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [retryingNotes, setRetryingNotes] = useState(false);
   const [retryingTranscript, setRetryingTranscript] = useState(false);
-  const [authorizedVisibilityIdentity, setAuthorizedVisibilityIdentity] =
-    useState<string | null>(null);
+  const [
+    authorizedRenderedAuthorityIdentity,
+    setAuthorizedRenderedAuthorityIdentity,
+  ] = useState<string | null>(null);
   const [notices, setNotices] = useState<NoticeEntry[]>([]);
   const audioRef = useRef<AudioPlayerHandle>(null);
   const didInitialSeek = useRef(false);
@@ -349,7 +381,7 @@ function MeetingEntryHost({
     setNotices([]);
     setRetryingNotes(false);
     setRetryingTranscript(false);
-    setAuthorizedVisibilityIdentity(null);
+    setAuthorizedRenderedAuthorityIdentity(null);
     didInitialSeek.current = false;
     // eslint-disable-next-line lantern-async/no-silent-failure -- each meeting-file read below renders a safe empty/pending state on failure
     void (async () => {
@@ -360,7 +392,7 @@ function MeetingEntryHost({
         const raw = await ws.readFile(`${meetingDir}/meeting.json`);
         if (isCurrentLoad()) {
           setMeta(JSON.parse(raw) as MeetingMeta);
-          setAuthorizedVisibilityIdentity(visibilityIdentity);
+          setAuthorizedRenderedAuthorityIdentity(renderedAuthorityIdentity);
         }
       } catch {
         if (isCurrentLoad()) setMeta(null);
@@ -418,7 +450,14 @@ function MeetingEntryHost({
     return () => {
       meetingLoadToken.current += 1;
     };
-  }, [meetingDir, workspaceService, initialSeekMs, canAccessMeetingFile, visibilityIdentity]);
+  }, [
+    meetingDir,
+    workspaceService,
+    initialSeekMs,
+    canAccessMeetingFile,
+    visibilityIdentity,
+    renderedAuthorityIdentity,
+  ]);
 
   // Recording Notice Kit — the per-client ledger for this meeting's notices.
   // matterFolder is derived from matterId (falls back to stripping the meeting
@@ -976,7 +1015,9 @@ function MeetingEntryHost({
     onActionError: handleActionError,
   };
 
-  if (authorizedVisibilityIdentity !== visibilityIdentity) return null;
+  if (authorizedRenderedAuthorityIdentity !== renderedAuthorityIdentity) {
+    return null;
+  }
 
   return (
     <div

@@ -3882,22 +3882,22 @@ export function useMeetingIntelligenceSettingsStore(): MeetingIntelligenceSettin
 }
 export function useMeetingFoundationPreferencesStore(): MeetingFoundationPreferencesStore {
   const live = useLiveCrmRecords();
+  const {
+    error,
+    reloadUnfilteredRecordsForInternalMeetingPreferences: reloadRecords,
+    save,
+    unfilteredRecordsForInternalMeetingPreferences: records,
+    workspaceRoot,
+  } = live;
   return useMemo(
     () =>
       createMeetingFoundationPreferencesStore({
-        records: live.unfilteredRecordsForInternalMeetingPreferences,
-        workspaceRoot: live.workspaceRoot,
-        error: live.error,
-        save: live.save,
-        reloadRecords:
-          live.reloadUnfilteredRecordsForInternalMeetingPreferences,
+        records,
+        workspaceRoot,
+        error,
+        save,
+        reloadRecords,
       }),
-    [
-      live.error,
-      live.reloadUnfilteredRecordsForInternalMeetingPreferences,
-      live.save,
-      live.unfilteredRecordsForInternalMeetingPreferences,
-      live.workspaceRoot,
-    ]
+    [error, records, reloadRecords, save, workspaceRoot]
   );
 }

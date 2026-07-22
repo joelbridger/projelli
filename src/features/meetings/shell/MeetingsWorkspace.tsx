@@ -16,7 +16,10 @@ import {
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { useFlag } from '@/platform/flags';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import {
+  normalizeRecentWorkspacePath,
+  useWorkspaceStore,
+} from '@/platform/fs/workspaceStore';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -103,6 +106,23 @@ const FIRM_MEETING_SELECTION_REQUEST = {
 
 const LOCAL_PRACTICE_TEMPLATE_OWNER = 'local-practice';
 
+function templateRenderedAuthorityIdentity(input: {
+  readonly workspaceRoot: string;
+  readonly workspaceGeneration: number;
+  readonly visibilityIdentity: string;
+  readonly target: MeetingOpenTarget | null;
+}): string {
+  return JSON.stringify([
+    normalizeRecentWorkspacePath(input.workspaceRoot),
+    input.workspaceGeneration,
+    input.visibilityIdentity,
+    input.target
+      ? normalizeRecentWorkspacePath(input.target.meetingDir)
+      : null,
+    input.target?.meeting.id ?? null,
+  ]);
+}
+
 function currentMeetingSelectionError(): string | null {
   const decision = readSelectionOperationDecision(
     CLIENT_MEETING_SELECTION_REQUEST
@@ -183,15 +203,27 @@ export function TemplateManagement({
       }),
     [visibilityPolicies, visibilityViewerId]
   );
-  const [authorizedVisibilityIdentity, setAuthorizedVisibilityIdentity] =
-    useState<string | null>(null);
+  const renderedAuthorityIdentity = useMemo(
+    () =>
+      templateRenderedAuthorityIdentity({
+        workspaceRoot,
+        workspaceGeneration,
+        visibilityIdentity,
+        target,
+      }),
+    [target, visibilityIdentity, workspaceGeneration, workspaceRoot]
+  );
+  const [
+    authorizedRenderedAuthorityIdentity,
+    setAuthorizedRenderedAuthorityIdentity,
+  ] = useState<string | null>(null);
 
   useEffect(() => {
     const request = { current: true };
     queueMicrotask(() => {
       if (!request.current) return;
       setTranscript(null);
-      setAuthorizedVisibilityIdentity(null);
+      setAuthorizedRenderedAuthorityIdentity(null);
       setLoading(target !== null);
     });
     if (!target || !workspace) return () => { request.current = false; };
@@ -214,7 +246,7 @@ export function TemplateManagement({
       });
       if (request.current) {
         setTranscript(JSON.parse(raw) as TranscriptFile);
-        setAuthorizedVisibilityIdentity(visibilityIdentity);
+        setAuthorizedRenderedAuthorityIdentity(renderedAuthorityIdentity);
       }
     })()
       .catch(() => {
@@ -230,6 +262,7 @@ export function TemplateManagement({
     workspaceGeneration,
     workspaceRoot,
     visibilityIdentity,
+    renderedAuthorityIdentity,
   ]);
 
   if (!workspace) {
@@ -243,7 +276,9 @@ export function TemplateManagement({
   // policy change. Gate the old transcript synchronously by the authority that
   // loaded it, so that one render can never expose a stale template fill.
   const authorizedTranscript =
-    authorizedVisibilityIdentity === visibilityIdentity ? transcript : null;
+    authorizedRenderedAuthorityIdentity === renderedAuthorityIdentity
+      ? transcript
+      : null;
   const fill =
     target && authorizedTranscript && activeClientBoundary
       ? {
