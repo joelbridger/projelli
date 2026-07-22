@@ -30,6 +30,12 @@ function inCrmWorkspace<T>(workspaceRoot: string, operation: () => Promise<T>): 
   return task;
 }
 
+/**
+ * Raw internal collection read. This intentionally includes control records
+ * such as meeting visibility preferences for their owning platform stores.
+ * User-facing lists, search, Ask, and citations must use the filtered CRM
+ * boundary instead of exposing this raw result.
+ */
 export async function loadLiveCrmRecords(workspaceRoot: string | null | undefined): Promise<readonly LiveCrmRecord[]> {
   if (!isTauri() || !workspaceRoot) return [];
   return inCrmWorkspace(workspaceRoot, () => invoke<LiveCrmRecord[]>('crm_live_list'));

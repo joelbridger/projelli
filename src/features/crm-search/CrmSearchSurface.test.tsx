@@ -169,4 +169,38 @@ describe('CRM saved-record search', () => {
     });
     expect(screen.queryByTestId(`crm-search-hit-${householdRecord.id}`)).not.toBeInTheDocument();
   });
+
+  it('never sends or displays the internal visibility preferences record', async () => {
+    const controlRecord = {
+      id: 'meeting-preferences',
+      kind: 'meeting_foundation_preferences',
+      visibilityPolicies: [{
+        id: 'private', mode: 'explicit-review',
+        includedMemberIds: ['secret-included-member'],
+        excludedMemberIds: ['secret-excluded-member'],
+      }],
+    };
+    useLiveCrmRecords.mockReturnValue(liveRecords([householdRecord, controlRecord]));
+    searchCrmRecords.mockResolvedValueOnce([{
+      entityId: controlRecord.id,
+      entityKind: controlRecord.kind,
+      matterId: 'firm',
+      title: 'Preferences',
+      snippet: 'secret-included-member',
+      content: JSON.stringify(controlRecord),
+    }]);
+
+    render(<CrmSearchSurface />);
+    fireEvent.change(screen.getByPlaceholderText('Ask about a client, note, fact, or task'), {
+      target: { value: 'secret member' },
+    });
+    fireEvent.click(screen.getByTestId('crm-search-submit'));
+
+    await act(async () => { await Promise.resolve(); });
+    expect(searchCrmRecords).toHaveBeenCalledWith(
+      '/workspace/exam', 'secret member', undefined, [householdRecord.id],
+    );
+    expect(screen.queryByText(/secret-included-member/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(`crm-search-hit-${controlRecord.id}`)).not.toBeInTheDocument();
+  });
 });

@@ -123,14 +123,22 @@ describe('useLiveCrmRecords meeting visibility reactivity', () => {
         task.id
       );
     });
+    expect(
+      result.current.unfilteredRecordsForInternalMeetingStores.find(
+        (record) => record.kind === 'meeting_foundation_preferences'
+      )?.['visibilityPolicies']
+    ).toEqual(preferences(['included-advisor'])['visibilityPolicies']);
+    expect(result.current.records.some(
+      (record) => record.kind === 'meeting_foundation_preferences'
+    )).toBe(false);
 
     act(() => {
       boundary.setViewer('excluded-advisor');
     });
 
     expect(result.current.records.map((record) => record.id)).toEqual([
-      'meeting-preferences',
     ]);
+    expect(JSON.stringify(result.current.records)).not.toContain('included-advisor');
   });
 
   it('re-filters after a policy reload and never shows an old async result to the new viewer', async () => {
@@ -155,7 +163,6 @@ describe('useLiveCrmRecords meeting visibility reactivity', () => {
     });
     await waitFor(() => {
       expect(result.current.records.map((record) => record.id)).toEqual([
-        'meeting-preferences',
       ]);
     });
 
@@ -173,7 +180,6 @@ describe('useLiveCrmRecords meeting visibility reactivity', () => {
     });
     await waitFor(() => {
       expect(result.current.records.map((record) => record.id)).toEqual([
-        'meeting-preferences',
       ]);
     });
   });

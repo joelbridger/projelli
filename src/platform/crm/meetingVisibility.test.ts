@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
 import type { LiveCrmRecord } from './liveRecords';
 import { filterLiveCrmRecordsByMeetingVisibility } from './meetingVisibility';
 
@@ -59,7 +61,7 @@ describe('CRM meeting visibility boundary', () => {
     'shows restricted meeting-derived CRM records to %s',
     (viewerId) => {
       expect(idsFor(records, viewerId)).toEqual(
-        records.map((record) => record.id)
+        [meeting, artifact, task, legacy].map((record) => record.id)
       );
     }
   );
@@ -67,7 +69,7 @@ describe('CRM meeting visibility boundary', () => {
   it.each(['excluded-advisor', 'not-included', null])(
     'hides every restricted descendant from %s while preserving genuine legacy CRM data',
     (viewerId) => {
-      expect(idsFor(records, viewerId)).toEqual([preferences.id, legacy.id]);
+      expect(idsFor(records, viewerId)).toEqual([legacy.id]);
     }
   );
 
@@ -96,7 +98,7 @@ describe('CRM meeting visibility boundary', () => {
         ],
         'owner-advisor'
       )
-    ).toEqual([preferences.id, legacy.id]);
+    ).toEqual([legacy.id]);
   });
 
   it('does not guess lineage from matching words, dates, or paths', () => {
@@ -109,12 +111,16 @@ describe('CRM meeting visibility boundary', () => {
     };
     expect(
       idsFor([preferences, meeting, unrelated], 'excluded-advisor')
-    ).toEqual([preferences.id, unrelated.id]);
+    ).toEqual([unrelated.id]);
   });
 
   it('keeps a complete old unrestricted meeting chain usable only by explicit legacy classification', () => {
     const { visibilityPolicyId: _retiredPolicy, ...oldMeetingBase } = meeting;
-    const oldMeeting = { ...oldMeetingBase, id: 'old-meeting' };
+    const oldMeeting = {
+      ...oldMeetingBase,
+      id: 'old-meeting',
+      meetingVisibilityLineage: 'legacy-unrestricted',
+    };
     const oldArtifact = {
       ...artifact,
       id: 'old-artifact',
@@ -129,5 +135,51 @@ describe('CRM meeting visibility boundary', () => {
     expect(idsFor(oldRecords, null)).toEqual(
       oldRecords.map((record) => record.id)
     );
+  });
+
+  it('does not reveal a formerly restricted meeting when its policy field disappears', () => {
+    const { visibilityPolicyId: _removedPolicy, ...formerRestricted } = meeting;
+    const formerArtifact = { ...artifact, meetingId: formerRestricted.id };
+    const formerTask = {
+      ...task,
+      contextRefs: [{ kind: 'meeting_artifact', id: formerArtifact.id }],
+    };
+
+    expect(
+      idsFor(
+        [preferences, formerRestricted, formerArtifact, formerTask, legacy],
+        'owner-advisor'
+      )
+    ).toEqual([legacy.id]);
+  });
+
+  it('uses internal visibility preferences without returning their secret member IDs', () => {
+    const visible = filterLiveCrmRecordsByMeetingVisibility(records, 'owner-advisor');
+    expect(visible.some((record) => record.kind === 'meeting_foundation_preferences')).toBe(false);
+    expect(JSON.stringify(visible)).not.toContain('included-advisor');
+    expect(JSON.stringify(visible)).not.toContain('excluded-advisor');
+  });
+
+  it('mechanically reserves the unfiltered snapshot for existing Meetings foundation adapters', () => {
+    const sourceRoot = path.join(process.cwd(), 'src');
+    const token = 'unfilteredRecordsForInternalMeetingStores';
+    const uses = new Map<string, number>();
+    const walk = (directory: string) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const absolute = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          walk(absolute);
+        } else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.includes('.test.')) {
+          const count = readFileSync(absolute, 'utf8').split(token).length - 1;
+          if (count > 0) uses.set(path.relative(sourceRoot, absolute), count);
+        }
+      }
+    };
+    walk(sourceRoot);
+
+    expect(Object.fromEntries(uses)).toEqual({
+      'features/meetings/foundation/contract.ts': 7,
+      'platform/crm/useLiveCrmRecords.ts': 2,
+    });
   });
 });

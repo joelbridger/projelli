@@ -6,6 +6,7 @@ import { Button, Card, SearchField, SurfaceToolbar } from '@/ui/kp';
 import { EV_MATTER_LAUNCH } from '@/config/identity';
 import { writeSelectedCrmHousehold } from '@/platform/crm/clientSelection';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import { isMeetingVisibilityControlRecord } from '@/platform/crm/meetingVisibility';
 import { searchCrmRecords, type CrmSearchHit, type CrmSearchScope } from '@/platform/crm/search';
 import { presentCrmSearchHit, type CrmRecordPresentation } from './recordPresentation';
 
@@ -56,7 +57,10 @@ export function CrmSearchSurface() {
   const [error, setError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const scopes = useMemo(() => householdScopes(live.records), [live.records]);
-  const allowedRecordIds = useMemo(() => live.records.map((record) => record.id), [live.records]);
+  const allowedRecordIds = useMemo(
+    () => live.records.filter((record) => !isMeetingVisibilityControlRecord(record)).map((record) => record.id),
+    [live.records]
+  );
   const allowedRecordIdsRef = useRef(allowedRecordIds);
   allowedRecordIdsRef.current = allowedRecordIds;
   const allowedRecordIdSet = useMemo(() => new Set(allowedRecordIds), [allowedRecordIds]);

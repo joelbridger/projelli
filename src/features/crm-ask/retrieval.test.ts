@@ -90,13 +90,18 @@ describe('CRM Ask retrieval', () => {
     loadLiveCrmRecords.mockResolvedValue(records);
     searchCrmRecords.mockImplementationOnce(() => {
       firmState.viewerId = 'advisor-excluded';
-      return Promise.resolve([{ entityId: 'private-note', entityKind: 'note', matterId: 'household-a', title: 'Private note', snippet: 'Do not expose', content: '{"body":"Do not expose"}' }]);
+      return Promise.resolve([
+        { entityId: 'private-note', entityKind: 'note', matterId: 'household-a', title: 'Private note', snippet: 'Do not expose', content: '{"body":"Do not expose"}' },
+        { entityId: 'meeting-preferences', entityKind: 'meeting_foundation_preferences', matterId: 'firm', title: 'Preferences', snippet: 'advisor-excluded', content: '{"excludedMemberIds":["advisor-excluded"]}' },
+      ]);
     });
 
-    await expect(retrieveCrmAskHits('/tmp/lantern', 'private', 'household-a')).resolves.toEqual([]);
+    const hits = await retrieveCrmAskHits('/tmp/lantern', 'private', 'household-a');
+    expect(hits).toEqual([]);
+    expect(JSON.stringify(hits)).not.toContain('advisor-excluded');
     expect(searchCrmRecords).toHaveBeenCalledWith(
       '/tmp/lantern', 'private', 'household-a',
-      ['meeting-preferences', 'meeting-private', 'private-note'],
+      ['meeting-private', 'private-note'],
     );
   });
 

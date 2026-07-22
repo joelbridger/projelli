@@ -7,6 +7,8 @@ import {
 import type { LiveCrmRecord } from './liveRecords';
 
 const PREFERENCES_KIND = 'meeting_foundation_preferences';
+const LEGACY_LINEAGE_FIELD = 'meetingVisibilityLineage';
+const LEGACY_LINEAGE_VALUE = 'legacy-unrestricted';
 
 const owns = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
@@ -110,6 +112,12 @@ function hasMeetingLineageMarker(record: LiveCrmRecord): boolean {
   });
 }
 
+export function isMeetingVisibilityControlRecord(
+  record: Pick<LiveCrmRecord, 'kind'>
+): boolean {
+  return record.kind === PREFERENCES_KIND;
+}
+
 type LineageState = 'legacy' | 'restricted' | 'unresolved';
 
 /**
@@ -125,7 +133,13 @@ function lineageState(
   const key = `${visibilityKind(record)}\u0000${record.id}`;
   if (visiting.has(key)) return 'unresolved';
   if (record.kind === 'meeting') {
-    return owns(record, 'visibilityPolicyId') ? 'restricted' : 'legacy';
+    const hasPolicy = owns(record, 'visibilityPolicyId');
+    const hasLineage = owns(record, LEGACY_LINEAGE_FIELD);
+    if (hasPolicy && hasLineage) return 'unresolved';
+    if (hasPolicy) return 'restricted';
+    return hasLineage && record[LEGACY_LINEAGE_FIELD] === LEGACY_LINEAGE_VALUE
+      ? 'legacy'
+      : 'unresolved';
   }
 
   const refs = exactParentRefs(record);
@@ -221,6 +235,7 @@ export function filterLiveCrmRecordsByMeetingVisibility(
   const byRef = recordsByVisibilityRef(records);
   const policies = visibilityPolicies(records);
   return records.filter((record) => {
+    if (isMeetingVisibilityControlRecord(record)) return false;
     const subject = subjectForRecord(record, byRef);
     return resolveMeetingVisibility({
       subject,

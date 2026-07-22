@@ -3556,7 +3556,7 @@ export function useMeetingFoundationStore(): MeetingStore {
   // client instead of acting on the snapshot captured when it was grabbed.
   useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
   return createMeetingStore({
-    records: live.records,
+    records: live.unfilteredRecordsForInternalMeetingStores,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
@@ -3571,7 +3571,7 @@ export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
   const live = useLiveCrmRecords();
   useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
   return createMeetingArtifactStore({
-    records: live.records,
+    records: live.unfilteredRecordsForInternalMeetingStores,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
@@ -3584,7 +3584,7 @@ export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
 export function useMeetingTypeStore(): MeetingTypeStore {
   const live = useLiveCrmRecords();
   return createMeetingTypeStore({
-    records: live.records,
+    records: live.unfilteredRecordsForInternalMeetingStores,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
@@ -3594,7 +3594,7 @@ export function useMeetingTypeStore(): MeetingTypeStore {
 export function useMeetingTemplateStore(): MeetingTemplateStore {
   const live = useLiveCrmRecords();
   return createMeetingTemplateStore({
-    records: live.records,
+    records: live.unfilteredRecordsForInternalMeetingStores,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
@@ -3612,7 +3612,7 @@ export function useMeetingKeywordCatalogueStore(): MeetingKeywordCatalogueStore 
   const selectionError =
     selection.kind === 'refused' ? selection.message : null;
   return createMeetingKeywordCatalogueStore({
-    records: live.records,
+    records: live.unfilteredRecordsForInternalMeetingStores,
     workspaceRoot: live.workspaceRoot,
     error: selectionError ?? live.error,
     save: live.save,
@@ -3622,7 +3622,7 @@ export function useMeetingKeywordCatalogueStore(): MeetingKeywordCatalogueStore 
 export function useMeetingIntelligenceSettingsStore(): MeetingIntelligenceSettingsStore {
   const live = useLiveCrmRecords();
   return createMeetingIntelligenceSettingsStore({
-    records: live.records,
+    records: live.unfilteredRecordsForInternalMeetingStores,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
@@ -3632,7 +3632,7 @@ export function useMeetingIntelligenceSettingsStore(): MeetingIntelligenceSettin
 export function useMeetingFoundationPreferencesStore(): MeetingFoundationPreferencesStore {
   const live = useLiveCrmRecords();
   return createMeetingFoundationPreferencesStore({
-    records: live.records,
+    records: live.unfilteredRecordsForInternalMeetingStores,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,

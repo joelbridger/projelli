@@ -15,6 +15,8 @@ use super::{
     core_store::{CrmCoreStore, FtsHit},
 };
 
+const MEETING_VISIBILITY_CONTROL_KIND: &str = "meeting_foundation_preferences";
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CrmSearchHit {
@@ -244,7 +246,9 @@ fn exact_allowed_ids(ids: Vec<String>) -> BTreeSet<String> {
 
 fn allowed_hits(hits: Vec<FtsHit>, allowed: &BTreeSet<String>) -> Vec<FtsHit> {
     hits.into_iter()
-        .filter(|hit| allowed.contains(&hit.entity_id))
+        .filter(|hit| {
+            hit.entity_kind != MEETING_VISIBILITY_CONTROL_KIND && allowed.contains(&hit.entity_id)
+        })
         .collect()
 }
 
@@ -265,6 +269,9 @@ fn rebuild_live_index(
             continue;
         }
         let kind = string_field(object, "kind").unwrap_or_else(|| "record".to_string());
+        if kind == MEETING_VISIBILITY_CONTROL_KIND {
+            continue;
+        }
         let matter_id = string_field(object, "matterId").unwrap_or_else(|| "firm".to_string());
         store.index_fts(&id, &kind, &matter_id, &record_content(&record))?;
         matters.insert(matter_id);
@@ -381,6 +388,7 @@ mod tests {
     fn native_search_boundary_rejects_excluded_and_malformed_record_ids() {
         let allowed = exact_allowed_ids(vec![
             "allowed-note".to_string(),
+            "meeting-preferences".to_string(),
             " allowed-note ".to_string(),
             "".to_string(),
         ]);
@@ -398,13 +406,26 @@ mod tests {
                     matter_id: "matter-a".to_string(),
                     content: "Never expose".to_string(),
                 },
+                FtsHit {
+                    entity_id: "meeting-preferences".to_string(),
+                    entity_kind: MEETING_VISIBILITY_CONTROL_KIND.to_string(),
+                    matter_id: "firm".to_string(),
+                    content: "secret-member-id".to_string(),
+                },
             ],
             &allowed,
         );
 
-        assert_eq!(allowed, BTreeSet::from(["allowed-note".to_string()]));
+        assert_eq!(
+            allowed,
+            BTreeSet::from([
+                "allowed-note".to_string(),
+                "meeting-preferences".to_string(),
+            ])
+        );
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].entity_id, "allowed-note");
         assert!(!hits[0].content.contains("Never expose"));
+        assert!(!hits[0].content.contains("secret-member-id"));
     }
 }

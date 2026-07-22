@@ -183,8 +183,15 @@ export function useLiveCrmRecords() {
   const currentRecords = recordsWorkspaceRoot === workspaceRoot
     ? filterLiveCrmRecordsByMeetingVisibility(records, viewerId)
     : [];
+  const unfilteredRecordsForInternalMeetingStores =
+    recordsWorkspaceRoot === workspaceRoot ? records : [];
   return {
     records: currentRecords,
+    /**
+     * Raw encrypted snapshot for existing Meetings foundation store adapters.
+     * Never use this in a user surface, search, Ask, citations, or a new store.
+     */
+    unfilteredRecordsForInternalMeetingStores,
     save,
     publishSavedRecord,
     reload,
