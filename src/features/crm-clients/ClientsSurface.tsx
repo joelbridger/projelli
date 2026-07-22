@@ -8,6 +8,7 @@ import {
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,
   requestMatterScopeSelection,
+  useClientContextStore,
   useSelectionPresentation,
 } from '@/platform/client-context';
 import { DirectorySurface } from './DirectorySurface';
@@ -170,6 +171,7 @@ function ClientsSurfaceContent({
 }) {
   const matters = useActiveMatters();
   const selectionPresentation = useSelectionPresentation();
+  const authoritativeClient = useClientContextStore((state) => state.client);
   const clientMapHubId = useMatterStore((state) => state.clientMapHubId);
   const selectionWorkspace = live.workspaceRoot ?? null;
   const [selectedId, setSelectedId] = useState<string | null>(() =>
@@ -229,6 +231,15 @@ function ClientsSurfaceContent({
   const findRecord = useCallback((id: string): HouseholdRecord | undefined =>
     effectiveRecords.find((record) => record.id === id || recordMatterId(record) === id),
   [effectiveRecords, recordMatterId]);
+  const findAuthoritativeRecord = useCallback((matterId: string, householdId: string): HouseholdRecord | undefined => {
+    const matchingRecords = effectiveRecords.filter((record) => record.id === householdId);
+    const matchingLiveRecords = live.records.filter(
+      (record) => record.kind === 'household' && record.id === householdId && record.matterId === matterId,
+    );
+    return matchingRecords.length === 1 && matchingLiveRecords.length === 1
+      ? matchingRecords[0]
+      : undefined;
+  }, [effectiveRecords, live.records]);
   const householdIdentityFor = useCallback((household: HouseholdRecord) => {
     const liveHousehold = live.records.find(
       (record) => record.id === household.id && record.kind === 'household'
@@ -307,12 +318,16 @@ function ClientsSurfaceContent({
   }, [live.records, storedHouseholds]);
   const effectivePeople = people.length ? people : livePeople;
   // While the authority gate is active, the sealed shared selection is the
-  // only display authority. A named-but-unpaired, stale, blocked, all-clients,
-  // or unresolvable scope must close the detail rather than leaking the last
-  // locally remembered household into the new client context.
+  // only display authority. Both halves of its sealed pair must resolve to one
+  // exact CRM household record. A named-but-unpaired, stale, blocked,
+  // all-clients, inconsistent, or unresolvable scope must close the detail
+  // rather than leaking the last locally remembered household into the new
+  // client context.
   const selected = selectionPresentation.authorityEnabled
-    ? selectionPresentation.scope.kind === 'matter' && !selectionPresentation.stale
-      ? findRecord(selectionPresentation.matterId ?? '')
+    ? selectionPresentation.scope.kind === 'matter'
+      && !selectionPresentation.stale
+      && authoritativeClient
+      ? findAuthoritativeRecord(selectionPresentation.scope.matterId, authoritativeClient.householdId)
       : undefined
     : selectedId ? findRecord(selectedId) : undefined;
 
