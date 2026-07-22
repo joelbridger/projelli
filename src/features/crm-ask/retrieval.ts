@@ -3,6 +3,9 @@ import {
   searchCrmRecords,
   type CrmSearchHit,
 } from '@/platform/crm/search';
+import { loadLiveCrmRecords } from '@/platform/crm/liveRecords';
+import { filterLiveCrmRecordsByMeetingVisibility } from '@/platform/crm/meetingVisibility';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 const CRM_CITATION_PREFIX = 'crm:';
 export const CRM_ASK_UNAVAILABLE_MESSAGE =
@@ -57,13 +60,26 @@ export async function retrieveCrmAskHits(
 ): Promise<RagHit[]> {
   if (!workspaceRoot || !query.trim()) return [];
   try {
+    const recordsAtStart = await loadLiveCrmRecords(workspaceRoot);
+    const viewerAtStart = useFirmStore.getState().session?.userId ?? null;
+    const allowedAtStart = filterLiveCrmRecordsByMeetingVisibility(recordsAtStart, viewerAtStart)
+      .map((record) => record.id);
     const results = await searchCrmRecords(
       workspaceRoot,
       query,
       matterId ?? undefined,
+      allowedAtStart,
+    );
+    // Re-read both sources after the async search. An answer allowed when Ask
+    // began must not reappear after the viewer or sharing policy changes.
+    const recordsNow = await loadLiveCrmRecords(workspaceRoot);
+    const viewerNow = useFirmStore.getState().session?.userId ?? null;
+    const stillAllowed = new Set(
+      filterLiveCrmRecordsByMeetingVisibility(recordsNow, viewerNow)
+        .map((record) => record.id),
     );
     return results
-      .filter((hit) => matterId === null || hit.matterId === matterId)
+      .filter((hit) => stillAllowed.has(hit.entityId) && (matterId === null || hit.matterId === matterId))
       .map(crmSearchHitToRagHit);
   } catch {
     // CRM is an optional evidence source. Its local encrypted cache may be

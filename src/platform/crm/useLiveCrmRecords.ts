@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   readSelectionOperationDecision,
   useSelectionOperationDecision,
@@ -20,6 +21,7 @@ import {
   removeLiveRecordRelayWriter,
   publishLiveRecord,
 } from './liveRecordRelay';
+import { filterLiveCrmRecordsByMeetingVisibility } from './meetingVisibility';
 
 // Several CRM surfaces can be mounted at once inside the Home shell. A write
 // from one surface must refresh the others too; otherwise a migration-created
@@ -35,6 +37,7 @@ const CRM_CLIENT_SELECTION_REQUEST = {
 /** Keeps a mounted CRM screen in step with the encrypted record store. */
 export function useLiveCrmRecords() {
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
+  const viewerId = useFirmStore((state) => state.session?.userId ?? null);
   const clientSelection = useSelectionOperationDecision(CRM_CLIENT_SELECTION_REQUEST);
   const sharedMatterId =
     clientSelection.kind === 'matter' &&
@@ -177,8 +180,11 @@ export function useLiveCrmRecords() {
   // switching from a firm matter to a solo workspace.
   const effectiveFreshness: CrmEngineFreshness =
     sharedMatterId && workspaceRoot ? freshness : { kind: 'idle' };
+  const currentRecords = recordsWorkspaceRoot === workspaceRoot
+    ? filterLiveCrmRecordsByMeetingVisibility(records, viewerId)
+    : [];
   return {
-    records: recordsWorkspaceRoot === workspaceRoot ? records : [],
+    records: currentRecords,
     save,
     publishSavedRecord,
     reload,

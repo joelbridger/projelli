@@ -10,7 +10,10 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::State;
 
-use super::{commands::CrmState, core_store::CrmCoreStore};
+use super::{
+    commands::CrmState,
+    core_store::{CrmCoreStore, FtsHit},
+};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -233,7 +236,22 @@ fn make_snippet(content: &str, query: &str) -> String {
         .unwrap_or_else(|| plain_text_snippet(content, query))
 }
 
-fn rebuild_live_index(store: &CrmCoreStore) -> anyhow::Result<BTreeSet<String>> {
+fn exact_allowed_ids(ids: Vec<String>) -> BTreeSet<String> {
+    ids.into_iter()
+        .filter(|id| !id.is_empty() && id.trim() == id)
+        .collect()
+}
+
+fn allowed_hits(hits: Vec<FtsHit>, allowed: &BTreeSet<String>) -> Vec<FtsHit> {
+    hits.into_iter()
+        .filter(|hit| allowed.contains(&hit.entity_id))
+        .collect()
+}
+
+fn rebuild_live_index(
+    store: &CrmCoreStore,
+    allowed: &BTreeSet<String>,
+) -> anyhow::Result<BTreeSet<String>> {
     let records = store.list_live_records()?;
     let mut matters = BTreeSet::new();
     for record in records {
@@ -243,6 +261,9 @@ fn rebuild_live_index(store: &CrmCoreStore) -> anyhow::Result<BTreeSet<String>> 
         let Some(id) = string_field(object, "id") else {
             continue;
         };
+        if !allowed.contains(&id) {
+            continue;
+        }
         let kind = string_field(object, "kind").unwrap_or_else(|| "record".to_string());
         let matter_id = string_field(object, "matterId").unwrap_or_else(|| "firm".to_string());
         store.index_fts(&id, &kind, &matter_id, &record_content(&record))?;
@@ -259,6 +280,7 @@ pub async fn crm_search(
     state: State<'_, CrmState>,
     query: String,
     matter_id: Option<String>,
+    allowed_record_ids: Vec<String>,
 ) -> Result<Vec<CrmSearchHit>, String> {
     let query =
         fts_query(&query).ok_or_else(|| "Type a word or two to search CRM records.".to_string())?;
@@ -270,14 +292,18 @@ pub async fn crm_search(
         .ok_or_else(|| "Open a workspace before searching CRM records.".to_string())?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        let matters = rebuild_live_index(&store)?;
+        let allowed = exact_allowed_ids(allowed_record_ids);
+        if allowed.is_empty() {
+            return Ok(Vec::new());
+        }
+        let matters = rebuild_live_index(&store, &allowed)?;
         let scopes = match matter_id.filter(|scope| !scope.trim().is_empty()) {
             Some(scope) => vec![scope],
             None => matters.into_iter().collect(),
         };
         let mut hits = Vec::new();
         for scope in scopes {
-            for hit in store.search_fts(&scope, &query)? {
+            for hit in allowed_hits(store.search_fts(&scope, &query)?, &allowed) {
                 let record = serde_json::from_str::<Value>(&hit.content).unwrap_or(Value::Null);
                 let object = record.as_object();
                 let title = object
@@ -349,5 +375,36 @@ mod tests {
         assert!(snippet.contains("As of 2026-07-13"));
         assert!(!snippet.contains("\"label\""));
         assert!(!snippet.contains("internal-id"));
+    }
+
+    #[test]
+    fn native_search_boundary_rejects_excluded_and_malformed_record_ids() {
+        let allowed = exact_allowed_ids(vec![
+            "allowed-note".to_string(),
+            " allowed-note ".to_string(),
+            "".to_string(),
+        ]);
+        let hits = allowed_hits(
+            vec![
+                FtsHit {
+                    entity_id: "allowed-note".to_string(),
+                    entity_kind: "note".to_string(),
+                    matter_id: "matter-a".to_string(),
+                    content: "Allowed".to_string(),
+                },
+                FtsHit {
+                    entity_id: "private-note".to_string(),
+                    entity_kind: "note".to_string(),
+                    matter_id: "matter-a".to_string(),
+                    content: "Never expose".to_string(),
+                },
+            ],
+            &allowed,
+        );
+
+        assert_eq!(allowed, BTreeSet::from(["allowed-note".to_string()]));
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].entity_id, "allowed-note");
+        assert!(!hits[0].content.contains("Never expose"));
     }
 }
