@@ -4,10 +4,13 @@ import type { AppSurfaceClientContext } from '@/app/shell/registry/types';
 import {
   ClientBarV1,
   getSharedClientQuickActions,
+  projectClientPickerHouseholds,
 } from '@/features/client-bar';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { useOptionalAppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
 import { useFlag } from '@/platform/flags';
+import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import { useMatters } from '@/platform/matter/matterStore';
 import {
   requestClearClientSelection,
   useClientContextStore,
@@ -22,9 +25,12 @@ export function SharedClientBar({ onChooseClient }: SharedClientBarProps) {
   const sharedClientBarV1Enabled = useFlag('shared-client-bar');
   const { t } = useTranslation();
   const client = useClientContextStore((state) => state.client);
+  const matters = useMatters();
+  const liveCrm = useLiveCrmRecords();
   const { descriptors } = useAppSurfaceRegistry();
   const capabilities = useOptionalAppSurfaceCapabilities();
   const quickActions = getSharedClientQuickActions(descriptors);
+  const households = projectClientPickerHouseholds(matters, liveCrm.records);
 
   const navigate = (surfaceId: string) => {
     const descriptor = descriptors.find(
@@ -36,6 +42,7 @@ export function SharedClientBar({ onChooseClient }: SharedClientBarProps) {
   if (sharedClientBarV1Enabled) {
     return (
       <ClientBarV1
+        households={households}
         onChooseClient={onChooseClient}
         onNavigate={navigate}
         quickActions={quickActions}

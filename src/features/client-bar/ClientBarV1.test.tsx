@@ -8,6 +8,7 @@ import {
   useClientContextStore,
 } from '@/platform/client-context';
 import { ClientBarV1 } from './ClientBarV1';
+import { projectClientPickerHouseholds } from './clientPickerHouseholds';
 import {
   getSharedClientQuickActions,
   type ClientBarQuickAction,
@@ -70,11 +71,11 @@ describe('ClientBarV1', () => {
         primaryPeople: ['Robert Foster', 'Elena Foster'],
       };
       replaceCanonicalHouseholdDirectory('wealthbox', [client]);
-      void requestSharedClientSelection(issueSharedClientSelection(client)).catch(
-        (error: unknown) => {
-          console.error('[ClientBar test] Client selection failed.', error);
-        }
-      );
+      void requestSharedClientSelection(
+        issueSharedClientSelection(client)
+      ).catch((error: unknown) => {
+        console.error('[ClientBar test] Client selection failed.', error);
+      });
     });
 
     expect(screen.getByTestId('client-bar-current')).toHaveTextContent(
@@ -130,68 +131,92 @@ describe('ClientBarV1', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('loads and selects households through the native Tauri boundary', async () => {
+  it('never asks a connector to populate the picker', async () => {
     tauriBoundary.isTauri.mockReturnValue(true);
-    tauriBoundary.invoke.mockResolvedValue([
-      { id: 'household-native', name: 'Native household' },
+    render(<ClientBarV1 />);
+
+    fireEvent.click(screen.getByTestId('client-bar-picker'));
+
+    expect(
+      await screen.findByTestId('client-picker-empty')
+    ).toBeInTheDocument();
+    expect(tauriBoundary.invoke).not.toHaveBeenCalled();
+  });
+
+  it('projects only uniquely linked live Matters and prefers the local CRM name', () => {
+    const createdAt = '2026-07-22T00:00:00.000Z';
+    const projected = projectClientPickerHouseholds(
+      [
+        {
+          id: 'matter-hendricks',
+          name: 'Hendricks plan',
+          client: 'Matter fallback',
+          folderPaths: [],
+          crmHouseholdKeys: ['household-hendricks'],
+          createdAt,
+        },
+        {
+          id: 'matter-fallback',
+          name: 'Fallback by Matter name',
+          client: '',
+          folderPaths: [],
+          crmHouseholdKeys: ['household-fallback'],
+          createdAt,
+        },
+        {
+          id: 'matter-ambiguous-a',
+          name: 'Ambiguous A',
+          client: 'Ambiguous A',
+          folderPaths: [],
+          crmHouseholdKeys: ['household-ambiguous'],
+          createdAt,
+        },
+        {
+          id: 'matter-ambiguous-b',
+          name: 'Ambiguous B',
+          client: 'Ambiguous B',
+          folderPaths: [],
+          crmHouseholdKeys: ['household-ambiguous'],
+          createdAt,
+        },
+        {
+          id: 'matter-archived',
+          name: 'Archived',
+          client: 'Archived',
+          folderPaths: [],
+          crmHouseholdKeys: ['household-archived'],
+          archived: true,
+          createdAt,
+        },
+      ],
+      [
+        {
+          id: 'household-hendricks',
+          kind: 'household',
+          matterId: 'matter-hendricks',
+          name: 'Hendricks household',
+        },
+        {
+          id: 'household-unlinked',
+          kind: 'household',
+          matterId: 'matter-unlinked',
+          name: 'Unlinked household',
+        },
+      ]
+    );
+
+    expect(projected).toEqual([
+      {
+        provider: 'wealthbox',
+        householdId: 'household-hendricks',
+        displayName: 'Hendricks household',
+      },
+      {
+        provider: 'wealthbox',
+        householdId: 'household-fallback',
+        displayName: 'Fallback by Matter name',
+      },
     ]);
-    render(<ClientBarV1 />);
-
-    fireEvent.click(screen.getByTestId('client-bar-picker'));
-
-    expect(tauriBoundary.invoke).toHaveBeenCalledOnce();
-    const [command, args] = tauriBoundary.invoke.mock.calls[0] ?? [];
-    expect(command).toBe('crm_list_households');
-    expect(typeof args?.['runId']).toBe('string');
-    fireEvent.click(
-      await screen.findByTestId('client-picker-option-household-native')
-    );
-    expect(useClientContextStore.getState().client).toEqual({
-      provider: 'wealthbox',
-      householdId: 'household-native',
-      displayName: 'Native household',
-    });
-    expect(screen.getByTestId('client-bar-current')).toHaveTextContent(
-      'Native household'
-    );
-  });
-
-  it('shows a loading state while the native directory request is pending', async () => {
-    tauriBoundary.isTauri.mockReturnValue(true);
-    let finishRequest: ((value: readonly unknown[]) => void) | undefined;
-    tauriBoundary.invoke.mockReturnValue(
-      new Promise((resolve) => {
-        finishRequest = resolve;
-      })
-    );
-    render(<ClientBarV1 />);
-
-    fireEvent.click(screen.getByTestId('client-bar-picker'));
-    expect(screen.getByTestId('client-picker-loading')).toHaveTextContent(
-      'Loading clients…'
-    );
-
-    act(() => {
-      finishRequest?.([]);
-    });
-    expect(await screen.findByTestId('client-picker-empty')).toBeInTheDocument();
-  });
-
-  it('shows a safe load error and retries the native household request', async () => {
-    tauriBoundary.isTauri.mockReturnValue(true);
-    tauriBoundary.invoke
-      .mockRejectedValueOnce(new Error('native details stay hidden'))
-      .mockResolvedValueOnce([]);
-    render(<ClientBarV1 />);
-
-    fireEvent.click(screen.getByTestId('client-bar-picker'));
-    expect(await screen.findByTestId('client-picker-error')).toHaveTextContent(
-      'Clients could not be loaded. Your CRM data is still safe.'
-    );
-    fireEvent.click(screen.getByTestId('client-picker-retry'));
-
-    expect(await screen.findByTestId('client-picker-empty')).toBeInTheDocument();
-    expect(tauriBoundary.invoke).toHaveBeenCalledTimes(2);
   });
 
   it('renders quick actions from shared primary surface descriptors', () => {
@@ -215,7 +240,9 @@ describe('ClientBarV1', () => {
     expect(actions.map((action) => action.id)).toEqual(['matters', 'search']);
 
     render(<ClientBarV1 quickActions={actions} />);
-    expect(screen.getByRole('button', { name: 'Open CRM' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Open CRM' })
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ask' })).toBeInTheDocument();
   });
 
@@ -239,7 +266,6 @@ describe('ClientBarV1', () => {
     expect(navigate).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledWith('meetings');
   });
-
 });
 
 function quickAction({

@@ -4,8 +4,10 @@ export {
   getSharedClientQuickActions,
   type ClientBarQuickAction,
 } from './quickActions';
-export { type ClientPickerHousehold } from './clientPickerHouseholds';
-export { fetchClientPickerHouseholds } from './fetchClientPickerHouseholds';
+export {
+  projectClientPickerHouseholds,
+  type ClientPickerHousehold,
+} from './clientPickerHouseholds';
 export {
   useSharedClientContext,
   readSharedClientContext,
