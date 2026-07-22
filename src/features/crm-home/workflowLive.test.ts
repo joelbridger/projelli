@@ -106,7 +106,12 @@ describe('saved CRM workflow wiring', () => {
   it('keeps a meeting proposal household reference in the mapped client matter', () => {
     const template = createTemplate('Trade request', ['Review request']);
     const proposal = createMeetingWorkflowProposal(
-      { id: 'meeting-1', kind: 'activityEvent', matterId: 'matter-1' },
+      {
+        id: 'meeting-1',
+        kind: 'meeting',
+        matterId: 'matter-1',
+        ownerRef: 'advisor-1',
+      },
       template,
       { id: 'household-1', matterId: 'matter-1', label: 'River household' }
     );
@@ -116,6 +121,89 @@ describe('saved CRM workflow wiring', () => {
       id: 'household-1',
       matterId: 'matter-1',
     });
+  });
+
+  it('keeps a restricted meeting activity as the exact parent of its workflow proposal', () => {
+    const template = createTemplate('Private follow-up', ['Review privately']);
+    const proposal = createMeetingWorkflowProposal(
+      {
+        id: 'meeting-activity-secret',
+        kind: 'activityEvent',
+        matterId: 'matter-1',
+        verb: 'meeting.completed',
+        summary: 'Secret transfer discussion',
+        meetingVisibility: {
+          kind: 'activity',
+          id: 'meeting-activity-secret',
+          lineage: 'derived',
+          ownerRef: 'advisor-owner',
+          visibilityPolicyId: 'private-policy',
+          parentRef: { kind: 'meeting-note', id: 'meeting-secret' },
+        },
+      },
+      template,
+      { id: 'household-1', matterId: 'matter-1', label: 'River household' }
+    );
+
+    expect(proposal['meetingVisibility']).toEqual({
+      kind: 'proposal',
+      id: proposal.id,
+      lineage: 'derived',
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: { kind: 'activity', id: 'meeting-activity-secret' },
+    });
+  });
+
+  it('retains proposal visibility on the approved workflow and later updates', () => {
+    const template = createTemplate('Private follow-up', ['Review privately']);
+    const parent = {
+      kind: 'proposal' as const,
+      id: 'workflow-proposal-private',
+      lineage: 'derived' as const,
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: {
+        kind: 'meeting-artifact' as const,
+        id: 'artifact-private',
+      },
+    };
+    const started = startWorkflow(
+      template,
+      { id: 'household-1', matterId: 'matter-1', label: 'River household' },
+      { id: 'workflow-private', visibilityParent: parent }
+    );
+    const completed = applyWorkflowStepCompletion(
+      started,
+      template.steps[0]!.id
+    );
+
+    expect(started.meetingVisibility).toEqual({
+      kind: 'workflow',
+      id: 'workflow-private',
+      lineage: 'derived',
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: { kind: 'proposal', id: 'workflow-proposal-private' },
+    });
+    expect(completed.meetingVisibility).toEqual(started.meetingVisibility);
+  });
+
+  it('refuses a meeting-origin workflow proposal when its lineage is missing', () => {
+    const template = createTemplate('Private follow-up', ['Review privately']);
+    expect(() =>
+      createMeetingWorkflowProposal(
+        {
+          id: 'meeting-activity-broken',
+          kind: 'activityEvent',
+          matterId: 'matter-1',
+          verb: 'meeting.completed',
+          summary: 'Secret transfer discussion',
+        },
+        template,
+        { id: 'household-1', matterId: 'matter-1', label: 'River household' }
+      )
+    ).toThrow('missing its private-note lineage');
   });
 
   it('retains stable step ids and tag ids through template save, reload, and start', () => {

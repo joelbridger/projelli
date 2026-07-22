@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 const canonical = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
@@ -30,7 +31,24 @@ vi.mock('@/features/crm-trash', () => ({
 import { useTaskRecordStore } from '@/features/crm-tasks';
 
 describe('public task record store', () => {
+  const signInAs = (userId: string) =>
+    useFirmStore.setState({
+      session: {
+        userId,
+        email: `${userId}@example.com`,
+        role: 'member',
+        org: null,
+        seatId: 'seat-1',
+        tier: 'practice',
+        packs: [],
+        seats: 1,
+        lastValidatedAt: null,
+        activated: true,
+      },
+    });
+
   beforeEach(() => {
+    useFirmStore.setState({ session: null });
     canonical.records = [];
     canonical.save.mockReset();
     canonical.reload.mockReset();
@@ -96,6 +114,86 @@ describe('public task record store', () => {
       tagIds: ['tag:review'],
     }));
     expect(canonical.reload).toHaveBeenCalledOnce();
+  });
+
+  it('keeps exact meeting lineage on created tasks and hides excluded or broken chains', async () => {
+    const parent = {
+      kind: 'meeting-artifact' as const,
+      id: 'artifact-secret',
+      lineage: 'derived' as const,
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: { kind: 'meeting-note' as const, id: 'meeting-secret' },
+    };
+    canonical.records = [
+      {
+        id: 'meeting-preferences',
+        kind: 'meeting_foundation_preferences',
+        visibilityPolicies: [{
+          id: 'private-policy',
+          mode: 'explicit-review',
+          includedMemberIds: [],
+          excludedMemberIds: ['advisor-excluded'],
+        }],
+      },
+      {
+        id: 'meeting-secret',
+        kind: 'meeting',
+        ownerRef: 'advisor-owner',
+        visibilityPolicyId: 'private-policy',
+      },
+      {
+        id: 'artifact-secret',
+        kind: 'meeting_artifact',
+        meetingVisibility: parent,
+      },
+      {
+        id: 'task-secret',
+        kind: 'task',
+        title: 'Secret transfer discussion',
+        body: 'Secret account number',
+        meetingVisibility: {
+          kind: 'task',
+          id: 'task-secret',
+          lineage: 'derived',
+          ownerRef: 'advisor-owner',
+          visibilityPolicyId: 'private-policy',
+          parentRef: { kind: 'meeting-artifact', id: 'artifact-secret' },
+        },
+      },
+      {
+        id: 'task-broken',
+        kind: 'task',
+        title: 'Broken secret',
+        source: { origin: 'meeting', sources: [] },
+      },
+    ];
+    signInAs('advisor-excluded');
+    const excluded = renderHook(() => useTaskRecordStore());
+
+    await expect(excluded.result.current.get('task-secret')).resolves.toBeUndefined();
+    await expect(excluded.result.current.get('task-broken')).resolves.toBeUndefined();
+    await expect(
+      excluded.result.current.create({
+        title: 'Blocked derived follow-up',
+        meetingVisibilityParent: parent,
+      })
+    ).rejects.toThrow('not available');
+    excluded.unmount();
+
+    signInAs('advisor-owner');
+    const owner = renderHook(() => useTaskRecordStore());
+    const created = await owner.result.current.create({
+      title: 'Derived follow-up',
+      meetingVisibilityParent: parent,
+    });
+    expect(created.meetingVisibility).toMatchObject({
+      kind: 'task',
+      lineage: 'derived',
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: { kind: 'meeting-artifact', id: 'artifact-secret' },
+    });
   });
 
   it('merges an update into the current canonical task and retains unrelated fields and relations', async () => {
@@ -196,6 +294,7 @@ describe('public task record store', () => {
   });
 
   it('removes through the sole CRM trash doorway and reloads without writing a deletion marker', async () => {
+    signInAs('advisor-current');
     canonical.records = [{
       id: 'task-1',
       kind: 'task',
@@ -216,7 +315,7 @@ describe('public task record store', () => {
       workspaceRoot: '/workspace',
       recordId: 'task-1',
       matterId: 'matter-1',
-      actorId: 'local-user',
+      actorId: 'advisor-current',
     });
     expect(canonical.save).not.toHaveBeenCalled();
     expect(canonical.reload).toHaveBeenCalledOnce();

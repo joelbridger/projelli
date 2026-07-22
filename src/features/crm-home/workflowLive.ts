@@ -8,6 +8,12 @@ import {
 } from '@/platform/crm/propagation';
 import { UNTOUCHED, type EntityRef, type PropagationEngineOffer, type PropagationTransactionPayload, type TemplateStepChange, type WorkflowInstanceSnapshot, type WorkflowTemplateSnapshot } from '@/platform/crm/types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import {
+  derivedMeetingVisibility,
+  explicitLegacyMeetingVisibility,
+  meetingVisibilityParentForRecord,
+  type MeetingVisibilitySubject,
+} from '@/platform/meeting-visibility';
 import { registerWorkflowDependentDueCompletion } from '@/features/crm-workflows';
 
 export type WorkflowStepOutcomeDraft = { id: string; label: string; nextStepId?: string | undefined; restartAtStepId?: string | undefined };
@@ -28,6 +34,7 @@ export type LiveWorkflowInstance = LiveCrmRecord & {
   kind: 'crm_workflow_instance'; templateId: string; householdId: string; householdLabel: string; name: string;
   snapshot: WorkflowInstanceSnapshot; lastApplyEventId?: string; outcomesByStep?: Record<string, WorkflowStepOutcomeDraft[]>;
   scheduleRunKey?: string; status?: 'open' | 'completed' | 'cancelled';
+  meetingVisibility?: MeetingVisibilitySubject;
 };
 export type LiveWorkflowOffer = LiveCrmRecord & {
   kind: 'crm_workflow_offer'; templateId: string; householdLabel: string; revisionLabel: string; engineOffer: PropagationEngineOffer;
@@ -173,7 +180,11 @@ function captureTransaction() {
 export function startWorkflow(
   template: LiveWorkflowTemplate,
   household: { id: string; label: string; matterId?: string },
-  options?: { id?: string; scheduleRunKey?: string }
+  options?: {
+    id?: string;
+    scheduleRunKey?: string;
+    visibilityParent?: MeetingVisibilitySubject;
+  }
 ): LiveWorkflowInstance {
   const instanceId = options?.id ?? unique('workflow-instance');
   const base: WorkflowInstanceSnapshot = { id: instanceId, acceptedRevisionIds: [], displayedRevisionSet: { revisionIds: [] }, steps: {}, decisionLedger: [], propagationEvents: [] };
@@ -199,6 +210,9 @@ export function startWorkflow(
     outcomesByStep: Object.fromEntries(template.steps.map((step) => [step.id, step.outcomes])),
     ...(options?.scheduleRunKey ? { scheduleRunKey: options.scheduleRunKey } : {}),
     status: 'open',
+    meetingVisibility: options?.visibilityParent
+      ? derivedMeetingVisibility('workflow', instanceId, options.visibilityParent)
+      : explicitLegacyMeetingVisibility('workflow', instanceId),
   };
 }
 
@@ -369,14 +383,21 @@ export function createMeetingWorkflowProposal(
 ): LiveCrmRecord {
   const summary = typeof meeting['summary'] === 'string' ? meeting['summary'] : 'Meeting follow-up';
   const householdMatterId = household.matterId?.trim() || household.id;
+  const parent = meetingVisibilityParentForRecord(meeting);
+  if (!parent)
+    throw new Error(
+      'This meeting is missing its private-note lineage. No workflow proposal was created.'
+    );
+  const id = unique('workflow-proposal');
   return {
-    id: unique('workflow-proposal'), kind: 'proposalRecord', matterId: 'firm_home', title: `Review proposed ${template.name} workflow`,
+    id, kind: 'proposalRecord', matterId: 'firm_home', title: `Review proposed ${template.name} workflow`,
     householdRef: { kind: 'household', id: household.id, matterId: householdMatterId }, proposalKind: 'workflow_launch',
     proposedMutation: { kind: 'workflow_launch', workflowTemplateId: template.id },
     proposedBy: { userId: 'meeting-ai', display: 'Meeting assistant', kind: 'ai' },
     rationale: `Meeting notes suggest “${template.name}” may help: ${summary}`,
     contextRefs: [{ kind: 'activityEvent', id: meeting.id, ...(typeof meeting.matterId === 'string' ? { matterId: meeting.matterId } : {}) }],
     state: 'pending', source: { origin: 'meeting', sources: [] }, createdAt: now(), updatedAt: now(),
+    meetingVisibility: derivedMeetingVisibility('proposal', id, parent),
   };
 }
 

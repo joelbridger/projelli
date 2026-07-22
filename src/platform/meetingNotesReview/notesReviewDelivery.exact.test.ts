@@ -37,6 +37,14 @@ function artifact(
         dueDate: '2026-08-01',
         transcriptRef: 'meeting:meeting-a#42000',
       },
+      meetingVisibility: {
+        kind: 'meeting-artifact',
+        id: 'artifact-a',
+        lineage: 'derived',
+        ownerRef: 'advisor-a',
+        visibilityPolicyId: 'policy-private',
+        parentRef: { kind: 'meeting-note', id: 'meeting-a' },
+      },
     },
     ...overrides,
   };
@@ -65,6 +73,14 @@ function crmArtifact(
           },
         ],
       },
+      meetingVisibility: {
+        kind: 'meeting-artifact',
+        id: 'artifact-crm',
+        lineage: 'derived',
+        ownerRef: 'advisor-a',
+        visibilityPolicyId: 'policy-private',
+        parentRef: { kind: 'meeting-note', id: 'meeting-a' },
+      },
     },
     ...overrides,
   });
@@ -75,7 +91,8 @@ function ports(
   identity: {
     readonly meetingId: string;
     readonly client: typeof client;
-  } = { meetingId: 'meeting-a', client }
+  } = { meetingId: 'meeting-a', client },
+  canReadArtifact = true
 ) {
   const events: string[] = [];
   const listForMeeting = vi.fn(() => records);
@@ -93,7 +110,7 @@ function ports(
     events.push('crm-connect-read');
     return Promise.resolve(true);
   });
-  const crmSaveProposal = vi.fn(() => {
+  const crmSaveProposal = vi.fn<NotesReviewCrmDelivery['saveProposal']>(() => {
     events.push('crm-save');
     return Promise.resolve();
   });
@@ -122,6 +139,7 @@ function ports(
     approveArtifact,
     taskDelivery: task,
     crmDelivery: crm,
+    canReadArtifact: () => canReadArtifact,
     now: () => '2026-07-20T10:05:00.000Z',
   });
   return {
@@ -242,6 +260,17 @@ describe('exact meeting notes review reader', () => {
     expect(lane.crmApproveProposal).not.toHaveBeenCalled();
   });
 
+  it('shows no restricted title or body to an excluded coworker', async () => {
+    const lane = ports(undefined, undefined, false);
+    const facts = await lane.repository.readFacts();
+
+    expect(facts.tasks).toEqual([]);
+    expect(facts.crmUpdates).toEqual([]);
+    expect(facts.proposedCount).toBe(0);
+    expect(lane.taskCreate).not.toHaveBeenCalled();
+    expect(lane.crmSaveProposal).not.toHaveBeenCalled();
+  });
+
   it('records approval for the exact artifact before creating the edited task', async () => {
     const lane = ports();
     const item = (await lane.repository.list('task'))[0];
@@ -267,6 +296,12 @@ describe('exact meeting notes review reader', () => {
       householdRef: {
         id: 'household-a',
         matterId: 'matter-shared',
+      },
+      meetingVisibilityParent: {
+        kind: 'meeting-artifact',
+        id: 'artifact-a',
+        ownerRef: 'advisor-a',
+        visibilityPolicyId: 'policy-private',
       },
     });
     expect(receipt.status).toBe('created');
@@ -303,6 +338,17 @@ describe('exact meeting notes review reader', () => {
         sourceRef: 'meeting:meeting-a#88000',
       })
     );
+    const savedProposal = lane.crmSaveProposal.mock.calls[0]?.[0];
+    if (!savedProposal) throw new Error('Expected the CRM proposal write.');
+    expect(savedProposal.provenance).toBeUndefined();
+    expect(savedProposal.meetingVisibility).toEqual({
+      kind: 'proposal',
+      id: savedProposal.id,
+      lineage: 'derived',
+      ownerRef: 'advisor-a',
+      visibilityPolicyId: 'policy-private',
+      parentRef: { kind: 'meeting-artifact', id: 'artifact-crm' },
+    });
 
     await expect(
       lane.repository.approve({
@@ -331,6 +377,7 @@ describe('exact meeting notes review reader', () => {
             },
           ],
         },
+        meetingVisibility: artifact().payload['meetingVisibility'],
       },
     });
     const lane = ports([malformed]);
@@ -339,6 +386,19 @@ describe('exact meeting notes review reader', () => {
     );
     expect(lane.approveArtifact).not.toHaveBeenCalled();
     expect(lane.crmSaveProposal).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before showing or delivering a proposal with missing lineage', async () => {
+    const withoutLineage = artifact({
+      payload: { proposal: artifact().payload['proposal'] },
+    });
+    const lane = ports([withoutLineage]);
+
+    await expect(lane.repository.list('task')).rejects.toThrow(
+      'missing its private-note lineage'
+    );
+    expect(lane.approveArtifact).not.toHaveBeenCalled();
+    expect(lane.taskCreate).not.toHaveBeenCalled();
   });
 
   it('refuses an item copied from another meeting before recording approval', async () => {

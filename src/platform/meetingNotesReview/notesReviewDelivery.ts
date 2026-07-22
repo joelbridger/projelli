@@ -11,6 +11,7 @@ import type {
   NotesReviewItem,
   NotesReviewReceipt,
 } from '@/ui/notesReview';
+import type { MeetingVisibilitySubject } from '@/platform/meeting-visibility';
 
 const STATE_FILE = 'notes-review.json';
 const SCHEMA_VERSION = 1 as const;
@@ -35,6 +36,9 @@ export interface NotesReviewCrmDelivery {
     existingValue?: string;
     newValue?: string;
     finalValue?: string;
+    provenance?: string;
+    /** Structured private-note lineage retained by the encrypted queue. */
+    meetingVisibility?: MeetingVisibilitySubject;
   }): Promise<unknown>;
   prepareProposal(args: {
     proposalId: string;
@@ -73,6 +77,7 @@ export interface MakeNotesReviewRepositoryInput {
   crm?: NotesReviewCrmDelivery;
   householdKey?: string | null;
   now?: () => string;
+  meetingVisibilityParent?: MeetingVisibilitySubject;
 }
 
 /**
@@ -211,6 +216,11 @@ export function makeNotesReviewRepository(
     item: StoredItem,
     state: StoredState
   ): Promise<NotesReviewReceipt> {
+    if (!input.meetingVisibilityParent) {
+      throw new Error(
+        'This meeting update is missing its private-note lineage. Nothing was sent.'
+      );
+    }
     if (!input.crm || !input.householdKey) {
       throw new Error(
         'Link this client to one Wealthbox household before sending a CRM update.'
@@ -239,6 +249,10 @@ export function makeNotesReviewRepository(
       body: item.detail,
       sourceRef: `meeting:${input.meetingDir}#notes-review:${item.id}`,
       status: 'proposed',
+      meetingVisibility: meetingVisibilityProposal(
+        attempt.proposalId,
+        input.meetingVisibilityParent
+      ),
     });
     await input.crm.prepareProposal({
       proposalId: attempt.proposalId,
@@ -516,6 +530,7 @@ export interface ExactMeetingReviewArtifact {
   readonly state: 'produced' | 'approved';
   readonly producedAt: string;
   readonly payload: Readonly<Record<string, unknown>>;
+  readonly meetingVisibility?: MeetingVisibilitySubject;
 }
 
 export interface ExactMeetingReviewArtifactReader {
@@ -540,6 +555,7 @@ export interface ExactMeetingTaskDelivery {
     due?: string;
     priority: 'normal';
     contextRefs: readonly [];
+    meetingVisibilityParent: MeetingVisibilitySubject;
   }): Promise<{ readonly id: string }>;
 }
 
@@ -583,6 +599,10 @@ export interface MakeExactMeetingNotesReviewRepositoryInput<
   ) => Promise<ExactMeetingReviewArtifact>;
   readonly taskDelivery: ExactMeetingTaskDelivery;
   readonly crmDelivery: NotesReviewCrmDelivery;
+  /** Result of the shared meeting-visibility resolver for the current viewer. */
+  readonly canReadArtifact?: (
+    artifact: ExactMeetingReviewArtifact
+  ) => boolean;
   readonly now?: () => string;
 }
 
@@ -627,13 +647,20 @@ export function makeExactMeetingNotesReviewRepository<
       const artifacts = input.artifacts.listForMeeting(input.meetingId, [
         'action-update-proposal',
       ]);
-      const exact = artifacts.filter(
-        (artifact) =>
-          artifact.meetingId === input.meetingId &&
-          artifact.householdRef === input.client.householdRef &&
-          artifact.matterId === input.client.matterId &&
-          artifact.schemaVersion >= EXACT_MEETING_REVIEW_SCHEMA_VERSION
-      );
+      const exact = artifacts
+        .filter(
+          (artifact) =>
+            artifact.meetingId === input.meetingId &&
+            artifact.householdRef === input.client.householdRef &&
+            artifact.matterId === input.client.matterId &&
+            artifact.schemaVersion >= EXACT_MEETING_REVIEW_SCHEMA_VERSION
+        )
+        .filter((artifact) => {
+          const subject = artifactMeetingVisibility(artifact);
+          return subject.lineage === 'legacy-unrestricted'
+            ? true
+            : input.canReadArtifact?.(artifact) === true;
+        });
       const items = exact.flatMap((artifact) =>
         proposalsFromArtifact(artifact, input.client)
       );
@@ -732,6 +759,7 @@ function proposalsFromArtifact<Client extends NotesReviewClientPair>(
   artifact: ExactMeetingReviewArtifact,
   client: Client
 ): ExactMeetingNotesReviewItem<Client>[] {
+  artifactMeetingVisibility(artifact);
   // One artifact is one independently approvable item. An array here would
   // let one artifact transition approve several proposals at once.
   const raw = artifact.payload['proposal'];
@@ -747,6 +775,7 @@ function proposalFromUnknown<Client extends NotesReviewClientPair>(
   client: Client
 ): ExactMeetingNotesReviewItem<Client> {
   const proposal = record(value, 'Meeting proposal');
+  const meetingVisibility = artifactMeetingVisibility(artifact);
   const common = {
     id: requiredText(proposal['id'], 'Proposal ID'),
     artifactId: artifact.id,
@@ -765,6 +794,7 @@ function proposalFromUnknown<Client extends NotesReviewClientPair>(
       artifact.state === 'approved'
         ? ('approved' as const)
         : ('proposed' as const),
+    meetingVisibility,
   };
   if (proposal['kind'] === 'task') {
     return {
@@ -864,6 +894,7 @@ async function deliverExactTask<Client extends NotesReviewClientPair>(
   item: ExactMeetingTaskReviewItem<Client>,
   delivery: ExactMeetingTaskDelivery
 ): Promise<NotesReviewReceipt> {
+  const parent = artifactMeetingVisibility(itemArtifact(item));
   const created = await delivery.create({
     title: item.title,
     body: item.detail,
@@ -878,6 +909,7 @@ async function deliverExactTask<Client extends NotesReviewClientPair>(
     ...(item.dueDate ? { due: item.dueDate } : {}),
     priority: 'normal',
     contextRefs: [],
+    meetingVisibilityParent: parent,
   });
   return {
     status: 'created',
@@ -889,6 +921,7 @@ async function deliverExactCrm<Client extends NotesReviewClientPair>(
   item: ExactMeetingCrmReviewItem<Client>,
   delivery: NotesReviewCrmDelivery
 ): Promise<NotesReviewReceipt> {
+  const parent = artifactMeetingVisibility(itemArtifact(item));
   const receipts: string[] = [];
   for (const field of item.fields) {
     const proposalId = `meeting-review-${stableId(
@@ -907,6 +940,7 @@ async function deliverExactCrm<Client extends NotesReviewClientPair>(
       existingValue: crmValueForTransport(field.before),
       newValue: crmValueForTransport(field.proposed),
       finalValue: crmValueForTransport(field.proposed),
+      meetingVisibility: meetingVisibilityProposal(proposalId, parent),
     });
     await delivery.prepareProposal({
       proposalId,
@@ -922,6 +956,77 @@ async function deliverExactCrm<Client extends NotesReviewClientPair>(
       receipts.length === 1 ? '' : 's'
     }; receipts ${receipts.join(', ')}).`,
   };
+}
+
+function itemArtifact(item: ExactMeetingNotesReviewItem): ExactMeetingReviewArtifact {
+  return {
+    id: item.artifactId,
+    meetingId: item.meetingId,
+    householdRef: item.client.householdRef,
+    matterId: item.client.matterId,
+    kind: 'action-update-proposal',
+    schemaVersion: EXACT_MEETING_REVIEW_SCHEMA_VERSION,
+    state: item.approvalState === 'approved' ? 'approved' : 'produced',
+    producedAt: '',
+    payload: {},
+    ...((item as ExactMeetingNotesReviewItem & {
+      meetingVisibility?: MeetingVisibilitySubject;
+    }).meetingVisibility
+      ? {
+          meetingVisibility: (item as ExactMeetingNotesReviewItem & {
+            meetingVisibility: MeetingVisibilitySubject;
+          }).meetingVisibility,
+        }
+      : {}),
+  };
+}
+
+function artifactMeetingVisibility(
+  artifact: ExactMeetingReviewArtifact
+): MeetingVisibilitySubject {
+  const candidate =
+    artifact.meetingVisibility ?? artifact.payload['meetingVisibility'];
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
+    throw new Error(
+      'The meeting proposal is missing its private-note lineage. Nothing was shown or delivered.'
+    );
+  const subject = candidate as MeetingVisibilitySubject;
+  const exactArtifact = subject.kind === 'meeting-artifact' && subject.id === artifact.id;
+  const exactLegacy = exactArtifact && subject.lineage === 'legacy-unrestricted';
+  const exactDerived =
+    exactArtifact &&
+    subject.lineage === 'derived' &&
+    subject.parentRef.kind === 'meeting-note' &&
+    subject.parentRef.id === artifact.meetingId &&
+    typeof subject.ownerRef === 'string' &&
+    Boolean(subject.ownerRef.trim()) &&
+    typeof subject.visibilityPolicyId === 'string' &&
+    Boolean(subject.visibilityPolicyId.trim());
+  if (!exactLegacy && !exactDerived)
+    throw new Error(
+      'The meeting proposal has conflicting private-note lineage. Nothing was shown or delivered.'
+    );
+  return subject;
+}
+
+function meetingVisibilityProposal(
+  id: string,
+  parent: MeetingVisibilitySubject
+): MeetingVisibilitySubject {
+  const subject: MeetingVisibilitySubject =
+    parent.lineage === 'legacy-unrestricted'
+      ? { kind: 'proposal', id, lineage: 'legacy-unrestricted' }
+      : {
+          kind: 'proposal',
+          id,
+          lineage: 'derived',
+          parentRef: { kind: parent.kind, id: parent.id },
+          ...(parent.ownerRef ? { ownerRef: parent.ownerRef } : {}),
+          ...(parent.visibilityPolicyId
+            ? { visibilityPolicyId: parent.visibilityPolicyId }
+            : {}),
+        };
+  return subject;
 }
 
 function sameExactProposalIdentity(

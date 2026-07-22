@@ -143,6 +143,9 @@ function duplicateTaskInput(source: TaskRecord): CreateTaskRecordInput {
     ...(source.category ? { category: source.category } : {}),
     tagIds: [...source.tagIds],
     contextRefs: source.contextRefs.map((ref) => ({ ...ref })),
+    ...(source.meetingVisibility
+      ? { meetingVisibilityParent: source.meetingVisibility }
+      : {}),
   };
 }
 

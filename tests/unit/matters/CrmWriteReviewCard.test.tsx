@@ -573,7 +573,9 @@ describe('CrmWriteReviewCard', () => {
     expect(screen.getByText('Note title')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
-    expect(useCrmWriteQueueStore.getState().items.find((i) => i.id === id)).toBeUndefined();
+    await waitFor(() => {
+      expect(useCrmWriteQueueStore.getState().items.find((i) => i.id === id)).toBeUndefined();
+    });
   });
 });
 
@@ -699,7 +701,9 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     const blended = screen.getByTestId(`crm-field-blended-${item.id}`);
     fireEvent.change(blended, { target: { value: 'Edited by the advisor.' } });
 
-    expect(useCrmWriteQueueStore.getState().items[0]!.finalValue).toBe('Edited by the advisor.');
+    await waitFor(() => {
+      expect(useCrmWriteQueueStore.getState().items[0]!.finalValue).toBe('Edited by the advisor.');
+    });
   });
 
   it('Approve is disabled while a selected field item\'s finalValue is blank', async () => {
@@ -747,7 +751,7 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     });
 
     const approveBtn = screen.getByRole('button', { name: /approve 1 change/i });
-    expect(approveBtn).not.toBeDisabled();
+    await waitFor(() => { expect(approveBtn).not.toBeDisabled(); });
     fireEvent.click(approveBtn);
 
     await waitFor(() => { expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1); });

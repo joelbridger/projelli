@@ -3,6 +3,13 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { EntityRef, RecurrenceRule, Task } from '@/platform/crm/types';
 import { validateContactRef, type ContactRef } from '@/features/crm-contacts';
 import { softDeleteCrmRecord } from '@/features/crm-trash';
+import {
+  resolveMeetingVisibility,
+  type MeetingVisibilitySubject,
+  type MeetingVisibilitySubjectRef,
+} from '@/platform/meeting-visibility';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { SK_INSTALL_ID } from '@/config/identity';
 
 export type TaskStatus = Task['status'];
 export type TaskPriority = Task['priority'];
@@ -33,6 +40,8 @@ export interface TaskRecord {
   readonly category?: string;
   readonly tagIds: readonly string[];
   readonly contextRefs: readonly TaskContextRef[];
+  /** Exact meeting lineage, retained by duplicates and recurring copies. */
+  readonly meetingVisibility?: MeetingVisibilitySubject;
 }
 
 export interface CreateTaskRecordInput {
@@ -48,6 +57,8 @@ export interface CreateTaskRecordInput {
   category?: string;
   tagIds?: readonly string[];
   contextRefs?: readonly TaskContextRef[];
+  /** Set only when this task is derived from an already-authoritative parent. */
+  meetingVisibilityParent?: MeetingVisibilitySubject;
 }
 
 /** `null` clears an optional value; omitted fields retain their current value. */
@@ -95,8 +106,22 @@ const RECURRENCE_FREQUENCIES: readonly RecurrenceRule['freq'][] = [
   'yearly',
 ];
 
-function actor() {
-  return { userId: 'local-user', display: 'You', kind: 'user' as const };
+function actor(firmUserId: string | null | undefined) {
+  if (firmUserId)
+    return { userId: firmUserId, display: 'You', kind: 'user' as const };
+  let installId: string | null = null;
+  if (typeof localStorage !== 'undefined') {
+    installId = localStorage.getItem(SK_INSTALL_ID);
+    if (!installId) {
+      installId = crypto.randomUUID();
+      localStorage.setItem(SK_INSTALL_ID, installId);
+    }
+  }
+  return {
+    userId: `solo:${installId ?? crypto.randomUUID()}`,
+    display: 'You',
+    kind: 'user' as const,
+  };
 }
 
 function timestamp(): string {
@@ -105,6 +130,128 @@ function timestamp(): string {
 
 function taskId(): string {
   return `task-${crypto.randomUUID()}`;
+}
+
+function derivedTaskVisibility(
+  id: string,
+  parent: MeetingVisibilitySubject
+): MeetingVisibilitySubject {
+  if (parent.lineage === 'legacy-unrestricted')
+    return { kind: 'task', id, lineage: 'legacy-unrestricted' };
+  return {
+    kind: 'task',
+    id,
+    lineage: 'derived',
+    parentRef: { kind: parent.kind, id: parent.id },
+    ...(parent.ownerRef ? { ownerRef: parent.ownerRef } : {}),
+    ...(parent.visibilityPolicyId
+      ? { visibilityPolicyId: parent.visibilityPolicyId }
+      : {}),
+  };
+}
+
+function storedTaskVisibility(record: LiveCrmRecord): MeetingVisibilitySubject {
+  const stored = record['meetingVisibility'];
+  if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+    const subject = stored as Partial<MeetingVisibilitySubject>;
+    if (subject.kind === 'task' && subject.id === record.id)
+      return stored as MeetingVisibilitySubject;
+    return { kind: 'task', id: record.id, lineage: 'derived' } as MeetingVisibilitySubject;
+  }
+  const origin =
+    record['source'] && typeof record['source'] === 'object'
+      ? (record['source'] as { origin?: unknown }).origin
+      : undefined;
+  // Missing lineage on anything marked meeting-origin is malformed and must
+  // stay hidden. This deliberately malformed shape is rejected by the shared
+  // resolver; ordinary old tasks are explicitly adapted as legacy records.
+  return origin === 'meeting'
+    ? ({ kind: 'task', id: record.id, lineage: 'derived' } as MeetingVisibilitySubject)
+    : { kind: 'task', id: record.id, lineage: 'legacy-unrestricted' };
+}
+
+function rootSubject(record: LiveCrmRecord): MeetingVisibilitySubject | null {
+  if (
+    record.kind !== 'meeting' ||
+    typeof record['ownerRef'] !== 'string' ||
+    !record['ownerRef'].trim()
+  )
+    return null;
+  return {
+    kind: 'meeting-note',
+    id: record.id,
+    lineage: 'root',
+    ownerRef: record['ownerRef'],
+    ...(typeof record['visibilityPolicyId'] === 'string'
+      ? { visibilityPolicyId: record['visibilityPolicyId'] }
+      : {}),
+  };
+}
+
+function canReadVisibilitySubject(
+  subject: MeetingVisibilitySubject,
+  records: readonly LiveCrmRecord[],
+  viewerId: string | null | undefined
+): boolean {
+  const preferences = records.filter(
+    (candidate) => candidate.kind === 'meeting_foundation_preferences'
+  );
+  const resolveParent = (ref: MeetingVisibilitySubjectRef) => {
+    if (ref.kind === 'meeting-note') {
+      const matches = records
+        .filter((candidate) => candidate.kind === 'meeting' && candidate.id === ref.id)
+        .flatMap((candidate) => {
+          const root = rootSubject(candidate);
+          return root ? [root] : [];
+        });
+      return matches.length === 1 ? matches[0] : null;
+    }
+    const matches = records.flatMap((candidate) => {
+      const stored = candidate['meetingVisibility'];
+      if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return [];
+      const subject = stored as Partial<MeetingVisibilitySubject>;
+      const expectedKind =
+        candidate.kind === 'meeting_artifact'
+          ? 'meeting-artifact'
+          : candidate.kind === 'task'
+            ? 'task'
+            : candidate.kind === 'activityEvent'
+              ? 'activity'
+              : candidate.kind === 'proposalRecord'
+                ? 'proposal'
+                : candidate.kind === 'crm_workflow_instance'
+                  ? 'workflow'
+                  : null;
+      return expectedKind === ref.kind &&
+        subject.kind === expectedKind &&
+        subject.id === candidate.id &&
+        subject.id === ref.id
+        ? [stored as MeetingVisibilitySubject]
+        : [];
+    });
+    return matches.length === 1 ? matches[0] : null;
+  };
+  return resolveMeetingVisibility({
+    subject,
+    viewerId,
+    policies:
+      preferences.length === 1 && Array.isArray(preferences[0]?.['visibilityPolicies'])
+        ? preferences[0]['visibilityPolicies'] as unknown[]
+        : [],
+    resolveParent,
+  }).visible;
+}
+
+function canReadTask(
+  record: LiveCrmRecord,
+  records: readonly LiveCrmRecord[],
+  viewerId: string | null | undefined
+): boolean {
+  return canReadVisibilitySubject(
+    storedTaskVisibility(record),
+    records,
+    viewerId
+  );
 }
 
 function requireAvailable(port: LiveTaskPort): void {
@@ -368,22 +515,27 @@ function toTaskRecord(record: LiveCrmRecord): TaskRecord {
     ...(category ? { category } : {}),
     tagIds: storedTagIds(record['tagIds']),
     contextRefs: storedContextRefs(record['contextRefs']),
+    meetingVisibility: storedTaskVisibility(record),
   };
 }
 
-function canonicalTask(input: CreateTaskRecordInput): LiveCrmRecord & Task {
+function canonicalTask(
+  input: CreateTaskRecordInput,
+  currentActor: ReturnType<typeof actor>
+): LiveCrmRecord & Task {
   const now = timestamp();
   const dueTime = input.dueTime === undefined ? undefined : cleanDueTime(input.dueTime);
   const category = input.category === undefined ? undefined : cleanOptionalText(input.category);
   const householdRef = cleanHouseholdRef(input.householdRef ?? null);
+  const id = taskId();
   const canonical: Task = {
-    id: taskId(),
+    id,
     kind: 'task',
     matterId: 'firm_home',
     createdAt: now,
-    createdBy: actor(),
+    createdBy: currentActor,
     updatedAt: now,
-    updatedBy: actor(),
+    updatedBy: currentActor,
     source: { origin: 'user', sources: [] },
     deleted: false,
     externalRefs: [],
@@ -402,11 +554,24 @@ function canonicalTask(input: CreateTaskRecordInput): LiveCrmRecord & Task {
     contextRefs: cleanContextRefs(input.contextRefs ?? [], householdRef),
     customFields: {},
   };
-  return canonical as LiveCrmRecord & Task;
+  return {
+    ...canonical,
+    meetingVisibility: input.meetingVisibilityParent
+      ? derivedTaskVisibility(id, input.meetingVisibilityParent)
+      : { kind: 'task', id, lineage: 'legacy-unrestricted' },
+  } as LiveCrmRecord & Task;
 }
 
-function mergePatch(record: LiveCrmRecord, patch: UpdateTaskRecordPatch): LiveCrmRecord {
-  const next: LiveCrmRecord = { ...record, updatedAt: timestamp(), updatedBy: actor() };
+function mergePatch(
+  record: LiveCrmRecord,
+  patch: UpdateTaskRecordPatch,
+  currentActor: ReturnType<typeof actor>
+): LiveCrmRecord {
+  const next: LiveCrmRecord = {
+    ...record,
+    updatedAt: timestamp(),
+    updatedBy: currentActor,
+  };
   if ('title' in patch) next['title'] = cleanTitle(patch.title);
   if ('body' in patch) next['body'] = patch.body;
   if ('householdRef' in patch) next['householdRef'] = cleanHouseholdRef(patch.householdRef ?? null);
@@ -441,8 +606,15 @@ function mergePatch(record: LiveCrmRecord, patch: UpdateTaskRecordPatch): LiveCr
   return next;
 }
 
-function createTaskRecordStore(port: LiveTaskPort): TaskRecordStore {
-  const tasks = port.records.filter((record) => record.kind === 'task');
+function createTaskRecordStore(
+  port: LiveTaskPort,
+  viewerId: string | null | undefined
+): TaskRecordStore {
+  const currentActor = actor(viewerId);
+  const tasks = port.records.filter(
+    (record) =>
+      record.kind === 'task' && canReadTask(record, port.records, viewerId)
+  );
   const saveAndReload = async (record: LiveCrmRecord): Promise<TaskRecord> => {
     try {
       const saved = await port.save(record);
@@ -461,13 +633,22 @@ function createTaskRecordStore(port: LiveTaskPort): TaskRecordStore {
     }),
     create: async (input) => {
       requireAvailable(port);
-      return saveAndReload(canonicalTask(input));
+      if (
+        input.meetingVisibilityParent &&
+        !canReadVisibilitySubject(
+          input.meetingVisibilityParent,
+          port.records,
+          viewerId
+        )
+      )
+        throw new Error('This private meeting task is not available.');
+      return saveAndReload(canonicalTask(input, currentActor));
     },
     update: async (id, patch) => {
       requireAvailable(port);
       const record = tasks.find((candidate) => candidate.id === id);
       if (!record) throw new Error('That task no longer exists.');
-      return saveAndReload(mergePatch(record, patch));
+      return saveAndReload(mergePatch(record, patch, currentActor));
     },
     remove: async (id) => {
       requireAvailable(port);
@@ -479,7 +660,7 @@ function createTaskRecordStore(port: LiveTaskPort): TaskRecordStore {
         workspaceRoot: port.workspaceRoot,
         recordId: record.id,
         matterId,
-        actorId: actor().userId,
+        actorId: currentActor.userId,
       });
       await port.reload();
     },
@@ -488,5 +669,6 @@ function createTaskRecordStore(port: LiveTaskPort): TaskRecordStore {
 
 /** Reactive adapter over the current canonical live-record snapshot. */
 export function useTaskRecordStore(): TaskRecordStore {
-  return createTaskRecordStore(useLiveCrmRecords());
+  const viewerId = useFirmStore((state) => state.session?.userId ?? null);
+  return createTaskRecordStore(useLiveCrmRecords(), viewerId);
 }

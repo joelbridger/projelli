@@ -10,6 +10,7 @@ import type { CrmMatterMapEntry } from '@/platform/rag/matterResolver';
 import { getEgressOperation } from '@/platform/privacy/egressRegistry';
 import { getNetworkPolicyStatus } from '@/platform/privacy/offlineMode';
 import { BRAND } from '@/config/brand';
+import type { MeetingVisibilitySubject } from '@/platform/meeting-visibility';
 
 export type CrmProvider = 'wealthbox' | 'salesforce' | 'redtail';
 
@@ -336,6 +337,8 @@ export interface CrmWriteProposalPayload {
   newValue?: string;
   finalValue?: string;
   provenance?: string;
+  /** Durable authorization lineage; never encoded into display provenance. */
+  meetingVisibility?: MeetingVisibilitySubject;
   aiSource?: CrmWriteProposalAiSource;
   householdKey?: string;
   provider?: CrmProvider;

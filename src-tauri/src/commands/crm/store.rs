@@ -385,6 +385,7 @@ pub struct PendingCrmProposal {
     pub new_value: Option<String>,
     pub final_value: Option<String>,
     pub provenance: Option<String>,
+    pub meeting_visibility_json: Option<String>,
     pub ai_source_kind: Option<String>,
     pub ai_source_date: Option<String>,
     /// UI status: proposed | sending | failed | verify_pending | stale | sent.
@@ -511,6 +512,7 @@ impl CrmStore {
                new_value      TEXT,
                final_value    TEXT,
                provenance     TEXT,
+               meeting_visibility TEXT,
                ai_source_kind TEXT,
                ai_source_date TEXT,
                status         TEXT NOT NULL,
@@ -1042,13 +1044,13 @@ impl CrmStore {
             "INSERT INTO crm_write_proposals
                 (proposal_id, provider, kind, matter_id, household_key, content_hash,
                  title, body, due_date, source_ref, requested_at, field, existing_value,
-                 new_value, final_value, provenance, ai_source_kind, ai_source_date,
+                 new_value, final_value, provenance, meeting_visibility, ai_source_kind, ai_source_date,
                  status, remote_id, error, created_at, updated_at)
              VALUES
                 (?1, ?2, ?3, ?4, ?5, ?6,
                  ?7, ?8, ?9, ?10, ?11, ?12, ?13,
-                 ?14, ?15, ?16, ?17, ?18,
-                 ?19, ?20, ?21, ?22, ?23)
+                 ?14, ?15, ?16, ?17, ?18, ?19,
+                 ?20, ?21, ?22, ?23, ?24)
              ON CONFLICT(proposal_id) DO UPDATE SET
                 provider       = excluded.provider,
                 kind           = excluded.kind,
@@ -1065,6 +1067,7 @@ impl CrmStore {
                 new_value      = excluded.new_value,
                 final_value    = excluded.final_value,
                 provenance     = excluded.provenance,
+                meeting_visibility = excluded.meeting_visibility,
                 ai_source_kind = excluded.ai_source_kind,
                 ai_source_date = excluded.ai_source_date,
                 status         = excluded.status,
@@ -1089,6 +1092,7 @@ impl CrmStore {
                 proposal.new_value.as_deref(),
                 proposal.final_value.as_deref(),
                 proposal.provenance.as_deref(),
+                proposal.meeting_visibility_json.as_deref(),
                 proposal.ai_source_kind.as_deref(),
                 proposal.ai_source_date.as_deref(),
                 &proposal.status,
@@ -1109,7 +1113,7 @@ impl CrmStore {
         Ok(c.query_row(
             "SELECT proposal_id, provider, kind, matter_id, household_key, content_hash,
                     title, body, due_date, source_ref, requested_at, field, existing_value,
-                    new_value, final_value, provenance, ai_source_kind, ai_source_date,
+                    new_value, final_value, provenance, meeting_visibility, ai_source_kind, ai_source_date,
                     status, remote_id, error, created_at, updated_at
              FROM crm_write_proposals
              WHERE proposal_id = ?1",
@@ -1126,7 +1130,7 @@ impl CrmStore {
         let mut stmt = c.prepare(
             "SELECT proposal_id, provider, kind, matter_id, household_key, content_hash,
                     title, body, due_date, source_ref, requested_at, field, existing_value,
-                    new_value, final_value, provenance, ai_source_kind, ai_source_date,
+                    new_value, final_value, provenance, meeting_visibility, ai_source_kind, ai_source_date,
                     status, remote_id, error, created_at, updated_at
              FROM crm_write_proposals
              WHERE status != 'sent'
@@ -1436,13 +1440,14 @@ fn row_to_pending_crm_proposal(r: &rusqlite::Row<'_>) -> rusqlite::Result<Pendin
         new_value: r.get(13)?,
         final_value: r.get(14)?,
         provenance: r.get(15)?,
-        ai_source_kind: r.get(16)?,
-        ai_source_date: r.get(17)?,
-        status: r.get(18)?,
-        remote_id: r.get(19)?,
-        error: r.get(20)?,
-        created_at: r.get(21)?,
-        updated_at: r.get(22)?,
+        meeting_visibility_json: r.get(16)?,
+        ai_source_kind: r.get(17)?,
+        ai_source_date: r.get(18)?,
+        status: r.get(19)?,
+        remote_id: r.get(20)?,
+        error: r.get(21)?,
+        created_at: r.get(22)?,
+        updated_at: r.get(23)?,
     })
 }
 
@@ -1458,6 +1463,10 @@ fn migrate_crm_columns(conn: &Connection) {
     );
     let _ = conn.execute(
         "ALTER TABLE crm_outbound_writes ADD COLUMN content_key TEXT NOT NULL DEFAULT ''",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE crm_write_proposals ADD COLUMN meeting_visibility TEXT",
         [],
     );
 }
@@ -1701,6 +1710,7 @@ mod tests {
             new_value: None,
             final_value: None,
             provenance: Some("Generated from the July review meeting.".to_string()),
+            meeting_visibility_json: None,
             ai_source_kind: Some("meeting".to_string()),
             ai_source_date: Some("2026-07-09".to_string()),
             status: "sending".to_string(),
@@ -1725,6 +1735,10 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(5));
         let mut second = pending_crm_proposal("proposal-preserve-created-at");
         second.content_hash = "hash-v2".to_string();
+        second.meeting_visibility_json = Some(
+            r#"{"kind":"proposal","id":"proposal-preserve-created-at","lineage":"legacy-unrestricted"}"#
+                .to_string(),
+        );
         second.body = "Advisor approved a revised note body.".to_string();
         second.status = "sent".to_string();
         second.remote_id = Some("crm-note-123".to_string());
@@ -1744,6 +1758,11 @@ mod tests {
         );
         assert_eq!(saved.status, "sent");
         assert_eq!(saved.remote_id.as_deref(), Some("crm-note-123"));
+        assert_eq!(
+            saved.meeting_visibility_json,
+            second.meeting_visibility_json,
+            "encrypted proposal storage must retain structured visibility across reload"
+        );
     }
 
     #[test]

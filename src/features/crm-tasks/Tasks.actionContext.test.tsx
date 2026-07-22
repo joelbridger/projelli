@@ -93,6 +93,14 @@ const canonicalSource: TaskRecord = {
       label: 'Signed plan',
     },
   ],
+  meetingVisibility: {
+    kind: 'task',
+    id: task.id,
+    lineage: 'derived',
+    ownerRef: 'advisor-owner',
+    visibilityPolicyId: 'private-policy',
+    parentRef: { kind: 'meeting-artifact', id: 'artifact-secret' },
+  },
 };
 
 const workflowWorkItem: CrmWorkflowWorkItem = {
@@ -211,6 +219,7 @@ describe('task action context', () => {
         category: 'Annual review',
         tagIds: ['tag:task'],
         contextRefs: canonicalSource.contextRefs,
+        meetingVisibilityParent: canonicalSource.meetingVisibility,
       });
     });
     expect(canonicalSource).toEqual(sourceBefore);

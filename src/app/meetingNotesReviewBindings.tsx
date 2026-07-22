@@ -4,6 +4,7 @@ import {
   BLESSED_MEETING_PANEL_IDS,
   registerMeetingPanel,
   useMeetingArtifactStore,
+  useMeetingFoundationPreferencesStore,
   useMeetingFoundationStore,
   type MeetingArtifact,
   type MeetingPanelContext,
@@ -20,6 +21,12 @@ import {
   type ExactMeetingReviewArtifact,
 } from '@/platform/meetingNotesReview/notesReviewDelivery';
 import type { ExactMeetingReviewKind } from '@/ui/notesReview';
+import {
+  resolveMeetingVisibility,
+  type MeetingVisibilityPolicy,
+  type MeetingVisibilitySubject,
+} from '@/platform/meeting-visibility';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 // These values come from F2's sealed manifest. The guards make a reordered or
 // changed manifest fail loudly instead of letting F6 claim the wrong slot.
@@ -42,7 +49,40 @@ function exactArtifact(artifact: MeetingArtifact): ExactMeetingReviewArtifact {
     state: artifact.state,
     producedAt: artifact.producedAt,
     payload: artifact.payload,
+    ...(artifact.meetingVisibility
+      ? { meetingVisibility: artifact.meetingVisibility }
+      : {}),
   };
+}
+
+export function canReadExactMeetingReviewArtifact(input: {
+  readonly artifact: ExactMeetingReviewArtifact;
+  readonly meeting: {
+    readonly id: string;
+    readonly ownerRef: string;
+    readonly visibilityPolicyId?: string;
+  };
+  readonly viewerId: string | null | undefined;
+  readonly policies: readonly MeetingVisibilityPolicy[];
+}): boolean {
+  const subject = input.artifact.meetingVisibility;
+  if (!subject) return false;
+  const root: MeetingVisibilitySubject = {
+    kind: 'meeting-note',
+    id: input.meeting.id,
+    lineage: 'root',
+    ownerRef: input.meeting.ownerRef,
+    ...(input.meeting.visibilityPolicyId
+      ? { visibilityPolicyId: input.meeting.visibilityPolicyId }
+      : {}),
+  };
+  return resolveMeetingVisibility({
+    subject,
+    viewerId: input.viewerId,
+    policies: input.policies,
+    resolveParent: (ref) =>
+      ref.kind === root.kind && ref.id === root.id ? root : null,
+  }).visible;
 }
 
 export function hasMatchingCompleteMeetingReviewIdentity(
@@ -79,8 +119,10 @@ function ExactMeetingReviewPanel({
   readonly reviewKind: ExactMeetingReviewKind;
 }) {
   const meetings = useMeetingFoundationStore();
+  const preferences = useMeetingFoundationPreferencesStore().preferences;
   const artifacts = useMeetingArtifactStore();
   const tasks = useTaskRecordStore();
+  const viewerId = useFirmStore((state) => state.session?.userId ?? null);
   const meeting = context.canonicalMeeting ?? null;
   const client = context.clientBoundary ?? null;
   const identityMatches = hasMatchingCompleteMeetingReviewIdentity(
@@ -110,8 +152,24 @@ function ExactMeetingReviewPanel({
         create: (input) => tasks.create(input),
       },
       crmDelivery: productionMeetingNotesReviewCrmDelivery,
+      canReadArtifact: (artifact) =>
+        canReadExactMeetingReviewArtifact({
+          artifact,
+          meeting,
+          viewerId,
+          policies: preferences.visibilityPolicies,
+        }),
     });
-  }, [artifacts, client, identityMatches, meeting, meetings, tasks]);
+  }, [
+    artifacts,
+    client,
+    identityMatches,
+    meeting,
+    meetings,
+    preferences.visibilityPolicies,
+    tasks,
+    viewerId,
+  ]);
 
   const identityBlock = identityMatches
     ? undefined

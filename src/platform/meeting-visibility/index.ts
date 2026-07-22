@@ -12,3 +12,12 @@ export {
   type ResolveMeetingVisibilityInput,
   type RootMeetingVisibilitySubject,
 } from './visibilityPolicy';
+export {
+  MEETING_VISIBILITY_FIELD,
+  canReadMeetingDerivedRecord,
+  derivedMeetingVisibility,
+  explicitLegacyMeetingVisibility,
+  meetingVisibilityParentForRecord,
+  meetingVisibilityRoot,
+  meetingVisibilitySubject,
+} from './liveRecordVisibility';
