@@ -4,7 +4,7 @@ import { Bell, ClipboardList, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { buildCapacityTriage, dailyWorkReason } from '@/platform/crm/tasks';
 import { AskBar, FreshnessBanner, Screen, mutedStyle, panelStyle } from '@/features/crm-home/shared/ui';
-import { TodaysMeetingsStrip } from '@/features/meetings/TodaysMeetingsStrip';
+import { TodaysMeetingsStrip } from '@/features/meetings';
 import type { CrmHomeRoute } from '@/features/crm-home/routes';
 import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHomeAdapter, CrmTask } from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';

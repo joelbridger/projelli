@@ -73,9 +73,11 @@ export {
 } from './MeetingPrepPanel';
 export {
   selectExactMeetingBrief,
+  useBriefStore,
   type ExactMeetingBriefTarget,
   type MeetingBrief,
 } from './briefStore';
+export { TodaysMeetingsStrip } from './TodaysMeetingsStrip';
 export { enqueueBriefs } from './briefQueue';
 export { TranscriptViewer, renderNoteWithCitations } from './TranscriptViewer';
 export { meetingSourceRef, parseMeetingRef, mmss } from './meetingSources';

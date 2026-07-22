@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import { useBriefStore } from '@/features/meetings/briefStore';
+import { useBriefStore } from '@/features/meetings';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
