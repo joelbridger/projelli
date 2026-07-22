@@ -286,6 +286,72 @@ describe('CRM meeting visibility boundary', () => {
     );
   });
 
+  it('accepts the real saved legacy artifact shape only through one explicitly legacy parent chain', () => {
+    const { visibilityPolicyId: _retiredPolicy, ...oldMeetingBase } = meeting;
+    const oldMeeting: LiveCrmRecord = {
+      ...oldMeetingBase,
+      id: 'saved-old-meeting',
+      meetingVisibilityLineage: 'legacy-unrestricted',
+    };
+    const savedArtifact: LiveCrmRecord = {
+      id: 'saved-old-artifact',
+      kind: 'meeting_artifact',
+      matterId: 'matter-1',
+      meetingId: oldMeeting.id,
+      meetingVisibility: {
+        kind: 'meeting-artifact',
+        id: 'saved-old-artifact',
+        lineage: 'legacy-unrestricted',
+      },
+    };
+    expect(idsFor([oldMeeting, savedArtifact], null)).toEqual([
+      oldMeeting.id,
+      savedArtifact.id,
+    ]);
+    expect(idsFor([savedArtifact], null)).toEqual([]);
+    expect(idsFor([
+      preferences,
+      meeting,
+      { ...savedArtifact, meetingId: meeting.id },
+    ], 'owner-advisor')).not.toContain(savedArtifact.id);
+    expect(idsFor([
+      oldMeeting,
+      { ...oldMeeting },
+      savedArtifact,
+    ], null)).not.toContain(savedArtifact.id);
+  });
+
+  it.each([null, 'broken', [], false])(
+    'hides every supported record kind when nested visibility is malformed as %j',
+    (brokenVisibility) => {
+      const malformed: readonly LiveCrmRecord[] = [
+        {
+          id: 'bad-artifact', kind: 'meeting_artifact', meetingId: meeting.id,
+          meetingVisibility: brokenVisibility,
+        },
+        {
+          id: 'bad-task', kind: 'task', source: { origin: 'user', sources: [] },
+          meetingVisibility: brokenVisibility,
+        },
+        {
+          id: 'bad-activity', kind: 'activityEvent', verb: 'task.created',
+          meetingVisibility: brokenVisibility,
+        },
+        {
+          id: 'bad-proposal', kind: 'proposalRecord',
+          source: { origin: 'meeting', sources: [] },
+          meetingVisibility: brokenVisibility,
+        },
+        {
+          id: 'bad-workflow', kind: 'crm_workflow_instance',
+          meetingVisibility: brokenVisibility,
+        },
+      ];
+      expect(idsFor([preferences, meeting, ...malformed], 'owner-advisor'))
+        .toEqual([meeting.id]);
+    }
+  );
+
   it('does not reveal a formerly restricted meeting when its policy field disappears', () => {
     const { visibilityPolicyId: _removedPolicy, ...formerRestricted } = meeting;
     const formerArtifact = { ...artifact, meetingId: formerRestricted.id };

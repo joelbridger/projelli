@@ -185,8 +185,15 @@ function malformedSubject(): MeetingVisibilitySubject {
  * it is authoritative: malformed data or a conflicting older marker must not
  * fall back to the legacy-unrestricted path.
  */
-function storedSubject(record: LiveCrmRecord): MeetingVisibilitySubject | undefined {
+function storedSubject(
+  record: LiveCrmRecord,
+  recordsByRef: ReadonlyMap<string, LiveCrmRecord>
+): MeetingVisibilitySubject | undefined {
   if (!owns(record, MEETING_VISIBILITY_FIELD)) return undefined;
+  const raw = record[MEETING_VISIBILITY_FIELD];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return malformedSubject();
+  }
   const kind = storedVisibilityKind(record);
   if (!kind) return malformedSubject();
   const subject = meetingVisibilitySubject(record, kind);
@@ -208,6 +215,13 @@ function storedSubject(record: LiveCrmRecord): MeetingVisibilitySubject | undefi
 
   if (hasTopLevelParentMarker(record)) {
     const refs = exactParentRefs(record);
+    if (subject.lineage === 'legacy-unrestricted') {
+      if (refs.length !== 1 || !refs[0]) return malformedSubject();
+      const parent = recordsByRef.get(refKey(refs[0]));
+      return parent && lineageState(parent, recordsByRef) === 'legacy'
+        ? subject
+        : malformedSubject();
+    }
     if (
       subject.lineage !== 'derived' ||
       refs.length !== 1 ||
@@ -290,7 +304,7 @@ function subjectForRecord(
   record: LiveCrmRecord,
   recordsByRef: ReadonlyMap<string, LiveCrmRecord>
 ): MeetingVisibilitySubject {
-  const stored = storedSubject(record);
+  const stored = storedSubject(record, recordsByRef);
   if (stored) return stored;
   const state = lineageState(record, recordsByRef);
   if (state === 'legacy') return legacySubject(record);
