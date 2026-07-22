@@ -82,7 +82,7 @@ const pointerClick = (testid) => evaluate(`(() => {
 
 async function rendererSnapshot() {
   try {
-    return await rawEvaluate(`({
+    const snapshot = await rawEvaluate(`({
       url: location.href,
       readyState: document.readyState,
       hasTauriInvoke: typeof window.__TAURI_INTERNALS__?.invoke === 'function',
@@ -96,6 +96,7 @@ async function rendererSnapshot() {
       rootHasChildren: Boolean(document.getElementById('root')?.childElementCount),
       events: window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__ || {}
     })`, 2_000);
+    return { ...snapshot, pageUrl: expectedDevUrl };
   } catch (error) {
     return { snapshotError: error instanceof Error ? error.message : String(error) };
   }

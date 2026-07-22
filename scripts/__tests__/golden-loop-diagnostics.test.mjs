@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, rm, stat } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
+import { promisify } from 'node:util';
 import { classifyDiagnostic, safeArtifact, writeDiagnosticArtifact } from '../golden-loop-diagnostics.mjs';
+
+const execFileAsync = promisify(execFile);
 
 const testDirectory = () => path.join(os.tmpdir(), `golden-loop-diagnostic-test-${process.pid}-${Date.now()}`);
 
@@ -15,7 +19,7 @@ async function installedRecorder() {
   assert.ok(script, 'could not extract the installed initialization script');
   const listeners = new Map();
   const window = {
-    location: { href: 'http://localhost:5174/?token=secret#fragment' },
+    location: { href: 'https://client-records.example/Clients/Jane-Doe/Plan.docx?token=secret#fragment' },
     addEventListener(type, listener) { listeners.set(type, listener); },
     console: undefined,
   };
@@ -28,8 +32,8 @@ async function installedRecorder() {
 test('installed early recorder retains only categories, safe locations, and HTTP status', async () => {
   const { window, listeners, console } = await installedRecorder();
   const secret = 'Bearer very-secret-client-content';
-  listeners.get('error')({ target: window, message: `Failed to import ${secret}`, filename: 'http://localhost:5174/src/main.tsx?token=bad#x' });
-  listeners.get('error')({ target: window, message: secret, error: { name: 'TypeError' }, filename: 'https://example.test/client/123?token=bad' });
+  listeners.get('error')({ target: window, message: `Failed to import ${secret}`, filename: 'https://client-records.example/src/Jane-Doe/Plan.tsx?token=bad#x' });
+  listeners.get('error')({ target: window, message: secret, error: { name: 'TypeError' }, filename: 'https://outside.example/client@example.test/Plan.docx?token=bad' });
   console.error(secret);
   listeners.get('unhandledrejection')({ reason: new Error(secret) });
   listeners.get('error')({ target: { tagName: 'SCRIPT', src: 'https://cdn.test/client-token.js?secret=bad' } });
@@ -50,17 +54,23 @@ test('installed early recorder retains only categories, safe locations, and HTTP
 
   const directory = testDirectory();
   try {
+    await mkdir(directory, { mode: 0o777 });
+    await chmod(directory, 0o777);
     const result = await writeDiagnosticArtifact({
       phase: 'write',
-      renderer: { url: window.location.href, rootPresent: true, rootHasChildren: false, dom: { elementCount: 12, tags: ['div', 'script', 'client-secret'] } },
+      renderer: { url: window.location.href, pageUrl: 'http://localhost:5174/', rootPresent: true, rootHasChildren: false, dom: { elementCount: 12, tags: ['div', 'script', 'client-secret'] } },
       events: {
         ...window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__,
+        pageErrors: [...window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__.pageErrors, { category: 'console-error', location: 'https://client@example.test/Secret.docx' }],
+        consoleErrors: [{ category: 'forged-client-category', location: 'https://client@example.test/Secret.docx' }],
+        unhandledRejections: [{ category: 'type-error', location: 'https://client@example.test/Secret.docx' }],
+        resourceFailures: [{ category: 'http-response-failure', location: 'https://client@example.test/Secret.docx' }],
         networkFailures: [...rejected.window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__.networkFailures, ...http.window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__.networkFailures, ...http500.window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__.networkFailures],
       },
     }, directory);
     const encoded = await readFile(result.path, 'utf8');
     const saved = JSON.parse(encoded);
-    assert.equal(saved.renderer.url, 'http://localhost:5174/');
+    assert.deepEqual({ sameOrigin: saved.renderer.sameOrigin, locationClass: saved.renderer.locationClass }, { sameOrigin: false, locationClass: 'other' });
     assert.equal(saved.classification, 'javascript-module-import-error');
     assert.deepEqual(saved.events.networkFailures.map(({ category, status }) => ({ category, status })), [
       { category: 'fetch-rejected', status: undefined },
@@ -68,9 +78,19 @@ test('installed early recorder retains only categories, safe locations, and HTTP
       { category: 'http-response-failure', status: 500 },
     ]);
     assert.equal(saved.renderer.dom.tags.includes('other'), true);
-    assert.equal(encoded.includes(secret), false);
-    assert.equal(encoded.includes('?token='), false);
-    assert.equal(encoded.includes('#fragment'), false);
+    assert.equal(saved.events.consoleErrors[0].category, 'console-error');
+    assert.equal(saved.events.pageErrors.at(-1).category, 'javascript-error');
+    assert.equal(saved.events.unhandledRejections[0].category, 'unhandled-rejection');
+    assert.equal(saved.events.resourceFailures[0].category, 'resource-load-failure');
+    assert.deepEqual(saved.events.pageErrors.map(({ sameOrigin, locationClass }) => ({ sameOrigin, locationClass })), [
+      { sameOrigin: true, locationClass: 'app-module' },
+      { sameOrigin: false, locationClass: 'other' },
+      { sameOrigin: false, locationClass: 'other' },
+    ]);
+    for (const forbidden of [secret, 'client-records.example', 'client@example.test', 'Jane-Doe', 'Plan.docx', '?token=', '#fragment', 'forged-client-category', '/src/']) {
+      assert.equal(encoded.includes(forbidden), false, `artifact retained ${forbidden}`);
+    }
+    assert.equal(/"(?:url|origin|hostname|path|query|fragment|location|error|stack|message|value|reason|headers|body|storage|token)"\s*:/.test(encoded), false);
     assert.equal(result.sha256, createHash('sha256').update(encoded).digest('hex'));
     assert.equal((await stat(result.path)).mode & 0o777, 0o600);
     assert.equal((await stat(directory)).mode & 0o777, 0o700);
@@ -87,17 +107,193 @@ test('every non-renderer failure class writes a bounded surviving artifact', asy
   try {
     for (const [phase, classification] of Object.entries({
       preflight: 'runner-preflight-failure',
+      'product-gate-build': 'product-gate-build-failure', 'product-gate-provenance': 'product-gate-provenance-failure',
+      'diagnostic-writer-validation': 'diagnostic-writer-validation-failure', 'directory-creation': 'directory-creation-failure',
+      'port-selection': 'port-selection-failure', 'pid-read': 'pid-read-failure', 'driver-startup': 'driver-startup-failure',
       'vite-startup': 'vite-startup-failure', launcher: 'launcher-failure', 'bridge-health': 'bridge-health-failure',
       'app-exit': 'app-exit-failure', restart: 'restart-failure',
     })) {
       const result = await writeDiagnosticArtifact({ phase }, directory);
       const encoded = await readFile(result.path, 'utf8');
       assert.equal(result.artifact.classification, classification);
-      assert.equal(result.artifact.renderer.url, 'unavailable');
+      assert.equal(result.artifact.renderer.locationClass, 'unavailable');
+      assert.deepEqual(result.artifact.renderer, { available: false, locationClass: 'unavailable' });
       assert.equal(encoded.includes('workspace'), false);
       assert.equal(result.sha256, createHash('sha256').update(encoded).digest('hex'));
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+async function writeExecutable(target, source) {
+  await writeFile(target, source);
+  await chmod(target, 0o700);
+}
+
+async function runShellFailure(mode) {
+  const root = testDirectory();
+  const bin = path.join(root, 'bin');
+  const repo = path.join(root, 'repo');
+  const diagnostics = path.join(root, 'diagnostics');
+  await mkdir(path.join(repo, 'src-tauri'), { recursive: true });
+  await mkdir(path.join(repo, 'node_modules'));
+  await mkdir(bin);
+  await writeFile(path.join(repo, 'src-tauri', 'tauri.conf.json'), JSON.stringify({ build: { devUrl: 'http://127.0.0.1:4173/' } }));
+  const app = path.join(root, 'app');
+  const launcher = path.join(root, 'launcher');
+  const driver = path.join(root, 'driver.mjs');
+  const invalidWriter = path.join(root, 'invalid-writer.mjs');
+  const failingWriter = path.join(root, 'failing-writer.mjs');
+  await writeExecutable(app, '#!/usr/bin/env bash\nexit 0\n');
+  await writeExecutable(path.join(bin, 'git'), `#!/usr/bin/env bash
+case " $* " in
+  *" rev-parse HEAD "*) echo 0123456789012345678901234567890123456789 ;;
+  *" status --porcelain "*) : ;;
+  *) exit 2 ;;
+esac
+`);
+  await writeExecutable(path.join(bin, 'curl'), `#!/usr/bin/env bash
+url="\${!#}"
+if [[ "$url" == *health* ]]; then
+  [[ "$GOLDEN_LOOP_TEST_MODE" == bridge-health || "$GOLDEN_LOOP_TEST_MODE" == app-exit ]] && exit 1
+  exit 0
+fi
+[[ "$GOLDEN_LOOP_TEST_MODE" == vite-startup ]] && exit 1
+count=0; [[ -f "$GOLDEN_LOOP_TEST_CURL_COUNT" ]] && count="$(<"$GOLDEN_LOOP_TEST_CURL_COUNT")"
+count=$((count + 1)); echo "$count" >"$GOLDEN_LOOP_TEST_CURL_COUNT"
+[[ "$count" -eq 1 ]] && exit 1
+exit 0
+`);
+  await writeExecutable(path.join(bin, 'npm'), `#!/usr/bin/env bash
+[[ "$GOLDEN_LOOP_TEST_MODE" == vite-startup ]] && exit 1
+exec sleep 30
+`);
+  await writeExecutable(path.join(bin, 'python3'), `#!/usr/bin/env bash
+[[ "$GOLDEN_LOOP_TEST_MODE" == port-selection ]] && exit 1
+echo 45678
+`);
+  await writeExecutable(path.join(bin, 'date'), `#!/usr/bin/env bash
+[[ "$GOLDEN_LOOP_TEST_MODE" == unexpected-trap ]] && exit 7
+exec /usr/bin/date "$@"
+`);
+  await writeExecutable(path.join(bin, 'mkdir'), `#!/usr/bin/env bash
+if [[ "$GOLDEN_LOOP_TEST_MODE" == directory-creation && " $* " == *"/workspace"* ]]; then exit 1; fi
+exec /usr/bin/mkdir "$@"
+`);
+  await writeExecutable(path.join(bin, 'cat'), `#!/usr/bin/env bash
+[[ "$GOLDEN_LOOP_TEST_MODE" == pid-read && "\${1:-}" == *app.pid ]] && exit 1
+exec /usr/bin/cat "$@"
+`);
+  await writeExecutable(launcher, `#!/usr/bin/env bash
+set -euo pipefail
+count=0; [[ -f "$GOLDEN_LOOP_TEST_LAUNCH_COUNT" ]] && count="$(<"$GOLDEN_LOOP_TEST_LAUNCH_COUNT")"
+count=$((count + 1)); echo "$count" >"$GOLDEN_LOOP_TEST_LAUNCH_COUNT"
+[[ ("$GOLDEN_LOOP_TEST_MODE" == launcher-failure || "$GOLDEN_LOOP_TEST_MODE" == diagnostic-write-failure) && "$count" -eq 1 ]] && exit 2
+[[ "$GOLDEN_LOOP_TEST_MODE" == restart && "$count" -eq 2 ]] && exit 2
+if [[ "$GOLDEN_LOOP_TEST_MODE" == app-exit ]]; then echo 999999 >"$LANTERN_APP_PID_FILE"; exit 0; fi
+setsid sleep 30 >/dev/null 2>&1 &
+echo $! >"$LANTERN_APP_PID_FILE"
+`);
+  await writeExecutable(driver, `#!/usr/bin/env node
+if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-startup') process.exit(1);
+`);
+  await writeFile(invalidWriter, 'this is not valid JavaScript');
+  await writeFile(failingWriter, `if (process.argv[2] === '--validate') process.exit(0); process.exit(9);`);
+
+  const env = {
+    ...process.env,
+    PATH: `${bin}:${process.env.PATH}`,
+    GOLDEN_LOOP_TEST_MODE: mode,
+    GOLDEN_LOOP_TEST_CURL_COUNT: path.join(root, 'curl-count'),
+    GOLDEN_LOOP_TEST_LAUNCH_COUNT: path.join(root, 'launch-count'),
+    GOLDEN_LOOP_DIAGNOSTIC_DIR: diagnostics,
+    GOLDEN_LOOP_LAUNCHER: launcher,
+    GOLDEN_LOOP_DRIVER: driver,
+    GOLDEN_LOOP_TIMEOUT_SECONDS: '1',
+    ...(mode === 'diagnostic-writer-validation' ? { GOLDEN_LOOP_DIAGNOSTIC_WRITER: invalidWriter } : {}),
+    ...(mode === 'diagnostic-write-failure' ? { GOLDEN_LOOP_DIAGNOSTIC_WRITER: failingWriter } : {}),
+  };
+  try {
+    let failure;
+    try {
+      await execFileAsync('bash', [new URL('../golden-loop.sh', import.meta.url).pathname, repo, app], { env, timeout: 10_000 });
+    } catch (error) {
+      failure = error;
+    }
+    assert.ok(failure, `${mode} unexpectedly turned green`);
+    assert.notEqual(failure.code, 0);
+    const names = await (await import('node:fs/promises')).readdir(diagnostics);
+    assert.ok(names.length >= 1, `${mode} left no artifact`);
+    const artifact = JSON.parse(await readFile(path.join(diagnostics, names.at(-1)), 'utf8'));
+    assert.match(failure.stderr, /GOLDEN LOOP DIAGNOSTIC: path=.* sha256=[a-f0-9]{64} classification=/);
+    return artifact;
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+test('real shell routes every injected early failure to a red, bounded artifact', async () => {
+  const expected = {
+    'diagnostic-writer-validation': 'diagnostic-writer-validation-failure',
+    'diagnostic-write-failure': 'launcher-failure',
+    'unexpected-trap': 'runner-preflight-failure',
+    'vite-startup': 'vite-startup-failure',
+    'port-selection': 'port-selection-failure',
+    'directory-creation': 'directory-creation-failure',
+    'pid-read': 'pid-read-failure',
+    'driver-startup': 'driver-startup-failure',
+    'launcher-failure': 'launcher-failure',
+    'bridge-health': 'bridge-health-failure',
+    'app-exit': 'app-exit-failure',
+    restart: 'restart-failure',
+  };
+  for (const [mode, classification] of Object.entries(expected)) {
+    const artifact = await runShellFailure(mode);
+    assert.equal(artifact.classification, classification, mode);
+    assert.equal(artifact.renderer.locationClass, 'unavailable', mode);
+    assert.equal(JSON.stringify(artifact).includes('client'), false, mode);
+  }
+});
+
+test('real product-gate shell routes build and provenance failures to artifacts', async () => {
+  for (const [mode, classification] of Object.entries({ build: 'product-gate-build-failure', provenance: 'product-gate-provenance-failure' })) {
+    const root = testDirectory();
+    const scripts = path.join(root, 'scripts');
+    const bin = path.join(root, 'bin');
+    const diagnostics = path.join(root, 'diagnostics');
+    await mkdir(path.join(root, 'src-tauri'), { recursive: true });
+    await mkdir(scripts);
+    await mkdir(bin);
+    for (const name of ['gate.sh', 'write-golden-loop-diagnostic.mjs', 'golden-loop-diagnostics.mjs']) {
+      await writeFile(path.join(scripts, name), await readFile(new URL(`../${name}`, import.meta.url)));
+    }
+    await writeExecutable(path.join(bin, 'cargo'), `#!/usr/bin/env bash
+[[ "$GOLDEN_LOOP_GATE_TEST_MODE" == build ]] && exit 1
+mkdir -p target/debug
+printf '#!/usr/bin/env bash\\nexit 0\\n' >target/debug/lantern
+chmod 700 target/debug/lantern
+`);
+    await writeExecutable(path.join(scripts, 'golden-loop-launch-app.sh'), `#!/usr/bin/env bash
+[[ "$GOLDEN_LOOP_GATE_TEST_MODE" == provenance ]] && exit 2
+exit 0
+`);
+    await writeExecutable(path.join(scripts, 'golden-loop.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    try {
+      let failure;
+      try {
+        await execFileAsync('bash', ['-c', 'source "$1"; run_golden_loop_gate', '_', path.join(scripts, 'gate.sh')], {
+          cwd: root,
+          env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GOLDEN_LOOP_GATE_TEST_MODE: mode, GOLDEN_LOOP_DIAGNOSTIC_DIR: diagnostics },
+        });
+      } catch (error) { failure = error; }
+      assert.ok(failure, `${mode} product-gate failure turned green`);
+      const names = await (await import('node:fs/promises')).readdir(diagnostics);
+      const artifact = JSON.parse(await readFile(path.join(diagnostics, names.at(-1)), 'utf8'));
+      assert.equal(artifact.classification, classification);
+      assert.match(failure.stderr, /sha256=[a-f0-9]{64}/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
 });
 
 test('early capture remains debug-only and diagnostics cannot change pass checks', async () => {

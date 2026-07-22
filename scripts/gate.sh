@@ -4,11 +4,33 @@
 #   scripts/gate.sh         # fast gate: typecheck + i18n + vitest + lint + cargo
 #   scripts/gate.sh --full  # also runs L1 browser suite + L2 desktop harness (slow; for nightly/release)
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 FULL=0; [ "${1:-}" = "--full" ] && FULL=1
 fail=0
 step () { echo ""; echo "===== $1 ====="; shift; "$@" || { echo "❌ FAILED: $*"; fail=1; }; }
 
+write_golden_loop_gate_diagnostic() {
+  local phase="$1" writer="scripts/write-golden-loop-diagnostic.mjs"
+  if node "$writer" --validate >/dev/null 2>&1; then
+    node "$writer" "$phase" >&2 || echo 'GOLDEN LOOP DIAGNOSTIC FAILED' >&2
+  else
+    echo 'GOLDEN LOOP DIAGNOSTIC UNAVAILABLE' >&2
+  fi
+}
+
+run_golden_loop_gate() {
+  if ! (cd src-tauri && cargo build --locked); then
+    write_golden_loop_gate_diagnostic product-gate-build
+    return 1
+  fi
+  if ! scripts/golden-loop-launch-app.sh --record-provenance . src-tauri/target/debug/lantern; then
+    write_golden_loop_gate_diagnostic product-gate-provenance
+    return 1
+  fi
+  scripts/golden-loop.sh . src-tauri/target/debug/lantern
+}
+
+run_gate_steps() {
 step "Build assets"    node scripts/copy-build-assets.mjs
 step "Module boundaries" npm run boundaries:check
 step "Active CRM/client boundary" npm run crm:active-boundary
@@ -98,7 +120,7 @@ step "Rust tests"      bash -c "cd src-tauri && CI=1 cargo test --workspace --lo
 # The real desktop loop must use a binary built from this exact, clean source
 # tip. Keep it after Rust tests so it reuses warm Cargo artifacts, while the
 # outer `npm run gate` box slot continues to serialize Rust work on this host.
-step "Golden loop" bash -c 'cd src-tauri && cargo build --locked && ../scripts/golden-loop-launch-app.sh --record-provenance .. target/debug/lantern && ../scripts/golden-loop.sh .. target/debug/lantern'
+step "Golden loop" run_golden_loop_gate
 
 if [ "$FULL" -eq 1 ]; then
   step "L1 browser E2E (sharded)" bash ./scripts/run-e2e-suite.sh en 6
@@ -108,4 +130,10 @@ fi
 
 echo ""
 [ "$fail" -eq 0 ] && echo "✅ GATE GREEN" || echo "❌ GATE RED — see failures above"
-exit "$fail"
+return "$fail"
+}
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  run_gate_steps
+  exit $?
+fi

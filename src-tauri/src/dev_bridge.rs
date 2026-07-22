@@ -56,8 +56,16 @@ pub fn golden_loop_diagnostics_initialization_script() -> Option<String> {
     Some(r#"(() => {
 const recorder = window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__ = { pageErrors: [], consoleErrors: [], unhandledRejections: [], resourceFailures: [], networkFailures: [] };
 const add = (key, value) => { if (recorder[key].length < 20) recorder[key].push(value); };
-const location = (value) => {
-  try { return new URL(String(value), window.location.href).href; } catch { return ''; }
+const locationFacts = (value) => {
+  try {
+    const page = new URL(window.location.href);
+    const target = new URL(String(value), page);
+    let locationClass = 'other';
+    if (target.pathname === '/' || target.pathname === '/index.html') locationClass = 'root';
+    else if (target.pathname.startsWith('/src/')) locationClass = 'app-module';
+    else if (target.pathname.startsWith('/@vite/')) locationClass = 'vite-runtime';
+    return { sameOrigin: target.origin === page.origin, locationClass };
+  } catch { return { sameOrigin: false, locationClass: 'unavailable' }; }
 };
 const errorCategory = (error) => {
   const name = String(error?.name || '');
@@ -69,22 +77,22 @@ const errorCategory = (error) => {
 window.addEventListener('error', (event) => {
   const target = event.target;
   if (target && target !== window && (target.src || target.href)) {
-    add('resourceFailures', { category: 'resource-load-failure', location: location(target.src || target.href) });
+    add('resourceFailures', { category: 'resource-load-failure', ...locationFacts(target.src || target.href) });
   } else {
     const category = /module|import/i.test(String(event.message || '')) ? 'module-import' : errorCategory(event.error);
-    add('pageErrors', { category, location: location(event.filename) });
+    add('pageErrors', { category, ...locationFacts(event.filename) });
   }
 }, true);
-window.addEventListener('unhandledrejection', () => add('unhandledRejections', { category: 'unhandled-rejection', location: '' }));
+window.addEventListener('unhandledrejection', () => add('unhandledRejections', { category: 'unhandled-rejection', sameOrigin: false, locationClass: 'unavailable' }));
 const originalError = console.error.bind(console);
-console.error = (...args) => { add('consoleErrors', { category: 'console-error', location: '' }); return originalError(...args); };
+console.error = (...args) => { add('consoleErrors', { category: 'console-error', sameOrigin: false, locationClass: 'unavailable' }); return originalError(...args); };
 const originalFetch = window.fetch;
 if (typeof originalFetch === 'function') window.fetch = (...args) => {
-  const requestLocation = location(args[0]?.url || args[0]);
+  const requestLocation = locationFacts(args[0]?.url || args[0]);
   return originalFetch(...args).then((response) => {
-    if (response.status >= 400 && response.status <= 599) add('networkFailures', { category: 'http-response-failure', status: response.status, location: requestLocation });
+    if (response.status >= 400 && response.status <= 599) add('networkFailures', { category: 'http-response-failure', status: response.status, ...requestLocation });
     return response;
-  }).catch((error) => { add('networkFailures', { category: 'fetch-rejected', location: requestLocation }); throw error; });
+  }).catch((error) => { add('networkFailures', { category: 'fetch-rejected', ...requestLocation }); throw error; });
 };
 })();"#.to_string())
 }
