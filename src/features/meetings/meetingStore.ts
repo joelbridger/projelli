@@ -378,14 +378,25 @@ export async function writeMeetingJson(
   );
 }
 
+export interface MeetingJsonMutationGuard {
+  /** Re-check the exact meeting-file authority. Called before the canonical
+   * read and again after it, immediately before the write. */
+  assertCurrentAccess(): Promise<void>;
+}
+
 export async function updateMeetingJson(
   meetingDir: string,
-  update: (current: MeetingMeta) => MeetingMeta
+  update: (current: MeetingMeta) => MeetingMeta,
+  guard?: MeetingJsonMutationGuard
 ): Promise<MeetingMeta | null> {
   const ws = activeWorkspaceService;
   if (!ws) return null;
-  const current = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
+  await guard?.assertCurrentAccess();
+  const current = JSON.parse(
+    await ws.readFile(`${meetingDir}/meeting.json`)
+  ) as MeetingMeta;
   const next = update(current);
+  await guard?.assertCurrentAccess();
   await ws.writeFile(
     `${meetingDir}/meeting.json`,
     JSON.stringify(next, null, 2)

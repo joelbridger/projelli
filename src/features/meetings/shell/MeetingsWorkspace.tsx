@@ -48,7 +48,11 @@ import { MeetingEntry } from '../MeetingEntry';
 import { meetingEntryHostIdentity } from '../meetingEntryHostIdentity';
 import { MeetingTemplatePanel } from '../MeetingTemplatePanel';
 import { createPreparedMeetingTemplateFillProvider } from '../meetingTemplateAi';
-import { requireCurrentMeetingFileAccess } from '../meetingFileVisibility';
+import {
+  FILE_MEETING_OWNER_PRIVATE_POLICY,
+  meetingFileVisibilityContextIdentity,
+  requireCurrentMeetingFileAccess,
+} from '../meetingFileVisibility';
 import {
   useMeetingListComposition,
   useMeetingListToolComposition,
@@ -167,12 +171,26 @@ export function TemplateManagement({
   );
   const visibilityPreferences = useMeetingFoundationPreferencesStore();
   const visibilityPolicies = visibilityPreferences.preferences.visibilityPolicies;
+  const visibilityIdentity = useMemo(
+    () =>
+      meetingFileVisibilityContextIdentity({
+        viewerId: visibilityViewerId,
+        policies: [
+          FILE_MEETING_OWNER_PRIVATE_POLICY,
+          ...visibilityPolicies,
+        ],
+      }),
+    [visibilityPolicies, visibilityViewerId]
+  );
+  const [authorizedVisibilityIdentity, setAuthorizedVisibilityIdentity] =
+    useState<string | null>(null);
 
   useEffect(() => {
     const request = { current: true };
     queueMicrotask(() => {
       if (!request.current) return;
       setTranscript(null);
+      setAuthorizedVisibilityIdentity(null);
       setLoading(target !== null);
     });
     if (!target || !workspace) return () => { request.current = false; };
@@ -183,6 +201,7 @@ export function TemplateManagement({
         workspace,
         workspaceRoot,
         workspaceGeneration,
+        expectedVisibilityIdentity: visibilityIdentity,
       });
       const raw = await workspace.readFile(transcriptPath);
       await requireCurrentMeetingFileAccess({
@@ -190,8 +209,12 @@ export function TemplateManagement({
         workspace,
         workspaceRoot,
         workspaceGeneration,
+        expectedVisibilityIdentity: visibilityIdentity,
       });
-      if (request.current) setTranscript(JSON.parse(raw) as TranscriptFile);
+      if (request.current) {
+        setTranscript(JSON.parse(raw) as TranscriptFile);
+        setAuthorizedVisibilityIdentity(visibilityIdentity);
+      }
     })()
       .catch(() => {
         if (request.current) setTranscript(null);
@@ -207,6 +230,7 @@ export function TemplateManagement({
     workspace,
     workspaceGeneration,
     workspaceRoot,
+    visibilityIdentity,
   ]);
 
   if (!workspace) {
@@ -216,12 +240,17 @@ export function TemplateManagement({
       </div>
     );
   }
+  // A passive effect has not run yet on the first render after a viewer or
+  // policy change. Gate the old transcript synchronously by the authority that
+  // loaded it, so that one render can never expose a stale template fill.
+  const authorizedTranscript =
+    authorizedVisibilityIdentity === visibilityIdentity ? transcript : null;
   const fill =
-    target && transcript && activeClientBoundary
+    target && authorizedTranscript && activeClientBoundary
       ? {
           activeClientBoundary,
           target,
-          transcript,
+          transcript: authorizedTranscript,
           clientName:
             activeClientBoundary.displayName ??
             activeClientBoundary.householdRef,
@@ -240,7 +269,7 @@ export function TemplateManagement({
         <div className="meetings-shell-local-state" data-testid="meetings-templates-loading">
           {t('meetings.shell.loading.templates')}
         </div>
-      ) : target && !transcript ? (
+      ) : target && !authorizedTranscript ? (
         <div className="meetings-shell-empty" data-testid="meetings-templates-unavailable">
           {t('meetings.shell.templates.no-transcript')}
         </div>

@@ -7,6 +7,7 @@ import {
   createAccountlessUnrestrictedMeetingFileVisibilityManifest,
   createMeetingFileVisibilityManifest,
   decideMeetingFileVisibility,
+  meetingFileVisibilityContextIdentity,
   migrateLegacyMeetingFileVisibility,
   readCurrentMeetingViewerId,
   resolveMeetingFilePathVisibility,
@@ -31,6 +32,32 @@ function manifest(): MeetingFileVisibilityManifest {
 }
 
 describe('file-backed meeting visibility', () => {
+  it('gives the same authority identity to semantically identical policy objects', () => {
+    expect(
+      meetingFileVisibilityContextIdentity({
+        viewerId: 'included',
+        policies: [
+          {
+            id: 'one',
+            mode: 'explicit-review',
+            includedMemberIds: ['included'],
+          },
+        ],
+      })
+    ).toBe(
+      meetingFileVisibilityContextIdentity({
+        viewerId: 'included',
+        policies: [
+          {
+            includedMemberIds: ['included'],
+            mode: 'explicit-review',
+            id: 'one',
+          },
+        ],
+      })
+    );
+  });
+
   it.each([
     ['owner', true],
     ['included', true],

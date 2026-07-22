@@ -1,5 +1,8 @@
 import type { MeetingMeta } from '../../meetingStore';
-import { updateMeetingJson } from '../../meetingStore';
+import {
+  updateMeetingJson,
+  type MeetingJsonMutationGuard,
+} from '../../meetingStore';
 import type { NoticeState } from '../../noticeLedger';
 import type { NoticePolicy } from '../../noticeSettings';
 import {
@@ -205,12 +208,17 @@ export const meetingReviewArtifactStore: MeetingInsightArtifactStore = {
 
 /** Task 12b — set `meeting.json.reviewedAt`, marking a meeting reviewed. */
 export async function markMeetingReviewed(
-  meetingDir: string
+  meetingDir: string,
+  guard?: MeetingJsonMutationGuard
 ): Promise<MeetingMeta | null> {
-  return updateMeetingJson(meetingDir, (current) => ({
-    ...current,
-    reviewedAt: new Date().toISOString(),
-  }));
+  return updateMeetingJson(
+    meetingDir,
+    (current) => ({
+      ...current,
+      reviewedAt: new Date().toISOString(),
+    }),
+    guard
+  );
 }
 
 export const meetingReviewInsightDescriptor: MeetingInsightDescriptor = {

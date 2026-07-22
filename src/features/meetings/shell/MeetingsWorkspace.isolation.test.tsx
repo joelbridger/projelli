@@ -530,16 +530,27 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
       expect(screen.queryByTestId('meetings-templates-unavailable')).toBeNull();
     });
 
-    act(() => {
-      useFirmStore.setState((state) => ({
-        session: state.session
-          ? { ...state.session, userId: 'advisor-2' }
-          : null,
-      }));
-    });
+    const deferredClears: Array<() => void> = [];
+    const queueSpy = vi
+      .spyOn(globalThis, 'queueMicrotask')
+      .mockImplementation((callback) => {
+        deferredClears.push(callback);
+      });
+    try {
+      act(() => {
+        useFirmStore.setState((state) => ({
+          session: state.session
+            ? { ...state.session, userId: 'advisor-2' }
+            : null,
+        }));
+      });
 
-    expect(
-      await screen.findByTestId('meetings-templates-unavailable')
-    ).toBeTruthy();
+      // The old effect's queued clear has deliberately NOT run. The render
+      // itself must still suppress the transcript loaded for advisor-1.
+      expect(deferredClears).toHaveLength(1);
+      expect(screen.getByTestId('meetings-templates-unavailable')).toBeTruthy();
+    } finally {
+      queueSpy.mockRestore();
+    }
   });
 });

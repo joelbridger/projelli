@@ -152,6 +152,9 @@ describe('meeting visibility at the memory boundary', () => {
 
     await MemoryService.indexFile(possibleMeetingFile, 'matter-1');
     await MemoryService.indexWorkspace();
+    await expect(
+      MemoryService.reindexPaths([possibleMeetingFile], 'matter-1')
+    ).resolves.toBe(1);
 
     expect(indexFile).not.toHaveBeenCalled();
     expect(reconcileWorkspace).not.toHaveBeenCalled();

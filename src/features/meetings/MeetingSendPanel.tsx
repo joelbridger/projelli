@@ -61,12 +61,14 @@ import {
   sendMeetingArtifacts,
   type MeetingSendLogEntry,
 } from './meetingArtifactDelivery';
+import { requireCurrentMeetingFileAccess } from './meetingFileVisibility';
 
 export interface MeetingSendPanelProps {
   matterId: string;
   meetingDir: string;
   workspaceRoot: string;
   workspaceGeneration: number;
+  visibilityIdentity: string;
   meta: MeetingMeta;
   matter: Matter | null;
   clientName: string;
@@ -116,6 +118,7 @@ export function MeetingSendPanel({
   meetingDir,
   workspaceRoot,
   workspaceGeneration,
+  visibilityIdentity,
   meta,
   matter,
   clientName,
@@ -167,6 +170,28 @@ export function MeetingSendPanel({
   const metaRef = useRef(meta);
   metaRef.current = meta;
 
+  const assertCurrentRecipientPlanAccess = useCallback(
+    () =>
+      workspaceService
+        ? requireCurrentMeetingFileAccess({
+            path: `${meetingDir}/meeting.json`,
+            workspace: workspaceService,
+            workspaceRoot,
+            workspaceGeneration,
+            expectedVisibilityIdentity: visibilityIdentity,
+          })
+        : Promise.reject(
+            new Error('Open a workspace before saving recipients.')
+          ),
+    [
+      meetingDir,
+      visibilityIdentity,
+      workspaceGeneration,
+      workspaceRoot,
+      workspaceService,
+    ]
+  );
+
   const drainSaves = useCallback((): Promise<void> => {
     if (saverRef.current) return saverRef.current;
     const ws = workspaceService;
@@ -176,7 +201,14 @@ export function MeetingSendPanel({
         while (pendingPlanRef.current) {
           const toSave = pendingPlanRef.current;
           pendingPlanRef.current = null;
-          const savedMeta = await saveMeetingRecipientPlan(ws, meetingDir, matterId, toSave);
+          const savedMeta = await saveMeetingRecipientPlan(
+            ws,
+            meetingDir,
+            matterId,
+            toSave,
+            undefined,
+            { assertCurrentAccess: assertCurrentRecipientPlanAccess }
+          );
           lastSavedJson.current = JSON.stringify(normalizeMeetingDeliveryPlan(savedMeta.deliveryPlan));
           onChanged(savedMeta);
         }
@@ -194,7 +226,13 @@ export function MeetingSendPanel({
     })();
     saverRef.current = loop;
     return loop;
-  }, [workspaceService, meetingDir, matterId, onChanged]);
+  }, [
+    workspaceService,
+    meetingDir,
+    matterId,
+    onChanged,
+    assertCurrentRecipientPlanAccess,
+  ]);
 
   // Always-latest drainSaves, so the unmount cleanup (which registers once with
   // [] deps) drains through the current workspace/meeting, not a stale capture.

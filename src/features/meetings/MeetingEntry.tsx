@@ -83,6 +83,8 @@ import { useMeetingFollowUpCompatibility } from './followUp/meetingFollowUpCompa
 import { useMeetingFoundationPreferencesStore } from './foundation/contract';
 import {
   FILE_MEETING_OWNER_PRIVATE_POLICY,
+  meetingFileVisibilityContextIdentity,
+  requireCurrentMeetingFileAccess,
   resolveMeetingFilePathVisibility,
   type MeetingFileVisibilityContext,
 } from './meetingFileVisibility';
@@ -240,8 +242,8 @@ function MeetingEntryHost({
     [currentViewerId, visibilityPreferences.preferences.visibilityPolicies]
   );
   const visibilityIdentity = useMemo(
-    () => JSON.stringify([currentViewerId, visibilityContext.policies]),
-    [currentViewerId, visibilityContext.policies]
+    () => meetingFileVisibilityContextIdentity(visibilityContext),
+    [visibilityContext]
   );
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
@@ -306,6 +308,30 @@ function MeetingEntryHost({
       return decision.kind === 'visible';
     },
     [meetingDir, visibilityContext, workspaceService]
+  );
+
+  const requireLiveMeetingFileAccess = useCallback(
+    (fileName: string): Promise<void> => {
+      const ws = workspaceService;
+      if (!ws)
+        return Promise.reject(
+          new Error('Open a workspace before changing this meeting.')
+        );
+      return requireCurrentMeetingFileAccess({
+        path: `${meetingDir}/${fileName}`,
+        workspace: ws,
+        workspaceRoot,
+        workspaceGeneration,
+        expectedVisibilityIdentity: visibilityIdentity,
+      });
+    },
+    [
+      meetingDir,
+      visibilityIdentity,
+      workspaceGeneration,
+      workspaceRoot,
+      workspaceService,
+    ]
   );
 
   useEffect(() => {
@@ -504,11 +530,18 @@ function MeetingEntryHost({
 
   const handleMarkReviewed = useCallback(async () => {
     if (!meta) return;
-    if (!(await canAccessMeetingFile('meeting.json'))) return;
-    const updated = await markMeetingReviewed(meetingDir);
+    let updated: MeetingMeta | null;
+    try {
+      updated = await markMeetingReviewed(meetingDir, {
+        assertCurrentAccess: () => requireLiveMeetingFileAccess('meeting.json'),
+      });
+    } catch (error) {
+      setExportNotice(error instanceof Error ? error.message : String(error));
+      return;
+    }
     if (updated) setMeta(updated);
     onChanged?.();
-  }, [meetingDir, meta, onChanged, canAccessMeetingFile]);
+  }, [meetingDir, meta, onChanged, requireLiveMeetingFileAccess]);
 
   // QA-31 — "Retry" once notesError is set: re-runs generation, then
   // re-reads meeting.json (for the cleared/updated notesError) and notes.docx
@@ -620,17 +653,26 @@ function MeetingEntryHost({
       setEditingType(false);
       return;
     }
-    if (!(await canAccessMeetingFile('meeting.json'))) return;
     // The input shows the human label, never the internal id — map a label
     // back to its built-in type id; anything else is saved as a custom type.
     const typeId =
       BUILT_IN_TYPES.find(
         (id) => meetingTypeLabel(id, t).toLowerCase() === entered.toLowerCase()
       ) ?? entered;
-    const updated = await updateMeetingJson(meetingDir, (current) => ({
-      ...current,
-      typeId,
-    }));
+    let updated: MeetingMeta | null;
+    try {
+      updated = await updateMeetingJson(
+        meetingDir,
+        (current) => ({ ...current, typeId }),
+        {
+          assertCurrentAccess: () =>
+            requireLiveMeetingFileAccess('meeting.json'),
+        }
+      );
+    } catch (error) {
+      setExportNotice(error instanceof Error ? error.message : String(error));
+      return;
+    }
     await makeMeetingTypesStore(workspaceService).learnCorrection(
       meta.calendarTitle ?? folderName,
       typeId
@@ -638,24 +680,52 @@ function MeetingEntryHost({
     if (updated) setMeta(updated);
     setEditingType(false);
     onChanged?.();
-  }, [typeInput, meta, meetingDir, folderName, workspaceService, t, onChanged, canAccessMeetingFile]);
+  }, [
+    typeInput,
+    meta,
+    meetingDir,
+    folderName,
+    workspaceService,
+    t,
+    onChanged,
+    requireLiveMeetingFileAccess,
+  ]);
 
   const handleSaveTitle = useCallback(async () => {
     if (!meta || !workspaceService) {
       setRenaming(false);
       return;
     }
-    if (!(await canAccessMeetingFile('meeting.json'))) return;
     const entered = titleInput.trim();
-    const updated = await updateMeetingJson(meetingDir, (current) => {
-      if (entered) return { ...current, customTitle: entered };
-      const { customTitle: _customTitle, ...rest } = current;
-      return rest;
-    });
+    let updated: MeetingMeta | null;
+    try {
+      updated = await updateMeetingJson(
+        meetingDir,
+        (current) => {
+          if (entered) return { ...current, customTitle: entered };
+          const { customTitle: _customTitle, ...rest } = current;
+          return rest;
+        },
+        {
+          assertCurrentAccess: () =>
+            requireLiveMeetingFileAccess('meeting.json'),
+        }
+      );
+    } catch (error) {
+      setExportNotice(error instanceof Error ? error.message : String(error));
+      return;
+    }
     if (updated) setMeta(updated);
     setRenaming(false);
     onChanged?.();
-  }, [meta, titleInput, meetingDir, workspaceService, onChanged, canAccessMeetingFile]);
+  }, [
+    meta,
+    titleInput,
+    meetingDir,
+    workspaceService,
+    onChanged,
+    requireLiveMeetingFileAccess,
+  ]);
 
   const copyText = useCallback(async (text: string, notice: string) => {
     await navigator.clipboard.writeText(text);
@@ -1404,6 +1474,7 @@ function MeetingEntryHost({
             meetingDir={meetingDir}
             workspaceRoot={workspaceRoot}
             workspaceGeneration={workspaceGeneration}
+            visibilityIdentity={visibilityIdentity}
             meta={meta}
             matter={matter}
             clientName={clientName}

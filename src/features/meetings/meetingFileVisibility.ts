@@ -26,6 +26,26 @@ export interface MeetingFileVisibilityContext {
   readonly policies: readonly unknown[];
 }
 
+/** Stable render/operation identity for the viewer and exact policy snapshot. */
+function stableIdentityValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableIdentityValue);
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, stableIdentityValue(nested)])
+    );
+  return value;
+}
+
+export function meetingFileVisibilityContextIdentity(
+  context: MeetingFileVisibilityContext
+): string {
+  return JSON.stringify(
+    stableIdentityValue([context.viewerId, context.policies])
+  );
+}
+
 export interface MeetingVisibilityWorkspace {
   readFile(path: string): Promise<string>;
   writeFile?(path: string, content: string): Promise<void>;
@@ -238,6 +258,9 @@ export async function requireCurrentMeetingFileAccess(input: {
   readonly workspace: MeetingVisibilityWorkspace;
   readonly workspaceRoot: string;
   readonly workspaceGeneration: number;
+  /** Refuse a held action after the viewer or policy snapshot changes, even
+   * when both the old and new viewer would otherwise be allowed. */
+  readonly expectedVisibilityIdentity?: string;
 }): Promise<void> {
   requireCurrentWorkspace(input.workspaceRoot, input.workspaceGeneration);
   const split = splitFilePath(input.path);
@@ -260,6 +283,9 @@ export async function requireCurrentMeetingFileAccess(input: {
   );
   requireCurrentWorkspace(input.workspaceRoot, input.workspaceGeneration);
   if (
+    (input.expectedVisibilityIdentity !== undefined &&
+      meetingFileVisibilityContextIdentity(context) !==
+        input.expectedVisibilityIdentity) ||
     !manifest ||
     !decideMeetingFileVisibility({
       manifest,
