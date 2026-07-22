@@ -83,6 +83,10 @@ export interface MeetingTypesStorage {
   writeFile(path: string, content: string): Promise<void>;
 }
 
+export interface MeetingTypeMutationGuard {
+  assertCurrentAccess(): Promise<void>;
+}
+
 const STORAGE_PATH = '.lantern/meeting-types.json';
 
 export function makeMeetingTypesStore(ws: MeetingTypesStorage) {
@@ -96,9 +100,15 @@ export function makeMeetingTypesStore(ws: MeetingTypesStorage) {
     }
   }
 
-  async function learnCorrection(title: string, typeId: MeetingTypeId): Promise<void> {
+  async function learnCorrection(
+    title: string,
+    typeId: MeetingTypeId,
+    guard?: MeetingTypeMutationGuard
+  ): Promise<void> {
+    await guard?.assertCurrentAccess();
     const file = await load();
     file.learned[normalizeTitle(title)] = typeId;
+    await guard?.assertCurrentAccess();
     await ws.writeFile(STORAGE_PATH, JSON.stringify(file, null, 2));
   }
 

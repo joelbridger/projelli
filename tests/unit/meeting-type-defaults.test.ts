@@ -46,6 +46,51 @@ describe('meeting types storage (injected-pair pattern)', () => {
     expect(detectMeetingType('ACME planning sync', file.learned)).toBe('annual-review');
   });
 
+  it('does not rewrite meeting types when access is revoked during its read', async () => {
+    const original = JSON.stringify({
+      learned: { existing: 'check-in' },
+      custom: [],
+    });
+    const files = new Map([['.lantern/meeting-types.json', original]]);
+    let signalReadStarted!: () => void;
+    const readStarted = new Promise<void>((resolve) => {
+      signalReadStarted = resolve;
+    });
+    let releaseRead!: (value: string) => void;
+    const ws = {
+      readFile: vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseRead = resolve;
+            signalReadStarted();
+          })
+      ),
+      writeFile: vi.fn(async (path: string, content: string) => {
+        files.set(path, content);
+      }),
+    };
+    let revoked = false;
+    const guard = {
+      assertCurrentAccess: vi.fn(async () => {
+        if (revoked) throw new Error('Access changed');
+      }),
+    };
+    const pending = makeMeetingTypesStore(ws).learnCorrection(
+      'Held private meeting',
+      'annual-review',
+      guard
+    );
+
+    await readStarted;
+    revoked = true;
+    releaseRead(original);
+
+    await expect(pending).rejects.toThrow('Access changed');
+    expect(guard.assertCurrentAccess).toHaveBeenCalledTimes(2);
+    expect(ws.writeFile).not.toHaveBeenCalled();
+    expect(files.get('.lantern/meeting-types.json')).toBe(original);
+  });
+
   it('adds and replaces custom types by id', async () => {
     const files = new Map<string, string>();
     const ws = {

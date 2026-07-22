@@ -660,23 +660,25 @@ function MeetingEntryHost({
         (id) => meetingTypeLabel(id, t).toLowerCase() === entered.toLowerCase()
       ) ?? entered;
     let updated: MeetingMeta | null;
+    const accessGuard = {
+      assertCurrentAccess: () =>
+        requireLiveMeetingFileAccess('meeting.json'),
+    };
     try {
       updated = await updateMeetingJson(
         meetingDir,
         (current) => ({ ...current, typeId }),
-        {
-          assertCurrentAccess: () =>
-            requireLiveMeetingFileAccess('meeting.json'),
-        }
+        accessGuard
+      );
+      await makeMeetingTypesStore(workspaceService).learnCorrection(
+        meta.calendarTitle ?? folderName,
+        typeId,
+        accessGuard
       );
     } catch (error) {
       setExportNotice(error instanceof Error ? error.message : String(error));
       return;
     }
-    await makeMeetingTypesStore(workspaceService).learnCorrection(
-      meta.calendarTitle ?? folderName,
-      typeId
-    );
     if (updated) setMeta(updated);
     setEditingType(false);
     onChanged?.();
