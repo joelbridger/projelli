@@ -20,10 +20,11 @@ import {
 } from '@/platform/matter/samples/sampleMatterDemo';
 
 const SAMPLE_MEETING_FOLDER = '2026-07-02-hendricks-annual-review';
-const SAMPLE_COMPLETED_EVENT_ID = 'sample-hendricks-annual-review';
-const SAMPLE_BRIEF_EVENT_ID = 'sample-hendricks-planning-check-in';
-const SAMPLE_BRIEF_EVENT_TITLE = 'Hendricks planning check-in';
-const SAMPLE_CRM_SOURCE_REF = 'meeting:sample-hendricks-annual-review';
+const SAMPLE_MEETING_EVENT_ID = 'sample-hendricks-annual-review';
+const SAMPLE_MEETING_EVENT_TITLE = 'Hendricks annual review';
+const SAMPLE_MEETING_STARTED_AT = '2026-07-02T14:00:00.000Z';
+const SAMPLE_MEETING_ENDED_AT = '2026-07-02T14:42:00.000Z';
+const SAMPLE_CRM_SOURCE_REF = `meeting:${SAMPLE_MEETING_EVENT_ID}`;
 const SAMPLE_CRM_HOUSEHOLD_KEY = 'sample-hendricks-household';
 
 function exactBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -38,26 +39,25 @@ function abs(workspaceRoot: string, filename: string): string {
 }
 
 function sampleMeetingMeta(matterId: string): MeetingMeta {
-  const startedAt = '2026-07-02T14:00:00.000Z';
   return {
     matterId,
-    startedAt,
+    startedAt: SAMPLE_MEETING_STARTED_AT,
     durationMs: 42 * 60 * 1000,
-    calendarTitle: 'Hendricks annual review',
-    customTitle: 'Hendricks annual review',
+    calendarTitle: SAMPLE_MEETING_EVENT_TITLE,
+    customTitle: SAMPLE_MEETING_EVENT_TITLE,
     typeId: 'annual-review',
     reviewedAt: '2026-07-02T15:01:00.000Z',
     consent: {
       mode: 'two-party',
       confirmedBy: 'Advisor',
-      confirmedAt: startedAt,
+      confirmedAt: SAMPLE_MEETING_STARTED_AT,
       note: 'Sample meeting. Consent captured for demo data only.',
     },
     calendarEvent: {
-      id: SAMPLE_COMPLETED_EVENT_ID,
-      title: 'Hendricks annual review',
-      startUtc: startedAt,
-      endUtc: '2026-07-02T14:42:00.000Z',
+      id: SAMPLE_MEETING_EVENT_ID,
+      title: SAMPLE_MEETING_EVENT_TITLE,
+      startUtc: SAMPLE_MEETING_STARTED_AT,
+      endUtc: SAMPLE_MEETING_ENDED_AT,
       attendees: [
         { name: 'Robert Hendricks', email: 'robert.hendricks@email.com' },
         { name: 'Susan Hendricks', email: 'susan.hendricks@email.com' },
@@ -67,7 +67,6 @@ function sampleMeetingMeta(matterId: string): MeetingMeta {
 }
 
 function sampleTranscript(matterId: string): TranscriptFile {
-  const startedAt = '2026-07-02T14:00:00.000Z';
   return {
     segments: [
       {
@@ -100,13 +99,13 @@ function sampleTranscript(matterId: string): TranscriptFile {
       },
     ],
     meta: {
-      startedAt,
+      startedAt: SAMPLE_MEETING_STARTED_AT,
       durationMs: 42 * 60 * 1000,
       matterId,
       consent: {
         mode: 'two-party',
         confirmedBy: 'Advisor',
-        confirmedAt: startedAt,
+        confirmedAt: SAMPLE_MEETING_STARTED_AT,
         note: 'Sample meeting. Consent captured for demo data only.',
       },
     },
@@ -115,7 +114,7 @@ function sampleTranscript(matterId: string): TranscriptFile {
 
 function sampleMeetingNotesMarkdown(): string {
   return [
-    '# Hendricks annual review',
+    `# ${SAMPLE_MEETING_EVENT_TITLE}`,
     '',
     '## Decisions',
     '',
@@ -175,17 +174,19 @@ function sampleBrief(
   return {
     identity: {
       clientBoundary,
-      eventId: SAMPLE_BRIEF_EVENT_ID,
+      // Briefs remain keyed by the current local day, but always identify the
+      // same canonical calendar event as the completed sample meeting.
+      eventId: SAMPLE_MEETING_EVENT_ID,
       day,
     },
     brief: {
       status: 'ready',
-      eventTitle: SAMPLE_BRIEF_EVENT_TITLE,
+      eventTitle: SAMPLE_MEETING_EVENT_TITLE,
       generatedAt: new Date().toISOString(),
       stale: false,
       isSample: true,
       markdown: [
-        `# Before you meet: ${SAMPLE_BRIEF_EVENT_TITLE}`,
+        `# Before you meet: ${SAMPLE_MEETING_EVENT_TITLE}`,
         '',
         '- Robert wants the Roth conversion to stay near the top of the 24% bracket without creating IRMAA exposure.',
         '- Susan wants to revisit 529 funding after retirement cash flow is clearer.',
@@ -223,7 +224,7 @@ function seedSampleCrmApproval(matterId: string): void {
     title: 'Annual review follow-ups',
     body: 'Annual review completed. Prepare Q4 Roth conversion authorization, confirm remaining beneficiary designations, and revisit 529 funding at the October review.',
     sourceRef: SAMPLE_CRM_SOURCE_REF,
-    aiSource: { kind: 'meeting', date: '2026-07-02' },
+    aiSource: { kind: 'meeting', date: SAMPLE_MEETING_STARTED_AT.slice(0, 10) },
   });
 }
 
@@ -267,9 +268,12 @@ export async function seedSampleGoldenPath(
 
 export const SAMPLE_GOLDEN_PATH = {
   meetingFolder: SAMPLE_MEETING_FOLDER,
-  completedEventId: SAMPLE_COMPLETED_EVENT_ID,
-  briefEventId: SAMPLE_BRIEF_EVENT_ID,
-  eventId: SAMPLE_BRIEF_EVENT_ID,
+  completedEventId: SAMPLE_MEETING_EVENT_ID,
+  briefEventId: SAMPLE_MEETING_EVENT_ID,
+  eventId: SAMPLE_MEETING_EVENT_ID,
+  eventTitle: SAMPLE_MEETING_EVENT_TITLE,
+  startedAt: SAMPLE_MEETING_STARTED_AT,
+  endedAt: SAMPLE_MEETING_ENDED_AT,
   crmSourceRef: SAMPLE_CRM_SOURCE_REF,
   crmHouseholdKey: SAMPLE_CRM_HOUSEHOLD_KEY,
 } as const;
