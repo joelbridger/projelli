@@ -4,9 +4,12 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import {
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,
+  issueSharedClientSelection,
   replaceCanonicalHouseholdDirectory,
   requestClearClientSelection,
   requestMatterScopeSelection,
+  requestSharedClientSelection,
+  useClientContextStore,
   useSelectionPresentation,
 } from '@/platform/client-context';
 import { setDevFlagOverride } from '@/platform/flags';
@@ -44,10 +47,11 @@ const householdB = {
 
 function BarFacingAuthority() {
   const selection = useSelectionPresentation();
-  const name = selection.scope.kind === 'matter'
-    ? selection.matterId === 'matter-a'
+  const client = useClientContextStore((state) => state.client);
+  const name = selection.scope.kind === 'matter' && client
+    ? client.householdId === 'household-a'
       ? 'Alpha household'
-      : selection.matterId === 'matter-b'
+      : client.householdId === 'household-b'
         ? 'Beta household'
         : 'Unknown household'
     : 'Directory';
@@ -56,6 +60,11 @@ function BarFacingAuthority() {
 
 async function selectMatter(matterId: string) {
   return requestMatterScopeSelection(issueMatterScopeSelection(matterId));
+}
+
+async function selectHousehold(householdId: 'household-a' | 'household-b') {
+  const household = householdId === 'household-a' ? householdA : householdB;
+  return requestSharedClientSelection(issueSharedClientSelection(household));
 }
 
 beforeEach(async () => {
@@ -89,6 +98,15 @@ beforeEach(async () => {
   replaceCanonicalHouseholdDirectory('wealthbox', [householdA, householdB]);
   liveCrm.records = [
     {
+      id: 'household-b',
+      kind: 'household',
+      matterId: 'matter-a',
+      name: 'Beta household',
+      lifecycle: 'Active',
+      primaryAdvisor: 'Blair Advisor',
+      serviceTier: 'Standard',
+    },
+    {
       id: 'household-a',
       kind: 'household',
       matterId: 'matter-a',
@@ -97,19 +115,10 @@ beforeEach(async () => {
       primaryAdvisor: 'Avery Advisor',
       serviceTier: 'Standard',
     },
-    {
-      id: 'household-b',
-      kind: 'household',
-      matterId: 'matter-b',
-      name: 'Beta household',
-      lifecycle: 'Active',
-      primaryAdvisor: 'Blair Advisor',
-      serviceTier: 'Standard',
-    },
   ];
   liveCrm.save.mockReset();
   liveCrm.reload.mockReset();
-  await selectMatter('matter-a');
+  await selectHousehold('household-a');
   await waitFor(() => {
     expect(useMatterStore.getState().activeMatterId).toBe('matter-a');
   });
@@ -127,10 +136,18 @@ afterEach(() => {
 
 describe('ClientsSurface selection authority', () => {
   it('keeps the visible CRM household exactly aligned with the sealed authority', async () => {
-    render(<><BarFacingAuthority /><ClientsSurface /></>);
+    const view = render(<><BarFacingAuthority /><ClientsSurface /></>);
 
     expect(await screen.findByTestId('crm-household-record')).toHaveTextContent('Alpha household');
     expect(screen.getByTestId('bar-facing-authority')).toHaveTextContent('Alpha household');
+    expect(screen.queryByRole('heading', { name: 'Beta household' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      liveCrm.records = liveCrm.records.map((record) =>
+        record['id'] === 'household-b' ? { ...record, matterId: 'matter-b' } : record,
+      );
+      view.rerender(<><BarFacingAuthority /><ClientsSurface /></>);
+    });
 
     await act(async () => {
       await selectMatter('matter-b');
@@ -153,7 +170,7 @@ describe('ClientsSurface selection authority', () => {
     });
 
     await act(async () => {
-      await selectMatter('matter-a');
+      await selectHousehold('household-a');
       const refused = await selectMatter('missing-matter');
       expect(refused).toMatchObject({ kind: 'refused' });
     });
@@ -181,6 +198,26 @@ describe('ClientsSurface selection authority', () => {
     await waitFor(() => {
       expect(screen.getByTestId('crm-directory-surface')).toBeInTheDocument();
       expect(screen.getByTestId('bar-facing-authority')).toHaveTextContent('Directory');
+      expect(screen.queryByRole('heading', { name: 'Alpha household' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Beta household' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('fails closed when the sealed household and CRM matter no longer agree', async () => {
+    const view = render(<><BarFacingAuthority /><ClientsSurface /></>);
+
+    expect(await screen.findByTestId('crm-household-record')).toHaveTextContent('Alpha household');
+
+    await act(async () => {
+      liveCrm.records = liveCrm.records.map((record) =>
+        record['id'] === 'household-a' ? { ...record, matterId: 'matter-b' } : record,
+      );
+      view.rerender(<><BarFacingAuthority /><ClientsSurface /></>);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('crm-directory-surface')).toBeInTheDocument();
+      expect(screen.getByTestId('bar-facing-authority')).toHaveTextContent('Alpha household');
       expect(screen.queryByRole('heading', { name: 'Alpha household' })).not.toBeInTheDocument();
       expect(screen.queryByRole('heading', { name: 'Beta household' })).not.toBeInTheDocument();
     });
