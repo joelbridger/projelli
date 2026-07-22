@@ -633,6 +633,10 @@ esac
 `);
   await writeExecutable(path.join(bin, 'curl'), `#!/usr/bin/env bash
 url="\${!#}"
+if [[ "$url" == */src/main.tsx ]]; then
+  printf '200'
+  exit 0
+fi
 if [[ "$url" == *health* ]]; then
   [[ "$GOLDEN_LOOP_TEST_MODE" == bridge-health || "$GOLDEN_LOOP_TEST_MODE" == app-exit ]] && exit 1
   exit 0

@@ -6,6 +6,9 @@ import { readFileSync, existsSync } from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const watchGlob = (relativePath: string) =>
+  `${path.resolve(__dirname, relativePath).replace(/\\/g, '/')}/**`;
+const ignoredDevelopmentPaths = [watchGlob('src-tauri'), watchGlob('.worktrees')];
 
 // Optional HTTPS for the dev server. The browser File System Access API
 // (workspace folder picker) only works in a secure context, so opening the
@@ -51,6 +54,11 @@ export default defineConfig({
   // dev server entirely, silently aborting PDF indexing). Dev-only: optimizeDeps
   // is ignored by production builds.
   optimizeDeps: {
+    // This repository also contains websites, evidence, and isolated worktrees
+    // with their own HTML files. The desktop app has one real entry point;
+    // keeping discovery there prevents development startup from crawling those
+    // unrelated trees.
+    entries: ['index.html'],
     include: ['pdfjs-dist', 'tesseract-wasm'],
   },
   // Vite dev server configuration
@@ -63,7 +71,11 @@ export default defineConfig({
     ...(devHttps ? { https: devHttps } : {}),
     // For Tauri development
     watch: {
-      ignored: ['**/src-tauri/**'],
+      // Nested worktrees are separate checkouts, not files owned by this app.
+      // Watching them can exhaust the watcher and starve module delivery.
+      // Use checkout-rooted globs: this worktree itself may live under a
+      // `.worktrees` directory, which must not disable normal source reloads.
+      ignored: ignoredDevelopmentPaths,
     },
     // Proxy API requests to bypass CORS in development
     // These proxies forward requests from the browser to the AI API servers
