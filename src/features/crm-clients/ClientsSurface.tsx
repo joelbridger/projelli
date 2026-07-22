@@ -8,6 +8,7 @@ import {
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,
   requestMatterScopeSelection,
+  resolveCanonicalHouseholdClassification,
   useClientContextStore,
   useSelectionPresentation,
 } from '@/platform/client-context';
@@ -122,6 +123,19 @@ function householdFromMatter(matter: Matter, currentSyncState: SyncState): House
     notes: [],
     customFields: [],
     contextRefs: [],
+  };
+}
+
+function householdFromCanonicalMatter(
+  matter: Matter,
+  householdId: string,
+  displayName: string,
+  currentSyncState: SyncState,
+): HouseholdRecord {
+  return {
+    ...householdFromMatter(matter, currentSyncState),
+    id: householdId,
+    name: displayName,
   };
 }
 
@@ -240,6 +254,42 @@ function ClientsSurfaceContent({
       ? matchingRecords[0]
       : undefined;
   }, [effectiveRecords, live.records]);
+  const resolveAuthoritativeImportedMatter = useCallback((matterId: string, householdId: string): Matter | undefined => {
+    // An import creates the canonical household link before the richer CRM
+    // record reaches this collection. This is the only narrow exception to the
+    // live-record rule: the sealed household must still classify to this one
+    // exact live matter, and no CRM household record may exist yet.
+    if (live.records.some((record) => record.kind === 'household' && record.id === householdId)) {
+      return undefined;
+    }
+    const classification = resolveCanonicalHouseholdClassification(
+      { provider: 'wealthbox', householdId },
+      matters,
+    );
+    if (
+      classification.kind !== 'exactly-one-live'
+      || classification.liveMatterIds[0] !== matterId
+      || classification.client?.householdId !== householdId
+    ) {
+      return undefined;
+    }
+    return matters.find((candidate) => candidate.id === matterId);
+  }, [live.records, matters]);
+  const findAuthoritativeImportedHousehold = useCallback((matterId: string, householdId: string): HouseholdRecord | undefined => {
+    const matter = resolveAuthoritativeImportedMatter(matterId, householdId);
+    const classification = resolveCanonicalHouseholdClassification(
+      { provider: 'wealthbox', householdId },
+      matters,
+    );
+    return matter && classification.client
+      ? householdFromCanonicalMatter(
+        matter,
+        householdId,
+        classification.client.displayName,
+        syncState(live.freshness.kind),
+      )
+      : undefined;
+  }, [live.freshness.kind, matters, resolveAuthoritativeImportedMatter]);
   const householdIdentityFor = useCallback((household: HouseholdRecord) => {
     const liveHousehold = live.records.find(
       (record) => record.id === household.id && record.kind === 'household'
@@ -319,26 +369,37 @@ function ClientsSurfaceContent({
   const effectivePeople = people.length ? people : livePeople;
   // While the authority gate is active, the sealed shared selection is the
   // only display authority. Both halves of its sealed pair must resolve to one
-  // exact CRM household record. A named-but-unpaired, stale, blocked,
-  // all-clients, inconsistent, or unresolvable scope must close the detail
-  // rather than leaking the last locally remembered household into the new
-  // client context.
+  // exact CRM household record, except for the one canonical imported
+  // household while its richer CRM record has not arrived. A named-but-unpaired,
+  // stale, blocked, all-clients, inconsistent, or unresolvable scope must
+  // close the detail rather than leaking the last locally remembered household
+  // into the new client context.
   const selected = selectionPresentation.authorityEnabled
     ? selectionPresentation.scope.kind === 'matter'
       && !selectionPresentation.stale
       && authoritativeClient
       ? findAuthoritativeRecord(selectionPresentation.scope.matterId, authoritativeClient.householdId)
+        ?? findAuthoritativeImportedHousehold(
+          selectionPresentation.scope.matterId,
+          authoritativeClient.householdId,
+        )
       : undefined
     : selectedId ? findRecord(selectedId) : undefined;
 
   const saveHousehold = async (household: HouseholdRecord) => {
     const previous = live.records.find((record) => record.id === household.id);
+    const importedMatter = selectionPresentation.authorityEnabled
+      && !selectionPresentation.stale
+      && selectionPresentation.scope.kind === 'matter'
+      && authoritativeClient?.householdId === household.id
+      ? resolveAuthoritativeImportedMatter(selectionPresentation.scope.matterId, household.id)
+      : undefined;
     const persisted: StoredHousehold = {
       ...(previous ?? {}),
       ...household,
       id: household.id,
       kind: 'household',
-      matterId: previous?.matterId ?? live.sharedMatterId ?? recordMatterId(household),
+      matterId: previous?.matterId ?? live.sharedMatterId ?? importedMatter?.id ?? recordMatterId(household),
     };
     delete (persisted as Partial<StoredHousehold>)['syncState'];
     delete (persisted as Partial<StoredHousehold>)['lastSyncedAt'];
