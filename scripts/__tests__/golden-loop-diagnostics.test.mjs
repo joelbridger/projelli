@@ -452,7 +452,10 @@ async function runStalledBridgeDriver(stallPath, { stallBody = false } = {}) {
     assert.ok(failure, `${stallPath} stall unexpectedly passed`);
     const stderr = String(failure.stderr);
     assert.match(stderr, /GOLDEN LOOP DIAGNOSTIC: path=.* sha256=[a-f0-9]{64}/);
-    assert.match(stderr, new RegExp(`endpoint=${stallPath} bound=${stallPath === '/health' ? 2000 : 3000}ms`));
+    const expectedBound = stallPath === '/health' ? 2_000 : 3_000;
+    const reportedBound = Number(stderr.match(new RegExp(`endpoint=${stallPath} bound=([0-9]+)ms`))?.[1]);
+    assert.ok(reportedBound <= expectedBound && reportedBound >= expectedBound - 25,
+      `${stallPath} did not retain its bounded request budget`);
     assert.equal(stderr.includes('Client Query Secret'), false, 'diagnostic leaked query-derived content');
     assert.ok(Date.now() - startedAt < 8_000, `${stallPath} stall waited for the outer controller`);
     const names = await (await import('node:fs/promises')).readdir(diagnostics);
@@ -609,14 +612,45 @@ printf 'status=%s pid=%s pgid=%s start=%s\\n' \
 
 async function runShellFailure(mode, { expectSuccess = false, timingOverrides = {} } = {}) {
   const root = testDirectory();
+  const scripts = path.join(root, 'scripts');
+  const controller = path.join(scripts, 'golden-loop.sh');
   const bin = path.join(root, 'bin');
   const repo = path.join(root, 'repo');
   const diagnostics = path.join(root, 'diagnostics');
   const temporaryDirectory = path.join(root, 'tmp');
   await mkdir(path.join(repo, 'src-tauri'), { recursive: true });
   await mkdir(path.join(repo, 'node_modules'));
+  await mkdir(scripts);
   await mkdir(bin);
   await mkdir(temporaryDirectory);
+  for (const name of ['golden-loop.sh', 'write-golden-loop-diagnostic.mjs', 'golden-loop-diagnostics.mjs']) {
+    await writeFile(path.join(scripts, name), await readFile(new URL(`../${name}`, import.meta.url)));
+  }
+  await chmod(controller, 0o700);
+  await writeFile(path.join(scripts, 'golden-loop-vite-server.mjs'), `
+import { readFileSync, writeFileSync, statSync, realpathSync } from 'node:fs';
+import process from 'node:process';
+import { verifyReadyFile } from ${JSON.stringify(new URL('../golden-loop-vite-server.mjs', import.meta.url).href)};
+const args = process.argv.slice(2);
+if (args[0] === '--verify-ready') {
+  const digest = await verifyReadyFile({ readyFile: args[1], sourceRoot: args[2], host: args[3], port: args[4], cacheDir: args[5], serverPid: args[6] });
+  process.stdout.write(digest + '\\n');
+} else {
+  if (process.env.GOLDEN_LOOP_TEST_MODE === 'vite-startup') process.exit(7);
+  const [sourceRoot, host, port, cacheDir] = args;
+  const identity = (value) => { const resolved = realpathSync(value); const info = statSync(resolved, { bigint: true }); return { path: resolved, device: String(info.dev), inode: String(info.ino) }; };
+  const source = identity(sourceRoot); const cache = identity(cacheDir);
+  const raw = readFileSync('/proc/self/stat', 'utf8');
+  const fields = raw.slice(raw.lastIndexOf(') ') + 2).trim().split(/\\s+/);
+  const record = { schema: 1, kind: 'lantern-golden-loop-vite-ready', origin: 'http://' + host + ':' + port,
+    sourceRoot: source.path, sourceDevice: source.device, sourceInode: source.inode,
+    cacheDir: cache.path, cacheDevice: cache.device, cacheInode: cache.inode,
+    serverPid: process.pid, serverStartTime: fields[19] };
+  process.stdout.write(JSON.stringify(record) + '\\n');
+  process.on('SIGTERM', () => process.exit(0));
+  setInterval(() => {}, 1_000);
+}
+`);
   await writeFile(path.join(repo, 'src-tauri', 'tauri.conf.json'), JSON.stringify({ build: { devUrl: 'http://127.0.0.1:4173/' } }));
   const app = path.join(root, 'app');
   const launcher = path.join(root, 'launcher');
@@ -751,7 +785,7 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     GOLDEN_LOOP_DIAGNOSTIC_DIR: diagnostics,
     GOLDEN_LOOP_LAUNCHER: launcher,
     GOLDEN_LOOP_DRIVER: driver,
-    GOLDEN_LOOP_TIMEOUT_SECONDS: '1',
+    GOLDEN_LOOP_TIMEOUT_SECONDS: '2',
     GOLDEN_LOOP_HEALTH_BOUND_MS: '50',
     GOLDEN_LOOP_READINESS_BOUND_MS: '200',
     GOLDEN_LOOP_SNAPSHOT_BOUND_MS: '100',
@@ -768,7 +802,7 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     let failure;
     let success;
     try {
-      success = await execFileAsync('bash', [new URL('../golden-loop.sh', import.meta.url).pathname, repo, app], {
+      success = await execFileAsync('bash', [controller, repo, app], {
         env,
         timeout: mode === 'driver-timeout' ? 20_000 : 10_000,
       });

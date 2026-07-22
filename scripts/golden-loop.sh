@@ -13,6 +13,7 @@ REPO="${1:-${GOLDEN_LOOP_REPO:-$DEFAULT_REPO}}"
 APP_BINARY="${2:-${GOLDEN_LOOP_BINARY:-}}"
 LAUNCHER="${GOLDEN_LOOP_LAUNCHER:-$HERE/golden-loop-launch-app.sh}"
 DRIVER="${GOLDEN_LOOP_DRIVER:-$HERE/golden-loop-driver.mjs}"
+VITE_SERVER="$HERE/golden-loop-vite-server.mjs"
 DEFAULT_DIAGNOSTIC_WRITER="$HERE/write-golden-loop-diagnostic.mjs"
 DIAGNOSTIC_WRITER="${GOLDEN_LOOP_DIAGNOSTIC_WRITER:-$DEFAULT_DIAGNOSTIC_WRITER}"
 TIMEOUT_SECONDS="${GOLDEN_LOOP_TIMEOUT_SECONDS:-150}"
@@ -44,7 +45,9 @@ BRIDGE_PORT=""
 DEV_URL=""
 DEV_HOST=""
 DEV_PORT=""
-ENTRY_MODULE_URL=""
+VITE_CACHE_DIR=""
+VITE_READY_FILE=""
+VITE_READY_DIGEST=""
 TIP_SHA=""
 VITE_PID=""
 APP_PID=""
@@ -107,7 +110,10 @@ stop_pid() {
   kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
   local end=$((SECONDS + 8))
   while kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$end" ]; do sleep 0.1; done
-  kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+  fi
+  wait "$pid" 2>/dev/null || true
 }
 
 process_start_time() {
@@ -391,24 +397,33 @@ wait_for_http() {
   fail "timed out waiting for $label at $url"
 }
 
-wait_for_entry_module() {
-  local url="$1" status end=$((SECONDS + TIMEOUT_SECONDS))
+wait_for_vite_ready() {
+  local end=$((SECONDS + TIMEOUT_SECONDS)) digest
   while [ "$SECONDS" -lt "$end" ]; do
-    # This check intentionally permits only the fixed local HTTP module URL
-    # derived below. Readiness means an explicit three-digit 2xx response from
-    # that loopback server; proxy settings and every other response refuse it.
-    if status="$(curl --disable --no-location --silent --show-error --noproxy '*' \
-      --connect-timeout 1 --max-time 1 --proto '=http' \
-      --output /dev/null --write-out '%{http_code}' "$url" 2>/dev/null)" \
-      && [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
+    if [ -s "$VITE_READY_FILE" ] \
+      && digest="$(node "$VITE_SERVER" --verify-ready "$VITE_READY_FILE" \
+        "$REPO" "$DEV_HOST" "$DEV_PORT" "$VITE_CACHE_DIR" "$VITE_PID" 2>/dev/null)" \
+      && [[ "$digest" =~ ^[a-f0-9]{64}$ ]]; then
+      VITE_READY_DIGEST="$digest"
       return 0
     fi
     if [ -n "$VITE_PID" ] && ! kill -0 "$VITE_PID" 2>/dev/null; then
-      fail "the matching app screen server stopped before its entry module became ready"
+      fail "the matching app screen server stopped before full Vite readiness"
     fi
     sleep 0.2
   done
-  fail "timed out waiting for the matching app entry module at $url"
+  fail "timed out waiting for full Vite readiness"
+}
+
+reverify_vite_ready() {
+  local digest
+  digest="$(node "$VITE_SERVER" --verify-ready "$VITE_READY_FILE" \
+    "$REPO" "$DEV_HOST" "$DEV_PORT" "$VITE_CACHE_DIR" "$VITE_PID" 2>/dev/null)" \
+    || fail "the Vite readiness record changed or became stale before native launch"
+  [ "$digest" = "$VITE_READY_DIGEST" ] \
+    || fail "the Vite readiness identity changed before native launch"
+  kill -0 "$VITE_PID" 2>/dev/null \
+    || fail "the fully ready Vite server stopped before native launch"
 }
 
 read_dev_url() {
@@ -454,6 +469,7 @@ launch_app() {
 [ -n "$APP_BINARY" ] || fail "no binary was supplied; pass it as argument 2 or set GOLDEN_LOOP_BINARY"
 [ -x "$LAUNCHER" ] || fail "app launcher is missing or not executable: $LAUNCHER"
 [ -f "$DRIVER" ] || fail "Documents driver is missing: $DRIVER"
+[ -f "$VITE_SERVER" ] || fail "golden-loop Vite server is missing: $VITE_SERVER"
 [ -d "$REPO/node_modules" ] || fail "dependencies are missing in $REPO"
 TIP_SHA="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" || fail "could not read the requested tip SHA"
 [ -z "$(git -C "$REPO" status --porcelain --untracked-files=no)" ] \
@@ -463,31 +479,27 @@ DEV_URL="$(read_dev_url "$REPO")"
 readarray -t DEV_PARTS < <(node -e '
   const devUrl = new URL(process.argv[1]);
   if (devUrl.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(devUrl.hostname) || !devUrl.port) process.exit(2);
-  const entryUrl = new URL("/src/main.tsx", devUrl.origin);
-  if (entryUrl.protocol !== "http:" || entryUrl.origin !== devUrl.origin || entryUrl.pathname !== "/src/main.tsx" || entryUrl.search || entryUrl.hash) process.exit(2);
   console.log(devUrl.hostname);
   console.log(devUrl.port);
-  console.log(entryUrl.href);
 ' "$DEV_URL") || fail "desktop dev URL must be an explicit localhost HTTP port: $DEV_URL"
 DEV_HOST="${DEV_PARTS[0]:-}"
 DEV_PORT="${DEV_PARTS[1]:-}"
-ENTRY_MODULE_URL="${DEV_PARTS[2]:-}"
-if [ -z "$DEV_HOST" ] || [ -z "$DEV_PORT" ] || [ -z "$ENTRY_MODULE_URL" ]; then
+if [ -z "$DEV_HOST" ] || [ -z "$DEV_PORT" ]; then
   fail "could not parse desktop dev URL: $DEV_URL"
 fi
 
 if curl --silent --fail "$DEV_URL" >/dev/null 2>&1; then
   fail "$DEV_URL is already serving an app; stop it so this loop can own the exact screen source"
 fi
-# Positional parameters intentionally expand inside the child bash process.
-# shellcheck disable=SC2016
 DIAGNOSTIC_PHASE="vite-startup"
+VITE_CACHE_DIR="$TEMP_ROOT/vite-cache"
+VITE_READY_FILE="$TEMP_ROOT/vite-ready.json"
+mkdir "$VITE_CACHE_DIR" || fail "could not create the isolated Vite cache"
 CHOKIDAR_USEPOLLING=1 CHOKIDAR_INTERVAL=300 \
-  setsid bash -c 'cd "$1" && exec npm run dev -- --host "$2" --port "$3" --strictPort' \
-  _ "$REPO" "$DEV_HOST" "$DEV_PORT" >"$TEMP_ROOT/vite.log" 2>&1 &
+  setsid node "$VITE_SERVER" "$REPO" "$DEV_HOST" "$DEV_PORT" "$VITE_CACHE_DIR" \
+  >"$VITE_READY_FILE" 2>"$TEMP_ROOT/vite.log" &
 VITE_PID=$!
-wait_for_http "the matching app screen server" "$DEV_URL"
-wait_for_entry_module "$ENTRY_MODULE_URL"
+wait_for_vite_ready
 
 DIAGNOSTIC_PHASE="port-selection"
 if ! BRIDGE_PORT="$(free_port)"; then
@@ -498,6 +510,7 @@ if ! mkdir -p "$WORKSPACE"; then
   fail "could not create the golden-loop workspace"
 fi
 echo "golden loop provenance: source_sha=$TIP_SHA binary=$APP_BINARY dev_url=$DEV_URL"
+reverify_vite_ready
 launch_app launcher
 DIAGNOSTIC_PHASE="bridge-health"
 wait_for_http "the desktop app bridge" "http://127.0.0.1:$BRIDGE_PORT/health"
