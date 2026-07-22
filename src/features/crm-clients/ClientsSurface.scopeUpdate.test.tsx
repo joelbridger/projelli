@@ -47,11 +47,10 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   }),
 }));
 
-async function enableProductionImportSelection(
+async function sealImportedHouseholdSelection(
   householdId = 'wealthbox-household-1',
   displayName = 'Abernathy Household',
 ) {
-  setDevFlagOverride('selection-authority-boot-gate', undefined);
   replaceCanonicalHouseholdDirectory('wealthbox', [{
     provider: 'wealthbox',
     householdId,
@@ -101,13 +100,15 @@ describe('ClientsSurface during a CRM search update', () => {
   afterEach(() => {
     cleanup();
     setDevFlagOverride('record-employment', undefined);
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
     replaceCanonicalHouseholdDirectory('wealthbox', null);
     requestClearClientSelection();
     useScopeUpdateStore.getState().clearAll();
   });
 
   it('opens the one sealed imported household under production selection authority while its search update is still running', async () => {
-    await enableProductionImportSelection();
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
+    await sealImportedHouseholdSelection();
     render(<ClientsSurface />);
 
     expect(screen.getByTestId('crm-household-record')).toBeInTheDocument();
@@ -115,7 +116,8 @@ describe('ClientsSurface during a CRM search update', () => {
   });
 
   it('closes detail immediately when the sealed import link becomes mismatched', async () => {
-    await enableProductionImportSelection();
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    await sealImportedHouseholdSelection();
     const view = render(<ClientsSurface />);
     expect(screen.getByTestId('crm-household-record')).toBeInTheDocument();
 
@@ -135,7 +137,8 @@ describe('ClientsSurface during a CRM search update', () => {
   });
 
   it('uses the sealed household rather than record order when two imports share one matter', async () => {
-    await enableProductionImportSelection();
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    await sealImportedHouseholdSelection();
     const view = render(<ClientsSurface />);
     act(() => {
       useMatterStore.setState((state) => ({

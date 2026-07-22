@@ -11,7 +11,7 @@ const selection = vi.hoisted(() => ({
   request: vi.fn(() => Promise.resolve({ kind: 'selected' })),
 }));
 
-vi.mock('@/features/meetings/TodaysMeetingsStrip', () => ({
+vi.mock('@/features/meetings', () => ({
   TodaysMeetingsStrip: ({ onOpenClient }: { onOpenClient: (matterId: string) => void }) => {
     if (meetingStrip.state === 'empty') return null;
     if (meetingStrip.state === 'error') {
