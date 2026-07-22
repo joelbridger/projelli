@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, rename, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -7,8 +7,10 @@ const MAX_ITEMS = 20;
 const SAFE_PHASES = new Set([
   'preflight', 'product-gate-build', 'product-gate-provenance',
   'diagnostic-writer-validation', 'directory-creation', 'port-selection', 'pid-read',
-  'vite-startup', 'launcher', 'bridge-health', 'app-exit', 'driver-startup', 'write', 'restart', 'assert',
+  'vite-startup', 'launcher', 'bridge-health', 'app-exit', 'driver-startup', 'renderer-dispatch',
+  'later-driver', 'write', 'restart', 'assert',
 ]);
+export const PROGRESS_PHASES = Object.freeze(['bridge-healthy', 'renderer-ready', 'later-driver']);
 const SAFE_TAGS = new Set(['a', 'button', 'div', 'form', 'input', 'main', 'nav', 'section']);
 const SAFE_LOCATION_CLASSES = new Set(['root', 'app-module', 'vite-runtime', 'other', 'unavailable']);
 const EVENT_CATEGORIES = {
@@ -63,6 +65,8 @@ export function classifyDiagnostic(events = {}, renderer = {}, phase = 'prefligh
   if (safePhase(phase) === 'bridge-health') return 'bridge-health-failure';
   if (safePhase(phase) === 'app-exit') return 'app-exit-failure';
   if (safePhase(phase) === 'driver-startup') return 'driver-startup-failure';
+  if (safePhase(phase) === 'renderer-dispatch') return 'renderer-dispatch-timeout';
+  if (safePhase(phase) === 'later-driver') return 'later-driver-failure';
   if (safePhase(phase) === 'restart') return 'restart-failure';
   if (boundedList(events.pageErrors, (entry) => entry).some((entry) => entry?.category === 'module-import')) return 'javascript-module-import-error';
   if (Array.isArray(events.pageErrors) && events.pageErrors.length) return 'javascript-error';
@@ -122,6 +126,70 @@ export async function writeDiagnosticArtifact(input, directory = process.env.GOL
   const encoded = `${JSON.stringify(artifact, null, 2)}\n`;
   await writeFile(target, encoded, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
   return { path: target, sha256: createHash('sha256').update(encoded).digest('hex'), artifact };
+}
+
+/**
+ * Publish only a fixed, ordered readiness grammar. The caller's in-memory
+ * state advances even when publication is disabled, so readiness never
+ * depends on a diagnostic side channel.
+ */
+export function createProgressReporter(progressPath = process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE) {
+  let progressIndex = -1;
+  let ownsTarget = false;
+  let targetIdentity;
+
+  return async function reportProgress(phase) {
+    const nextIndex = PROGRESS_PHASES.indexOf(phase);
+    if (nextIndex < 0) throw new Error('progress publication refused');
+    if (nextIndex < progressIndex) throw new Error('progress publication refused');
+    if (nextIndex === progressIndex) return;
+    if (!progressPath) {
+      progressIndex = nextIndex;
+      return;
+    }
+
+    const temporaryPath = `${progressPath}.tmp`;
+    let handle;
+    let createdTemporary = false;
+    try {
+      handle = await open(temporaryPath, 'wx', 0o600);
+      createdTemporary = true;
+      await handle.writeFile(`${phase}\n`, 'utf8');
+      await handle.sync();
+      await handle.close();
+      handle = undefined;
+
+      if (!ownsTarget) {
+        try {
+          await lstat(progressPath);
+          throw new Error('unowned progress target');
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error;
+        }
+      } else {
+        const current = await lstat(progressPath);
+        if (!current.isFile() || current.isSymbolicLink()
+          || current.dev !== targetIdentity.dev || current.ino !== targetIdentity.ino) {
+          throw new Error('progress ownership changed');
+        }
+      }
+
+      await rename(temporaryPath, progressPath);
+      createdTemporary = false;
+      await chmod(progressPath, 0o600);
+      const installed = await lstat(progressPath);
+      if (!installed.isFile() || installed.isSymbolicLink()) throw new Error('unsafe progress target');
+      targetIdentity = { dev: installed.dev, ino: installed.ino };
+      ownsTarget = true;
+      progressIndex = nextIndex;
+    } catch {
+      try { await handle?.close(); } catch {}
+      if (createdTemporary) {
+        try { await unlink(temporaryPath); } catch {}
+      }
+      throw new Error('progress publication refused');
+    }
+  };
 }
 
 export const EARLY_CAPTURE_MARKER = '__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__';

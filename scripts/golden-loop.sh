@@ -17,6 +17,23 @@ DEFAULT_DIAGNOSTIC_WRITER="$HERE/write-golden-loop-diagnostic.mjs"
 DIAGNOSTIC_WRITER="${GOLDEN_LOOP_DIAGNOSTIC_WRITER:-$DEFAULT_DIAGNOSTIC_WRITER}"
 TIMEOUT_SECONDS="${GOLDEN_LOOP_TIMEOUT_SECONDS:-150}"
 TERM_GRACE_SECONDS="${GOLDEN_LOOP_TERM_GRACE_SECONDS:-10}"
+DRIVER_HEALTH_BOUND_MS="${GOLDEN_LOOP_HEALTH_BOUND_MS:-2000}"
+DRIVER_READINESS_BOUND_MS="${GOLDEN_LOOP_READINESS_BOUND_MS:-8000}"
+DRIVER_SNAPSHOT_BOUND_MS="${GOLDEN_LOOP_SNAPSHOT_BOUND_MS:-3000}"
+DRIVER_ARTIFACT_BOUND_MS="${GOLDEN_LOOP_ARTIFACT_BOUND_MS:-2000}"
+DRIVER_CLEANUP_BOUND_MS="${GOLDEN_LOOP_DRIVER_CLEANUP_BOUND_MS:-1000}"
+DRIVER_DEADLINE_MARGIN_MS="${GOLDEN_LOOP_DEADLINE_MARGIN_MS:-4000}"
+for bound in DRIVER_HEALTH_BOUND_MS DRIVER_READINESS_BOUND_MS DRIVER_SNAPSHOT_BOUND_MS DRIVER_ARTIFACT_BOUND_MS DRIVER_CLEANUP_BOUND_MS DRIVER_DEADLINE_MARGIN_MS; do
+  [[ "${!bound}" =~ ^[1-9][0-9]*$ ]] || {
+    echo 'GOLDEN LOOP FAILED: invalid driver timing contract' >&2
+    exit 1
+  }
+done
+DRIVER_STARTUP_GUARD_MS=$((
+  DRIVER_HEALTH_BOUND_MS + DRIVER_READINESS_BOUND_MS + DRIVER_SNAPSHOT_BOUND_MS
+  + DRIVER_ARTIFACT_BOUND_MS + DRIVER_CLEANUP_BOUND_MS + DRIVER_DEADLINE_MARGIN_MS
+))
+DRIVER_STARTUP_GUARD_SECONDS=$(((DRIVER_STARTUP_GUARD_MS + 999) / 1000))
 TEMP_ROOT=""
 WORKSPACE=""
 APP_PID_FILE=""
@@ -203,9 +220,9 @@ stop_unowned_driver_leader() {
 }
 
 run_driver() {
-  local status_file="$TEMP_ROOT/driver.status" hold_file="$TEMP_ROOT/driver.hold"
-  local deadline status current_start
-  rm -f "$status_file" "$status_file".* "$hold_file"
+  local status_file="$TEMP_ROOT/driver.status" hold_file="$TEMP_ROOT/driver.hold" progress_file="$TEMP_ROOT/driver.progress"
+  local deadline startup_deadline status current_start progress renderer_ready=0
+  rm -f "$status_file" "$status_file".* "$hold_file" "$progress_file" "$progress_file.tmp"
   mkfifo "$hold_file" || return 1
   setsid bash -c '
     status_file="$1"; shift
@@ -237,7 +254,12 @@ run_driver() {
     return 1
   fi
 
-  deadline=$((SECONDS + TIMEOUT_SECONDS))
+  local driver_deadline_seconds="$TIMEOUT_SECONDS"
+  if [ "$driver_deadline_seconds" -lt "$DRIVER_STARTUP_GUARD_SECONDS" ]; then
+    driver_deadline_seconds="$DRIVER_STARTUP_GUARD_SECONDS"
+  fi
+  deadline=$((SECONDS + driver_deadline_seconds))
+  startup_deadline=$((SECONDS + DRIVER_STARTUP_GUARD_SECONDS))
   while [ ! -s "$status_file" ]; do
     if ! kill -0 "$DRIVER_PID" 2>/dev/null; then
       if wait "$DRIVER_PID"; then status=0; else status=$?; fi
@@ -248,8 +270,35 @@ run_driver() {
       if ! stop_driver_group; then return 1; fi
       return 124
     fi
+    progress="$(cat "$progress_file" 2>/dev/null || true)"
+    case "$progress" in
+      bridge-healthy)
+        [ "$renderer_ready" -eq 1 ] || DIAGNOSTIC_PHASE="renderer-dispatch"
+        ;;
+      renderer-ready|later-driver)
+        renderer_ready=1
+        DIAGNOSTIC_PHASE="later-driver"
+        ;;
+    esac
+    if [ "$renderer_ready" -eq 0 ] && [ "$SECONDS" -ge "$startup_deadline" ]; then
+      [ "$progress" = "bridge-healthy" ] || DIAGNOSTIC_PHASE="driver-startup"
+      if ! stop_driver_group; then return 1; fi
+      return 124
+    fi
     sleep 0.05
   done
+  # The child may publish readiness and exit between controller polls. Latch
+  # the final fixed-grammar value before classifying its status.
+  progress="$(cat "$progress_file" 2>/dev/null || true)"
+  case "$progress" in
+    renderer-ready|later-driver)
+      renderer_ready=1
+      DIAGNOSTIC_PHASE="later-driver"
+      ;;
+    bridge-healthy)
+      [ "$renderer_ready" -eq 1 ] || DIAGNOSTIC_PHASE="renderer-dispatch"
+      ;;
+  esac
   status="$(<"$status_file")"
   [[ "$status" =~ ^[0-9]+$ ]] || status=1
   if ! stop_driver_group; then return 1; fi
@@ -416,6 +465,11 @@ echo "golden loop: workspace=$WORKSPACE bridge=$BRIDGE_PORT document=$DOCUMENT_N
 DIAGNOSTIC_PHASE="driver-startup"
 GOLDEN_LOOP_DRIVER_TIMEOUT_MS="$((TIMEOUT_SECONDS * 1000))" \
 GOLDEN_LOOP_DEV_URL="$DEV_URL" \
+GOLDEN_LOOP_HEALTH_BOUND_MS="$DRIVER_HEALTH_BOUND_MS" \
+GOLDEN_LOOP_READINESS_BOUND_MS="$DRIVER_READINESS_BOUND_MS" \
+GOLDEN_LOOP_SNAPSHOT_BOUND_MS="$DRIVER_SNAPSHOT_BOUND_MS" \
+GOLDEN_LOOP_ARTIFACT_BOUND_MS="$DRIVER_ARTIFACT_BOUND_MS" \
+GOLDEN_LOOP_DRIVER_PROGRESS_FILE="$TEMP_ROOT/driver.progress" \
   run_driver write "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
   || fail "the golden-loop write driver failed"
 
@@ -426,6 +480,11 @@ launch_app restart
 wait_for_http "the restarted desktop app bridge" "http://127.0.0.1:$BRIDGE_PORT/health"
 GOLDEN_LOOP_DRIVER_TIMEOUT_MS="$((TIMEOUT_SECONDS * 1000))" \
 GOLDEN_LOOP_DEV_URL="$DEV_URL" \
+GOLDEN_LOOP_HEALTH_BOUND_MS="$DRIVER_HEALTH_BOUND_MS" \
+GOLDEN_LOOP_READINESS_BOUND_MS="$DRIVER_READINESS_BOUND_MS" \
+GOLDEN_LOOP_SNAPSHOT_BOUND_MS="$DRIVER_SNAPSHOT_BOUND_MS" \
+GOLDEN_LOOP_ARTIFACT_BOUND_MS="$DRIVER_ARTIFACT_BOUND_MS" \
+GOLDEN_LOOP_DRIVER_PROGRESS_FILE="$TEMP_ROOT/driver.progress" \
   run_driver assert "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
   || fail "the golden-loop restart driver failed"
 
