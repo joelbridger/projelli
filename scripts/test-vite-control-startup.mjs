@@ -2,9 +2,9 @@
 /** Cold and warm control proof using the real repository Vite config and graph. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { accessSync, constants as fsConstants, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
-import { createServer as createNetServer } from 'node:net';
+import { createConnection, createServer as createNetServer } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +24,37 @@ const onException = (error) => processFailures.push(error);
 process.on('unhandledRejection', onRejection);
 process.on('uncaughtException', onException);
 
+const BROWSER_TIMEOUT_MS = 10_000;
+
+function installedChromium() {
+  for (const executable of [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ]) {
+    try {
+      accessSync(executable, fsConstants.X_OK);
+      return executable;
+    } catch {}
+  }
+  assert.fail('browser proof requires an installed Chrome or Chromium executable');
+}
+
+async function listenerAcceptsConnections(port) {
+  return await new Promise((resolve) => {
+    const socket = createConnection({ host: '127.0.0.1', port });
+    const finish = (listening) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(listening);
+    };
+    socket.setTimeout(1_000, () => finish(false));
+    socket.once('connect', () => finish(true));
+    socket.once('error', () => finish(false));
+  });
+}
+
 async function freePort() {
   const server = createNetServer();
   await new Promise((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
@@ -36,6 +67,8 @@ async function freePort() {
 async function proveRun(label) {
   const port = await freePort();
   const lifecycle = await startGoldenLoopVite({ sourceRoot: root, host: '127.0.0.1', port, cacheDir });
+  let browser;
+  let context;
   try {
     assert.equal(lifecycle.record.origin, `http://127.0.0.1:${port}`);
     assert.equal(lifecycle.line, `${JSON.stringify(lifecycle.record)}\n`);
@@ -45,11 +78,107 @@ async function proveRun(label) {
     assert.ok(await graph.getModuleByUrl('/src/App.tsx'), `${label} did not warm App.tsx`);
     await lifecycle.server.environments.client.waitForRequestsIdle();
     assert.equal(lifecycle.state.viteError, false, `${label} logged a Vite error`);
+
+    const origin = lifecycle.record.origin;
+    const diagnostics = {
+      consoleErrors: 0,
+      pageErrors: 0,
+      sameOriginRequestFailures: 0,
+      blockedNonLoopbackRequests: 0,
+      rootRendered: false,
+      mainStatuses: [],
+      appStatuses: [],
+      contextClosed: false,
+      browserClosed: false,
+    };
+    try {
+      const { chromium } = await import('playwright');
+      browser = await chromium.launch({
+        executablePath: installedChromium(), headless: true, timeout: BROWSER_TIMEOUT_MS,
+      });
+      context = await browser.newContext();
+      const page = await context.newPage();
+      page.setDefaultTimeout(BROWSER_TIMEOUT_MS);
+      page.on('console', (message) => {
+        if (message.type() === 'error') diagnostics.consoleErrors += 1;
+      });
+      page.on('pageerror', () => { diagnostics.pageErrors += 1; });
+      page.on('requestfailed', (request) => {
+        try {
+          if (new URL(request.url()).origin === origin) diagnostics.sameOriginRequestFailures += 1;
+        } catch {
+          diagnostics.sameOriginRequestFailures += 1;
+        }
+      });
+      page.on('response', (response) => {
+        const responseUrl = new URL(response.url());
+        if (responseUrl.origin !== origin) return;
+        if (responseUrl.pathname === '/src/main.tsx') diagnostics.mainStatuses.push(response.status());
+        if (responseUrl.pathname === '/src/App.tsx') diagnostics.appStatuses.push(response.status());
+      });
+      await page.route('**/*', async (route) => {
+        const requestUrl = new URL(route.request().url());
+        if (['about:', 'blob:', 'data:'].includes(requestUrl.protocol)
+          || (['http:', 'https:'].includes(requestUrl.protocol)
+            && ['127.0.0.1', '::1', 'localhost'].includes(requestUrl.hostname))) {
+          await route.continue();
+          return;
+        }
+        diagnostics.blockedNonLoopbackRequests += 1;
+        await route.abort('blockedbyclient');
+      });
+
+      const navigation = await page.goto(`${origin}/`, {
+        waitUntil: 'domcontentloaded', timeout: BROWSER_TIMEOUT_MS,
+      });
+      assert.ok(navigation && navigation.status() >= 200 && navigation.status() < 300);
+      await page.locator('#root').waitFor({ state: 'attached', timeout: BROWSER_TIMEOUT_MS });
+      await page.waitForFunction(
+        () => (document.querySelector('#root')?.childElementCount ?? 0) > 0,
+        undefined,
+        { timeout: BROWSER_TIMEOUT_MS },
+      );
+      diagnostics.rootRendered = true;
+      await page.evaluate(() => new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      }));
+      await lifecycle.server.environments.client.waitForRequestsIdle();
+
+      assert.ok(diagnostics.mainStatuses.some((status) => status >= 200 && status < 300));
+      assert.ok(diagnostics.appStatuses.some((status) => status >= 200 && status < 300));
+      assert.equal(diagnostics.consoleErrors, 0);
+      assert.equal(diagnostics.pageErrors, 0);
+      assert.equal(diagnostics.sameOriginRequestFailures, 0);
+      await context.close();
+      diagnostics.contextClosed = true;
+      context = undefined;
+      await browser.close();
+      diagnostics.browserClosed = true;
+      browser = undefined;
+    } catch {
+      const bounded = JSON.stringify({
+        label,
+        consoleErrors: diagnostics.consoleErrors,
+        pageErrors: diagnostics.pageErrors,
+        sameOriginRequestFailures: diagnostics.sameOriginRequestFailures,
+        blockedNonLoopbackRequests: diagnostics.blockedNonLoopbackRequests,
+        rootRendered: diagnostics.rootRendered,
+        mainStatuses: diagnostics.mainStatuses.slice(0, 8),
+        appStatuses: diagnostics.appStatuses.slice(0, 8),
+        contextClosed: diagnostics.contextClosed,
+        browserClosed: diagnostics.browserClosed,
+      });
+      throw new Error(`real-browser React mount proof failed: ${bounded}`);
+    } finally {
+      await context?.close().catch(() => {});
+      await browser?.close().catch(() => {});
+    }
   } finally {
     await lifecycle.shutdown();
   }
   assert.equal(lifecycle.state.closed, true, `${label} did not close its exact server`);
   assert.equal(lifecycle.httpServer?.listening ?? false, false, `${label} server still listens`);
+  assert.equal(await listenerAcceptsConnections(port), false, `${label} listener still accepts connections`);
 }
 
 try {
