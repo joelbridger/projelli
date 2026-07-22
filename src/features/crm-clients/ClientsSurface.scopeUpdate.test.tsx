@@ -12,6 +12,12 @@ import { ClientsSurface } from './ClientsSurface';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useScopeUpdateStore } from '@/platform/rag/scopeUpdateStore';
 import { setDevFlagOverride } from '@/platform/flags';
+import {
+  issueSharedClientSelection,
+  replaceCanonicalHouseholdDirectory,
+  requestClearClientSelection,
+  requestSharedClientSelection,
+} from '@/platform/client-context';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { Household, Person } from '@/platform/crm/types';
 import {
@@ -41,9 +47,28 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   }),
 }));
 
+async function enableProductionImportSelection(
+  householdId = 'wealthbox-household-1',
+  displayName = 'Abernathy Household',
+) {
+  setDevFlagOverride('selection-authority-boot-gate', undefined);
+  replaceCanonicalHouseholdDirectory('wealthbox', [{
+    provider: 'wealthbox',
+    householdId,
+    displayName,
+  }]);
+  requestClearClientSelection();
+  await requestSharedClientSelection(issueSharedClientSelection({
+    provider: 'wealthbox',
+    householdId,
+    displayName,
+  }));
+}
+
 describe('ClientsSurface during a CRM search update', () => {
   beforeEach(() => {
     localStorage.clear();
+    setDevFlagOverride('selection-authority-boot-gate', false);
     liveCrm.records = [];
     liveCrm.save.mockReset();
     liveCrm.reload.mockReset();
@@ -63,6 +88,8 @@ describe('ClientsSurface during a CRM search update', () => {
       activeMatterId: 'matter-wealthbox-1',
       clientMapHubId: 'matter-wealthbox-1',
     });
+    requestClearClientSelection();
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
     useScopeUpdateStore.getState().begin({
       id: 'matter:/practice/Abernathy Household',
       kind: 'matter',
@@ -74,14 +101,72 @@ describe('ClientsSurface during a CRM search update', () => {
   afterEach(() => {
     cleanup();
     setDevFlagOverride('record-employment', undefined);
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    requestClearClientSelection();
     useScopeUpdateStore.getState().clearAll();
   });
 
-  it('opens an imported household selected in the sidebar while its search update is still running', () => {
+  it('opens the one sealed imported household under production selection authority while its search update is still running', async () => {
+    await enableProductionImportSelection();
     render(<ClientsSurface />);
 
     expect(screen.getByTestId('crm-household-record')).toBeInTheDocument();
     expect(screen.getByText('Abernathy Household')).toBeInTheDocument();
+  });
+
+  it('closes detail immediately when the sealed import link becomes mismatched', async () => {
+    await enableProductionImportSelection();
+    const view = render(<ClientsSurface />);
+    expect(screen.getByTestId('crm-household-record')).toBeInTheDocument();
+
+    act(() => {
+      useMatterStore.setState((state) => ({
+        matters: state.matters.map((matter) => matter.id === 'matter-wealthbox-1'
+          ? { ...matter, crmHouseholdKeys: ['different-household'] }
+          : matter),
+      }));
+      view.rerender(<ClientsSurface />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('crm-directory-surface')).toBeInTheDocument();
+      expect(screen.queryByTestId('crm-household-record')).not.toBeInTheDocument();
+    });
+  });
+
+  it('uses the sealed household rather than record order when two imports share one matter', async () => {
+    await enableProductionImportSelection();
+    const view = render(<ClientsSurface />);
+    act(() => {
+      useMatterStore.setState((state) => ({
+        matters: state.matters.map((matter) => matter.id === 'matter-wealthbox-1'
+          ? { ...matter, crmHouseholdKeys: ['wealthbox-household-1', 'wealthbox-household-2'] }
+          : matter),
+      }));
+      replaceCanonicalHouseholdDirectory('wealthbox', [{
+        provider: 'wealthbox',
+        householdId: 'wealthbox-household-2',
+        displayName: 'Second household',
+      }, {
+        provider: 'wealthbox',
+        householdId: 'wealthbox-household-1',
+        displayName: 'Abernathy Household',
+      }]);
+      view.rerender(<ClientsSurface />);
+    });
+
+    await act(async () => {
+      await requestSharedClientSelection(issueSharedClientSelection({
+        provider: 'wealthbox',
+        householdId: 'wealthbox-household-2',
+        displayName: 'Second household',
+      }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('crm-household-record')).toHaveTextContent('Second household');
+      expect(screen.queryByRole('heading', { name: 'Abernathy Household' })).not.toBeInTheDocument();
+    });
   });
 
   it('shows an imported household in the directory and lets the advisor open it before search is ready', async () => {
@@ -333,6 +418,7 @@ describe('ClientsSurface during a CRM search update', () => {
       'lantern:feature-flags',
       JSON.stringify({ 'record-investment-profile': true })
     );
+    setDevFlagOverride('selection-authority-boot-gate', false);
     liveCrm.records = [
       {
         id: 'household-investment-profile',
@@ -403,6 +489,7 @@ describe('ClientsSurface during a CRM search update', () => {
         'record-professional-contacts': true,
       })
     );
+    setDevFlagOverride('selection-authority-boot-gate', false);
     liveCrm.records = [
       {
         id: 'household-1',
