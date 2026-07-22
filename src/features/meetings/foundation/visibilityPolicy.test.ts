@@ -279,6 +279,19 @@ describe('meeting visibility fail-closed behavior', () => {
     ).toMatchObject({ visible: false, reason: 'missing-policy' });
   });
 
+  it('does not let a derived subject inherit the legacy-unrestricted escape hatch', () => {
+    const legacyParent: MeetingVisibilitySubject = {
+      id: 'legacy-parent',
+      kind: 'activity',
+      lineage: 'legacy-unrestricted',
+    };
+    const task = derived('derived-from-legacy', 'task', legacyParent);
+    expect(decide(task, 'advisor-owner', [], [legacyParent])).toMatchObject({
+      visible: false,
+      reason: 'missing-policy',
+    });
+  });
+
   it('hides derived material when the parent resolver returns a different identity', () => {
     const task = derived('task-1', 'task', root);
     expect(
@@ -336,6 +349,28 @@ describe('meeting visibility fail-closed behavior', () => {
 });
 
 describe('meeting visibility parent inheritance', () => {
+  function chainWithParentLinks(
+    parentLinks: number,
+    outermostPatch: Partial<DerivedMeetingVisibilitySubject> = {}
+  ): {
+    readonly subject: DerivedMeetingVisibilitySubject;
+    readonly parents: readonly MeetingVisibilitySubject[];
+  } {
+    let subject: MeetingVisibilitySubject = root;
+    const parents: MeetingVisibilitySubject[] = [root];
+    for (let index = 0; index < parentLinks; index += 1) {
+      subject = derived(`chain-${String(index)}`, 'meeting-artifact', subject);
+      parents.push(subject);
+    }
+    return {
+      subject: {
+        ...subject,
+        ...outermostPatch,
+      } as DerivedMeetingVisibilitySubject,
+      parents,
+    };
+  }
+
   it('inherits one restricted decision across every named derived record kind', () => {
     const artifact = derived('artifact-1', 'meeting-artifact', root);
     const task = derived('task-1', 'task', artifact);
@@ -404,4 +439,57 @@ describe('meeting visibility parent inheritance', () => {
       })
     ).toBe(false);
   });
+
+  it.each([63, 64])(
+    'processes the terminal root after %i parent links',
+    (parentLinks) => {
+      const chain = chainWithParentLinks(parentLinks);
+      expect(
+        decide(
+          chain.subject,
+          'advisor-included',
+          [restrictedPolicy],
+          chain.parents
+        )
+      ).toMatchObject({ visible: true, reason: 'included' });
+    }
+  );
+
+  it('fails closed when a chain needs 65 parent links', () => {
+    const chain = chainWithParentLinks(65);
+    expect(
+      decide(
+        chain.subject,
+        'advisor-included',
+        [restrictedPolicy],
+        chain.parents
+      )
+    ).toMatchObject({ visible: false, reason: 'lineage-too-deep' });
+  });
+
+  it.each([
+    { ownerRef: 'different-owner' },
+    { visibilityPolicyId: 'different-policy' },
+  ])(
+    'detects a copied owner or policy conflict at the 64-link boundary',
+    (outermostPatch) => {
+      const chain = chainWithParentLinks(64, outermostPatch);
+      expect(
+        decide(
+          chain.subject,
+          'advisor-included',
+          [
+            restrictedPolicy,
+            {
+              id: 'different-policy',
+              mode: 'explicit-review',
+              includedMemberIds: ['advisor-included'],
+              excludedMemberIds: [],
+            },
+          ],
+          chain.parents
+        )
+      ).toMatchObject({ visible: false, reason: 'conflicting-lineage' });
+    }
+  );
 });

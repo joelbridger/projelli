@@ -91,6 +91,7 @@ export type MeetingVisibilityDecision =
         | 'parent-mismatch'
         | 'parent-unavailable'
         | 'cycle'
+        | 'lineage-too-deep'
         | 'conflicting-lineage'
         | 'missing-policy'
         | 'missing-owner'
@@ -124,7 +125,7 @@ const SUBJECT_KINDS = new Set<MeetingVisibilitySubjectKind>([
   'file-reference',
 ]);
 
-const MAX_LINEAGE_DEPTH = 64;
+const MAX_PARENT_LINKS = 64;
 const owns = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
 
@@ -343,12 +344,14 @@ export function resolveMeetingVisibility(
   } catch {
     return hidden('malformed-subject');
   }
+  const requestedLegacyUnrestricted = current.lineage === 'legacy-unrestricted';
 
   let ownerRef: string | undefined;
   let policyId: string | undefined;
   const visited = new Set<string>();
+  let parentLinks = 0;
 
-  for (let depth = 0; depth < MAX_LINEAGE_DEPTH; depth += 1) {
+  for (;;) {
     const key = `${current.kind}\u0000${current.id}`;
     if (visited.has(key)) return hidden('cycle', policyId, ownerRef);
     visited.add(key);
@@ -365,6 +368,8 @@ export function resolveMeetingVisibility(
     }
 
     if (current.lineage !== 'derived') break;
+    if (parentLinks >= MAX_PARENT_LINKS)
+      return hidden('lineage-too-deep', policyId, ownerRef);
     const parentRef = current.parentRef;
     if (!parentRef) return hidden('missing-parent', policyId, ownerRef);
 
@@ -388,11 +393,10 @@ export function resolveMeetingVisibility(
     )
       return hidden('parent-mismatch', policyId, ownerRef);
     current = parsedParent;
+    parentLinks += 1;
   }
 
-  if (current.lineage === 'derived') return hidden('cycle', policyId, ownerRef);
-
-  if (!policyId && current.lineage === 'legacy-unrestricted') {
+  if (!policyId && requestedLegacyUnrestricted) {
     return {
       visible: true,
       reason: 'legacy-unrestricted',
