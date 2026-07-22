@@ -7,6 +7,10 @@ import { SampleBridgeCallout, SAMPLE_BRIDGE_DISMISSED_KEY } from '@/features/ask
 const mockInitSession = vi.fn();
 const mockAddMessage = vi.fn();
 const mockUpdateLastMessage = vi.fn();
+const mockUpdateMessages = vi.fn((chatId: string, messages: unknown[]) => {
+  const session = mockSessions[chatId];
+  if (session) session.messages = messages;
+});
 const mockSessions: Record<string, { chatId: string; messages: unknown[]; isLoading: boolean; lastUpdated: string }> = {};
 const getComposerInput = () => screen.getByTestId('ask-composer-input') as HTMLInputElement;
 
@@ -85,7 +89,12 @@ vi.mock('@/platform/rag/matterResolver', () => ({
   matterLabel: (m: unknown) => String(m),
 }));
 vi.mock('@/platform/rag/MemoryService', () => ({
-  MemoryService: { retrieve: vi.fn().mockResolvedValue([]) },
+  MemoryService: {
+    retrieve: vi.fn().mockResolvedValue([]),
+    filterMeetingFileVisibilityHits: vi
+      .fn()
+      .mockImplementation((hits: unknown[]) => Promise.resolve(hits)),
+  },
   isMemoryEnabled: () => false,
 }));
 vi.mock('@/platform/rag/workspaceCommand', () => ({
@@ -131,8 +140,8 @@ import { getDemoAnswerForWorkspace } from '@/platform/matter/samples/sampleMatte
 // because Vitest processes the hoisted factory lazily on first import).
 vi.mock('@/platform/state/aiChatStore', () => {
   const hook = (selector: (s: unknown) => unknown) =>
-    selector({ initSession: mockInitSession, setSessionWorkspaceRoot: () => undefined, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
-  hook.getState = () => ({ initSession: mockInitSession, setSessionWorkspaceRoot: () => undefined, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
+    selector({ initSession: mockInitSession, setSessionWorkspaceRoot: () => undefined, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, updateMessages: mockUpdateMessages, sessions: mockSessions });
+  hook.getState = () => ({ initSession: mockInitSession, setSessionWorkspaceRoot: () => undefined, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, updateMessages: mockUpdateMessages, sessions: mockSessions });
   // F2.5 — Ask reads per-conversation file-access consent; granted (all-clients)
   // here so these tests exercise the consented retrieval path.
   const GRANTED = { state: 'granted', grantedScope: { kind: 'allMatters' } };
@@ -229,7 +238,7 @@ describe('Ask', () => {
     }
   });
 
-  it('strips {n} citation markers when restoring a persisted conversation', () => {
+  it('strips {n} citation markers when restoring a persisted conversation', async () => {
     // Reload path: a persisted answer keeps its {n} chip markers, but the
     // citation map is not persisted. Restored turns must render as clean prose,
     // never raw "{1}" tokens. Regression guard for the reconstructTurns strip.
@@ -237,23 +246,25 @@ describe('Ask', () => {
       chatId: 'ask-global',
       messages: [
         { role: 'user', content: 'What did the witness say?', timestamp: '2026-01-01T00:00:00Z' },
-        { role: 'assistant', content: 'The witness confirmed the timeline {1} and the location {2}.', timestamp: '2026-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'The witness confirmed the timeline {1} and the location {2}.', timestamp: '2026-01-01T00:00:00Z', askGroundedFromFiles: false },
       ],
       isLoading: false,
       lastUpdated: '2026-01-01T00:00:00Z',
     };
     try {
       render(<Ask />);
+      // The words that flanked the markers are now adjacent (markers removed).
+      expect(
+        await screen.findByText(/timeline and the location/i)
+      ).toBeDefined();
       // No raw chip markers anywhere in the restored prose.
       expect(screen.queryByText(/\{\d\}/)).toBeNull();
-      // The words that flanked the markers are now adjacent (markers removed).
-      expect(screen.getByText(/timeline and the location/i)).toBeDefined();
     } finally {
       delete mockSessions['ask-global'];
     }
   });
 
-  it('keeps {n} chips and citation data when the stored message carries askCitations (A1 fix)', () => {
+  it('keeps {n} chips and citation data when the stored message carries askCitations (A1 fix)', async () => {
     // Regression guard for A1: when the assistant message stored in the
     // chat session includes askCitations, reconstructTurns must NOT strip
     // the {n} markers and must populate citations so CitationText renders
@@ -290,7 +301,9 @@ describe('Ask', () => {
       render(<Ask />);
       // The citation chip button must be rendered (not stripped to plain prose).
       // CitationText renders each {n} as a <button> with aria-label "Citation N: ...".
-      const chipBtn = screen.getByRole('button', { name: /citation 1/i });
+      const chipBtn = await screen.findByRole('button', {
+        name: /citation 1/i,
+      });
       expect(chipBtn).toBeDefined();
       // The surrounding prose should still be present.
       expect(screen.getByText(/the fee is \$350\/hr/i)).toBeDefined();
@@ -299,7 +312,7 @@ describe('Ask', () => {
     }
   });
 
-  it('restores turns from getState() not closed-over sessions (Fix #1 stale-snapshot)', () => {
+  it('restores turns from getState() not closed-over sessions (Fix #1 stale-snapshot)', async () => {
     // Regression guard: the chatId-change effect previously read the closed-over
     // `sessions` selector value, which is always the snapshot at render time.
     // For a freshly-mounted component with a pre-seeded store the closed-over
@@ -313,7 +326,7 @@ describe('Ask', () => {
       chatId: 'ask-global',
       messages: [
         { role: 'user', content: 'What is the statute of limitations?', timestamp: '2026-01-01T00:00:00Z' },
-        { role: 'assistant', content: 'The statute runs three years from discovery.', timestamp: '2026-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'The statute runs three years from discovery.', timestamp: '2026-01-01T00:00:00Z', askGroundedFromFiles: false },
       ],
       isLoading: false,
       lastUpdated: '2026-01-01T00:00:00Z',
@@ -325,7 +338,9 @@ describe('Ask', () => {
       expect(screen.getAllByText(/what is the statute of limitations/i).length).toBeGreaterThanOrEqual(1);
       // The restored answer should appear (stripped of any chip markers). Unique
       // to the conversation — the rail only labels threads by their question.
-      expect(screen.getByText(/statute runs three years/i)).toBeDefined();
+      expect(
+        await screen.findByText(/statute runs three years/i)
+      ).toBeDefined();
     } finally {
       delete mockSessions['ask-global'];
     }
@@ -486,32 +501,32 @@ describe('Ask', () => {
     render(<Ask />);
     openScopeMenu();
     expect(screen.queryByTestId('scope-option-this-matter')).toBeNull();
-    expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-all-matters')).toBeNull();
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
-    expect(screen.getByTestId('scope-option-whole-practice')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-whole-practice')).toBeNull();
   });
 
-  it('shows the full scope menu when a non-sample matter is active', () => {
+  it('keeps firm-wide scopes closed when a non-sample matter is active', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
     render(<Ask />);
     openScopeMenu();
     expect(screen.getByTestId('scope-option-this-matter')).toBeDefined();
-    expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-all-matters')).toBeNull();
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
-    expect(screen.getByTestId('scope-option-whole-practice')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-whole-practice')).toBeNull();
   });
 
-  it('keeps Email, Documents, and Book available on the sample matter', () => {
+  it('keeps Email and Documents available without exposing Book on the sample matter', () => {
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
     render(<Ask />);
     openScopeMenu();
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
     expect(screen.getByTestId('scope-option-this-matter')).toBeDefined();
-    expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
-    expect(screen.getByTestId('scope-option-whole-practice')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-all-matters')).toBeNull();
+    expect(screen.queryByTestId('scope-option-whole-practice')).toBeNull();
   });
 
   it('defaults to "this-matter" scope when a matter is active', () => {
@@ -520,10 +535,12 @@ describe('Ask', () => {
     expect(screen.getByTestId('scope-toggle')).toHaveTextContent('This client');
   });
 
-  it('defaults to "all-matters" scope when no matter is active', () => {
+  it('does not show an all-clients scope when no matter is active', async () => {
     mockActiveMatter = null;
     render(<Ask />);
-    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('All');
+    await waitFor(() => {
+      expect(screen.getByTestId('scope-toggle')).toHaveTextContent('Docs');
+    });
   });
 
   it('clicking the Email scope option changes active scope to email', () => {

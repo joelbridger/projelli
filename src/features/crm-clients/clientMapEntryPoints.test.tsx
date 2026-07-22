@@ -1,10 +1,11 @@
 import '@/i18n';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { DirectorySurface } from './DirectorySurface';
 import { clientMapTab } from './clientMapTab';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
+import { setDevFlagOverride } from '@/platform/flags';
 
 const generate = vi.fn(() => Promise.resolve('updated' as const));
 const checkForUpdates = vi.fn(() => Promise.resolve('unchanged' as const));
@@ -34,6 +35,11 @@ describe('Client Map entry points', () => {
     generate.mockClear();
     checkForUpdates.mockClear();
     useMatterStore.setState({ matters: [matter('m-a', 'Alvarez'), matter('m-b', 'Bishop')] });
+    setDevFlagOverride('own-clients-permissions', true);
+  });
+
+  afterEach(() => {
+    setDevFlagOverride('own-clients-permissions', undefined);
   });
 
   it('opens the restored Whole book view from Clients / Directory and opens its chosen client', () => {

@@ -14,13 +14,15 @@
       "manage": { "label": "Besprechungseinrichtung verwalten" },
       "scope": {
         "firm": "Kalendertermine und Prüfungen für die gesamte Praxis",
-        "client": "Gefiltert nach {{client}}"
+        "client": "Gefiltert nach {{client}}",
+        "neutral": "Wählen Sie einen Kunden aus, um seine Besprechungen zu sehen"
       },
       "actions": {
         "new-meeting": "Neue Besprechung",
         "open": "Öffnen",
         "review": "Prüfen",
         "retry": "Erneut versuchen",
+        "show-all": "Alle Besprechungen anzeigen",
         "show-upcoming": "Bevorstehende Besprechungen zeigen"
       },
       "columns": {

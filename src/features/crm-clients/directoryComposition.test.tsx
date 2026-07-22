@@ -140,6 +140,7 @@ afterEach(() => {
   localStorage.clear();
   act(() => {
     setDevFlagOverride('crm-bulk-select', undefined);
+    setDevFlagOverride('own-clients-permissions', undefined);
   });
   useMatterStore.setState({ matters: [] });
   useClientMapStore.setState({ maps: {}, clientQuestions: {} });
@@ -321,6 +322,9 @@ describe('directory composition public seam', () => {
   });
 
   it('matches the fixed base-era directory and Whole book mount shapes without a contribution', () => {
+    act(() => {
+      setDevFlagOverride('own-clients-permissions', true);
+    });
     useMatterStore.setState({ matters: [matter('m-b', 'Bishop'), matter('m-a', 'Alvarez')] });
     useClientMapStore.setState({ maps: {}, clientQuestions: {} });
     render(<DirectorySurface people={[]} households={households} />);
@@ -340,6 +344,14 @@ describe('directory composition public seam', () => {
       toolMounts: BASE_ERA_BOOK_TOOL_MOUNTS,
       viewAndRailMounts: BASE_ERA_BOOK_VIEW_MOUNTS,
     });
+  });
+
+  it('keeps the Whole book control hidden until staff permissions are ready', () => {
+    render(<DirectorySurface people={[]} households={households} />);
+
+    expect(screen.getByTestId('crm-directory-view-directory')).toBeTruthy();
+    expect(screen.queryByTestId('crm-directory-view-book')).toBeNull();
+    expect(screen.queryByText('Whole book')).toBeNull();
   });
 
   it('selects one active feature view and replaces the legacy cards', () => {

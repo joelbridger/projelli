@@ -306,11 +306,22 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     localStorage.clear();
     nativeRecords.commands = [];
     nativeRecords.invoke.mockReset();
-    nativeRecords.invoke.mockImplementation((command) => {
+    nativeRecords.invoke.mockImplementation((command, args) => {
       nativeRecords.commands.push(command);
       if (command === 'crm_set_workspace') return Promise.resolve(null);
       if (command === 'crm_live_list') {
         return Promise.resolve(structuredClone(nativeRecords.records));
+      }
+      if (command === 'crm_live_upsert') {
+        const record = structuredClone(args?.['record']) as LiveCrmRecord;
+        nativeRecords.records = nativeRecords.records.some(
+          (candidate) => candidate.id === record.id
+        )
+          ? nativeRecords.records.map((candidate) =>
+              candidate.id === record.id ? record : candidate
+            )
+          : [...nativeRecords.records, record];
+        return Promise.resolve(record);
       }
       return Promise.reject(new Error(`Unexpected command ${command}`));
     });
@@ -402,12 +413,14 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     useWorkspaceStore.setState({ rootPath: null });
     setDevFlagOverride('calendar-grid', undefined);
     setDevFlagOverride('meetings-shell-v1', undefined);
+    setDevFlagOverride('own-clients-permissions', undefined);
     setDevFlagOverride('selection-authority-boot-gate', undefined);
     localStorage.clear();
     vi.useRealTimers();
   });
 
   it('selects A before opening, then removes every A detail and row under B and blocked-none', async () => {
+    setDevFlagOverride('own-clients-permissions', true);
     const port = {
       records: nativeRecords.records,
       workspaceRoot: '/workspace',
@@ -428,6 +441,7 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     expect(meetingsSurface.availabilityFlag).toBe('meetings-shell-v1');
     expect(isEnabled('meetings-shell-v1')).toBe(true);
     render(meetingsSurface.render(runtime));
+
 
     expect(await screen.findByTestId('meetings-row-meeting-b')).toBeTruthy();
     expect(screen.getByTestId('meetings-owner-mine')).not.toBeDisabled();
@@ -453,9 +467,11 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     fireEvent.click(screen.getByTestId('meetings-view-upcoming'));
     fireEvent.click(screen.getByTestId('meetings-owner-all'));
 
+
     await act(async () => {
       await resolveMeetingsSurfaceNavigation('meeting-a', runtime);
     });
+
 
     expect(await screen.findByTestId('meetings-linked-detail')).toBeTruthy();
 
@@ -467,6 +483,7 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     expect(screen.getByTestId('meeting-template-editor')).toBeTruthy();
     fireEvent.click(screen.getByTestId('meeting-template-cancel'));
     fireEvent.click(screen.getByTestId('meetings-view-upcoming'));
+
 
     await act(async () => {
       await resolveMeetingsSurfaceNavigation('meeting-a', runtime);
@@ -552,5 +569,32 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     } finally {
       queueSpy.mockRestore();
     }
+  });
+
+  it('clears the client into a neutral Meetings view while firm-wide controls stay closed', async () => {
+    setDevFlagOverride('own-clients-permissions', false);
+    render(meetingsSurface.render(runtime));
+
+    expect(await screen.findByTestId('meetings-row-meeting-b')).toBeTruthy();
+    expect(screen.getByTestId('meetings-show-all')).toHaveTextContent(
+      'Show all meetings'
+    );
+    expect(screen.queryByTestId('meetings-owner-all')).toBeNull();
+    expect(screen.queryByTestId('meetings-owner-mine')).toBeNull();
+    fireEvent.click(screen.getByTestId('meetings-view-actions'));
+    expect(screen.queryByTestId('meetings-actions-owner-filter')).toBeNull();
+    fireEvent.click(screen.getByTestId('meetings-view-upcoming'));
+
+    fireEvent.click(screen.getByTestId('meetings-show-all'));
+
+    await waitFor(() => {
+      expect(readActiveMeetingClientBoundary()).toBeNull();
+      expect(screen.queryByTestId('meetings-show-all')).toBeNull();
+      expect(
+        screen.getByText('Choose a client to view their meetings')
+      ).toBeTruthy();
+      expect(screen.queryByTestId('meetings-row-meeting-a')).toBeNull();
+      expect(screen.queryByTestId('meetings-row-meeting-b')).toBeNull();
+    });
   });
 });

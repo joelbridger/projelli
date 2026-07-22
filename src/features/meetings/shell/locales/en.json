@@ -14,13 +14,15 @@
       "manage": { "label": "Manage meeting setup" },
       "scope": {
         "firm": "Calendar-linked meetings and review work across your practice",
-        "client": "Filtered to {{client}}"
+        "client": "Filtered to {{client}}",
+        "neutral": "Choose a client to view their meetings"
       },
       "actions": {
         "new-meeting": "New meeting",
         "open": "Open",
         "review": "Review",
         "retry": "Try again",
+        "show-all": "Show all meetings",
         "show-upcoming": "Show upcoming meetings"
       },
       "columns": {

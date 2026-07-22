@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   loadVisibleCrmRecordsForViewer,
   useLiveCrmRecords,
@@ -3882,12 +3882,22 @@ export function useMeetingIntelligenceSettingsStore(): MeetingIntelligenceSettin
 }
 export function useMeetingFoundationPreferencesStore(): MeetingFoundationPreferencesStore {
   const live = useLiveCrmRecords();
-  return createMeetingFoundationPreferencesStore({
-    records: live.unfilteredRecordsForInternalMeetingPreferences,
-    workspaceRoot: live.workspaceRoot,
-    error: live.error,
-    save: live.save,
-    reloadRecords:
+  return useMemo(
+    () =>
+      createMeetingFoundationPreferencesStore({
+        records: live.unfilteredRecordsForInternalMeetingPreferences,
+        workspaceRoot: live.workspaceRoot,
+        error: live.error,
+        save: live.save,
+        reloadRecords:
+          live.reloadUnfilteredRecordsForInternalMeetingPreferences,
+      }),
+    [
+      live.error,
       live.reloadUnfilteredRecordsForInternalMeetingPreferences,
-  });
+      live.save,
+      live.unfilteredRecordsForInternalMeetingPreferences,
+      live.workspaceRoot,
+    ]
+  );
 }

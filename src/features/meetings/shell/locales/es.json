@@ -14,13 +14,15 @@
       "manage": { "label": "Administrar la preparación de reuniones" },
       "scope": {
         "firm": "Reuniones del calendario y revisiones de toda la práctica",
-        "client": "Filtrado por {{client}}"
+        "client": "Filtrado por {{client}}",
+        "neutral": "Elige un cliente para ver sus reuniones"
       },
       "actions": {
         "new-meeting": "Nueva reunión",
         "open": "Abrir",
         "review": "Revisar",
         "retry": "Intentar de nuevo",
+        "show-all": "Mostrar todas las reuniones",
         "show-upcoming": "Mostrar próximas reuniones"
       },
       "columns": {
