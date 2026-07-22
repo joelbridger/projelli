@@ -77,6 +77,7 @@ import type { BookAskResult } from './book/bookFacts';
 import { settleBookSubmission } from './book/bookSubmission';
 import { composerIsBusy } from './askHelpers';
 import { buildSampleWholeBookAnswer } from './book/sampleWholeBookAnswer';
+import { useFlag } from '@/platform/flags';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -87,6 +88,7 @@ export function Ask(props: UseAskProps) {
   const promptPreparationDialog = usePromptPreparationDecision();
   const entityLabel = useEntityLabel();
   const { t } = useTranslation();
+  const firmWideScopeEnabled = useFlag('own-clients-permissions');
   // This surface is the 3-tab IA's "Ask" tab.
   const askVerb = t('ask.action.ask');
   const {
@@ -315,11 +317,11 @@ export function Ask(props: UseAskProps) {
       ? [
           { label: demoQuestions[0], question: demoQuestions[0], kind: 'client' as const },
           { label: demoQuestions[3], question: demoQuestions[3], kind: 'client' as const },
-          {
+          ...(firmWideScopeEnabled ? [{
             label: t('ask.empty.whole-book-prefix', { question: SAMPLE_WHOLE_BOOK_QUESTION }),
             question: SAMPLE_WHOLE_BOOK_QUESTION,
             kind: 'whole-practice' as const,
-          },
+          }] : []),
         ]
       : [];
 

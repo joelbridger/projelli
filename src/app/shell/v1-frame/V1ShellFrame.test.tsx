@@ -14,6 +14,7 @@ describe('V1ShellFrame', () => {
   afterEach(() => {
     useFirmStore.setState({ session: null });
     setDevFlagOverride('meetings-shell-v1', undefined);
+    setDevFlagOverride('shared-client-bar', undefined);
   });
 
   it('renders the permanent rail in its approved order and keeps Scheduling in the top bar', async () => {
@@ -303,7 +304,9 @@ describe('V1ShellFrame', () => {
     expect(onSurfaceChange).toHaveBeenCalledWith('settings');
   });
 
-  it('shows the shared-client slot only for a shared surface', () => {
+  it('keeps the same visible shared client selector across CRM, Meetings, and Ask', async () => {
+    setDevFlagOverride('meetings-shell-v1', true);
+    setDevFlagOverride('shared-client-bar', true);
     const props = {
       onOpenCommandPalette: vi.fn(),
       onSurfaceChange: vi.fn(),
@@ -323,7 +326,24 @@ describe('V1ShellFrame', () => {
       </V1ShellFrame>
     );
     expect(screen.getByTestId('v1-shell-client-bar-slot')).toBeInTheDocument();
-    expect(screen.getByTestId('shared-client-bar')).toBeInTheDocument();
+    expect(screen.getByTestId('client-bar-v1')).toBeVisible();
+    expect(screen.getByTestId('client-bar-picker')).toBeVisible();
+
+    rerender(
+      <V1ShellFrame activeSurface="meetings" {...props}>
+        <div />
+      </V1ShellFrame>
+    );
+    expect(await screen.findByTestId('client-bar-v1')).toBeVisible();
+    expect(screen.getByTestId('client-bar-picker')).toBeVisible();
+
+    rerender(
+      <V1ShellFrame activeSurface="search" {...props}>
+        <div />
+      </V1ShellFrame>
+    );
+    expect(screen.getByTestId('client-bar-v1')).toBeVisible();
+    expect(screen.getByTestId('client-bar-picker')).toBeVisible();
   });
 
   it('routes nav clicks using the registered surface id', () => {

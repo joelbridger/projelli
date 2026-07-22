@@ -371,12 +371,14 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     useWorkspaceStore.setState({ rootPath: null });
     setDevFlagOverride('calendar-grid', undefined);
     setDevFlagOverride('meetings-shell-v1', undefined);
+    setDevFlagOverride('own-clients-permissions', undefined);
     setDevFlagOverride('selection-authority-boot-gate', undefined);
     localStorage.clear();
     vi.useRealTimers();
   });
 
   it('selects A before opening, then removes every A detail and row under B and blocked-none', async () => {
+    setDevFlagOverride('own-clients-permissions', true);
     const port = {
       records: nativeRecords.records,
       workspaceRoot: '/workspace',
@@ -461,5 +463,32 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
       expect(screen.queryByTestId('meetings-row-meeting-b')).toBeNull();
     });
     expect(nativeRecords.commands).toContain('crm_live_list');
+  });
+
+  it('clears the client into a neutral Meetings view while firm-wide controls stay closed', async () => {
+    setDevFlagOverride('own-clients-permissions', false);
+    render(meetingsSurface.render(runtime));
+
+    expect(await screen.findByTestId('meetings-row-meeting-b')).toBeTruthy();
+    expect(screen.getByTestId('meetings-show-all')).toHaveTextContent(
+      'Show all meetings'
+    );
+    expect(screen.queryByTestId('meetings-owner-all')).toBeNull();
+    expect(screen.queryByTestId('meetings-owner-mine')).toBeNull();
+    fireEvent.click(screen.getByTestId('meetings-view-actions'));
+    expect(screen.queryByTestId('meetings-actions-owner-filter')).toBeNull();
+    fireEvent.click(screen.getByTestId('meetings-view-upcoming'));
+
+    fireEvent.click(screen.getByTestId('meetings-show-all'));
+
+    await waitFor(() => {
+      expect(readActiveMeetingClientBoundary()).toBeNull();
+      expect(screen.queryByTestId('meetings-show-all')).toBeNull();
+      expect(
+        screen.getByText('Choose a client to view their meetings')
+      ).toBeTruthy();
+      expect(screen.queryByTestId('meetings-row-meeting-a')).toBeNull();
+      expect(screen.queryByTestId('meetings-row-meeting-b')).toBeNull();
+    });
   });
 });

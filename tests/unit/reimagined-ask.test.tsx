@@ -486,32 +486,32 @@ describe('Ask', () => {
     render(<Ask />);
     openScopeMenu();
     expect(screen.queryByTestId('scope-option-this-matter')).toBeNull();
-    expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-all-matters')).toBeNull();
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
-    expect(screen.getByTestId('scope-option-whole-practice')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-whole-practice')).toBeNull();
   });
 
-  it('shows the full scope menu when a non-sample matter is active', () => {
+  it('keeps firm-wide scopes closed when a non-sample matter is active', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
     render(<Ask />);
     openScopeMenu();
     expect(screen.getByTestId('scope-option-this-matter')).toBeDefined();
-    expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-all-matters')).toBeNull();
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
-    expect(screen.getByTestId('scope-option-whole-practice')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-whole-practice')).toBeNull();
   });
 
-  it('keeps Email, Documents, and Book available on the sample matter', () => {
+  it('keeps Email and Documents available without exposing Book on the sample matter', () => {
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
     render(<Ask />);
     openScopeMenu();
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
     expect(screen.getByTestId('scope-option-this-matter')).toBeDefined();
-    expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
-    expect(screen.getByTestId('scope-option-whole-practice')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-all-matters')).toBeNull();
+    expect(screen.queryByTestId('scope-option-whole-practice')).toBeNull();
   });
 
   it('defaults to "this-matter" scope when a matter is active', () => {
@@ -520,10 +520,12 @@ describe('Ask', () => {
     expect(screen.getByTestId('scope-toggle')).toHaveTextContent('This client');
   });
 
-  it('defaults to "all-matters" scope when no matter is active', () => {
+  it('does not show an all-clients scope when no matter is active', async () => {
     mockActiveMatter = null;
     render(<Ask />);
-    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('All');
+    await waitFor(() => {
+      expect(screen.getByTestId('scope-toggle')).toHaveTextContent('Docs');
+    });
   });
 
   it('clicking the Email scope option changes active scope to email', () => {

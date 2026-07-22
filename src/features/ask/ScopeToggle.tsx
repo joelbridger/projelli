@@ -10,6 +10,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
+import { useFlag } from '@/platform/flags';
 import { normalizeVisibleAskScope, type AskScope } from './askHelpers';
 
 /* -------------------------------------------------------------------------- */
@@ -34,7 +35,15 @@ export function ScopeToggle({
   isSample: boolean;
 }) {
   const { t } = useTranslation();
-  const visibleScope = normalizeVisibleAskScope(scope, hasMatter);
+  const firmWideScopeEnabled = useFlag('own-clients-permissions');
+  const normalizedScope = normalizeVisibleAskScope(scope, hasMatter);
+  const visibleScope =
+    !firmWideScopeEnabled &&
+    (normalizedScope === 'all-matters' || normalizedScope === 'whole-practice')
+      ? hasMatter
+        ? 'this-matter'
+        : 'documents'
+      : normalizedScope;
 
   useEffect(() => {
     if (visibleScope !== scope) {
@@ -50,12 +59,12 @@ export function ScopeToggle({
       selectedLabel: t('ask.scope-menu.this-client'),
       Icon: FileText,
     }] : []),
-    {
+    ...(firmWideScopeEnabled ? [{
       value: 'all-matters' as AskScope,
       label: t('ask.scope-menu.all-clients'),
       selectedLabel: t('ask.scope-menu.all-selected'),
       Icon: FolderOpen,
-    },
+    }] : []),
     {
       value: 'email' as AskScope,
       label: t('ask.scope-menu.email'),
@@ -68,12 +77,12 @@ export function ScopeToggle({
       selectedLabel: t('ask.scope-menu.documents-selected'),
       Icon: FileText,
     },
-    {
+    ...(firmWideScopeEnabled ? [{
       value: 'whole-practice' as AskScope,
       label: t('ask.scope-menu.book-overview'),
       selectedLabel: t('ask.scope-menu.book-selected'),
       Icon: BookOpen,
-    },
+    }] : []),
   ];
   const selected = options.find((opt) => opt.value === visibleScope) ?? options[0];
 

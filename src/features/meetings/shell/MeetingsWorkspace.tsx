@@ -10,6 +10,7 @@ import { CalendarDays, ChevronLeft, Mic, Plus } from 'lucide-react';
 import { CalendarGridSurface } from '@/features/calendar-grid';
 import {
   readSelectionOperationDecision,
+  requestClearClientSelection,
   useSelectionPresentation,
 } from '@/platform/client-context';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
@@ -249,6 +250,7 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
   const matters = useMatterStore((state) => state.matters);
   const currentMemberId = useFirmStore((state) => state.session?.userId ?? null);
   const calendarEnabled = useFlag('calendar-grid');
+  const firmWideScopeEnabled = useFlag('own-clients-permissions');
   const [view, setView] = useState<ShellView>('upcoming');
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   const [reviewFilter, setReviewFilter] = useState<MeetingReviewInboxFilter>(
@@ -279,6 +281,7 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
   const activeClientBoundaryKey = activeClientBoundary
     ? `${activeClientBoundary.householdRef}\u0000${activeClientBoundary.matterId}`
     : 'no-active-client';
+  const hasActiveClientBoundary = activeClientBoundary !== null;
   const directoryKey = `${selectionKey}:${recordRevision}:${grant ? 'granted' : 'refused'}`;
   const reviewKey = `${directoryKey}:${JSON.stringify(reviewFilter)}:${String(reviewRetry)}`;
   const [directoryState, setDirectoryState] = useState<DirectoryLoadState>({
@@ -320,7 +323,11 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
 
   useEffect(() => {
     let current = true;
-    if (selection.blocked || !grant) {
+    if (
+      selection.blocked ||
+      !grant ||
+      (!hasActiveClientBoundary && !firmWideScopeEnabled)
+    ) {
       queueMicrotask(() => {
         if (!current) return;
         setDirectoryState({ key: directoryKey, status: 'ready', records: [] });
@@ -350,7 +357,13 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
         setDirectoryState({ key: directoryKey, status: 'error', records: [] });
       });
     return () => { current = false; };
-  }, [directoryKey, grant, selection.blocked]);
+  }, [
+    directoryKey,
+    firmWideScopeEnabled,
+    grant,
+    hasActiveClientBoundary,
+    selection.blocked,
+  ]);
 
   useEffect(() => {
     let current = true;
@@ -402,20 +415,27 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
     selection.blocked,
   ]);
 
+  const effectiveOwnerFilter = firmWideScopeEnabled
+    ? ownerFilter
+    : currentMemberId;
   const scopedMeetings = useMemo(
     () => activeClientBoundary
       ? projectMeetingList(
           records,
-          ownerFilter
+          effectiveOwnerFilter
             ? {
                 kind: 'owner',
                 client: activeClientBoundary,
-                ownerId: ownerFilter,
+                ownerId: effectiveOwnerFilter,
               }
             : { kind: 'client', client: activeClientBoundary }
         ).meetings
       : [],
-    [activeClientBoundary, ownerFilter, records]
+    [
+      activeClientBoundary,
+      effectiveOwnerFilter,
+      records,
+    ]
   );
   const reviewMeetingCount =
     reviewResult.kind === 'ready-empty' || reviewResult.kind === 'ready-populated'
@@ -498,6 +518,7 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
     reviewResult,
     reviewFilter,
     currentMemberId,
+    allowOwnerScope: firmWideScopeEnabled,
     now,
     openMeeting,
     setReviewFilter,
@@ -598,10 +619,26 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
             <p>
               {activeClientBoundary
                 ? t('meetings.shell.scope.client', { client: activeClientBoundary.displayName ?? activeClientBoundary.householdRef })
-                : t('meetings.shell.scope.firm')}
+                : t('meetings.shell.scope.neutral')}
             </p>
           </div>
           <div className="meetings-shell-header-actions">
+            {activeClientBoundary ? (
+              <button
+                type="button"
+                className="kp-btn kp-btn--secondary kp-btn--sm"
+                data-testid="meetings-show-all"
+                onClick={() => {
+                  setDetailTarget(null);
+                  setTemplateTarget(null);
+                  setOwnerFilter(null);
+                  setView('upcoming');
+                  requestClearClientSelection();
+                }}
+              >
+                {t('meetings.shell.actions.show-all')}
+              </button>
+            ) : null}
             {view === 'calendar' ? (
               <button
                 type="button"
@@ -710,11 +747,13 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
           <>
             {selectedDescriptor.kind === 'primary' ? (
               <div className="meetings-shell-toolbar" data-testid="meeting-list-tool-host">
-                {toolDescriptors.map((descriptor) => (
-                  <span key={descriptor.id} data-meeting-list-tool={descriptor.id}>
-                    {descriptor.render(toolContext)}
-                  </span>
-                ))}
+                {firmWideScopeEnabled
+                  ? toolDescriptors.map((descriptor) => (
+                      <span key={descriptor.id} data-meeting-list-tool={descriptor.id}>
+                        {descriptor.render(toolContext)}
+                      </span>
+                    ))
+                  : null}
               </div>
             ) : null}
             <div data-testid="meeting-list-view-host" data-meeting-list-view={selectedDescriptor.id}>
