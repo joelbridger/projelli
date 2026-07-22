@@ -141,6 +141,90 @@ async function writeExecutable(target, source) {
   await chmod(target, 0o700);
 }
 
+async function shellFunctionPrefix() {
+  const source = await readFile(new URL('../golden-loop.sh', import.meta.url), 'utf8');
+  return source.slice(0, source.indexOf('\ncleanup() {'));
+}
+
+test('post-KILL cleanup stays red and retains ownership when a descendant remains', async () => {
+  const root = testDirectory();
+  const prefix = path.join(root, 'golden-loop-functions.sh');
+  const harness = path.join(root, 'post-kill.sh');
+  await mkdir(root);
+  await writeFile(prefix, await shellFunctionPrefix());
+  await writeExecutable(harness, `#!/usr/bin/env bash
+source "$1"
+TERM_GRACE_SECONDS=0
+DRIVER_PID=4242
+DRIVER_PGID=4242
+DRIVER_GROUP_START_TIME=owned-start
+checks=0
+driver_group_is_owned() { return 0; }
+driver_group_has_live_descendants() {
+  checks=$((checks + 1))
+  case "$checks" in 1|3) return 1 ;; *) return 0 ;; esac
+}
+kill() { return 0; }
+sleep() { :; }
+wait() { printf 'reaped\\n'; return 0; }
+set +e
+stop_driver_group
+status=$?
+printf 'status=%s pid=%s pgid=%s start=%s checks=%s\\n' \
+  "$status" "$DRIVER_PID" "$DRIVER_PGID" "$DRIVER_GROUP_START_TIME" "$checks"
+`);
+  try {
+    const { stdout, stderr } = await execFileAsync('bash', [harness, prefix]);
+    assert.match(stdout, /reaped/);
+    assert.match(stdout, /status=1 pid=4242 pgid=4242 start=owned-start checks=4/);
+    assert.match(stderr, /remained live after KILL/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('failed startup ownership capture reaps only the unreaped direct leader', async () => {
+  const root = testDirectory();
+  const prefix = path.join(root, 'golden-loop-functions.sh');
+  const harness = path.join(root, 'startup-capture.sh');
+  const driver = path.join(root, 'driver.mjs');
+  const signals = path.join(root, 'signals');
+  await mkdir(root);
+  await writeFile(prefix, await shellFunctionPrefix());
+  await writeFile(driver, 'setInterval(() => {}, 1000);\n');
+  await writeExecutable(harness, `#!/usr/bin/env bash
+source "$1"
+TEMP_ROOT="$2"
+DRIVER="$3"
+SIGNAL_LOG="$4"
+TIMEOUT_SECONDS=1
+process_start_time() { return 1; }
+kill() {
+  printf '%s\\n' "$*" >>"$SIGNAL_LOG"
+  builtin kill "$@"
+}
+set +e
+run_driver unused
+status=$?
+printf 'status=%s pid=%s pgid=%s start=%s\\n' \
+  "$status" "$DRIVER_PID" "$DRIVER_PGID" "$DRIVER_GROUP_START_TIME"
+`);
+  try {
+    const { stdout } = await execFileAsync('bash', [harness, prefix, root, driver, signals], { timeout: 10_000 });
+    assert.match(stdout, /status=1 pid= pgid= start=/);
+    const sentSignals = (await readFile(signals, 'utf8')).trim().split('\n');
+    assert.equal(sentSignals.length, 2);
+    for (const signal of sentSignals) {
+      assert.match(signal, /^-(?:TERM|KILL) [1-9][0-9]*$/, `unsafe signal: ${signal}`);
+      assert.doesNotMatch(signal, / --? -[1-9]/, `group signal lacked ownership: ${signal}`);
+    }
+    const leaderPid = Number(sentSignals[0].split(' ').at(-1));
+    assert.throws(() => process.kill(leaderPid, 0), { code: 'ESRCH' });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 async function runShellFailure(mode) {
   const root = testDirectory();
   const bin = path.join(root, 'bin');

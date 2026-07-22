@@ -133,7 +133,7 @@ driver_group_has_live_descendants() {
 }
 
 stop_driver_group() {
-  local end
+  local descendants_remain=0 end
   [ -n "$DRIVER_PGID" ] || return 0
   if ! [[ "$DRIVER_PGID" =~ ^[1-9][0-9]*$ ]]; then
     echo "GOLDEN LOOP FAILED: refusing to signal an invalid driver process group" >&2
@@ -163,8 +163,41 @@ stop_driver_group() {
   fi
   end=$((SECONDS + 2))
   while driver_group_has_live_descendants && [ "$SECONDS" -lt "$end" ]; do sleep 0.05; done
+  if driver_group_has_live_descendants; then
+    descendants_remain=1
+  fi
   if [ -n "$DRIVER_PID" ]; then
     wait "$DRIVER_PID" 2>/dev/null || true
+  fi
+  if [ "$descendants_remain" -eq 1 ]; then
+    echo "GOLDEN LOOP FAILED: owned driver process group remained live after KILL" >&2
+    return 1
+  fi
+  DRIVER_PID="" DRIVER_PGID="" DRIVER_GROUP_START_TIME=""
+}
+
+stop_unowned_driver_leader() {
+  local descendants_remain=0 end
+  if ! [[ "$DRIVER_PID" =~ ^[1-9][0-9]*$ ]] || [ "$DRIVER_PGID" != "$DRIVER_PID" ]; then
+    echo "GOLDEN LOOP FAILED: refusing to stop an invalid unowned driver leader" >&2
+    return 1
+  fi
+
+  # This PID is still our unreaped direct child, so a positive-PID signal cannot
+  # hit a recycled process. Without a start-time token, never signal its group.
+  kill -TERM "$DRIVER_PID" 2>/dev/null || true
+  end=$((SECONDS + 2))
+  while driver_group_has_live_descendants && [ "$SECONDS" -lt "$end" ]; do sleep 0.05; done
+  kill -KILL "$DRIVER_PID" 2>/dev/null || true
+  end=$((SECONDS + 2))
+  while driver_group_has_live_descendants && [ "$SECONDS" -lt "$end" ]; do sleep 0.05; done
+  if driver_group_has_live_descendants; then
+    descendants_remain=1
+  fi
+  wait "$DRIVER_PID" 2>/dev/null || true
+  if [ "$descendants_remain" -eq 1 ]; then
+    echo "GOLDEN LOOP FAILED: unowned driver descendants remained after leader cleanup" >&2
+    return 1
   fi
   DRIVER_PID="" DRIVER_PGID="" DRIVER_GROUP_START_TIME=""
 }
@@ -200,7 +233,7 @@ run_driver() {
     sleep 0.01
   done
   if [ -z "$DRIVER_GROUP_START_TIME" ]; then
-    stop_driver_group || true
+    stop_unowned_driver_leader || true
     return 1
   fi
 
