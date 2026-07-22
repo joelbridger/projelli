@@ -211,13 +211,27 @@ echo $! >"$LANTERN_APP_PID_FILE"
 if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-startup') process.exit(1);
 if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
   const { spawn } = await import('node:child_process');
-  const { writeFileSync } = await import('node:fs');
+  const { readFileSync, writeFileSync } = await import('node:fs');
+  const processIdentity = () => {
+    const stat = readFileSync(\`/proc/\${process.pid}/stat\`, 'utf8');
+    const fields = stat.slice(stat.lastIndexOf(') ') + 2).trim().split(/\\s+/);
+    const group = Number(fields[2]);
+    const leaderStat = readFileSync(\`/proc/\${group}/stat\`, 'utf8');
+    const leaderFields = leaderStat.slice(leaderStat.lastIndexOf(') ') + 2).trim().split(/\\s+/);
+    return { group, leaderStartTime: leaderFields[19] };
+  };
   writeFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_PID, String(process.pid));
   const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1_000)'], {
     stdio: 'ignore',
   });
   writeFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_CHILD_PID, String(child.pid));
-  process.on('SIGTERM', () => {});
+  writeFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_LEADER_BEFORE, JSON.stringify(processIdentity()));
+  process.on('SIGTERM', () => {
+    writeFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_LEADER_AT_TERM, JSON.stringify(processIdentity()));
+    setTimeout(() => {
+      writeFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_LEADER_LATE, JSON.stringify(processIdentity()));
+    }, 2_000);
+  });
   setInterval(() => {}, 1_000);
 }
 `);
@@ -232,10 +246,14 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     GOLDEN_LOOP_TEST_LAUNCH_COUNT: path.join(root, 'launch-count'),
     GOLDEN_LOOP_TEST_DRIVER_PID: path.join(root, 'driver-pid'),
     GOLDEN_LOOP_TEST_DRIVER_CHILD_PID: path.join(root, 'driver-child-pid'),
+    GOLDEN_LOOP_TEST_DRIVER_LEADER_BEFORE: path.join(root, 'driver-leader-before.json'),
+    GOLDEN_LOOP_TEST_DRIVER_LEADER_AT_TERM: path.join(root, 'driver-leader-at-term.json'),
+    GOLDEN_LOOP_TEST_DRIVER_LEADER_LATE: path.join(root, 'driver-leader-late.json'),
     GOLDEN_LOOP_DIAGNOSTIC_DIR: diagnostics,
     GOLDEN_LOOP_LAUNCHER: launcher,
     GOLDEN_LOOP_DRIVER: driver,
     GOLDEN_LOOP_TIMEOUT_SECONDS: '1',
+    GOLDEN_LOOP_TERM_GRACE_SECONDS: '3',
     TMPDIR: temporaryDirectory,
     ...(mode === 'diagnostic-writer-validation' ? { GOLDEN_LOOP_DIAGNOSTIC_WRITER: invalidWriter } : {}),
     ...(mode === 'diagnostic-write-failure' ? { GOLDEN_LOOP_DIAGNOSTIC_WRITER: failingWriter } : {}),
@@ -259,6 +277,13 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     if (mode === 'driver-timeout') {
       const driverPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_PID, 'utf8'));
       const childPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_CHILD_PID, 'utf8'));
+      const leaderBefore = JSON.parse(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_LEADER_BEFORE, 'utf8'));
+      const leaderAtTerm = JSON.parse(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_LEADER_AT_TERM, 'utf8'));
+      const leaderLate = JSON.parse(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_LEADER_LATE, 'utf8'));
+      assert.notEqual(leaderBefore.group, driverPid, 'driver unexpectedly owned its process group');
+      assert.deepEqual(leaderAtTerm, leaderBefore, 'TERM changed the owned group leader');
+      assert.deepEqual(leaderLate, leaderBefore, 'owned group leader did not survive the TERM grace period');
+      assert.throws(() => process.kill(leaderBefore.group, 0), { code: 'ESRCH' });
       assert.throws(() => process.kill(driverPid, 0), { code: 'ESRCH' });
       assert.throws(() => process.kill(childPid, 0), { code: 'ESRCH' });
       assert.deepEqual(await (await import('node:fs/promises')).readdir(temporaryDirectory), []);
@@ -299,13 +324,15 @@ test('real shell routes every injected early failure to a red, bounded artifact'
   }
 });
 
-test('a never-exiting driver is killed within the wall-clock bound and fully cleaned up', async () => {
+test('the owned group leader survives TERM grace before escalation removes every descendant', async () => {
   const startedAt = Date.now();
   const artifact = await runShellFailure('driver-timeout');
   assert.equal(artifact.classification, 'driver-startup-failure');
+  assert.ok(Date.now() - startedAt >= 3_000, 'cleanup escalated before the configured TERM grace elapsed');
   assert.ok(Date.now() - startedAt < 15_000, 'driver timeout exceeded its TERM plus KILL grace');
   const shellSource = await readFile(new URL('../golden-loop.sh', import.meta.url), 'utf8');
   assert.match(shellSource, /setsid bash -c[\s\S]*DRIVER_PGID=\$DRIVER_PID/, 'driver must have a tracked dedicated process group');
+  assert.match(shellSource, /driver_group_is_owned[\s\S]*kill -TERM -- "-\$DRIVER_PGID"[\s\S]*driver_group_is_owned[\s\S]*kill -KILL -- "-\$DRIVER_PGID"/, 'each group signal must immediately follow an ownership check');
   assert.doesNotMatch(shellSource, /timeout[^\n]*\n\s*node "\$DRIVER"/, 'timeout must not own only the direct Node process');
 });
 

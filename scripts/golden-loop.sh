@@ -16,6 +16,7 @@ DRIVER="${GOLDEN_LOOP_DRIVER:-$HERE/golden-loop-driver.mjs}"
 DEFAULT_DIAGNOSTIC_WRITER="$HERE/write-golden-loop-diagnostic.mjs"
 DIAGNOSTIC_WRITER="${GOLDEN_LOOP_DIAGNOSTIC_WRITER:-$DEFAULT_DIAGNOSTIC_WRITER}"
 TIMEOUT_SECONDS="${GOLDEN_LOOP_TIMEOUT_SECONDS:-150}"
+TERM_GRACE_SECONDS="${GOLDEN_LOOP_TERM_GRACE_SECONDS:-10}"
 TEMP_ROOT=""
 WORKSPACE=""
 APP_PID_FILE=""
@@ -101,14 +102,30 @@ process_start_time() {
   printf '%s\n' "${stat_fields[19]:-}"
 }
 
-driver_group_has_live_members() {
-  local stat rest state process_group stat_path
+driver_group_is_owned() {
+  local stat rest process_group current_start
+  [ -n "$DRIVER_PGID" ] && [ -n "$DRIVER_GROUP_START_TIME" ] || return 1
+  [ -r "/proc/$DRIVER_PGID/stat" ] || return 1
+  IFS= read -r stat <"/proc/$DRIVER_PGID/stat" || return 1
+  rest="${stat##*) }"
+  read -r _ _ process_group _ <<<"$rest"
+  [ "$process_group" = "$DRIVER_PGID" ] || return 1
+  current_start="$(process_start_time "$DRIVER_PGID" 2>/dev/null)" || return 1
+  [ "$current_start" = "$DRIVER_GROUP_START_TIME" ]
+}
+
+driver_group_has_live_descendants() {
+  local stat rest state process_group stat_path pid
   for stat_path in /proc/[0-9]*/stat; do
     [ -r "$stat_path" ] || continue
     IFS= read -r stat <"$stat_path" || continue
     rest="${stat##*) }"
     read -r state _ process_group _ <<<"$rest"
-    if [ "$process_group" = "$DRIVER_PGID" ] && [ "$state" != "Z" ]; then
+    pid="${stat_path#/proc/}"
+    pid="${pid%/stat}"
+    if [ "$pid" != "$DRIVER_PGID" ] \
+      && [ "$process_group" = "$DRIVER_PGID" ] \
+      && [ "$state" != "Z" ]; then
       return 0
     fi
   done
@@ -116,30 +133,36 @@ driver_group_has_live_members() {
 }
 
 stop_driver_group() {
-  local end current_start
+  local end
   [ -n "$DRIVER_PGID" ] || return 0
   if ! [[ "$DRIVER_PGID" =~ ^[1-9][0-9]*$ ]]; then
-    DRIVER_PID="" DRIVER_PGID="" DRIVER_GROUP_START_TIME=""
-    return 0
+    echo "GOLDEN LOOP FAILED: refusing to signal an invalid driver process group" >&2
+    return 1
   fi
 
-  # The group leader remains alive until this function stops it. Checking its
-  # Linux start time prevents a recycled PID from ever naming an unrelated group.
-  if current_start="$(process_start_time "$DRIVER_PGID" 2>/dev/null)" \
-    && [ "$current_start" != "$DRIVER_GROUP_START_TIME" ]; then
-    echo "GOLDEN LOOP WARNING: refusing to stop a reused driver process id" >&2
-    DRIVER_PID="" DRIVER_PGID="" DRIVER_GROUP_START_TIME=""
-    return 0
+  # The leader is an ownership token: it deliberately survives TERM until the
+  # controller finishes the grace period and escalation. Recheck both its Linux
+  # start time and process-group identity immediately before every group signal.
+  if ! driver_group_is_owned; then
+    echo "GOLDEN LOOP FAILED: refusing to TERM an unowned driver process group" >&2
+    return 1
   fi
-
-  kill -TERM -- "-$DRIVER_PGID" 2>/dev/null || true
-  end=$((SECONDS + 10))
-  while driver_group_has_live_members && [ "$SECONDS" -lt "$end" ]; do sleep 0.1; done
-  if driver_group_has_live_members; then
-    kill -KILL -- "-$DRIVER_PGID" 2>/dev/null || true
-    end=$((SECONDS + 2))
-    while driver_group_has_live_members && [ "$SECONDS" -lt "$end" ]; do sleep 0.05; done
+  if ! kill -TERM -- "-$DRIVER_PGID" 2>/dev/null; then
+    echo "GOLDEN LOOP FAILED: could not TERM the owned driver process group" >&2
+    return 1
   fi
+  end=$((SECONDS + TERM_GRACE_SECONDS))
+  while driver_group_has_live_descendants && [ "$SECONDS" -lt "$end" ]; do sleep 0.1; done
+  if ! driver_group_is_owned; then
+    echo "GOLDEN LOOP FAILED: refusing to KILL an unowned driver process group" >&2
+    return 1
+  fi
+  if ! kill -KILL -- "-$DRIVER_PGID" 2>/dev/null; then
+    echo "GOLDEN LOOP FAILED: could not KILL the owned driver process group" >&2
+    return 1
+  fi
+  end=$((SECONDS + 2))
+  while driver_group_has_live_descendants && [ "$SECONDS" -lt "$end" ]; do sleep 0.05; done
   if [ -n "$DRIVER_PID" ]; then
     wait "$DRIVER_PID" 2>/dev/null || true
   fi
@@ -147,21 +170,25 @@ stop_driver_group() {
 }
 
 run_driver() {
-  local status_file="$TEMP_ROOT/driver.status" deadline status current_start
-  rm -f "$status_file" "$status_file".*
+  local status_file="$TEMP_ROOT/driver.status" hold_file="$TEMP_ROOT/driver.hold"
+  local deadline status current_start
+  rm -f "$status_file" "$status_file".* "$hold_file"
+  mkfifo "$hold_file" || return 1
   setsid bash -c '
     status_file="$1"; shift
+    hold_file="$1"; shift
     driver="$1"; shift
+    exec 3<>"$hold_file"
     node "$driver" "$@" &
     child=$!
-    trap '\''kill -TERM "$child" 2>/dev/null || true; exit 143'\'' TERM INT
+    trap '\''kill -TERM "$child" 2>/dev/null || true'\'' TERM INT
     set +e
     wait "$child"
     status=$?
     temporary_status="$status_file.$$"
     printf "%s\n" "$status" >"$temporary_status" && mv "$temporary_status" "$status_file"
-    while :; do sleep 3600 & wait $!; done
-  ' _ "$status_file" "$DRIVER" "$@" &
+    while :; do read -r -t 3600 _ <&3 || true; done
+  ' _ "$status_file" "$hold_file" "$DRIVER" "$@" &
   DRIVER_PID=$!
   DRIVER_PGID=$DRIVER_PID
   DRIVER_GROUP_START_TIME=""
@@ -173,7 +200,7 @@ run_driver() {
     sleep 0.01
   done
   if [ -z "$DRIVER_GROUP_START_TIME" ]; then
-    stop_driver_group
+    stop_driver_group || true
     return 1
   fi
 
@@ -181,18 +208,18 @@ run_driver() {
   while [ ! -s "$status_file" ]; do
     if ! kill -0 "$DRIVER_PID" 2>/dev/null; then
       if wait "$DRIVER_PID"; then status=0; else status=$?; fi
-      stop_driver_group
+      if ! stop_driver_group; then return 1; fi
       return "$status"
     fi
     if [ "$SECONDS" -ge "$deadline" ]; then
-      stop_driver_group
+      if ! stop_driver_group; then return 1; fi
       return 124
     fi
     sleep 0.05
   done
   status="$(<"$status_file")"
   [[ "$status" =~ ^[0-9]+$ ]] || status=1
-  stop_driver_group
+  if ! stop_driver_group; then return 1; fi
   return "$status"
 }
 
@@ -207,13 +234,17 @@ cleanup() {
     [ -z "$TEMP_ROOT" ] || tail -120 "$TEMP_ROOT/vite.log" >&2 2>/dev/null || true
   fi
   stop_pid "$APP_PID"
-  stop_driver_group
+  if ! stop_driver_group; then status=1; fi
   stop_pid "$VITE_PID"
   if [ -n "$XVFB_PID_FILE" ] && [ -s "$XVFB_PID_FILE" ]; then
     XVFB_PID="$(cat "$XVFB_PID_FILE" 2>/dev/null || true)"
     stop_pid "$XVFB_PID"
   fi
   [ -z "$TEMP_ROOT" ] || rm -rf "$TEMP_ROOT"
+  if [ "$status" -ne 0 ]; then
+    trap - EXIT
+    exit "$status"
+  fi
 }
 trap on_error ERR
 trap cleanup EXIT INT TERM
