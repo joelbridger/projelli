@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, ShieldCheck } from 'lucide-react';
 import { Badge, Button, Card, SearchField, SegmentedToggle, SlidePanel } from '@/ui/kp';
+import { isEnabled } from '@/platform/flags';
 import { BookDirectoryView } from './BookDirectoryView';
 import type {
   DirectoryActionDescriptor,
@@ -42,7 +43,7 @@ function DirectoryResults({ context }: { context: DirectoryContext }) {
 }
 
 export const legacyDirectoryTools: readonly DirectoryToolDescriptor[] = [
-  { id: 'view-switch', order: 10, mount: (context) => <SegmentedToggle ariaLabel="Client Map view" value={context.sort.value ?? 'directory'} onChange={(value) => { context.sort.setValue(value); }} options={[{ value: 'directory', label: 'Clients', testId: 'crm-directory-view-directory' }, { value: 'book', label: 'Whole book', testId: 'crm-directory-view-book' }]} data-testid="crm-directory-view" /> },
+  { id: 'view-switch', order: 10, mount: (context) => <SegmentedToggle ariaLabel="Client Map view" value={context.sort.value ?? 'directory'} onChange={(value) => { context.sort.setValue(value); }} options={[{ value: 'directory', label: 'Clients', testId: 'crm-directory-view-directory' }, ...(isEnabled('own-clients-permissions') ? [{ value: 'book', label: 'Whole book', testId: 'crm-directory-view-book' }] : [])]} data-testid="crm-directory-view" /> },
   // PARITY: renders unconditionally to match pre-refactor DirectorySurface; hiding/repurposing it in book view is a tracked design finding, not a refactor-lane change.
   { id: 'tab-switch', order: 20, mount: (context) => <SegmentedToggle ariaLabel="Directory view" value={context.filters.tab} onChange={(value) => { context.filters.setTab(value); }} options={[{ value: 'households', label: 'Households' }, { value: 'people', label: 'People' }]} data-testid="crm-directory-tab" /> },
   { id: 'search', order: 30, mount: (context) => context.sort.value !== 'book' ? <SearchField value={context.query.value} onChange={(value) => { context.query.setValue(value); }} placeholder={context.filters.tab === 'households' ? 'Find a household' : 'Find a person'} data-testid="crm-directory-search" /> : null },

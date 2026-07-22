@@ -129,6 +129,7 @@ export interface MeetingListContext {
   readonly reviewResult: MeetingReviewInboxResult;
   readonly reviewFilter: MeetingReviewInboxFilter;
   readonly currentMemberId: string | null;
+  readonly allowOwnerScope: boolean;
   readonly now: number;
   openMeeting: (ref: MeetingRef) => Promise<void>;
   setReviewFilter: (filter: MeetingReviewInboxFilter) => void;
@@ -290,20 +291,22 @@ function ActionsView({ context }: { context: MeetingListContext }) {
           <option value="unmatched-attendee">{t('meetings.shell.filters.unmatched-attendees')}</option>
         </select>
       </label>
-      <label>
-        <span>{t('meetings.shell.filters.owner')}</span>
-        <select
-          data-testid="meetings-actions-owner-filter"
-          value={ownerValue}
-          onChange={(event) => { setOwner(event.target.value as 'all' | 'mine' | 'unassigned'); }}
-        >
-          <option value="all">{t('meetings.shell.filters.all-owners')}</option>
-          {context.currentMemberId ? (
-            <option value="mine">{t('meetings.shell.filters.mine')}</option>
-          ) : null}
-          <option value="unassigned">{t('meetings.shell.filters.unassigned')}</option>
-        </select>
-      </label>
+      {context.allowOwnerScope ? (
+        <label>
+          <span>{t('meetings.shell.filters.owner')}</span>
+          <select
+            data-testid="meetings-actions-owner-filter"
+            value={ownerValue}
+            onChange={(event) => { setOwner(event.target.value as 'all' | 'mine' | 'unassigned'); }}
+          >
+            <option value="all">{t('meetings.shell.filters.all-owners')}</option>
+            {context.currentMemberId ? (
+              <option value="mine">{t('meetings.shell.filters.mine')}</option>
+            ) : null}
+            <option value="unassigned">{t('meetings.shell.filters.unassigned')}</option>
+          </select>
+        </label>
+      ) : null}
     </div>
   );
 
@@ -445,6 +448,7 @@ const emptyListContext: MeetingListContext = {
   reviewResult: MEETING_REVIEW_INBOX_LOADING,
   reviewFilter: DEFAULT_MEETING_REVIEW_INBOX_FILTER,
   currentMemberId: null,
+  allowOwnerScope: false,
   now: 0,
   openMeeting: () => Promise.resolve(),
   setReviewFilter: () => undefined,
