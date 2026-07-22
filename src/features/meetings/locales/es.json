@@ -217,7 +217,18 @@
       "copy-transcript": "Copiar transcripción",
       "send-action": "Enviar",
       "export-summary-pdf": "Exportar resumen como PDF",
-      "type-change": "Cambiar tipo"
+      "type-change": "Cambiar tipo",
+      "visibility-preference": {
+        "title": "Preferencia de visibilidad",
+        "description": "Elige a qué compañeros debe mostrar Lantern esta reunión.",
+        "shared-with-you": "Compartida contigo",
+        "boundary-explanation": "Esto organiza las vistas habituales de los compañeros. No cambia el cifrado ni los límites de seguridad.",
+        "owner": "Responsable",
+        "loading": "Cargando la preferencia de visibilidad…",
+        "saving": "Guardando…",
+        "saved": "Guardado",
+        "error": "No se pudo guardar la preferencia de visibilidad. Inténtalo de nuevo."
+      }
     },
     "agenda": {
       "loading": "Cargando la agenda de esta reunión",

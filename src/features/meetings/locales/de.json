@@ -217,7 +217,18 @@
       "send-review-first": "Zuerst prüfen",
       "send-action": "Senden",
       "export-transcript": "Transkript exportieren",
-      "copy-summary": "Zusammenfassung kopieren"
+      "copy-summary": "Zusammenfassung kopieren",
+      "visibility-preference": {
+        "title": "Sichtbarkeitseinstellung",
+        "description": "Wählen Sie aus, welchen Kolleginnen und Kollegen Lantern diese Besprechung anzeigen soll.",
+        "shared-with-you": "Mit Ihnen geteilt",
+        "boundary-explanation": "Dies ordnet die normalen Ansichten für Kolleginnen und Kollegen. Es ändert weder die Verschlüsselung noch Sicherheitsgrenzen.",
+        "owner": "Verantwortlich",
+        "loading": "Sichtbarkeitseinstellung wird geladen…",
+        "saving": "Wird gespeichert…",
+        "saved": "Gespeichert",
+        "error": "Die Sichtbarkeitseinstellung konnte nicht gespeichert werden. Versuchen Sie es erneut."
+      }
     },
     "agenda": {
       "loading": "Die Agenda dieses Gesprächs wird geladen",

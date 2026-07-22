@@ -17,7 +17,8 @@ const meetingBoundaryMint = vi.hoisted(() => ({
 }));
 
 vi.mock('@/platform/client-context', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/platform/client-context')>();
+  const actual =
+    await importOriginal<typeof import('@/platform/client-context')>();
   return {
     ...actual,
     readSelectionOperationDecision: (
@@ -50,8 +51,34 @@ import {
 } from './foundation/contract';
 import {
   meetingEntryHostIdentity,
+  type MeetingEntryHostIdentity,
   type MeetingEntryTarget,
 } from './meetingEntryHostIdentity';
+import { registerMeetingHeaderAction } from './meetingHeaderActionRegistry';
+
+declare module './meetingWorkspaceTypes' {
+  interface MeetingHeaderActionIdMap {
+    host_identity_probe: true;
+  }
+}
+
+let unregisterHeaderProbe: (() => void) | null = null;
+
+function captureHeaderIdentity(
+  capture: (identity: MeetingEntryHostIdentity) => void
+): void {
+  unregisterHeaderProbe?.();
+  unregisterHeaderProbe = registerMeetingHeaderAction({
+    id: 'host_identity_probe',
+    order: 5,
+    labelKey: 'meetings.entry.host-identity-probe',
+    placement: 'secondary',
+    mount: (context) => {
+      capture(context.hostIdentity);
+      return createElement('span', { 'data-testid': 'host-identity-probe' });
+    },
+  });
+}
 
 function mintedBoundary(
   householdRef: string,
@@ -72,8 +99,16 @@ function mintedBoundary(
   }
 }
 
-const clientA = mintedBoundary('household-a', 'matter-shared', 'Alpha Household');
-const clientB = mintedBoundary('household-b', 'matter-shared', 'Beta Household');
+const clientA = mintedBoundary(
+  'household-a',
+  'matter-shared',
+  'Alpha Household'
+);
+const clientB = mintedBoundary(
+  'household-b',
+  'matter-shared',
+  'Beta Household'
+);
 const clientFolder = '/workspace/Clients/Alpha';
 const meetingDir = `${clientFolder}/Meetings/meeting-a`;
 
@@ -85,7 +120,10 @@ function canonicalPort() {
     error: null,
     getActiveClientBoundary: () => clientA,
     save(record: LiveCrmRecord) {
-      records = [...records.filter((candidate) => candidate.id !== record.id), record];
+      records = [
+        ...records.filter((candidate) => candidate.id !== record.id),
+        record,
+      ];
       return Promise.resolve(structuredClone(record));
     },
     reloadRecords: () => Promise.resolve(structuredClone(records)),
@@ -108,7 +146,8 @@ function seedTrustedAuthority(): void {
   setActiveWorkspaceService({
     getRootPath: () => '/workspace',
     exists: () => Promise.resolve(true),
-    readFile: () => Promise.resolve(JSON.stringify({ matterId: clientA.matterId })),
+    readFile: () =>
+      Promise.resolve(JSON.stringify({ matterId: clientA.matterId })),
     isSymlink: () => Promise.resolve(false),
     resolveSymlink: () => Promise.resolve('/workspace'),
   } as unknown as WorkspaceService);
@@ -154,6 +193,8 @@ async function mintDirectTarget(): Promise<DirectClientMeetingTarget> {
 }
 
 afterEach(() => {
+  unregisterHeaderProbe?.();
+  unregisterHeaderProbe = null;
   setActiveWorkspaceService(null);
   useMatterStore.setState({ matters: [] });
 });
@@ -179,9 +220,24 @@ describe('F11 meeting detail mount identity chokepoint', () => {
   it('accepts a genuine canonical resolver target for the exact pair', async () => {
     seedTrustedAuthority();
     const target = await mintCanonicalTarget();
-    expect(
-      meetingEntryHostIdentity({ activeClientBoundary: clientA, target })
-    ).toMatchObject({
+    let received: MeetingEntryHostIdentity | null = null;
+    captureHeaderIdentity((identity) => {
+      received = identity;
+    });
+
+    render(
+      createElement(MeetingEntry, {
+        activeClientBoundary: clientA,
+        target,
+        clientName: 'Alpha Household',
+        workspaceRoot: '/workspace',
+        workspaceService: null,
+        onBack: () => undefined,
+      })
+    );
+
+    expect(screen.getByTestId('host-identity-probe')).toBeInTheDocument();
+    expect(received).toMatchObject({
       matterId: clientA.matterId,
       meetingDir,
       canonicalMeeting: { householdRef: clientA.householdRef },
@@ -192,9 +248,24 @@ describe('F11 meeting detail mount identity chokepoint', () => {
   it('accepts a genuine F8 direct-adapter target for the exact pair', async () => {
     seedTrustedAuthority();
     const target = await mintDirectTarget();
-    expect(
-      meetingEntryHostIdentity({ activeClientBoundary: clientA, target })
-    ).toMatchObject({
+    let received: MeetingEntryHostIdentity | null = null;
+    captureHeaderIdentity((identity) => {
+      received = identity;
+    });
+
+    render(
+      createElement(MeetingEntry, {
+        activeClientBoundary: clientA,
+        target,
+        clientName: 'Alpha Household',
+        workspaceRoot: '/workspace',
+        workspaceService: null,
+        onBack: () => undefined,
+      })
+    );
+
+    expect(screen.getByTestId('host-identity-probe')).toBeInTheDocument();
+    expect(received).toMatchObject({
       matterId: clientA.matterId,
       meetingDir,
       folderName: 'meeting-a',
