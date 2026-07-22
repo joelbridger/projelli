@@ -787,47 +787,45 @@ function renderNonV1(features){
   document.body.appendChild(aside);
 }
 
-// layer picker (generated from LAYERS so future layers just work)
+// Controls stay disabled and listener-free until the payload is verified.
 var layersEl=document.getElementById('layers');
 LAYERS.forEach(function(L){
   var b=document.createElement('button');
-  b.className='chip'+(L.id===state.layer?' active':''); b.dataset.l=L.id; b.title=L.title; b.textContent=L.name;
-  b.addEventListener('click',function(){
-    if(state.layer===L.id)return;
-    state.layer=L.id;
-    if(!L.statuses) state.filter='all';
-    layersEl.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('active',x.dataset.l===L.id);});
-    document.querySelectorAll('#statusfilters .chip').forEach(function(x){
-      var selected=x.dataset.f===state.filter;
-      x.classList.toggle('active',selected);
-      x.setAttribute('aria-pressed',selected?'true':'false');
-    });
-    applyBodyState();
-    writeHash();
-    if(MAPDATA) buildMap();
-  });
+  b.className='chip'+(L.id===state.layer?' active':''); b.dataset.l=L.id; b.title=L.title; b.textContent=L.name; b.disabled=true;
   layersEl.appendChild(b);
 });
 var stylesEl=document.getElementById('styles');
 STYLES.forEach(function(S){
   var b=document.createElement('button');
-  b.className='chip'+(S.id===state.style?' active':''); b.dataset.s=S.id; b.title=S.title; b.textContent=S.name;
-  b.addEventListener('click',function(){
-    if(state.style===S.id)return;
-    state.style=S.id;
-    stylesEl.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('active',x.dataset.s===S.id);});
-    applyBodyState();
-    writeHash();
-    if(MAPDATA){ buildMap(); if(fitMap) fitMap(); }
-  });
+  b.className='chip'+(S.id===state.style?' active':''); b.dataset.s=S.id; b.title=S.title; b.textContent=S.name; b.disabled=true;
   stylesEl.appendChild(b);
 });
-applyBodyState();
+document.querySelectorAll('#statusfilters .chip,#zin,#zout,#zfit,#cmode').forEach(function(b){b.disabled=true;});
+function enableVerifiedControls(){
+  layersEl.querySelectorAll('.chip').forEach(function(b){b.disabled=false;b.addEventListener('click',function(){
+    var id=b.dataset.l;if(state.layer===id)return;state.layer=id;if(!layerDef().statuses)state.filter='all';
+    layersEl.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('active',x.dataset.l===id);});
+    document.querySelectorAll('#statusfilters .chip').forEach(function(x){var selected=x.dataset.f===state.filter;x.classList.toggle('active',selected);x.setAttribute('aria-pressed',selected?'true':'false');});
+    applyBodyState();writeHash();buildMap();
+  });});
+  stylesEl.querySelectorAll('.chip').forEach(function(b){b.disabled=false;b.addEventListener('click',function(){
+    var id=b.dataset.s;if(state.style===id)return;state.style=id;
+    stylesEl.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('active',x.dataset.s===id);});
+    applyBodyState();writeHash();buildMap();if(fitMap)fitMap();
+  });});
+  document.querySelectorAll('#statusfilters .chip').forEach(function(b){b.disabled=false;b.addEventListener('click',function(){
+    document.querySelectorAll('#statusfilters .chip').forEach(function(x){x.classList.remove('active');x.setAttribute('aria-pressed','false');});
+    b.classList.add('active');b.setAttribute('aria-pressed','true');state.filter=b.dataset.f;applyBodyState();
+  });});
+  document.querySelectorAll('#zin,#zout,#zfit,#cmode').forEach(function(b){b.disabled=false;});
+  applyBodyState();
+}
 
 fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('status '+r.status);return r.text();}).then(verifyFeatureMapPayload).then(function(d){
   var verdict=validateMapData(d);
   if(!verdict.ok) throw new Error(verdict.error);
   MAPDATA=d;
+  enableVerifiedControls();
   buildMap();
   var hashPrefix=d.input_hash.slice(0,12);
   var updated=document.getElementById('updated');
@@ -957,16 +955,6 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
   var er=document.createElement('div'); er.className='error';
   er.innerHTML='<div>Could not load the map ('+esc(e.message)+'). Check that <code>feature-map-data.json</code> sits next to this page.</div>';
   document.body.appendChild(er);
-});
-
-document.querySelectorAll('#statusfilters .chip').forEach(function(b){
-  b.addEventListener('click',function(){
-    document.querySelectorAll('#statusfilters .chip').forEach(function(x){x.classList.remove('active');x.setAttribute('aria-pressed','false');});
-    b.classList.add('active');
-    b.setAttribute('aria-pressed','true');
-    state.filter=b.dataset.f;
-    applyBodyState();
-  });
 });
 </script>
 <!-- Maintainers: content lives in feature-map-data.json (docs/board/ in the Lantern project).

@@ -7,7 +7,7 @@
 - Built — checking it → `built-checking`
 - Proven on Windows → `proven-windows`
 
-Before it draws a card, starts pan/zoom, fetches comments, or enables map actions, the page fetches `feature-map-data.json` as raw text. Its built-in strict reader rejects duplicate object keys at every level, malformed JSON, unsafe numbers (only safe integers are allowed), unpaired Unicode surrogates, and values outside JSON. It then requires the exact top-level field list, including `payload_sha256`.
+Before it draws a card, starts pan/zoom, fetches comments, or enables map actions, the page fetches `feature-map-data.json` as raw text. Until that succeeds, every map button is disabled and has no action listener: clicks cannot change the URL, selected layer/style/filter, page state, map, pan/zoom, or comments. Its built-in strict reader rejects duplicate object keys at every level, malformed JSON, unsafe numbers (only safe integers are allowed), unpaired Unicode surrogates, and values outside JSON. It then requires the exact top-level field list, including `payload_sha256`.
 
 The page builds the unsigned payload form directly as text: object names are sorted by Unicode scalar value, array order is kept, separators are compact, text is UTF-8 with normal Unicode characters, and only the top-level `payload_sha256` is left out. Browser WebCrypto calculates SHA-256 over those bytes. Only a matching lower-case 64-character digest proceeds to the existing four-label and requirement checks. Any network, parsing, contract, digest, or WebCrypto failure leaves zero journey cards, zero foundation cards, and zero outside-V1 cards, with one plain visible error. It does not guess a label or render first and erase later.
 
@@ -35,3 +35,10 @@ Run the renderer contract checks without network access:
 ```bash
 node docs/board/feature-map-renderer.test.mjs
 ```
+
+The offline test reads shared proof material from one optional coordination-root
+environment variable, LANTERN_COORDINATION_ROOT. It defaults to
+/home/jameson/lantern/coordination and derives the accepted data, shared
+vectors, JavaScript reference, and publisher from that root. It stops with a
+clear missing-file error if that checkout is incomplete; it never depends on a
+temporary worktree.

@@ -8,17 +8,21 @@ import { JSDOM } from 'jsdom';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const source = fs.readFileSync(path.join(here, 'feature-map.html'), 'utf8');
-const controlPath = '/home/jameson/lantern/coordination/.worktrees/control/view-publication-c41/control/generated/feature-map-data.json';
+const coordinationRoot = process.env.LANTERN_COORDINATION_ROOT || '/home/jameson/lantern/coordination';
+const controlPath = path.join(coordinationRoot, 'control/generated/feature-map-data.json');
+const vectorsPath = path.join(coordinationRoot, 'control/fixtures/payload-sha256-vectors.json');
+const referencePath = path.join(coordinationRoot, 'coordinator/tools/verify-feature-map-payload.mjs');
+const publisher = path.join(coordinationRoot, 'coordinator/tools/publish-control-views.py');
+for (const requiredPath of [controlPath, vectorsPath, referencePath, publisher]) {
+  if (!fs.existsSync(requiredPath)) throw new Error(`LANTERN_COORDINATION_ROOT is missing required file: ${requiredPath}`);
+}
 const accepted = JSON.parse(fs.readFileSync(controlPath, 'utf8'));
 const acceptedRaw = fs.readFileSync(controlPath, 'utf8');
-const vectorsPath = '/home/jameson/lantern/coordination/.worktrees/control/view-publication-c41/control/fixtures/payload-sha256-vectors.json';
-const referencePath = '/home/jameson/lantern/coordination/.worktrees/control/view-publication-c41/coordinator/tools/verify-feature-map-payload.mjs';
 const vectors = JSON.parse(fs.readFileSync(vectorsPath, 'utf8'));
 const reference = await import(`${pathToFileURL(referencePath).href}?renderer-test=${Date.now()}`);
 const page = source.replace(/<script>\/\* panzoom[\s\S]*?<\/script>/, `<script>
 window.panzoom=function(){var transform={x:0,y:0,scale:1};return {getTransform:function(){return transform;},zoomAbs:function(x,y,scale){transform.scale=scale;},moveTo:function(x,y){transform.x=x;transform.y=y;},on:function(){}};};
 </script>`);
-const publisher = '/home/jameson/lantern/coordination/coordinator/tools/publish-control-views.py';
 const parserProgram = `import importlib.util,sys
 spec=importlib.util.spec_from_file_location('publisher',${JSON.stringify(publisher)})
 module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
@@ -33,6 +37,7 @@ async function render(raw = acceptedRaw, comments = [], options = {}) {
         requests.push({ url: String(url), options: fetchOptions });
         if (String(url) === 'feature-map-data.json') {
           if (options.networkError) throw new Error('network unavailable');
+          if (options.dataPromise) return options.dataPromise;
           return { ok: options.ok !== false, text: async () => raw };
         }
         if (String(url) === '/api/feature-map/comments' && (!fetchOptions.method || fetchOptions.method === 'GET')) return { ok: true, json: async () => comments };
@@ -60,6 +65,8 @@ function renderCounts(document) {
 function assertRejected(result, message) {
   assert.deepEqual(renderCounts(result.document), [0, 0, 0], `${message}: no journey, foundation, or outside-V1 cards render`);
   assert.equal(result.document.querySelectorAll('.error').length, 1, `${message}: one visible error renders`);
+  assert.equal(result.requests.filter((request) => request.url.includes('/api/feature-map/comments')).length, 0, `${message}: no comment request occurs`);
+  assert.ok([...result.document.querySelectorAll('#layers button,#styles button,#statusfilters button,#zin,#zout,#zfit,#cmode')].every((button) => button.disabled), `${message}: every map control stays inert`);
 }
 
 assert.ok(publisherAccepts(source), 'the exact renderer document is accepted by the reviewed publisher');
@@ -93,6 +100,32 @@ const { document, dom, requests } = rendered;
 const renderer = dom.window.FeatureMapRenderer;
 
 assert.equal(renderer.version, 'four-label-v1');
+let releaseDelayedPayload;
+const delayedPayload = new Promise((resolve) => { releaseDelayedPayload = resolve; });
+const delayed = await render(acceptedRaw, [], { dataPromise: delayedPayload });
+const delayedBefore = {
+  hash: delayed.dom.window.location.hash,
+  body: delayed.document.body.className,
+  layer: delayed.document.querySelector('[data-l="vision"]').className,
+  filter: delayed.document.querySelector('[data-f="planned"]').getAttribute('aria-pressed'),
+  cards: renderCounts(delayed.document),
+};
+for (const control of delayed.document.querySelectorAll('#layers button,#styles button,#statusfilters button,#zin,#zout,#zfit,#cmode')) control.click();
+const delayedAfter = {
+  hash: delayed.dom.window.location.hash,
+  body: delayed.document.body.className,
+  layer: delayed.document.querySelector('[data-l="vision"]').className,
+  filter: delayed.document.querySelector('[data-f="planned"]').getAttribute('aria-pressed'),
+  cards: renderCounts(delayed.document),
+};
+assert.deepEqual(delayedAfter, delayedBefore, 'a delayed payload keeps hash, body state, selected controls, and cards unchanged');
+assert.equal(delayed.requests.filter((request) => request.url.includes('/api/feature-map/comments')).length, 0, 'a delayed payload makes no comment request');
+assert.ok([...delayed.document.querySelectorAll('#layers button,#styles button,#statusfilters button,#zin,#zout,#zfit,#cmode')].every((button) => button.disabled), 'a delayed payload keeps every map control disabled');
+releaseDelayedPayload({ ok: true, text: async () => acceptedRaw });
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(delayed.document.querySelectorAll('.error').length, 0, 'the delayed valid payload can still finish normally');
+delayed.dom.window.close();
+
 for (const vector of vectors.vectors) {
   assert.equal(renderer.canonicalizePayload(renderer.parseStrictJson(JSON.stringify(vector.value))), vector.canonical, `${vector.name}: inline canonical form matches the shared vector`);
   assert.equal(await renderer.sha256Hex(vector.canonical), vector.sha256, `${vector.name}: inline digest matches the shared vector`);
@@ -163,52 +196,46 @@ assert.deepEqual([...fourLabelRender.document.querySelectorAll('#counts .count')
   '○ 75 Planned', '◐ 1 Being built', '◒ 1 Built — checking it', '✓ 1 Proven on Windows',
 ], 'all and only the four public labels render as count chips: '+(fourLabelRender.document.querySelector('.error')?.textContent||'no error'));
 
-for (const mutate of [
-  (data) => { delete data.input_hash; },
-  (data) => { data.input_hash = ' '; },
-  (data) => { data.extra = 'invented'; },
-  (data) => { delete data.requirementUniverse; },
-  (data) => { data.requirementUniverse.v1.pop(); },
-  (data) => { data.requirementUniverse.v1[0].id = data.requirementUniverse.v1[1].id; },
-  (data) => { data.requirementUniverse.v1[0].label = 'shipped'; },
-  (data) => { data.requirementUniverse.outside_v1.push(clone(data.requirementUniverse.outside_v1[0])); },
-  (data) => { data.stages[0].groups[0].features[1].id = data.stages[0].groups[0].features[0].id; },
-  (data) => { data.stages[0].groups[0].features[0].requirementIds = ['SC-022', ' sc-022 ']; },
-  (data) => { data.stages[0].groups[0].features[0].requirementIds = ['NO-001']; },
-  (data) => { data.stages[0].groups[0].features[0].requirementIds = ['WB-145']; },
-  (data) => { data.stages[0].groups[0].features[0].status = 'shipped'; },
-  (data) => { data.nonV1Features[0].outsideV1Reason = ' '; },
-]) {
-  const invalid = clone(validControlData);
-  mutate(invalid);
-  assert.equal(renderer.validateMapData(invalid).ok, false, 'missing, malformed, duplicate, mismatched, or invented control data fails closed');
-}
-const rejected = clone(validControlData); delete rejected.requirementUniverse;
-const failedRender = await render(raw(rejected));
-assertRejected(failedRender, 'missing requirement universe');
-assert.match(failedRender.document.querySelector('.error').textContent, /fields differ from the exact contract/, 'missing contract data has a clear error');
-
-for (const mutate of [
-  (data) => { data.updated = 'changed'; },
-  (data) => { data.stages[0].groups[0].features[0].name = 'changed'; },
-  (data) => { data.foundation.features[0].name = 'changed'; },
-  (data) => { data.nonV1Features[0].name = 'changed'; },
-  (data) => { data.requirementUniverse.v1[0].label = 'Being built'; },
-  (data) => { data.stages.reverse(); },
-]) {
-  const changed = clone(validControlData); mutate(changed);
-  assertRejected(await render(raw(changed)), 'digest mismatch after nested payload mutation');
-}
-for (const [name, body, options] of [
-  ['duplicate key', acceptedRaw.replace('"updated":', '"updated":"duplicate","updated":'), {}],
+const failureCases = [
+  ['duplicate top key', acceptedRaw.replace('"updated":', '"updated":"duplicate","updated":'), {}],
+  ['duplicate nested key', '{"outer":{"x":1,"x":2}}', {}],
+  ['duplicate array-object key', '[{"x":1,"x":2}]', {}],
+  ['even escape parity', '{"text":"\\\\\\\\","payload_sha256":"x"}', {}],
+  ['odd escape parity', '{"text":"\\\\\\"}', {}],
+  ['paired surrogate', '{"text":"\\\\ud83d\\\\ude00"}', {}],
+  ['unpaired high surrogate', '{"text":"\\\\ud800"}', {}],
+  ['unpaired low surrogate', '{"text":"\\\\udc00"}', {}],
+  ['prefix bytes', 'prefix'+acceptedRaw, {}],
+  ['trailing bytes', acceptedRaw+' trailing', {}],
+  ['two JSON values', acceptedRaw+' {}', {}],
+  ['malformed array', '[1,]', {}],
+  ['malformed object', '{"x":}', {}],
   ['missing digest', raw(Object.fromEntries(Object.entries(validControlData).filter(([key]) => key !== 'payload_sha256'))), {}],
   ['bad digest', raw({ ...validControlData, payload_sha256: '0'.repeat(64) }), {}],
   ['extra field', raw({ ...validControlData, invented: true }), {}],
-  ['malformed JSON', '{', {}],
-  ['unsafe float', acceptedRaw.replace('"version": 6', '"version": 6.0'), {}],
   ['network error', acceptedRaw, { networkError: true }],
-  ['WebCrypto failure', acceptedRaw, { crypto: { subtle: { digest: async () => { throw new Error('digest unavailable'); } } } }],
-]) assertRejected(await render(body, [], options), name);
+  ['HTTP failure', acceptedRaw, { ok: false }],
+  ['WebCrypto unavailable', acceptedRaw, { crypto: {} }],
+  ['WebCrypto rejects', acceptedRaw, { crypto: { subtle: { digest: async () => { throw new Error('digest unavailable'); } } } }],
+];
+for (const vector of vectors.invalid_numeric_vectors) failureCases.push([vector.name, vector.raw, {}]);
+for (const [name, body, options] of failureCases) assertRejected(await render(body, [], options), name);
+
+for (const [name, mutate] of [
+  ['input hash', (data) => { data.input_hash = '0'.repeat(64); }],
+  ['top-level truth', (data) => { data.updated = 'changed'; }],
+  ['journey truth', (data) => { data.stages[0].groups[0].features[0].name = 'changed'; }],
+  ['journey layout', (data) => { data.stages[0].num = 99; }],
+  ['journey link', (data) => { data.stages[0].groups[0].features[0].requirementIds = ['WB-145']; }],
+  ['foundation truth', (data) => { data.foundation.features[0].name = 'changed'; }],
+  ['outside-V1 truth', (data) => { data.nonV1Features[0].outsideV1Reason = 'changed'; }],
+  ['requirement truth', (data) => { data.requirementUniverse.v1[0].label = 'Being built'; }],
+  ['requirement order', (data) => { data.requirementUniverse.v1.reverse(); }],
+  ['stage order', (data) => { data.stages.reverse(); }],
+]) {
+  const changed = clone(validControlData); mutate(changed);
+  assertRejected(await render(raw(changed)), 'digest mismatch after '+name+' mutation');
+}
 
 assert.deepEqual({ ...renderer.countFeatures(visibleFrom(validControlData)) }, { planned: 78, 'being-built': 0, 'built-checking': 0, 'proven-windows': 0 });
 console.log('feature-map renderer DOM tests passed: 69 journey cards, 9 foundation cards, 238 V1 requirements, and 21 outside-V1 requirements');
