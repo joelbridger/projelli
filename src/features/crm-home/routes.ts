@@ -26,6 +26,8 @@ export interface CrmHouseholdAddRequest {
 export interface CrmHomeProps {
   adapter?: CrmHomeAdapter;
   initialRoute?: CrmHomeRoute;
+  /** Lets a top-level surface mount one CRM destination without the CRM rail. */
+  showRail?: boolean;
   addRequest?: CrmHouseholdAddRequest;
   onAddRequestConsumed?: () => void;
   /** Sample records are visual-test-only and always visibly labelled. */

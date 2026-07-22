@@ -592,7 +592,11 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
         },
       }
     : undefined;
-  const renderHome = (): ReactNode => <CrmHome {...crmHomeHandoff} />;
+  // Today owns the existing morning plan. It does not also own the broad CRM
+  // navigation rail; the separate CRM doorway keeps that client/record work.
+  const renderHome = (): ReactNode => (
+    <CrmHome showRail={false} {...crmHomeHandoff} />
+  );
 
   /**
    * Resolve one safe client-owned folder before any Documents write. Existing

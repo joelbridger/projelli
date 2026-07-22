@@ -239,6 +239,24 @@ describe('CRM household add actions', () => {
     useMatterStore.setState({ matters: [], activeMatterId: null });
   });
 
+  it('keeps Today on the existing morning-plan doorway without the CRM rail, while CRM keeps its client doorway', async () => {
+    setDevFlagOverride('crm-shell-v1', false);
+    const setActiveTab = vi.fn();
+
+    const { unmount } = render(
+      <AppSurfaceRouter {...baseProps('home', setActiveTab)} />
+    );
+
+    expect(await screen.findByTestId('crm-screen-today')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('complementary', { name: 'Home sections' })
+    ).not.toBeInTheDocument();
+
+    unmount();
+    render(<AppSurfaceRouter {...baseProps('matters', setActiveTab)} />);
+    expect(await screen.findByTestId('crm-household-add')).toBeInTheDocument();
+  });
+
   it('saves both household and person context when Add task starts from a member record', async () => {
     setDevFlagOverride('crm-shell-v1', false);
     setDevFlagOverride('record-member-kebab', true);
