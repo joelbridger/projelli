@@ -147,13 +147,19 @@ async function shellFunctionPrefix() {
   return source.slice(0, source.indexOf('\ncleanup() {'));
 }
 
-async function runStalledBridgeDriver(stallPath) {
+async function runStalledBridgeDriver(stallPath, { stallBody = false } = {}) {
   const root = testDirectory();
   const workspace = path.join(root, 'workspace');
   const diagnostics = path.join(root, 'diagnostics');
   const sockets = new Set();
   const server = createServer((request, response) => {
-    if (request.url?.startsWith(stallPath)) return;
+    if (request.url?.startsWith(stallPath)) {
+      if (stallBody) {
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.write('{"ok":true,"result":');
+      }
+      return;
+    }
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ ok: true, result: { hasTauriInvoke: true, readyState: 'complete' } }));
   });
@@ -193,6 +199,7 @@ async function runStalledBridgeDriver(stallPath) {
 test('bridge fetch timeouts are bounded, diagnostic, and query-safe during health and eval stalls', async () => {
   await runStalledBridgeDriver('/health');
   await runStalledBridgeDriver('/eval');
+  await runStalledBridgeDriver('/eval', { stallBody: true });
 });
 
 test('post-KILL cleanup stays red and retains ownership when a descendant remains', async () => {
