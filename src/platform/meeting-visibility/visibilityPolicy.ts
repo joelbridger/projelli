@@ -25,6 +25,7 @@ export type MeetingVisibilitySubjectKind =
   | 'task'
   | 'activity'
   | 'proposal'
+  | 'workflow'
   | 'file-reference';
 
 export interface MeetingVisibilitySubjectRef {
@@ -122,6 +123,7 @@ const SUBJECT_KINDS = new Set<MeetingVisibilitySubjectKind>([
   'task',
   'activity',
   'proposal',
+  'workflow',
   'file-reference',
 ]);
 

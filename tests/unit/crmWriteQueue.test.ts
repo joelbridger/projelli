@@ -13,12 +13,19 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { mockMatterState } = vi.hoisted(() => ({
+const { mockMatterState, mockVisibilityRecords } = vi.hoisted(() => ({
   mockMatterState: { matters: [] as { id: string }[] },
+  mockVisibilityRecords: [] as Array<Record<string, unknown> & { id: string; kind: string }>,
 }));
 
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: { getState: () => mockMatterState },
+}));
+vi.mock('@/platform/crm/liveRecords', () => ({
+  loadLiveCrmRecords: vi.fn(() => Promise.resolve(mockVisibilityRecords)),
+}));
+vi.mock('@/platform/fs/activeWorkspaceService', () => ({
+  getActiveWorkspaceService: () => ({ getRootPath: () => '/workspace' }),
 }));
 
 vi.mock('@/platform/utils/wealthbox-commands', () => ({
@@ -30,6 +37,7 @@ vi.mock('@/platform/utils/wealthbox-commands', () => ({
 }));
 
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   crmApproveWriteProposal,
   crmDeleteWriteProposal,
@@ -41,6 +49,56 @@ import {
 
 function resetStore() {
   useCrmWriteQueueStore.setState({ items: [] });
+}
+
+function signInAs(userId: string) {
+  useFirmStore.setState({
+    session: {
+      userId,
+      email: `${userId}@example.com`,
+      role: 'member',
+      org: null,
+      seatId: 'seat-1',
+      tier: 'practice',
+      packs: [],
+      seats: 1,
+      lastValidatedAt: null,
+      activated: true,
+    },
+  });
+}
+
+function restrictedVisibilityRecords() {
+  mockVisibilityRecords.splice(0, mockVisibilityRecords.length,
+    {
+      id: 'meeting-preferences',
+      kind: 'meeting_foundation_preferences',
+      visibilityPolicies: [{
+        id: 'private-policy',
+        mode: 'explicit-review',
+        includedMemberIds: [],
+        excludedMemberIds: ['advisor-excluded'],
+      }],
+    },
+    {
+      id: 'meeting-private',
+      kind: 'meeting',
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+    },
+    {
+      id: 'artifact-private',
+      kind: 'meeting_artifact',
+      meetingVisibility: {
+        kind: 'meeting-artifact',
+        id: 'artifact-private',
+        lineage: 'derived',
+        ownerRef: 'advisor-owner',
+        visibilityPolicyId: 'private-policy',
+        parentRef: { kind: 'meeting-note', id: 'meeting-private' },
+      },
+    },
+  );
 }
 
 function defaultBackendRecord(overrides: Partial<CrmWriteProposalRecord> = {}): CrmWriteProposalRecord {
@@ -65,6 +123,8 @@ beforeEach(() => {
   resetStore();
   localStorage.clear();
   mockMatterState.matters = [];
+  mockVisibilityRecords.splice(0);
+  useFirmStore.setState({ session: null });
   vi.mocked(crmSaveWriteProposal).mockClear();
   vi.mocked(crmPrepareWriteProposal).mockClear();
   vi.mocked(crmApproveWriteProposal).mockClear();
@@ -586,5 +646,62 @@ describe('hydrateFromBackend', () => {
     await useCrmWriteQueueStore.getState().hydrateFromBackend();
 
     expect(useCrmWriteQueueStore.getState().items).toEqual([]);
+  });
+
+  it('retains structured visibility across failure and restart, then hides it after a viewer switch', async () => {
+    mockMatterState.matters = [{ id: 'm1' }];
+    restrictedVisibilityRecords();
+    signInAs('advisor-owner');
+    const meetingVisibility = {
+      kind: 'proposal' as const,
+      id: 'private-proposal',
+      lineage: 'derived' as const,
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: {
+        kind: 'meeting-artifact' as const,
+        id: 'artifact-private',
+      },
+    };
+    vi.mocked(crmListWriteProposals).mockResolvedValue([
+      defaultBackendRecord({
+        id: 'private-proposal',
+        meetingVisibility,
+      }),
+    ]);
+    await useCrmWriteQueueStore.getState().hydrateFromBackend();
+    expect(useCrmWriteQueueStore.getState().items[0]?.meetingVisibility).toEqual(
+      meetingVisibility
+    );
+
+    vi.mocked(crmApproveWriteProposal).mockRejectedValueOnce(
+      new Error('CRM write failed (HTTP 500)')
+    );
+    await useCrmWriteQueueStore
+      .getState()
+      .approve(['private-proposal'], 'household-1');
+    expect(crmSaveWriteProposal).toHaveBeenCalledWith(
+      expect.objectContaining({ meetingVisibility })
+    );
+    expect(useCrmWriteQueueStore.getState().items[0]?.status).toBe('failed');
+
+    resetStore();
+    vi.mocked(crmListWriteProposals).mockResolvedValue([
+      defaultBackendRecord({
+        id: 'private-proposal',
+        status: 'failed',
+        error: 'CRM write failed (HTTP 500)',
+        meetingVisibility,
+      }),
+    ]);
+    await useCrmWriteQueueStore.getState().hydrateFromBackend();
+    expect(useCrmWriteQueueStore.getState().items[0]?.meetingVisibility).toEqual(
+      meetingVisibility
+    );
+    expect(useCrmWriteQueueStore.getState().items[0]?.status).toBe('failed');
+
+    signInAs('advisor-excluded');
+    expect(useCrmWriteQueueStore.getState().items).toEqual([]);
+    expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1);
   });
 });

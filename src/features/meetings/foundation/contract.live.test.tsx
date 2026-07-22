@@ -175,6 +175,13 @@ describe('meetings canonical live-record round trip', () => {
       ).toMatchObject({
         state: 'approved',
         sourceRefs: ['document-1'],
+        meetingVisibility: {
+          kind: 'meeting-artifact',
+          id: artifact.id,
+          lineage: 'derived',
+          parentRef: { kind: 'meeting-note', id: created.id },
+          ownerRef: draft.ownerRef,
+        },
       });
     });
 

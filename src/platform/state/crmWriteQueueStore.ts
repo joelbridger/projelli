@@ -27,6 +27,16 @@ import {
   type PreparedFieldBlendRequest,
 } from '@/platform/state/fieldBlend';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import {
+  canReadMeetingDerivedRecord,
+  type MeetingVisibilitySubject,
+} from '@/platform/meeting-visibility';
+import {
+  loadLiveCrmRecords,
+  type LiveCrmRecord,
+} from '@/platform/crm/liveRecords';
+import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 export type CrmWriteStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending' | 'stale';
 
@@ -80,6 +90,8 @@ export interface ProposedCrmWrite {
    * to the backend, which appends it to the note content at the wire boundary.
    */
   provenance?: string;
+  /** Structured authorization lineage for meeting-derived queue entries. */
+  meetingVisibility?: MeetingVisibilitySubject;
 }
 
 interface CrmWriteQueueState {
@@ -134,6 +146,8 @@ function newId(): string {
 // at least 1ms, so a fresh requestedAt is strictly monotonic within this
 // session no matter how fast two approvals fire back to back.
 let lastRequestedAtMs = 0;
+let visibilityRecords: readonly LiveCrmRecord[] = [];
+let visibilityViewerId: string | null = null;
 function newRequestedAt(): string {
   const now = Date.now();
   lastRequestedAtMs = now > lastRequestedAtMs ? now : lastRequestedAtMs + 1;
@@ -183,6 +197,8 @@ function itemToProposalPayload(item: ProposedCrmWrite, householdKey?: string): C
   if (item.newValue !== undefined) payload.newValue = item.newValue;
   if (item.finalValue !== undefined) payload.finalValue = item.finalValue;
   if (item.provenance !== undefined) payload.provenance = item.provenance;
+  if (item.meetingVisibility !== undefined)
+    payload.meetingVisibility = item.meetingVisibility;
   if (item.aiSource !== undefined) payload.aiSource = item.aiSource;
   if (householdKey !== undefined) payload.householdKey = householdKey;
   return payload;
@@ -208,6 +224,8 @@ function recordToItem(record: CrmWriteProposalRecord): ProposedCrmWrite {
   if (record.newValue !== undefined) item.newValue = record.newValue;
   if (record.finalValue !== undefined) item.finalValue = record.finalValue;
   if (record.provenance !== undefined) item.provenance = record.provenance;
+  if (record.meetingVisibility !== undefined)
+    item.meetingVisibility = record.meetingVisibility;
   if (record.aiSource !== undefined) item.aiSource = record.aiSource;
   return item;
 }
@@ -332,6 +350,46 @@ function isValidPersistedItem(raw: unknown): raw is ProposedCrmWrite {
   );
 }
 
+function canReadQueueItem(
+  item: ProposedCrmWrite,
+  records: readonly LiveCrmRecord[],
+  viewerId: string | null | undefined
+): boolean {
+  if (!item.meetingVisibility) return true;
+  if (
+    item.meetingVisibility.kind !== 'proposal' ||
+    item.meetingVisibility.id !== item.id
+  )
+    return false;
+  return canReadMeetingDerivedRecord(
+    {
+      id: item.id,
+      kind: 'proposalRecord',
+      source: { origin: 'meeting', sources: [] },
+      meetingVisibility: item.meetingVisibility,
+    },
+    'proposal',
+    records,
+    viewerId
+  );
+}
+
+async function refreshVisibilitySnapshot(): Promise<{
+  readonly records: readonly LiveCrmRecord[];
+  readonly viewerId: string | null;
+}> {
+  const workspaceRoot = getActiveWorkspaceService()?.getRootPath() ?? null;
+  const records = await loadLiveCrmRecords(workspaceRoot);
+  const viewerId = useFirmStore.getState().session?.userId ?? null;
+  visibilityRecords = records;
+  visibilityViewerId = viewerId;
+  return { records, viewerId };
+}
+
+function canUseVisibleQueueItem(item: ProposedCrmWrite): boolean {
+  return canReadQueueItem(item, visibilityRecords, visibilityViewerId);
+}
+
 /**
  * Reconciles a just-loaded queue against reality instead of trusting the
  * encrypted snapshot blindly.
@@ -385,6 +443,15 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>()((set, get) => 
 
   enqueue: (item) => {
     const proposed: ProposedCrmWrite = { ...item, id: newId(), status: 'proposed' };
+    if (proposed.meetingVisibility) {
+      proposed.meetingVisibility = {
+        ...proposed.meetingVisibility,
+        kind: 'proposal',
+        id: proposed.id,
+      } as MeetingVisibilitySubject;
+      if (!canUseVisibleQueueItem(proposed))
+        throw new Error('This private meeting proposal is not available.');
+    }
     set((state) => ({
       items: [...state.items, proposed],
     }));
@@ -393,34 +460,52 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>()((set, get) => 
 
   hydrateFromBackend: async () => {
     const records = await crmListWriteProposals();
-    const backendItems = reconcileRehydratedItems(records.map(recordToItem));
-    const backendIds = new Set(backendItems.map((item) => item.id));
+    const visibility = await refreshVisibilitySnapshot();
+    const allBackendItems = reconcileRehydratedItems(records.map(recordToItem));
+    const backendItems = allBackendItems.filter(
+      (item) => canReadQueueItem(item, visibility.records, visibility.viewerId)
+    );
+    const backendIds = new Set(allBackendItems.map((item) => item.id));
     const legacyItems = readLegacyPlaintextQueue().filter((item) => !backendIds.has(item.id));
     for (const item of legacyItems) {
-      await persistProposalItem(item);
+      if (canReadQueueItem(item, visibility.records, visibility.viewerId))
+        await persistProposalItem(item);
     }
     clearLegacyPlaintextQueue();
-    set({ items: [...backendItems, ...legacyItems] });
+    set({
+      items: [...backendItems, ...legacyItems].filter((item) =>
+        canReadQueueItem(item, visibility.records, visibility.viewerId)
+      ),
+    });
   },
 
   approve: async (ids, householdKey) => {
+    const visibility = await refreshVisibilitySnapshot();
     // Sequential: the backend's ~1 rps gate makes parallel sends pointless,
     // and it keeps per-row status updates easy to follow in the UI.
     for (const id of ids) {
       const item = get().items.find((i) => i.id === id);
       if (!item) continue;
+      if (!canReadQueueItem(item, visibility.records, visibility.viewerId)) {
+        set((state) => ({
+          items: state.items.filter((candidate) => candidate.id !== id),
+        }));
+        throw new Error('This private meeting proposal is not available.');
+      }
       await sendOne(item, householdKey);
     }
   },
 
   dismiss: (id) => {
+    const item = get().items.find((candidate) => candidate.id === id);
+    if (!item || !canUseVisibleQueueItem(item)) return;
     set((state) => ({ items: state.items.filter((i) => i.id !== id) }));
     deleteProposalBestEffort(id);
   },
 
   updateFinalValue: (id, finalValue) => {
     const item = get().items.find((i) => i.id === id);
-    if (!item) return;
+    if (!item || !canUseVisibleQueueItem(item)) return;
     const updated: ProposedCrmWrite = { ...item, finalValue };
     setItem(id, { finalValue });
     persistProposalItemBestEffort(updated);
@@ -428,7 +513,7 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>()((set, get) => 
 
   setProvenanceIfUnset: (id, provenance) => {
     const item = get().items.find((i) => i.id === id);
-    if (item && !item.provenance) {
+    if (item && canUseVisibleQueueItem(item) && !item.provenance) {
       const updated: ProposedCrmWrite = { ...item, provenance };
       setItem(id, { provenance });
       persistProposalItemBestEffort(updated);
@@ -467,3 +552,12 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>()((set, get) => 
     });
   },
 }));
+
+useFirmStore.subscribe((state, previous) => {
+  const viewerId = state.session?.userId ?? null;
+  if (viewerId === (previous.session?.userId ?? null)) return;
+  visibilityViewerId = viewerId;
+  useCrmWriteQueueStore.setState((queue) => ({
+    items: queue.items.filter((item) => canUseVisibleQueueItem(item)),
+  }));
+});

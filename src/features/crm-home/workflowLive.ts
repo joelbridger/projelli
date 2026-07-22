@@ -10,8 +10,10 @@ import { UNTOUCHED, type EntityRef, type PropagationEngineOffer, type Propagatio
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
   derivedMeetingVisibility,
+  explicitLegacyMeetingVisibility,
   meetingVisibilityParentForRecord,
-} from './shared/meetingDerivedVisibility';
+  type MeetingVisibilitySubject,
+} from '@/platform/meeting-visibility';
 import { registerWorkflowDependentDueCompletion } from '@/features/crm-workflows';
 
 export type WorkflowStepOutcomeDraft = { id: string; label: string; nextStepId?: string | undefined; restartAtStepId?: string | undefined };
@@ -32,6 +34,7 @@ export type LiveWorkflowInstance = LiveCrmRecord & {
   kind: 'crm_workflow_instance'; templateId: string; householdId: string; householdLabel: string; name: string;
   snapshot: WorkflowInstanceSnapshot; lastApplyEventId?: string; outcomesByStep?: Record<string, WorkflowStepOutcomeDraft[]>;
   scheduleRunKey?: string; status?: 'open' | 'completed' | 'cancelled';
+  meetingVisibility?: MeetingVisibilitySubject;
 };
 export type LiveWorkflowOffer = LiveCrmRecord & {
   kind: 'crm_workflow_offer'; templateId: string; householdLabel: string; revisionLabel: string; engineOffer: PropagationEngineOffer;
@@ -177,7 +180,11 @@ function captureTransaction() {
 export function startWorkflow(
   template: LiveWorkflowTemplate,
   household: { id: string; label: string; matterId?: string },
-  options?: { id?: string; scheduleRunKey?: string }
+  options?: {
+    id?: string;
+    scheduleRunKey?: string;
+    visibilityParent?: MeetingVisibilitySubject;
+  }
 ): LiveWorkflowInstance {
   const instanceId = options?.id ?? unique('workflow-instance');
   const base: WorkflowInstanceSnapshot = { id: instanceId, acceptedRevisionIds: [], displayedRevisionSet: { revisionIds: [] }, steps: {}, decisionLedger: [], propagationEvents: [] };
@@ -203,6 +210,9 @@ export function startWorkflow(
     outcomesByStep: Object.fromEntries(template.steps.map((step) => [step.id, step.outcomes])),
     ...(options?.scheduleRunKey ? { scheduleRunKey: options.scheduleRunKey } : {}),
     status: 'open',
+    meetingVisibility: options?.visibilityParent
+      ? derivedMeetingVisibility('workflow', instanceId, options.visibilityParent)
+      : explicitLegacyMeetingVisibility('workflow', instanceId),
   };
 }
 

@@ -165,6 +165,7 @@ pub struct CrmWriteProposalDto {
     pub new_value: Option<String>,
     pub final_value: Option<String>,
     pub provenance: Option<String>,
+    pub meeting_visibility: Option<serde_json::Value>,
     pub ai_source: Option<CrmProposalAiSourceDto>,
     pub household_key: Option<String>,
     pub provider: Option<String>,
@@ -191,6 +192,7 @@ pub struct CrmWriteProposalRecordDto {
     pub new_value: Option<String>,
     pub final_value: Option<String>,
     pub provenance: Option<String>,
+    pub meeting_visibility: Option<serde_json::Value>,
     pub ai_source: Option<CrmProposalAiSourceDto>,
     pub household_key: String,
     pub provider: String,
@@ -750,6 +752,11 @@ fn crm_proposal_content_hash(proposal: &PendingCrmProposal) -> String {
     ] {
         proposal_hash_part(&mut h, part);
     }
+    // Keep the old hash byte-for-byte stable when no visibility field exists,
+    // while binding every new structured lineage into the approval hash.
+    if let Some(value) = proposal.meeting_visibility_json.as_deref() {
+        proposal_hash_part(&mut h, Some(value));
+    }
     hex::encode(h.finalize())
 }
 
@@ -779,6 +786,11 @@ fn crm_proposal_from_dto(dto: CrmWriteProposalDto) -> Result<PendingCrmProposal,
 
     let ai_source_kind = dto.ai_source.as_ref().map(|s| s.kind.clone());
     let ai_source_date = dto.ai_source.as_ref().and_then(|s| s.date.clone());
+    let meeting_visibility_json = dto
+        .meeting_visibility
+        .map(|value| serde_json::to_string(&value))
+        .transpose()
+        .map_err(|error| format!("invalid CRM proposal meeting visibility: {error}"))?;
     let mut proposal = PendingCrmProposal {
         proposal_id: dto.id,
         provider: provider.id().to_string(),
@@ -796,6 +808,7 @@ fn crm_proposal_from_dto(dto: CrmWriteProposalDto) -> Result<PendingCrmProposal,
         new_value: dto.new_value,
         final_value: dto.final_value,
         provenance: dto.provenance,
+        meeting_visibility_json,
         ai_source_kind,
         ai_source_date,
         status: validate_crm_proposal_status(dto.status)?,
@@ -813,6 +826,10 @@ fn crm_proposal_to_dto(proposal: PendingCrmProposal) -> CrmWriteProposalRecordDt
         (Some(kind), date) => Some(CrmProposalAiSourceDto { kind, date }),
         (None, _) => None,
     };
+    let meeting_visibility = proposal
+        .meeting_visibility_json
+        .as_deref()
+        .and_then(|value| serde_json::from_str(value).ok());
     CrmWriteProposalRecordDto {
         id: proposal.proposal_id,
         kind: proposal.kind,
@@ -830,6 +847,7 @@ fn crm_proposal_to_dto(proposal: PendingCrmProposal) -> CrmWriteProposalRecordDt
         new_value: proposal.new_value,
         final_value: proposal.final_value,
         provenance: proposal.provenance,
+        meeting_visibility,
         ai_source,
         household_key: proposal.household_key,
         provider: proposal.provider,
@@ -2796,6 +2814,7 @@ mod tests {
             new_value: None,
             final_value: None,
             provenance: Some("Generated from the July review meeting.".to_string()),
+            meeting_visibility_json: None,
             ai_source_kind: Some("meeting".to_string()),
             ai_source_date: Some("2026-07-09".to_string()),
             status: "sending".to_string(),
@@ -2818,6 +2837,25 @@ mod tests {
             err,
             "CRM proposal no longer matches its saved approval hash"
         );
+    }
+
+    #[test]
+    fn verify_crm_proposal_hash_binds_structured_meeting_visibility() {
+        let mut proposal = test_pending_crm_proposal();
+        proposal.meeting_visibility_json = Some(
+            r#"{"kind":"proposal","id":"proposal-1","lineage":"legacy-unrestricted"}"#
+                .to_string(),
+        );
+        proposal.content_hash = crm_proposal_content_hash(&proposal);
+        verify_crm_proposal(&proposal).expect("structured visibility must verify");
+
+        proposal.meeting_visibility_json = Some(
+            r#"{"kind":"proposal","id":"different","lineage":"legacy-unrestricted"}"#
+                .to_string(),
+        );
+        let error = verify_crm_proposal(&proposal)
+            .expect_err("changed visibility must invalidate approval hash");
+        assert_eq!(error, "CRM proposal no longer matches its saved approval hash");
     }
 
     #[test]

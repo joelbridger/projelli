@@ -8,6 +8,8 @@ import {
   type MeetingVisibilitySubject,
   type MeetingVisibilitySubjectRef,
 } from '@/platform/meeting-visibility';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { SK_INSTALL_ID } from '@/config/identity';
 
 export type TaskStatus = Task['status'];
 export type TaskPriority = Task['priority'];
@@ -104,8 +106,22 @@ const RECURRENCE_FREQUENCIES: readonly RecurrenceRule['freq'][] = [
   'yearly',
 ];
 
-function actor() {
-  return { userId: 'local-user', display: 'You', kind: 'user' as const };
+function actor(firmUserId: string | null | undefined) {
+  if (firmUserId)
+    return { userId: firmUserId, display: 'You', kind: 'user' as const };
+  let installId: string | null = null;
+  if (typeof localStorage !== 'undefined') {
+    installId = localStorage.getItem(SK_INSTALL_ID);
+    if (!installId) {
+      installId = crypto.randomUUID();
+      localStorage.setItem(SK_INSTALL_ID, installId);
+    }
+  }
+  return {
+    userId: `solo:${installId ?? crypto.randomUUID()}`,
+    display: 'You',
+    kind: 'user' as const,
+  };
 }
 
 function timestamp(): string {
@@ -136,8 +152,12 @@ function derivedTaskVisibility(
 
 function storedTaskVisibility(record: LiveCrmRecord): MeetingVisibilitySubject {
   const stored = record['meetingVisibility'];
-  if (stored && typeof stored === 'object' && !Array.isArray(stored))
-    return stored as MeetingVisibilitySubject;
+  if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+    const subject = stored as Partial<MeetingVisibilitySubject>;
+    if (subject.kind === 'task' && subject.id === record.id)
+      return stored as MeetingVisibilitySubject;
+    return { kind: 'task', id: record.id, lineage: 'derived' } as MeetingVisibilitySubject;
+  }
   const origin =
     record['source'] && typeof record['source'] === 'object'
       ? (record['source'] as { origin?: unknown }).origin
@@ -168,7 +188,11 @@ function rootSubject(record: LiveCrmRecord): MeetingVisibilitySubject | null {
   };
 }
 
-function canReadTask(record: LiveCrmRecord, records: readonly LiveCrmRecord[]): boolean {
+function canReadVisibilitySubject(
+  subject: MeetingVisibilitySubject,
+  records: readonly LiveCrmRecord[],
+  viewerId: string | null | undefined
+): boolean {
   const preferences = records.filter(
     (candidate) => candidate.kind === 'meeting_foundation_preferences'
   );
@@ -186,21 +210,48 @@ function canReadTask(record: LiveCrmRecord, records: readonly LiveCrmRecord[]): 
       const stored = candidate['meetingVisibility'];
       if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return [];
       const subject = stored as Partial<MeetingVisibilitySubject>;
-      return subject.kind === ref.kind && subject.id === ref.id
+      const expectedKind =
+        candidate.kind === 'meeting_artifact'
+          ? 'meeting-artifact'
+          : candidate.kind === 'task'
+            ? 'task'
+            : candidate.kind === 'activityEvent'
+              ? 'activity'
+              : candidate.kind === 'proposalRecord'
+                ? 'proposal'
+                : candidate.kind === 'crm_workflow_instance'
+                  ? 'workflow'
+                  : null;
+      return expectedKind === ref.kind &&
+        subject.kind === expectedKind &&
+        subject.id === candidate.id &&
+        subject.id === ref.id
         ? [stored as MeetingVisibilitySubject]
         : [];
     });
     return matches.length === 1 ? matches[0] : null;
   };
   return resolveMeetingVisibility({
-    subject: storedTaskVisibility(record),
-    viewerId: actor().userId,
+    subject,
+    viewerId,
     policies:
       preferences.length === 1 && Array.isArray(preferences[0]?.['visibilityPolicies'])
         ? preferences[0]['visibilityPolicies'] as unknown[]
         : [],
     resolveParent,
   }).visible;
+}
+
+function canReadTask(
+  record: LiveCrmRecord,
+  records: readonly LiveCrmRecord[],
+  viewerId: string | null | undefined
+): boolean {
+  return canReadVisibilitySubject(
+    storedTaskVisibility(record),
+    records,
+    viewerId
+  );
 }
 
 function requireAvailable(port: LiveTaskPort): void {
@@ -468,7 +519,10 @@ function toTaskRecord(record: LiveCrmRecord): TaskRecord {
   };
 }
 
-function canonicalTask(input: CreateTaskRecordInput): LiveCrmRecord & Task {
+function canonicalTask(
+  input: CreateTaskRecordInput,
+  currentActor: ReturnType<typeof actor>
+): LiveCrmRecord & Task {
   const now = timestamp();
   const dueTime = input.dueTime === undefined ? undefined : cleanDueTime(input.dueTime);
   const category = input.category === undefined ? undefined : cleanOptionalText(input.category);
@@ -479,9 +533,9 @@ function canonicalTask(input: CreateTaskRecordInput): LiveCrmRecord & Task {
     kind: 'task',
     matterId: 'firm_home',
     createdAt: now,
-    createdBy: actor(),
+    createdBy: currentActor,
     updatedAt: now,
-    updatedBy: actor(),
+    updatedBy: currentActor,
     source: { origin: 'user', sources: [] },
     deleted: false,
     externalRefs: [],
@@ -508,8 +562,16 @@ function canonicalTask(input: CreateTaskRecordInput): LiveCrmRecord & Task {
   } as LiveCrmRecord & Task;
 }
 
-function mergePatch(record: LiveCrmRecord, patch: UpdateTaskRecordPatch): LiveCrmRecord {
-  const next: LiveCrmRecord = { ...record, updatedAt: timestamp(), updatedBy: actor() };
+function mergePatch(
+  record: LiveCrmRecord,
+  patch: UpdateTaskRecordPatch,
+  currentActor: ReturnType<typeof actor>
+): LiveCrmRecord {
+  const next: LiveCrmRecord = {
+    ...record,
+    updatedAt: timestamp(),
+    updatedBy: currentActor,
+  };
   if ('title' in patch) next['title'] = cleanTitle(patch.title);
   if ('body' in patch) next['body'] = patch.body;
   if ('householdRef' in patch) next['householdRef'] = cleanHouseholdRef(patch.householdRef ?? null);
@@ -544,9 +606,14 @@ function mergePatch(record: LiveCrmRecord, patch: UpdateTaskRecordPatch): LiveCr
   return next;
 }
 
-function createTaskRecordStore(port: LiveTaskPort): TaskRecordStore {
+function createTaskRecordStore(
+  port: LiveTaskPort,
+  viewerId: string | null | undefined
+): TaskRecordStore {
+  const currentActor = actor(viewerId);
   const tasks = port.records.filter(
-    (record) => record.kind === 'task' && canReadTask(record, port.records)
+    (record) =>
+      record.kind === 'task' && canReadTask(record, port.records, viewerId)
   );
   const saveAndReload = async (record: LiveCrmRecord): Promise<TaskRecord> => {
     try {
@@ -566,13 +633,22 @@ function createTaskRecordStore(port: LiveTaskPort): TaskRecordStore {
     }),
     create: async (input) => {
       requireAvailable(port);
-      return saveAndReload(canonicalTask(input));
+      if (
+        input.meetingVisibilityParent &&
+        !canReadVisibilitySubject(
+          input.meetingVisibilityParent,
+          port.records,
+          viewerId
+        )
+      )
+        throw new Error('This private meeting task is not available.');
+      return saveAndReload(canonicalTask(input, currentActor));
     },
     update: async (id, patch) => {
       requireAvailable(port);
       const record = tasks.find((candidate) => candidate.id === id);
       if (!record) throw new Error('That task no longer exists.');
-      return saveAndReload(mergePatch(record, patch));
+      return saveAndReload(mergePatch(record, patch, currentActor));
     },
     remove: async (id) => {
       requireAvailable(port);
@@ -584,7 +660,7 @@ function createTaskRecordStore(port: LiveTaskPort): TaskRecordStore {
         workspaceRoot: port.workspaceRoot,
         recordId: record.id,
         matterId,
-        actorId: actor().userId,
+        actorId: currentActor.userId,
       });
       await port.reload();
     },
@@ -593,5 +669,6 @@ function createTaskRecordStore(port: LiveTaskPort): TaskRecordStore {
 
 /** Reactive adapter over the current canonical live-record snapshot. */
 export function useTaskRecordStore(): TaskRecordStore {
-  return createTaskRecordStore(useLiveCrmRecords());
+  const viewerId = useFirmStore((state) => state.session?.userId ?? null);
+  return createTaskRecordStore(useLiveCrmRecords(), viewerId);
 }

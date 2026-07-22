@@ -36,8 +36,9 @@ export interface NotesReviewCrmDelivery {
     existingValue?: string;
     newValue?: string;
     finalValue?: string;
-    /** JSON provenance retained by the encrypted CRM proposal record. */
     provenance?: string;
+    /** Structured private-note lineage retained by the encrypted queue. */
+    meetingVisibility?: MeetingVisibilitySubject;
   }): Promise<unknown>;
   prepareProposal(args: {
     proposalId: string;
@@ -248,7 +249,7 @@ export function makeNotesReviewRepository(
       body: item.detail,
       sourceRef: `meeting:${input.meetingDir}#notes-review:${item.id}`,
       status: 'proposed',
-      provenance: meetingVisibilityProvenance(
+      meetingVisibility: meetingVisibilityProposal(
         attempt.proposalId,
         input.meetingVisibilityParent
       ),
@@ -939,7 +940,7 @@ async function deliverExactCrm<Client extends NotesReviewClientPair>(
       existingValue: crmValueForTransport(field.before),
       newValue: crmValueForTransport(field.proposed),
       finalValue: crmValueForTransport(field.proposed),
-      provenance: meetingVisibilityProvenance(proposalId, parent),
+      meetingVisibility: meetingVisibilityProposal(proposalId, parent),
     });
     await delivery.prepareProposal({
       proposalId,
@@ -1008,10 +1009,10 @@ function artifactMeetingVisibility(
   return subject;
 }
 
-function meetingVisibilityProvenance(
+function meetingVisibilityProposal(
   id: string,
   parent: MeetingVisibilitySubject
-): string {
+): MeetingVisibilitySubject {
   const subject: MeetingVisibilitySubject =
     parent.lineage === 'legacy-unrestricted'
       ? { kind: 'proposal', id, lineage: 'legacy-unrestricted' }
@@ -1025,7 +1026,7 @@ function meetingVisibilityProvenance(
             ? { visibilityPolicyId: parent.visibilityPolicyId }
             : {}),
         };
-  return JSON.stringify({ kind: 'meeting-visibility', subject });
+  return subject;
 }
 
 function sameExactProposalIdentity(

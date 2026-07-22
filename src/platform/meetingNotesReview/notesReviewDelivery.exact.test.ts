@@ -340,7 +340,15 @@ describe('exact meeting notes review reader', () => {
     );
     const savedProposal = lane.crmSaveProposal.mock.calls[0]?.[0];
     if (!savedProposal) throw new Error('Expected the CRM proposal write.');
-    expect(savedProposal.provenance).toContain('policy-private');
+    expect(savedProposal.provenance).toBeUndefined();
+    expect(savedProposal.meetingVisibility).toEqual({
+      kind: 'proposal',
+      id: savedProposal.id,
+      lineage: 'derived',
+      ownerRef: 'advisor-a',
+      visibilityPolicyId: 'policy-private',
+      parentRef: { kind: 'meeting-artifact', id: 'artifact-crm' },
+    });
 
     await expect(
       lane.repository.approve({

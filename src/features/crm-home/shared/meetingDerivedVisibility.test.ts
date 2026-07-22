@@ -4,7 +4,7 @@ import {
   canReadMeetingDerivedRecord,
   derivedMeetingVisibility,
   meetingVisibilityRoot,
-} from './meetingDerivedVisibility';
+} from '@/platform/meeting-visibility';
 
 function records(): LiveCrmRecord[] {
   const meeting: LiveCrmRecord = {
@@ -76,6 +76,15 @@ function records(): LiveCrmRecord[] {
         artifactSubject
       ),
     },
+    {
+      id: 'workflow-secret',
+      kind: 'crm_workflow_instance',
+      meetingVisibility: derivedMeetingVisibility(
+        'workflow',
+        'workflow-secret',
+        derivedMeetingVisibility('proposal', 'proposal-secret', artifactSubject)
+      ),
+    },
   ];
 }
 
@@ -84,6 +93,7 @@ describe('CRM meeting-derived read boundary', () => {
     ['task-secret', 'task'],
     ['activity-secret', 'activity'],
     ['proposal-secret', 'proposal'],
+    ['workflow-secret', 'workflow'],
   ] as const)('hides %s from an excluded coworker', (id, kind) => {
     const snapshot = records();
     const record = snapshot.find((candidate) => candidate.id === id);
@@ -131,6 +141,25 @@ describe('CRM meeting-derived read boundary', () => {
       expect(
         canReadMeetingDerivedRecord(
           candidate,
+          'task',
+          snapshot,
+          'advisor-owner'
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('rejects stored visibility whose kind or id does not match its record', () => {
+    const snapshot = records();
+    const task = snapshot.find((record) => record.id === 'task-secret');
+    if (!task) throw new Error('Expected the restricted task.');
+    for (const meetingVisibility of [
+      { ...(task['meetingVisibility'] as object), kind: 'activity' },
+      { ...(task['meetingVisibility'] as object), id: 'different-task' },
+    ]) {
+      expect(
+        canReadMeetingDerivedRecord(
+          { ...task, meetingVisibility },
           'task',
           snapshot,
           'advisor-owner'

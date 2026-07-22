@@ -7,7 +7,7 @@ import {
   type MeetingVisibilitySubjectKind,
   type MeetingVisibilitySubjectRef,
   type RootMeetingVisibilitySubject,
-} from '@/platform/meeting-visibility';
+} from './visibilityPolicy';
 
 export const MEETING_VISIBILITY_FIELD = 'meetingVisibility' as const;
 
@@ -46,7 +46,10 @@ export function meetingVisibilitySubject(
 ): MeetingVisibilitySubject | null {
   const stored = record[MEETING_VISIBILITY_FIELD];
   if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
-    return stored as MeetingVisibilitySubject;
+    const subject = stored as Partial<MeetingVisibilitySubject>;
+    return subject.kind === kind && subject.id === record.id
+      ? (stored as MeetingVisibilitySubject)
+      : null;
   }
   const origin =
     record['source'] && typeof record['source'] === 'object'
@@ -67,6 +70,7 @@ export function meetingVisibilityParentForRecord(
     task: 'task',
     activityEvent: 'activity',
     proposalRecord: 'proposal',
+    crm_workflow_instance: 'workflow',
   };
   const kind = kinds[record.kind];
   return kind ? meetingVisibilitySubject(record, kind) : null;
@@ -129,7 +133,7 @@ export function canReadMeetingDerivedRecord(
   record: LiveCrmRecord,
   kind: Exclude<MeetingVisibilitySubjectKind, 'meeting-note'>,
   records: readonly LiveCrmRecord[],
-  viewerId = 'local-user'
+  viewerId: string | null | undefined
 ): boolean {
   const subject = meetingVisibilitySubject(record, kind);
   if (!subject) return false;

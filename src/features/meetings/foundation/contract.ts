@@ -16,6 +16,7 @@ import type { Matter } from '@/platform/types/matter';
 import {
   validateMeetingVisibilityPolicy,
   type MeetingVisibilityPolicy,
+  type MeetingVisibilitySubject,
 } from '@/platform/meeting-visibility';
 
 export { validateMeetingVisibilityPolicy };
@@ -520,6 +521,8 @@ export interface MeetingArtifact extends MeetingArtifactInput {
   readonly matterId: string;
   readonly state: 'produced' | 'approved';
   readonly createdAt: string;
+  /** Exact durable parent chain used by every meeting-derived read boundary. */
+  readonly meetingVisibility?: MeetingVisibilitySubject;
 }
 
 export interface MeetingArtifactTransition {
@@ -1973,6 +1976,25 @@ function projectArtifact(
         at: approval['transitionAt'] as string,
       }).at
     : undefined;
+  const meetingVisibility = record['meetingVisibility'];
+  if (
+    !meetingVisibility ||
+    typeof meetingVisibility !== 'object' ||
+    Array.isArray(meetingVisibility)
+  )
+    throw new Error('Artifact visibility lineage is missing.');
+  const subject = meetingVisibility as Partial<MeetingVisibilitySubject>;
+  if (
+    subject.kind !== 'meeting-artifact' ||
+    subject.id !== record.id ||
+    (subject.lineage !== 'legacy-unrestricted' &&
+      !(
+        subject.lineage === 'derived' &&
+        subject.parentRef?.kind === 'meeting-note' &&
+        subject.parentRef.id === record['meetingId']
+      ))
+  )
+    throw new Error('Artifact visibility lineage conflicts with this artifact.');
   if (safeApprovedAt && Date.parse(safeApprovedAt) < Date.parse(producedAt))
     throw new Error('Artifact approval cannot predate production.');
   return {
@@ -1990,6 +2012,7 @@ function projectArtifact(
     payload: (record['payload'] && typeof record['payload'] === 'object'
       ? record['payload']
       : {}) as Record<string, unknown>,
+    meetingVisibility: meetingVisibility as MeetingVisibilitySubject,
     createdAt: nonEmpty(record.createdAt, 'Created timestamp'),
   };
 }
@@ -2436,8 +2459,9 @@ export function createMeetingArtifactStore(
       // Fail-closed write: an artifact can only be appended to a meeting owned
       // by the active client, so B cannot append onto A's meeting after a switch.
       scope.assertOwns(recordClientBoundary(parent), 'Meeting');
+      const id = recordId('meeting-artifact');
       const record: LiveCrmRecord = {
-        id: recordId('meeting-artifact'),
+        id,
         kind: 'meeting_artifact',
         matterId: parent.matterId as string,
         householdRef: nonEmpty(parent['householdRef'], 'Household'),
@@ -2454,6 +2478,17 @@ export function createMeetingArtifactStore(
         sourceRefs: strings(input.sourceRefs, 'Artifact source references'),
         provenance: input.provenance,
         payload: input.payload,
+        meetingVisibility: {
+          kind: 'meeting-artifact',
+          id,
+          lineage: 'derived',
+          parentRef: { kind: 'meeting-note', id: parent.id },
+          ownerRef: nonEmpty(parent['ownerRef'], 'Meeting owner'),
+          ...(typeof parent['visibilityPolicyId'] === 'string' &&
+          parent['visibilityPolicyId'].trim()
+            ? { visibilityPolicyId: parent['visibilityPolicyId'] }
+            : {}),
+        } satisfies MeetingVisibilitySubject,
       };
       const saved = projectArtifact(await persist(record, expected), raw);
       return approvedAt

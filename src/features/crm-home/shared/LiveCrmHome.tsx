@@ -11,12 +11,13 @@ import { projectCrmWorkflowWorkItem } from './liveWorkflowWorkItemAdapter';
 import type { CrmHomeProps } from '../routes';
 import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHomeAdapter, CrmTask, CrmTaskSavedView, CrmWorkflowWorkItem, AttachmentAccountingRecord, ExportJobStatus, MigrationFidelityReport, MigrationNoteGap, MigrationWorkflowChecklist, PropagationOffer } from '../types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   canReadMeetingDerivedRecord,
   derivedMeetingVisibility,
   explicitLegacyMeetingVisibility,
   meetingVisibilityParentForRecord,
-} from './meetingDerivedVisibility';
+} from '@/platform/meeting-visibility';
 
 /** The live CRM state that a host shell passes to a registry destination. */
 export interface LiveCrmHomeRuntime
@@ -236,6 +237,7 @@ export function LiveCrmHome({
   render?: (runtime: LiveCrmHomeRuntime) => ReactNode;
 }) {
   const live = useLiveCrmRecords();
+  const viewerId = useFirmStore((state) => state.session?.userId ?? null);
   const freshness: CrmFreshnessState = live.freshness;
   const households = live.records
     .filter(
@@ -291,7 +293,7 @@ export function LiveCrmHome({
     .filter(
       (record) =>
         record.kind === 'task' &&
-        canReadMeetingDerivedRecord(record, 'task', live.records)
+        canReadMeetingDerivedRecord(record, 'task', live.records, viewerId)
     )
     .map((record) => {
       const householdId = householdIdFor(record);
@@ -302,9 +304,22 @@ export function LiveCrmHome({
         ...(member ? { assigneeLabel: member.displayName } : {}),
       });
     });
-  const liveWorkflowWorkItems: readonly CrmWorkflowWorkItem[] = workflowRecords(
-    live.records
-  ).instances.flatMap((instance) =>
+  const allWorkflowData = workflowRecords(live.records);
+  const visibleWorkflowInstances = allWorkflowData.instances.filter((record) =>
+    canReadMeetingDerivedRecord(record, 'workflow', live.records, viewerId)
+  );
+  const visibleWorkflowIds = new Set(
+    visibleWorkflowInstances.map((instance) => instance.id)
+  );
+  const visibleWorkflowData: ReturnType<typeof workflowRecords> = {
+    ...allWorkflowData,
+    instances: visibleWorkflowInstances,
+    offers: allWorkflowData.offers.filter((offer) =>
+      visibleWorkflowIds.has(offer.engineOffer.instanceId)
+    ),
+  };
+  const liveWorkflowWorkItems: readonly CrmWorkflowWorkItem[] =
+    visibleWorkflowInstances.flatMap((instance) =>
     Object.values(instance.snapshot.steps)
       .filter((step) => !step.hiddenByTemplateRemoval && step.status !== 'done')
       .map((step) => {
@@ -319,7 +334,7 @@ export function LiveCrmHome({
     .filter(
       (record) =>
         record.kind === 'proposalRecord' &&
-        canReadMeetingDerivedRecord(record, 'proposal', live.records)
+        canReadMeetingDerivedRecord(record, 'proposal', live.records, viewerId)
     )
     .map((record) => {
       const householdId = householdIdFor(record);
@@ -353,7 +368,7 @@ export function LiveCrmHome({
       (record) =>
         record.kind === 'activityEvent' &&
         typeof record['at'] === 'string' &&
-        canReadMeetingDerivedRecord(record, 'activity', live.records)
+        canReadMeetingDerivedRecord(record, 'activity', live.records, viewerId)
     )
     .map((record) => ({
       id: record.id,
@@ -526,7 +541,7 @@ export function LiveCrmHome({
       matterId: 'firm_home',
       at: now,
       summary,
-      actor: { userId: 'local-user', displayName: 'You' },
+      actor: { ...(viewerId ? { userId: viewerId } : {}), displayName: 'You' },
       verb,
       targetRef: task
         ? {
@@ -599,20 +614,21 @@ export function LiveCrmHome({
     }
   };
   const completeWorkflowWorkItem = async (item: CrmWorkflowWorkItem) => {
-    const instance = workflowRecords(live.records).instances.find(
+    const instance = visibleWorkflowInstances.find(
       (candidate) => candidate.id === item.instanceId
     );
     if (!instance)
       throw new Error('That workflow step is no longer available.');
     await live.save(applyWorkflowStepCompletion(instance, item.stepId));
     const now = new Date().toISOString();
+    const activityId = `activity-${crypto.randomUUID()}`;
     await live.save({
-      id: `activity-${crypto.randomUUID()}`,
+      id: activityId,
       kind: 'activityEvent',
       matterId: 'firm_home',
       at: now,
       summary: `Completed workflow step: ${item.title}`,
-      actor: { userId: 'local-user', displayName: 'You' },
+      actor: { ...(viewerId ? { userId: viewerId } : {}), displayName: 'You' },
       verb: 'workflow.step.done',
       targetRef: {
         kind: 'workflowInstance',
@@ -622,6 +638,15 @@ export function LiveCrmHome({
       householdId: item.householdId,
       payload: { stepId: item.stepId },
       important: false,
+      ...(instance.meetingVisibility
+        ? {
+            meetingVisibility: derivedMeetingVisibility(
+              'activity',
+              activityId,
+              instance.meetingVisibility
+            ),
+          }
+        : {}),
     });
   };
   const liveAdapter: CrmHomeAdapter = {
@@ -750,7 +775,15 @@ export function LiveCrmHome({
       },
       decideApproval: async (approval, decision) => {
         const record = live.records.find(
-          (item) => item.id === approval.id && item.kind === 'proposalRecord'
+          (item) =>
+            item.id === approval.id &&
+            item.kind === 'proposalRecord' &&
+            canReadMeetingDerivedRecord(
+              item,
+              'proposal',
+              live.records,
+              viewerId
+            )
         );
         if (!record) throw new Error('This approval is no longer available.');
         const decidedAt = new Date().toISOString();
@@ -781,7 +814,14 @@ export function LiveCrmHome({
             throw new Error(
               'This proposed workflow no longer has a template and household to start.'
             );
-          const instance = startWorkflow(template, household);
+          const visibilityParent = meetingVisibilityParentForRecord(record);
+          if (!visibilityParent)
+            throw new Error(
+              'This proposal is missing its private-note lineage. No workflow was started.'
+            );
+          const instance = startWorkflow(template, household, {
+            visibilityParent,
+          });
           await live.save(instance);
           appliedEntityRef = {
             kind: 'workflowInstance',
@@ -793,7 +833,10 @@ export function LiveCrmHome({
           ...record,
           state: decision,
           decidedAt,
-          decidedBy: { userId: 'local-user', displayName: 'You' },
+          decidedBy: {
+            ...(viewerId ? { userId: viewerId } : {}),
+            displayName: 'You',
+          },
           ...(appliedEntityRef ? { appliedEntityRef } : {}),
         });
         if (
@@ -861,7 +904,7 @@ export function LiveCrmHome({
     adapter || preview
       ? {}
       : {
-          workflowData: workflowRecords(live.records),
+          workflowData: visibleWorkflowData,
           workflowHouseholds,
           saveLiveRecord: live.save,
         };

@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 const canonical = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
@@ -30,7 +31,24 @@ vi.mock('@/features/crm-trash', () => ({
 import { useTaskRecordStore } from '@/features/crm-tasks';
 
 describe('public task record store', () => {
+  const signInAs = (userId: string) =>
+    useFirmStore.setState({
+      session: {
+        userId,
+        email: `${userId}@example.com`,
+        role: 'member',
+        org: null,
+        seatId: 'seat-1',
+        tier: 'practice',
+        packs: [],
+        seats: 1,
+        lastValidatedAt: null,
+        activated: true,
+      },
+    });
+
   beforeEach(() => {
+    useFirmStore.setState({ session: null });
     canonical.records = [];
     canonical.save.mockReset();
     canonical.reload.mockReset();
@@ -115,7 +133,7 @@ describe('public task record store', () => {
           id: 'private-policy',
           mode: 'explicit-review',
           includedMemberIds: [],
-          excludedMemberIds: ['local-user'],
+          excludedMemberIds: ['advisor-excluded'],
         }],
       },
       {
@@ -150,12 +168,22 @@ describe('public task record store', () => {
         source: { origin: 'meeting', sources: [] },
       },
     ];
-    const { result } = renderHook(() => useTaskRecordStore());
+    signInAs('advisor-excluded');
+    const excluded = renderHook(() => useTaskRecordStore());
 
-    await expect(result.current.get('task-secret')).resolves.toBeUndefined();
-    await expect(result.current.get('task-broken')).resolves.toBeUndefined();
+    await expect(excluded.result.current.get('task-secret')).resolves.toBeUndefined();
+    await expect(excluded.result.current.get('task-broken')).resolves.toBeUndefined();
+    await expect(
+      excluded.result.current.create({
+        title: 'Blocked derived follow-up',
+        meetingVisibilityParent: parent,
+      })
+    ).rejects.toThrow('not available');
+    excluded.unmount();
 
-    const created = await result.current.create({
+    signInAs('advisor-owner');
+    const owner = renderHook(() => useTaskRecordStore());
+    const created = await owner.result.current.create({
       title: 'Derived follow-up',
       meetingVisibilityParent: parent,
     });
@@ -266,6 +294,7 @@ describe('public task record store', () => {
   });
 
   it('removes through the sole CRM trash doorway and reloads without writing a deletion marker', async () => {
+    signInAs('advisor-current');
     canonical.records = [{
       id: 'task-1',
       kind: 'task',
@@ -286,7 +315,7 @@ describe('public task record store', () => {
       workspaceRoot: '/workspace',
       recordId: 'task-1',
       matterId: 'matter-1',
-      actorId: 'local-user',
+      actorId: 'advisor-current',
     });
     expect(canonical.save).not.toHaveBeenCalled();
     expect(canonical.reload).toHaveBeenCalledOnce();

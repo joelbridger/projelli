@@ -6,7 +6,7 @@ import {
   derivedMeetingVisibility,
   explicitLegacyMeetingVisibility,
   meetingVisibilityParentForRecord,
-} from './meetingDerivedVisibility';
+} from '@/platform/meeting-visibility';
 
 const VALID_DUE_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
