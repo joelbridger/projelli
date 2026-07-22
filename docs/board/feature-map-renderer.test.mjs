@@ -67,9 +67,15 @@ function rendererState(result) {
   const controls = [...result.document.querySelectorAll('#layers button,#styles button,#statusfilters button,#zin,#zout,#zfit,#cmode')];
   const cards = renderCounts(result.document);
   const commentRequests = result.requests.filter((request) => request.url.includes('/api/feature-map/comments')).length;
-  if (result.document.querySelector('.error')) return { state: 'error', cards, controlsEnabled: controls.every((button) => !button.disabled), commentRequests };
-  if (cards[0] === 69 && controls.length > 0 && controls.every((button) => !button.disabled) && commentRequests > 0) return { state: 'success', cards, controlsEnabled: true, commentRequests };
-  return { state: 'pending', cards, controlsEnabled: controls.every((button) => !button.disabled), commentRequests };
+  const errorCount = result.document.querySelectorAll('.error').length;
+  const controlsEnabled = controls.length > 0 && controls.every((button) => !button.disabled);
+  const controlsDisabled = controls.length > 0 && controls.every((button) => button.disabled);
+  if (errorCount > 0) {
+    const inertError = errorCount === 1 && cards.every((count) => count === 0) && controlsDisabled && commentRequests === 0;
+    return { state: inertError ? 'error' : 'invalid-error', cards, errorCount, controlsEnabled, commentRequests };
+  }
+  if (cards[0] === 69 && controlsEnabled && commentRequests > 0) return { state: 'success', cards, errorCount, controlsEnabled, commentRequests };
+  return { state: 'pending', cards, errorCount, controlsEnabled, commentRequests };
 }
 async function waitForRendererState(result, expected, label) {
   const deadline = Date.now() + 2_000;
@@ -87,6 +93,36 @@ function assertRejected(result, message) {
   assert.equal(result.requests.filter((request) => request.url.includes('/api/feature-map/comments')).length, 0, `${message}: no comment request occurs`);
   assert.ok([...result.document.querySelectorAll('#layers button,#styles button,#statusfilters button,#zin,#zout,#zfit,#cmode')].every((button) => button.disabled), `${message}: every map control stays inert`);
 }
+
+function faultResult({ cards = [0, 0, 0], controls = 10, enabled = false, errors = 0, comments = 0 } = {}) {
+  const buttons = Array.from({ length: controls }, () => ({ disabled: !enabled }));
+  return {
+    document: {
+      querySelectorAll(selector) {
+        if (selector === 'li.feat') return Array(cards[0]);
+        if (selector === '.foundation li') return Array(cards[1]);
+        if (selector === '#nonv1') return Array(cards[2]);
+        if (selector === '.error') return Array(errors);
+        return buttons;
+      },
+    },
+    requests: Array.from({ length: comments }, () => ({ url: '/api/feature-map/comments' })),
+  };
+}
+
+for (const [name, fault] of [
+  ['reviewer attack: live cards, controls, and comments', { cards: [69, 9, 21], enabled: true, errors: 1, comments: 1 }],
+  ['partial error with 69 journey cards', { cards: [69, 0, 0], errors: 1 }],
+  ['partial error with enabled controls', { enabled: true, errors: 1 }],
+  ['partial error with a comments request', { errors: 1, comments: 1 }],
+  ['partial error with no controls', { controls: 0, errors: 1 }],
+  ['partial error with multiple errors', { errors: 2 }],
+]) {
+  const result = faultResult(fault);
+  assert.equal(rendererState(result).state, 'invalid-error', `${name}: contradictory error state is invalid before post-return assertions`);
+  await assert.rejects(waitForRendererState(result, 'error', name), new RegExp(`${name}: expected error renderer state, got invalid-error`));
+}
+assert.equal(rendererState(faultResult({ errors: 1 })).state, 'error', 'one visible inert error is the only terminal error state');
 
 assert.ok(publisherAccepts(source), 'the exact renderer document is accepted by the reviewed publisher');
 for (const [i, mutate] of [
