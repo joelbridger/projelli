@@ -69,6 +69,9 @@ export type MeetingHeaderActionPlacement = 'primary' | 'secondary' | 'menu';
 
 export interface MeetingHeaderActionContext {
   t: TFunction;
+  /** Verified once by MeetingEntry's sealed mount chokepoint. Header actions
+   *  must use this identity rather than rebuilding one from paths or ids. */
+  hostIdentity: MeetingEntryHostIdentity;
   canonicalMeeting?: MeetingProjection | null;
   clientBoundary?: SealedMeetingClientBoundary | null;
   meta: MeetingMeta | null;

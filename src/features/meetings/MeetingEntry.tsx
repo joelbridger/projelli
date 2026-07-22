@@ -783,6 +783,7 @@ function MeetingEntryHost({
   };
   const headerActionContext = {
     t,
+    hostIdentity,
     canonicalMeeting: hostIdentity.canonicalMeeting,
     clientBoundary: hostIdentity.clientBoundary,
     meta,
