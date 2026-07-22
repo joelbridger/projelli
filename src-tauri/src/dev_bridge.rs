@@ -11,6 +11,7 @@ use tokio::sync::oneshot;
 const HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 9250;
 const PORT_ENV: &str = "LANTERN_DEV_BRIDGE_PORT";
+const GOLDEN_LOOP_DIAGNOSTICS_ENV: &str = "LANTERN_GOLDEN_LOOP_DIAGNOSTICS";
 /// Keep ordinary DOM probes fast, but do not make a legitimate asynchronous
 /// desktop operation (such as opening the encrypted CRM store) look like a
 /// broken WebView.  Test runners can tighten or extend this with
@@ -43,6 +44,30 @@ struct EvalResult {
 
 pub fn manage_state(app: &tauri::App) {
     app.manage(DevBridgeState::default());
+}
+
+/// A deliberately narrow, test-only black box recorder. It holds metadata
+/// about renderer startup failures in memory only; the Node harness decides
+/// whether to persist its bounded snapshot after a failed assertion.
+pub fn golden_loop_diagnostics_initialization_script() -> Option<String> {
+    if std::env::var(GOLDEN_LOOP_DIAGNOSTICS_ENV).ok().as_deref() != Some("1") {
+        return None;
+    }
+    Some(r#"(() => {
+const limit = (value, max = 1000) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max);
+const recorder = window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__ = { pageErrors: [], consoleErrors: [], unhandledRejections: [], resourceFailures: [], networkFailures: [] };
+const add = (key, value) => { if (recorder[key].length < 20) recorder[key].push(limit(value)); };
+window.addEventListener('error', (event) => {
+  const target = event.target;
+  if (target && target !== window && (target.src || target.href)) add('resourceFailures', `${target.tagName || 'resource'} ${target.src || target.href}`);
+  else add('pageErrors', event.error?.stack || event.message || 'window error');
+}, true);
+window.addEventListener('unhandledrejection', (event) => add('unhandledRejections', event.reason?.stack || event.reason?.message || event.reason || 'unhandled rejection'));
+const originalError = console.error.bind(console);
+console.error = (...args) => { add('consoleErrors', args.map((arg) => typeof arg === 'string' ? arg : String(arg)).join(' ')); return originalError(...args); };
+const originalFetch = window.fetch;
+if (typeof originalFetch === 'function') window.fetch = (...args) => originalFetch(...args).catch((error) => { add('networkFailures', error?.message || error); throw error; });
+})();"#.to_string())
 }
 
 pub fn start(app: AppHandle) {

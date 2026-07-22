@@ -4,7 +4,7 @@
  * exact file is still visible after restarting the native app.
  */
 import { readdir } from 'node:fs/promises';
-import path from 'node:path';
+import { writeDiagnosticArtifact } from './golden-loop-diagnostics.mjs';
 
 const [phase, bridgePort, workspace, documentName] = process.argv.slice(2);
 if (!['write', 'assert'].includes(phase) || !bridgePort || !workspace || !documentName) {
@@ -86,9 +86,12 @@ async function rendererSnapshot() {
       href: location.href,
       readyState: document.readyState,
       hasTauriInvoke: typeof window.__TAURI_INTERNALS__?.invoke === 'function',
-      explicitWorkspace: window.__LANTERN_WORKSPACE__ ?? null,
+      explicitWorkspace: Boolean(window.__LANTERN_WORKSPACE__),
       testids: Array.from(document.querySelectorAll('[data-testid]')).slice(0, 30).map((el) => el.getAttribute('data-testid')),
-      body: (document.body?.innerText || '').slice(0, 500)
+      dom: (document.body?.outerHTML || '').slice(0, 4000),
+      rootPresent: Boolean(document.getElementById('root')),
+      rootHasChildren: Boolean(document.getElementById('root')?.childElementCount),
+      events: window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__ || {}
     })`, 2_000);
   } catch (error) {
     return { snapshotError: error instanceof Error ? error.message : String(error) };
@@ -290,6 +293,13 @@ try {
     console.log(`PASS persistence: ${documentFile} survived restart and is visible`);
   }
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
+  const message = error instanceof Error ? error.message : String(error);
+  const renderer = await rendererSnapshot();
+  try {
+    const diagnostic = await writeDiagnosticArtifact({ phase, failure: message, renderer, events: renderer.events });
+    console.error(`${message}\nGOLDEN LOOP DIAGNOSTIC: path=${diagnostic.path} sha256=${diagnostic.sha256} classification=${diagnostic.artifact.classification}`);
+  } catch (diagnosticError) {
+    console.error(`${message}\nGOLDEN LOOP DIAGNOSTIC FAILED: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+  }
   process.exitCode = 1;
 }
