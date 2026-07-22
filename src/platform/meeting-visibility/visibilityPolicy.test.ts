@@ -8,7 +8,7 @@ import {
   type MeetingVisibilitySubject,
   type MeetingVisibilitySubjectKind,
   type RootMeetingVisibilitySubject,
-} from './visibilityPolicy';
+} from './index';
 
 const restrictedPolicy: MeetingVisibilityPolicy = {
   id: 'policy-private-review',
