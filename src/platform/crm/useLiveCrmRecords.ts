@@ -122,6 +122,24 @@ export async function loadVisibleCrmRecordsForViewer(
   return filterLiveCrmRecordsByMeetingVisibility(records, viewerId);
 }
 
+/**
+ * Narrow non-React doorway for exact meeting-file authorization. It exposes
+ * only persisted policy values, never the raw CRM collection or any client
+ * record, so feature code cannot accidentally reopen hidden meeting-derived
+ * rows while checking a file.
+ */
+export async function loadMeetingVisibilityPoliciesForFileAccess(
+  workspaceRoot: string
+): Promise<readonly unknown[]> {
+  const records = await loadVisibilityReadyCrmRecords(workspaceRoot);
+  return records
+    .filter((record) => record.kind === 'meeting_foundation_preferences')
+    .flatMap((record): readonly unknown[] => {
+      const policies: unknown = record['visibilityPolicies'];
+      return Array.isArray(policies) ? policies : [];
+    });
+}
+
 /** Keeps a mounted CRM screen in step with the encrypted record store. */
 export function useLiveCrmRecords() {
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);

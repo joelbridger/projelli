@@ -50,6 +50,11 @@ export {
 } from './StructuredMeetingSummaryPanel';
 export { ClientMeetingsTab, listClientMeetings } from './ClientMeetingsTab';
 export type { MeetingSummary } from './ClientMeetingsTab';
+export {
+  createAccountlessUnrestrictedMeetingFileVisibilityManifest,
+  createLegacyUnrestrictedMeetingFileVisibilityManifest,
+  migrateLegacyMeetingFileVisibility,
+} from './meetingFileVisibility';
 export { MeetingEntry } from './MeetingEntry';
 export {
   meetingEntryHostIdentity,

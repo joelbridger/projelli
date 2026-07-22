@@ -55,6 +55,7 @@ import {
   type MeetingEntryTarget,
 } from './meetingEntryHostIdentity';
 import { registerMeetingHeaderAction } from './meetingHeaderActionRegistry';
+import { createAccountlessUnrestrictedMeetingFileVisibilityManifest } from './meetingFileVisibility';
 
 declare module './meetingWorkspaceTypes' {
   interface MeetingHeaderActionIdMap {
@@ -111,6 +112,27 @@ const clientB = mintedBoundary(
 );
 const clientFolder = '/workspace/Clients/Alpha';
 const meetingDir = `${clientFolder}/Meetings/meeting-a`;
+const trustedWorkspaceService = {
+  getRootPath: () => '/workspace',
+  exists: (path: string) =>
+    Promise.resolve(
+      path.replaceAll('\\', '/').endsWith('Meetings/meeting-a') ||
+      path.endsWith('meeting.json')
+    ),
+  readFile: (path: string) => {
+    if (!path.endsWith('meeting.json')) return Promise.reject(new Error('ENOENT'));
+    return Promise.resolve(JSON.stringify({
+      matterId: clientA.matterId,
+      meetingFileVisibility:
+        createAccountlessUnrestrictedMeetingFileVisibilityManifest({
+          meetingSubjectId: 'meeting-file:host-identity',
+          fileNames: ['meeting.json'],
+        }),
+    }));
+  },
+  isSymlink: () => Promise.resolve(false),
+  resolveSymlink: () => Promise.resolve('/workspace'),
+} as unknown as WorkspaceService;
 
 function canonicalPort() {
   let records: LiveCrmRecord[] = [];
@@ -143,14 +165,7 @@ function seedTrustedAuthority(): void {
       } as Matter,
     ],
   });
-  setActiveWorkspaceService({
-    getRootPath: () => '/workspace',
-    exists: () => Promise.resolve(true),
-    readFile: () =>
-      Promise.resolve(JSON.stringify({ matterId: clientA.matterId })),
-    isSymlink: () => Promise.resolve(false),
-    resolveSymlink: () => Promise.resolve('/workspace'),
-  } as unknown as WorkspaceService);
+  setActiveWorkspaceService(trustedWorkspaceService);
 }
 
 async function mintCanonicalTarget(): Promise<MeetingOpenTarget> {
@@ -210,7 +225,7 @@ describe('F11 meeting detail mount identity chokepoint', () => {
         meetingDir,
         clientName: 'Alpha Household',
         workspaceRoot: '/workspace',
-        workspaceService: null,
+        workspaceService: trustedWorkspaceService,
         onBack: () => undefined,
       });
     };
@@ -231,12 +246,12 @@ describe('F11 meeting detail mount identity chokepoint', () => {
         target,
         clientName: 'Alpha Household',
         workspaceRoot: '/workspace',
-        workspaceService: null,
+        workspaceService: trustedWorkspaceService,
         onBack: () => undefined,
       })
     );
 
-    expect(screen.getByTestId('host-identity-probe')).toBeInTheDocument();
+    expect(await screen.findByTestId('host-identity-probe')).toBeInTheDocument();
     expect(received).toMatchObject({
       matterId: clientA.matterId,
       meetingDir,
@@ -259,12 +274,12 @@ describe('F11 meeting detail mount identity chokepoint', () => {
         target,
         clientName: 'Alpha Household',
         workspaceRoot: '/workspace',
-        workspaceService: null,
+        workspaceService: trustedWorkspaceService,
         onBack: () => undefined,
       })
     );
 
-    expect(screen.getByTestId('host-identity-probe')).toBeInTheDocument();
+    expect(await screen.findByTestId('host-identity-probe')).toBeInTheDocument();
     expect(received).toMatchObject({
       matterId: clientA.matterId,
       meetingDir,

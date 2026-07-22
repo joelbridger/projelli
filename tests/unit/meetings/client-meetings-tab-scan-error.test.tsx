@@ -13,6 +13,7 @@ import {
 } from '@/features/meetings';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
+import { createLegacyUnrestrictedMeetingFileVisibilityManifest } from '@/features/meetings';
 
 const meetingBoundaryMint = vi.hoisted(() => ({
   selection: null as null | { householdRef: string; matterId: string },
@@ -82,7 +83,23 @@ function makeWorkspace(overrides: {
   return {
     list: overrides.list,
     exists: overrides.exists ?? (async () => true),
-    readFile: async () => { throw new Error('not used'); },
+    readFile: async (path: string) => {
+      if (!path.endsWith('meeting.json')) throw new Error('not used');
+      return JSON.stringify({
+        matterId: 'm1',
+        startedAt: '2026-07-04T00:00:00.000Z',
+        consent: {
+          mode: 'one-party',
+          confirmedBy: 'user',
+          confirmedAt: '2026-07-04T00:00:00.000Z',
+        },
+        meetingFileVisibility:
+          createLegacyUnrestrictedMeetingFileVisibilityManifest({
+            meetingSubjectId: 'legacy-scan-recovery',
+            fileNames: ['meeting.json'],
+          }),
+      });
+    },
     writeFile: async () => {},
   };
 }
@@ -155,7 +172,7 @@ describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
       if (!healthy) throw new Error('still broken');
       return path.endsWith('/Meetings')
         ? [{ name: '2026-07-04-a', path: 'C:/WS/Clients/Acme/Meetings/2026-07-04-a', type: 'folder' as const }]
-        : [];
+        : [{ name: 'meeting.json', path: `${path}/meeting.json`, type: 'file' as const }];
     });
     const ws = makeWorkspace({ exists: async () => true, list });
 

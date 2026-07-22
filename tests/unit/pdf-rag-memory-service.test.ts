@@ -33,9 +33,11 @@ import {
   isPdfIndexingEnabled,
   isMemoryEnabled,
   MemoryService,
+  resetMeetingFileVisibilityResolver,
   resetMemoryEnabledReader,
   resetPdfIndexingEnabledReader,
   setMemoryEnabledReader,
+  setMeetingFileVisibilityResolver,
   setPdfIndexingEnabledReader,
 } from '@/platform/rag/MemoryService';
 
@@ -60,9 +62,16 @@ describe('isPdfIndexingEnabled', () => {
 });
 
 describe('MemoryService.indexPdfFile', () => {
+  beforeEach(() => {
+    setMeetingFileVisibilityResolver((paths) =>
+      Promise.resolve(new Map(paths.map((path) => [path, 'not-meeting'] as const)))
+    );
+  });
+
   afterEach(() => {
     resetMemoryEnabledReader();
     resetPdfIndexingEnabledReader();
+    resetMeetingFileVisibilityResolver();
     vi.clearAllMocks();
   });
 

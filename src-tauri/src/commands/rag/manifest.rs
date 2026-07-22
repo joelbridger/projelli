@@ -142,6 +142,12 @@ pub struct SourceSignature {
     /// verbatim when a changed file is re-indexed, so reconcile never widens scope.
     pub matter_id: String,
     pub privilege: String,
+    /// Durable privacy provenance for meeting-derived files. Unlike the
+    /// sibling meeting.json, this receipt survives that manifest becoming
+    /// unreadable, so a later reconcile cannot silently downgrade the source
+    /// to an ordinary document.
+    #[serde(default)]
+    pub meeting_derived: bool,
     /// Informational: chunk rows written last time.
     #[serde(default)]
     pub row_count: u32,
@@ -436,6 +442,7 @@ mod tests {
             pdf: None,
             matter_id: "unassigned".into(),
             privilege: "none".into(),
+            meeting_derived: false,
             row_count: 3,
             indexed_at: 0,
         }
@@ -445,6 +452,17 @@ mod tests {
     fn fresh_when_stat_and_versions_match() {
         let sig = text_sig(100, 42);
         assert!(sig.is_fresh(100, 42, None));
+    }
+
+    #[test]
+    fn older_receipts_default_to_non_meeting_provenance() {
+        let mut value = serde_json::to_value(text_sig(100, 42)).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("meeting_derived");
+        let restored: SourceSignature = serde_json::from_value(value).unwrap();
+        assert!(!restored.meeting_derived);
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use super::*;
+use futures_util::TryStreamExt;
 use std::collections::HashSet;
 
 /// Compact data fragments and prune old versions in ONE pass. Called once at the
@@ -273,6 +274,77 @@ pub async fn retag_privilege_for_path(
         .await
         .with_context(|| format!("retag privilege failed for {}", path))?;
     Ok(result.rows_updated)
+}
+
+/// Stamp durable meeting provenance on every indexed row for one exact source.
+/// This survives deletion/movement of the sibling meeting manifest, allowing
+/// renderer-side policy checks to keep stale rows fail-closed and purge them.
+pub async fn retag_meeting_source_type_for_path(
+    table: &Table,
+    path: &str,
+    key: &[u8; 32],
+) -> Result<u64> {
+    let _write = acquire_write_access(table).await?;
+    let predicate = format!(
+        "path = '{}'",
+        sql_escape(&super::super::crypto::path_token(key, path))
+    );
+    let result = table
+        .update()
+        .only_if(predicate)
+        .column("source_type", "'meeting'")
+        .execute()
+        .await
+        .with_context(|| format!("retag meeting provenance failed for {}", path))?;
+    Ok(result.rows_updated)
+}
+
+/// Whether any row for this exact path carries durable meeting provenance.
+pub async fn path_has_meeting_source_type(
+    table: &Table,
+    path: &str,
+    key: &[u8; 32],
+) -> Result<bool> {
+    let predicate = format!(
+        "path = '{}' AND source_type = 'meeting'",
+        sql_escape(&super::super::crypto::path_token(key, path))
+    );
+    table
+        .count_rows(Some(predicate))
+        .await
+        .map(|rows| rows > 0)
+        .with_context(|| format!("check meeting provenance for {}", path))
+}
+
+/// One scan of all durable meeting path tokens. Reconcile uses this to retain
+/// privacy provenance even when the freshness manifest is missing/corrupt.
+pub async fn meeting_source_tokens(table: &Table) -> Result<HashSet<String>> {
+    let mut stream = table
+        .query()
+        .only_if("source_type = 'meeting'")
+        .select(Select::columns(&["path"]))
+        .execute()
+        .await
+        .context("scan durable meeting provenance")?;
+    let mut tokens = HashSet::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("scan durable meeting provenance stream")?
+    {
+        let paths = batch
+            .column_by_name("path")
+            .context("meeting provenance scan missing path")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("meeting provenance path is not StringArray")?;
+        for index in 0..batch.num_rows() {
+            if !paths.is_null(index) {
+                tokens.insert(paths.value(index).to_string());
+            }
+        }
+    }
+    Ok(tokens)
 }
 
 /// WS-B/C — re-tag the matter of every already-indexed chunk for `path` IN

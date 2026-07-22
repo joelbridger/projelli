@@ -300,11 +300,13 @@ export async function saveMeetingRecipientPlan(
   expectedMatterId: string,
   plan: Partial<MeetingDeliveryPlan>,
   nowIso: string = new Date().toISOString(),
+  guard?: { readonly assertCurrentAccess: () => Promise<void> },
 ): Promise<MeetingMeta> {
   const issues = validateMeetingDeliveryPlan(plan);
   const firstIssue = issues[0];
   if (firstIssue) throw new Error(firstIssue.message);
 
+  await guard?.assertCurrentAccess();
   const raw = await ws.readFile(`${meetingDir}/meeting.json`);
   const base = JSON.parse(raw) as MeetingMeta;
   if (base.matterId !== expectedMatterId) {
@@ -313,6 +315,7 @@ export async function saveMeetingRecipientPlan(
 
   const deliveryPlan = normalizeMeetingDeliveryPlan({ ...plan, updatedAt: nowIso }, nowIso);
   const savedMeta: MeetingMeta = { ...base, deliveryPlan };
+  await guard?.assertCurrentAccess();
   await ws.writeFile(
     `${meetingDir}/meeting.json`,
     JSON.stringify(savedMeta, null, 2),

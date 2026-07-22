@@ -28,6 +28,7 @@ import { useNoticeSettings } from './noticeSettings';
 import { calendarListEvents } from '@/platform/utils/calendar-commands';
 import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
 import { useProfileStore } from '@/platform/profile/profileStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useActiveMatters, useMatterStore } from '@/platform/matter/matterStore';
 import { buildCalendarMatterMap, matterLabel, resolveMattersForCalendarEvent } from '@/platform/rag/matterResolver';
@@ -46,7 +47,16 @@ import {
   type DirectClientMeetingTarget,
   type DirectClientMeetingsReadResult,
   type SealedMeetingClientBoundary,
+  useMeetingFoundationPreferencesStore,
 } from './foundation/contract';
+import {
+  FILE_MEETING_OWNER_PRIVATE_POLICY,
+  decideMeetingFileVisibility,
+  meetingFileVisibilityManifestFromMeta,
+  migrateLegacyMeetingFileVisibility,
+  readCurrentMeetingFileVisibilityContext,
+  type MeetingFileVisibilityContext,
+} from './meetingFileVisibility';
 
 export interface MeetingSummary {
   dir: string;
@@ -129,7 +139,11 @@ function delay(ms: number): Promise<void> {
 async function scanClientMeetingsFolder(
   matterFolder: string,
   ws: ListableWorkspace,
-  opts?: { retryDelayMs?: number },
+  opts?: {
+    retryDelayMs?: number;
+    visibilityContext?: MeetingFileVisibilityContext;
+    matterId?: string;
+  },
 ): Promise<MeetingsScanResult> {
   // A client with no linked folder (CRM/email-only, or a pre-QA-5 matter
   // created before every client got a scoped folder) legitimately has no
@@ -140,6 +154,18 @@ async function scanClientMeetingsFolder(
   // missing folder is a precondition that isn't met, not a backend error to
   // retry (codex-review P2, 2026-07-04).
   if (!matterFolder.trim()) return { meetings: [], scanFailed: false };
+
+  if (opts?.matterId) {
+    try {
+      await migrateLegacyMeetingFileVisibility({
+        matterId: opts.matterId,
+        matterFolder,
+        workspace: ws,
+      });
+    } catch {
+      return { meetings: [], scanFailed: true };
+    }
+  }
 
   const meetingsPath = `${matterFolder}/Meetings`;
 
@@ -162,9 +188,13 @@ async function scanClientMeetingsFolder(
   }
   if (entries === null) return { meetings: [], scanFailed: true };
 
+  const visibilityContext =
+    opts?.visibilityContext ??
+    (await readCurrentMeetingFileVisibilityContext(null));
+
   const folders = entries.filter((e) => e.type === 'folder');
   const summaries = await Promise.all(
-    folders.map(async (f): Promise<MeetingSummary> => {
+    folders.map(async (f): Promise<MeetingSummary | null> => {
       const children = await ws.list(f.path).catch(() => []);
       const names = new Set(children.map((c) => c.name));
       let meta: MeetingMeta | null = null;
@@ -173,18 +203,38 @@ async function scanClientMeetingsFolder(
       } catch {
         meta = null;
       }
+      const manifest = meetingFileVisibilityManifestFromMeta(meta);
+      if (
+        !manifest ||
+        !decideMeetingFileVisibility({
+          manifest,
+          fileName: 'meeting.json',
+          context: visibilityContext,
+        })
+      ) {
+        return null;
+      }
+      const canSee = (fileName: string): boolean =>
+        decideMeetingFileVisibility({
+          manifest,
+          fileName,
+          context: visibilityContext,
+        });
       return {
         dir: f.path,
         folderName: f.name,
         meta,
-        hasNotes: names.has('notes.docx'),
-        hasAudio: names.has('audio.wav'),
-        hasTranscript: names.has('transcript.json'),
+        hasNotes: names.has('notes.docx') && canSee('notes.docx'),
+        hasAudio: names.has('audio.wav') && canSee('audio.wav'),
+        hasTranscript:
+          names.has('transcript.json') && canSee('transcript.json'),
       };
     }),
   );
   return {
-    meetings: summaries.sort((a, b) => (b.meta?.startedAt ?? b.folderName).localeCompare(a.meta?.startedAt ?? a.folderName)),
+    meetings: summaries
+      .filter((summary): summary is MeetingSummary => summary !== null)
+      .sort((a, b) => (b.meta?.startedAt ?? b.folderName).localeCompare(a.meta?.startedAt ?? a.folderName)),
     scanFailed: false,
   };
 }
@@ -198,6 +248,7 @@ export function listClientMeetings(input: {
   readonly matterFolder: string;
   readonly workspaceService: ListableWorkspace;
   readonly retryDelayMs?: number;
+  readonly visibilityContext?: MeetingFileVisibilityContext;
 }): Promise<DirectClientMeetingsReadResult<MeetingSummary>> {
   return createDirectClientMeetingsAdapter<MeetingSummary>({
     client: input.clientBoundary,
@@ -208,6 +259,10 @@ export function listClientMeetings(input: {
         ...(input.retryDelayMs !== undefined
           ? { retryDelayMs: input.retryDelayMs }
           : {}),
+        ...(input.visibilityContext
+          ? { visibilityContext: input.visibilityContext }
+          : {}),
+        matterId: input.clientBoundary.matterId,
       }),
   }).list();
 }
@@ -234,6 +289,29 @@ export interface ClientMeetingsTabProps {
 export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, matterFolder, workspaceService, initialSelectedMeeting, crmNavigation }: ClientMeetingsTabProps) {
   const { t, i18n } = useTranslation();
   const matterId = clientBoundary.matterId;
+  const currentViewerId = useFirmStore(
+    (state) => state.session?.userId ?? null
+  );
+  const visibilityPreferences = useMeetingFoundationPreferencesStore();
+  const visibilityContext = useMemo<MeetingFileVisibilityContext>(
+    () => ({
+      viewerId: currentViewerId,
+      policies: [
+        FILE_MEETING_OWNER_PRIVATE_POLICY,
+        ...visibilityPreferences.preferences.visibilityPolicies,
+      ],
+    }),
+    [currentViewerId, visibilityPreferences.preferences.visibilityPolicies]
+  );
+  const visibilityIdentity = useMemo(
+    () =>
+      JSON.stringify([
+        currentViewerId,
+        visibilityPreferences.preferences.visibilityPolicies,
+      ]),
+    [currentViewerId, visibilityPreferences.preferences.visibilityPolicies]
+  );
+  const selectionScopeIdentity = `${clientPairKey(clientBoundary)}\u0000${matterFolder}\u0000${visibilityIdentity}`;
   useActiveMeetingClientBoundary();
   const activeClientBoundary = getActiveClientBoundary();
   const hasLiveClientBoundary =
@@ -281,6 +359,12 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
   const [renamingMeetingDir, setRenamingMeetingDir] = useState<string | null>(null);
   const [meetingTitleDraft, setMeetingTitleDraft] = useState('');
   const [selectedMeetingRevision, setSelectedMeetingRevision] = useState(0);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const [resolvedVisibilityIdentity, setResolvedVisibilityIdentity] = useState<
+    string | null
+  >(null);
+  const refreshGenerationRef = useRef(0);
+  const selectionScopeIdentityRef = useRef(selectionScopeIdentity);
   const skipMeetingRenameBlurRef = useRef(false);
   // Manual paste fallback when calendar sync found no online meeting: lets the
   // advisor add the card to a non-calendar (or not-yet-synced) Teams/Zoom call.
@@ -298,30 +382,37 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
         matterFolder,
         scan: (authorizedMatterFolder) =>
           workspaceService
-            ? scanClientMeetingsFolder(authorizedMatterFolder, workspaceService)
+              ? scanClientMeetingsFolder(authorizedMatterFolder, workspaceService, {
+                visibilityContext,
+                matterId: clientBoundary.matterId,
+              })
             : Promise.resolve({ meetings: [], scanFailed: false }),
       }),
-    [clientBoundary, getActiveClientBoundary, matterFolder, workspaceService]
+    [clientBoundary, getActiveClientBoundary, matterFolder, workspaceService, visibilityContext]
   );
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (generation: number) => {
+    const isCurrent = () => generation === refreshGenerationRef.current;
     const ws = workspaceService;
     if (!ws) {
+      if (!isCurrent()) return;
       setMeetings([]);
       setSelectedMeetingTargetKey(null);
       setDirectRead({ kind: 'ready', meetings: [] });
       setScanFailed(false);
       setLoading(false);
+      setResolvedVisibilityIdentity(visibilityIdentity);
       return;
     }
-    setLoading(true);
     const result = await directAdapter.list();
+    if (!isCurrent()) return;
     setDirectRead(result);
     if (result.kind !== 'ready') {
       setMeetings([]);
       setSelectedMeetingTargetKey(null);
       setScanFailed(result.kind === 'error');
       setLoading(false);
+      setResolvedVisibilityIdentity(visibilityIdentity);
       return;
     }
     const list = result.meetings.map((entry) => entry.meeting);
@@ -346,6 +437,7 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
     // row can reflect its notice state (verified / needs-review / quarantined).
     try {
       const notices = await makeConsentLedger(ws, () => matterFolder).allNotices();
+      if (!isCurrent()) return;
       // Key by normalized folder name so entries written with Rust's canonical
       // meetingDir line up with the (possibly differently-prefixed) row paths
       // from the FS list (codex-review R2).
@@ -360,21 +452,51 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
       setNoticeStates(states);
       setNoticeCardEvidence(cardEvidence);
     } catch {
+      if (!isCurrent()) return;
       setNoticeStates({});
       setNoticeCardEvidence({});
     }
+    if (!isCurrent()) return;
     setLoading(false);
-  }, [directAdapter, matterFolder, workspaceService, directOpenMeeting]);
+    setResolvedVisibilityIdentity(visibilityIdentity);
+  }, [directAdapter, matterFolder, workspaceService, directOpenMeeting, visibilityIdentity]);
 
   const runRefresh = useCallback(() => {
-    void refresh().catch(() => {
-      setScanFailed(true);
-      setLoading(false);
-    });
-  }, [refresh]);
+    setRefreshNonce((value) => value + 1);
+  }, []);
   const handleMeetingChanged = runRefresh;
 
-  useEffect(() => { runRefresh(); }, [runRefresh]);
+  const busy = recording || processing;
+  useEffect(() => {
+    const generation = ++refreshGenerationRef.current;
+    // A changed viewer/policy invalidates every prior list/detail immediately.
+    // `resolvedVisibilityIdentity` also makes render hide the detail on this
+    // same identity change, before the replacement scan resolves.
+    setResolvedVisibilityIdentity(null);
+    setMeetings([]);
+    setDirectRead({ kind: 'loading' });
+    if (selectionScopeIdentityRef.current !== selectionScopeIdentity) {
+      selectionScopeIdentityRef.current = selectionScopeIdentity;
+      setSelectedMeetingTargetKey(null);
+      setDirectOpenMeeting(null);
+    }
+    setNoticeStates({});
+    setNoticeCardEvidence({});
+    setScanFailed(false);
+    setLoading(true);
+    if (!busy) {
+      void refresh(generation).catch(() => {
+        if (generation !== refreshGenerationRef.current) return;
+        setScanFailed(true);
+        setLoading(false);
+        setResolvedVisibilityIdentity(visibilityIdentity);
+      });
+    }
+    return () => {
+      if (generation === refreshGenerationRef.current)
+        refreshGenerationRef.current += 1;
+    };
+  }, [busy, refresh, refreshNonce, selectionScopeIdentity, visibilityIdentity]);
 
   const handleSaveMeetingTitle = useCallback(async (meeting: MeetingSummary, title: string) => {
     const ws = workspaceService;
@@ -403,8 +525,6 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
     }
   }, [clientBoundary, selectedMeetingTargetKey, workspaceService]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
-
   useEffect(() => {
     if (!initialSelectedMeeting) return;
     setDirectOpenMeeting(initialSelectedMeeting);
@@ -413,12 +533,6 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
   // Refresh once a recording for this client finishes AND its post-stop
   // pipeline (transcription + notes) is done, so the new meeting appears —
   // with its notes — without the advisor leaving and reopening the tab.
-  const busy = recording || processing;
-  useEffect(() => {
-    if (!busy) runRefresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy]);
-
   const handleRecordClick = useCallback(() => {
     void (async () => {
       if (workspaceService) {
@@ -544,6 +658,7 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
   const showScanError = !loading && !busy && scanFailed;
   const showEmpty = !loading && !busy && !scanFailed && meetings.length === 0;
   const selectedPairBoundMeeting =
+    resolvedVisibilityIdentity === visibilityIdentity &&
     directRead.kind === 'ready'
       ? directRead.meetings.find(
           (entry) =>

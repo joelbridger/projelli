@@ -94,6 +94,26 @@ pub(crate) fn compute_deleted_keys(
         .collect()
 }
 
+/// Preserve a durable privacy receipt when a file is known from existing rows
+/// to be meeting-derived but its exact sibling manifest is missing or corrupt.
+/// A zero-row signature deliberately records "checked and purged": the next
+/// reconcile still knows this is meeting material and can never downgrade it to
+/// an ordinary document merely because the purged rows are now gone.
+fn protected_meeting_receipt(
+    file: &Path,
+    matter: &str,
+    privilege: &str,
+    prior: Option<&manifest::SourceSignature>,
+) -> Option<manifest::SourceSignature> {
+    if let Some(prior) = prior {
+        let mut retained = prior.clone();
+        retained.meeting_derived = true;
+        retained.row_count = 0;
+        return Some(retained);
+    }
+    text_source_signature(file, matter, privilege, 0, true)
+}
+
 /// Durably record a rebuild-required the instant a stale-key-format manifest is
 /// first observed on workspace open — BEFORE any incremental manifest writer runs.
 ///
@@ -429,10 +449,11 @@ pub(crate) async fn run_workspace_index(
     // the text/office portion from scratch); a Reconcile loads the durable one. A
     // missing/corrupt manifest loads empty → every file looks new → we re-index
     // everything (correct, just not faster).
+    let durable_manifest = manifest::load(&workspace, store::INDEX_VERSION);
     let mut manifest = if effective_full {
         manifest::Manifest::new(store::INDEX_VERSION)
     } else {
-        manifest::load(&workspace, store::INDEX_VERSION)
+        durable_manifest.clone()
     };
     manifest.index_version = store::INDEX_VERSION;
 
@@ -455,6 +476,7 @@ pub(crate) async fn run_workspace_index(
         file: PathBuf,
         matter: String,
         privilege: String,
+        meeting_derived: bool,
     }
     let mut work: Vec<WorkItem> = Vec::new();
     let mut reused: u32 = 0;
@@ -483,6 +505,12 @@ pub(crate) async fn run_workspace_index(
                 std::collections::HashMap::new()
             })
         };
+    // The row-level source type is a second durable privacy receipt. It repairs
+    // a missing/corrupt freshness manifest instead of allowing a full walk to
+    // downgrade a previously protected meeting file to ordinary text.
+    let meeting_source_tokens = store::meeting_source_tokens(&table)
+        .await
+        .map_err(|e| format!("read durable meeting provenance before reconcile: {e:#}"))?;
 
     for file in &all_files {
         if effective_full {
@@ -494,6 +522,13 @@ pub(crate) async fn run_workspace_index(
                 file: file.clone(),
                 matter: matter.clone(),
                 privilege: store::PRIVILEGE_NONE.to_string(),
+                meeting_derived: {
+                    let token = crypto::path_token(&key, &file.to_string_lossy());
+                    durable_manifest
+                        .get(&token)
+                        .is_some_and(|entry| entry.meeting_derived)
+                        || meeting_source_tokens.contains(&token)
+                },
             });
             continue;
         }
@@ -511,7 +546,10 @@ pub(crate) async fn run_workspace_index(
         ) {
             manifest::FileDecision::Skip => match manifest.get(&token) {
                 Some(entry) if reconcile_skip_is_row_backed(entry, &token, &scoped_counts) => {
-                    next_sources.insert(token, entry.clone());
+                    let mut retained = entry.clone();
+                    retained.meeting_derived = retained.meeting_derived
+                        || meeting_source_tokens.contains(&token);
+                    next_sources.insert(token, retained);
                     reused += 1;
                 }
                 Some(entry) => {
@@ -522,6 +560,8 @@ pub(crate) async fn run_workspace_index(
                         file: file.clone(),
                         matter: entry.matter_id.clone(),
                         privilege: entry.privilege.clone(),
+                        meeting_derived: entry.meeting_derived
+                            || meeting_source_tokens.contains(&token),
                     });
                 }
                 None => {
@@ -531,6 +571,7 @@ pub(crate) async fn run_workspace_index(
                         file: file.clone(),
                         matter: store::UNASSIGNED_MATTER.to_string(),
                         privilege: store::PRIVILEGE_NONE.to_string(),
+                        meeting_derived: meeting_source_tokens.contains(&token),
                     });
                 }
             },
@@ -541,7 +582,15 @@ pub(crate) async fn run_workspace_index(
                         store::PRIVILEGE_NONE.to_string(),
                     )
                 });
-                work.push(WorkItem { file: file.clone(), matter: m, privilege: p });
+                work.push(WorkItem {
+                    file: file.clone(),
+                    matter: m,
+                    privilege: p,
+                    meeting_derived: manifest
+                        .get(&token)
+                        .is_some_and(|entry| entry.meeting_derived)
+                        || meeting_source_tokens.contains(&token),
+                });
             }
         }
     }
@@ -708,6 +757,7 @@ pub(crate) async fn run_workspace_index(
             &item.file,
             &item.matter,
             &item.privilege,
+            item.meeting_derived,
             &key,
             vault_vmk,
             &cancel,
@@ -723,9 +773,25 @@ pub(crate) async fn run_workspace_index(
             FileProcess::Recorded(rc) => {
                 reindexed += 1;
                 if let Some(sig) =
-                    text_source_signature(&item.file, &item.matter, &item.privilege, rc)
+                    text_source_signature(
+                        &item.file,
+                        &item.matter,
+                        &item.privilege,
+                        rc,
+                        item.meeting_derived || exact_meeting_manifest_names_file(&item.file),
+                    )
                 {
                     next_sources.insert(token, sig);
+                }
+            }
+            FileProcess::ProtectedMeetingMissingManifest => {
+                if let Some(signature) = protected_meeting_receipt(
+                    &item.file,
+                    &item.matter,
+                    &item.privilege,
+                    durable_manifest.get(&token),
+                ) {
+                    next_sources.insert(token, signature);
                 }
             }
             FileProcess::NotRecorded => {
@@ -832,6 +898,7 @@ mod flood_proofing_tests {
             pdf: None,
             matter_id: "unassigned".into(),
             privilege: "none".into(),
+            meeting_derived: false,
             row_count: 3,
             indexed_at: 0,
         }
@@ -848,6 +915,46 @@ mod flood_proofing_tests {
             }),
             ..text_sig()
         }
+    }
+
+    #[test]
+    fn missing_manifest_meeting_receipt_survives_two_reconciles_without_rows() {
+        let path = std::env::temp_dir().join(format!(
+            "lantern-meeting-receipt-{}-{}.txt",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&path, b"private meeting transcript").unwrap();
+
+        // First reconcile: the freshness manifest is absent, but a durable row
+        // says this was meeting-derived. Purging that row must synthesize a
+        // zero-row receipt rather than forgetting the lineage with the row.
+        let first = protected_meeting_receipt(
+            &path,
+            "matter-private",
+            "none",
+            None,
+        )
+        .expect("a present protected file gets a durable receipt");
+        assert!(first.meeting_derived);
+        assert_eq!(first.row_count, 0);
+
+        // Second reconcile: no rows remain to rediscover provenance. The first
+        // receipt alone must keep the file protected and zero-row.
+        let second = protected_meeting_receipt(
+            &path,
+            "matter-private",
+            "none",
+            Some(&first),
+        )
+        .expect("the prior synthetic receipt is retained");
+        assert!(second.meeting_derived);
+        assert_eq!(second.row_count, 0);
+
+        let _ = std::fs::remove_file(path);
     }
 
     // ── Root-cause regression: the cross-slash-form Windows token bug ───────
@@ -1047,6 +1154,7 @@ mod qa92_tests {
             pdf: None,
             matter_id: matter.to_string(),
             privilege: privilege.to_string(),
+            meeting_derived: false,
             row_count,
             indexed_at: 0,
         }

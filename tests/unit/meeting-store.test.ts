@@ -5,6 +5,36 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invokeMock
 const writeFileMock = vi.fn(async (_path: string, _content: string) => {});
 const indexFileMock = vi.fn(async (_path: string, _matterId?: string) => {});
 
+function visibleMeetingMeta(
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  const files = ['meeting.json', 'audio.wav', 'transcript.json', 'notes.docx'];
+  return {
+    matterId: 'm-1',
+    startedAt: 't0',
+    consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: 't0' },
+    meetingFileVisibility: {
+      version: 1,
+      meetingSubject: {
+        id: 'legacy-test-meeting',
+        kind: 'meeting-note',
+        lineage: 'legacy-unrestricted',
+      },
+      files: Object.fromEntries(
+        files.map((fileName) => [
+          fileName,
+          {
+            id: `legacy-test-meeting:${fileName}`,
+            kind: 'file-reference',
+            lineage: 'legacy-unrestricted',
+          },
+        ])
+      ),
+    },
+    ...overrides,
+  };
+}
+
 const pathSegments = (filePath: string) =>
   filePath.split(/[\\/]+/u).filter(Boolean);
 
@@ -40,6 +70,7 @@ vi.mock('@/platform/utils/docx-io', () => ({
 vi.mock('@/platform/rag/MemoryService', () => ({
   MemoryService: {
     indexFile: (path: string, matterId?: string) => indexFileMock(path, matterId),
+    indexMeetingFile: (path: string, matterId?: string) => indexFileMock(path, matterId),
   },
 }));
 
@@ -59,10 +90,20 @@ describe('meeting store', () => {
     writeFileMock.mockReset();
     indexFileMock.mockReset();
     useMeetingStore.setState(useMeetingStore.getInitialState());
+    const files = new Map<string, string>([
+      ['/ws/C/Meetings/x/meeting.json', JSON.stringify(visibleMeetingMeta())],
+    ]);
+    writeFileMock.mockImplementation(async (path: string, content: string) => {
+      files.set(path, content);
+    });
     setMeetingsWorkspaceService({
       writeFile: writeFileMock,
-      readFile: vi.fn(async () => ''),
-      exists: vi.fn(async () => false), // no transcript.json in these tests — notes stay queued, not an error
+      readFile: vi.fn(async (path: string) => {
+        const content = files.get(path);
+        if (content === undefined) throw new Error('ENOENT');
+        return content;
+      }),
+      exists: vi.fn(async (path: string) => files.has(path)),
     } as never);
   });
 
@@ -128,11 +169,7 @@ describe('meeting store', () => {
     const meetingDir = '/ws/C/Meetings/qa88-paths';
     files.set(
       `${meetingDir}/meeting.json`,
-      JSON.stringify({
-        matterId: 'm-1',
-        startedAt: 't0',
-        consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: 't0' },
-      }),
+      JSON.stringify(visibleMeetingMeta()),
     );
     files.set(
       `${meetingDir}/transcript.json`,
@@ -190,13 +227,20 @@ describe('meeting store', () => {
     // Rust's finalize_session (session.rs's MeetingMeta) already wrote this
     // by the time capture_stop resolves — the REAL start time and consent,
     // not what a TS-side reconstruction from stop-time state would produce.
-    const rustWritten = {
+    let rustWritten = visibleMeetingMeta({
       matterId: 'm-1',
       startedAt: '2026-07-02T17:00:00Z', // the real recording start, not stop time
       consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-02T17:00:00Z', note: '' },
-    };
+    });
     const readFileMock = vi.fn(async (p: string) => (p.endsWith('meeting.json') ? JSON.stringify(rustWritten) : ''));
-    setMeetingsWorkspaceService({ writeFile: writeFileMock, readFile: readFileMock } as never);
+    writeFileMock.mockImplementation(async (p: string, content: string) => {
+      if (p.endsWith('meeting.json')) rustWritten = JSON.parse(content) as Record<string, unknown>;
+    });
+    setMeetingsWorkspaceService({
+      writeFile: writeFileMock,
+      readFile: readFileMock,
+      exists: vi.fn(async (p: string) => p.endsWith('meeting.json')),
+    } as never);
     invokeMock
       .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
       .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: '/ws/C/Meetings/x/audio.wav', durationMs: 60000 })
@@ -206,9 +250,9 @@ describe('meeting store', () => {
     await useMeetingStore.getState().stopRecording();
     const metaWrite = writeFileMock.mock.calls.find((c) => (c[0] as string).endsWith('meeting.json'));
     const written = JSON.parse(metaWrite?.[1] as string) as typeof rustWritten;
-    expect(written.startedAt).toBe('2026-07-02T17:00:00Z');
-    expect(written.consent).toEqual(rustWritten.consent);
-    expect(written.matterId).toBe('m-1');
+    expect(written['startedAt']).toBe('2026-07-02T17:00:00Z');
+    expect(written['consent']).toEqual(rustWritten['consent']);
+    expect(written['matterId']).toBe('m-1');
   });
 
   // 2026-07-04 UX review S1 (coordinator codex pass): processing is a JOB
@@ -216,6 +260,18 @@ describe('meeting store', () => {
   // hide the "writing your notes" indicator while meeting B's is mid-write.
   it('keeps processingCount truthful across overlapping post-stop pipelines', async () => {
     const deferred: Array<(v: unknown) => void> = [];
+    const files = new Map<string, string>();
+    setMeetingsWorkspaceService({
+      readFile: vi.fn(async (path: string) =>
+        files.get(path) ?? JSON.stringify(visibleMeetingMeta())
+      ),
+      writeFile: vi.fn(async (path: string, content: string) => {
+        files.set(path, content);
+      }),
+      exists: vi.fn(async (path: string) =>
+        path.endsWith('/meeting.json') || files.has(path)
+      ),
+    } as never);
     invokeMock.mockImplementation((cmd: unknown) => {
       if (cmd === 'capture_start') return Promise.resolve({ meetingDir: `/ws/C/Meetings/m${String(deferred.length)}`, startedAt: 't0' });
       if (cmd === 'capture_stop') return Promise.resolve({ meetingDir: `/ws/C/Meetings/m${String(deferred.length)}`, audioPath: 'a.wav', durationMs: 60000 });
@@ -289,11 +345,7 @@ describe('meeting store — notes generation never hangs and never fails silentl
     files.set('/ws/C/Meetings/x/transcript.json', validTranscript);
     files.set(
       '/ws/C/Meetings/x/meeting.json',
-      JSON.stringify({
-        matterId: 'm-1',
-        startedAt: 't0',
-        consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: 't0' },
-      }),
+      JSON.stringify(visibleMeetingMeta()),
     );
     const readFile = vi.fn(async (p: string) => {
       if (!files.has(p)) throw new Error('ENOENT');
@@ -454,11 +506,7 @@ describe('meeting store — a transcript.json that exists but cannot be read/par
     const files = new Map<string, string>();
     files.set(
       '/ws/C/Meetings/x/meeting.json',
-      JSON.stringify({
-        matterId: 'm-1',
-        startedAt: 't0',
-        consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: 't0' },
-      }),
+      JSON.stringify(visibleMeetingMeta()),
     );
     if (opts.transcriptContent !== undefined) {
       files.set('/ws/C/Meetings/x/transcript.json', opts.transcriptContent);
@@ -591,11 +639,7 @@ describe('meeting store — transcription never fails silently (QA-40)', () => {
     const files = new Map<string, string>();
     files.set(
       '/ws/C/Meetings/x/meeting.json',
-      JSON.stringify({
-        matterId: 'm-1',
-        startedAt: 't0',
-        consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: 't0' },
-      }),
+      JSON.stringify(visibleMeetingMeta()),
     );
     const readFile = vi.fn(async (p: string) => {
       if (!files.has(p)) throw new Error('ENOENT');

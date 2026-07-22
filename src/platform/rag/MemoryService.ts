@@ -284,6 +284,107 @@ export function resetRetrievalHitExclusion(): void {
 }
 
 /**
+ * Meeting files carry a manifest in their sibling meeting.json.  The meetings
+ * feature installs this batch resolver because the platform memory layer must
+ * not import a feature. `not-meeting` is the only allow result for an ordinary
+ * file; `hidden` is removed from both indexing and retrieval.
+ */
+export type MeetingFileVisibilityResolution =
+  | 'not-meeting'
+  | 'visible'
+  | 'hidden';
+export type MeetingFileVisibilityResolver = (
+  sourceIds: readonly string[],
+  meetingDerivedSourceIds: ReadonlySet<string>
+) => Promise<ReadonlyMap<string, MeetingFileVisibilityResolution>>;
+
+const NO_MEETING_FILE_RESOLVER: MeetingFileVisibilityResolver = (
+  sourceIds,
+  meetingDerivedSourceIds
+) =>
+  Promise.resolve(
+    new Map(
+      sourceIds.map((sourceId) => [
+        sourceId,
+        meetingDerivedSourceIds.has(sourceId) ? 'hidden' : 'not-meeting',
+      ] as const)
+    )
+  );
+
+let resolveMeetingFileVisibility: MeetingFileVisibilityResolver =
+  NO_MEETING_FILE_RESOLVER;
+let meetingFileVisibilityResolverInstalled = false;
+
+export function setMeetingFileVisibilityResolver(
+  resolver: MeetingFileVisibilityResolver
+): void {
+  resolveMeetingFileVisibility = resolver;
+  meetingFileVisibilityResolverInstalled = true;
+}
+
+export function resetMeetingFileVisibilityResolver(): void {
+  resolveMeetingFileVisibility = NO_MEETING_FILE_RESOLVER;
+  meetingFileVisibilityResolverInstalled = false;
+}
+
+async function removeHiddenMeetingSources(sourceIds: readonly string[]): Promise<void> {
+  await Promise.all(
+    [...new Set(sourceIds)].map(async (sourceId) => {
+      try {
+        await ragDeletePath(sourceId);
+      } catch (err) {
+        // Retrieval remains fail-closed even if stale-row cleanup needs a
+        // later retry. Never put a hidden hit back because deletion failed.
+        console.warn(`[memory] could not remove hidden meeting source ${sourceId}:`, err);
+      }
+    })
+  );
+}
+
+/**
+ * Fresh meeting visibility check used by retrieve and again by Ask immediately
+ * before prompt/citation construction. A resolver failure hides the whole
+ * candidate set: inability to prove current meeting visibility is not consent.
+ */
+export async function filterMeetingFileVisibilityHits(
+  hits: readonly RagHit[]
+): Promise<RagHit[]> {
+  if (hits.length === 0) return [];
+  const sourceIds = hits.map((hit) => hit.sourceId ?? hit.path);
+  // Without feature wiring the platform cannot prove that an ordinary-looking
+  // row is not a protected meeting file. Hide and purge every candidate rather
+  // than relying on a possibly stale source_type tag.
+  if (!meetingFileVisibilityResolverInstalled) {
+    await removeHiddenMeetingSources(sourceIds);
+    return [];
+  }
+  const meetingDerivedSourceIds = new Set(
+    hits
+      .filter((hit) => hit.sourceType === 'meeting')
+      .map((hit) => hit.sourceId ?? hit.path)
+  );
+  let decisions: ReadonlyMap<string, MeetingFileVisibilityResolution>;
+  try {
+    decisions = await resolveMeetingFileVisibility(
+      sourceIds,
+      meetingDerivedSourceIds
+    );
+  } catch {
+    await removeHiddenMeetingSources(sourceIds);
+    return [];
+  }
+  const hidden = sourceIds.filter((sourceId) => {
+    const decision = decisions.get(sourceId);
+    return decision !== 'not-meeting' && decision !== 'visible';
+  });
+  if (hidden.length > 0) await removeHiddenMeetingSources(hidden);
+  return hits.filter((hit) => {
+    const decision = decisions.get(hit.sourceId ?? hit.path);
+    return decision === 'not-meeting' || decision === 'visible';
+  });
+}
+
+/**
  * QA-44 — apply both fail-closed filters to a raw hit list, in the SAFE
  * direction only (drop suspect hits; never add any):
  *
@@ -353,6 +454,9 @@ function normalizeWorkspaceKey(path: string): string {
 }
 
 export const MemoryService = {
+  filterMeetingFileVisibilityHits,
+  setMeetingFileVisibilityResolver,
+  resetMeetingFileVisibilityResolver,
   /** Point the indexer at a workspace. Always runs even if disabled — the
    *  workspace handle is metadata, not user data. */
   async setWorkspace(path: string): Promise<void> {
@@ -366,6 +470,22 @@ export const MemoryService = {
 
   async indexFile(path: string, matterId?: string): Promise<void> {
     if (!isMemoryEnabled()) return;
+    if (!meetingFileVisibilityResolverInstalled) {
+      await removeHiddenMeetingSources([path]);
+      return;
+    }
+    let decision: MeetingFileVisibilityResolution | undefined;
+    try {
+      decision = (
+        await resolveMeetingFileVisibility([path], new Set<string>())
+      ).get(path);
+    } catch {
+      decision = 'hidden';
+    }
+    if (decision !== 'not-meeting' && decision !== 'visible') {
+      await removeHiddenMeetingSources([path]);
+      return;
+    }
     // WS-B/C: tag the chunk with the matter this file belongs to so retrieval
     // can prefilter by matter. Resolves to "unassigned" when the file is not
     // under any matter's mapped folders. Callers that already know the matter
@@ -373,7 +493,41 @@ export const MemoryService = {
     // does not depend on folder-watcher timing or folder inference.
     // WS-PRIV: also tag with the source's privilege so privileged content is
     // excluded from default retrieval. Resolves to "none" when not tagged.
-    await ragIndexFile(path, matterId ?? resolveMatterForPath(path), resolvePrivilegeForPath(path));
+    await ragIndexFile(
+      path,
+      matterId ?? resolveMatterForPath(path),
+      resolvePrivilegeForPath(path),
+      decision === 'visible' ? 'meeting' : undefined
+    );
+  },
+
+  /** Meeting writers use this doorway so the native row carries durable
+   * `source_type=meeting` provenance. Missing/reset visibility wiring refuses
+   * the index operation instead of treating the file as ordinary. */
+  async indexMeetingFile(path: string, matterId: string): Promise<void> {
+    if (!isMemoryEnabled()) return;
+    if (!meetingFileVisibilityResolverInstalled) {
+      await removeHiddenMeetingSources([path]);
+      return;
+    }
+    let decision: MeetingFileVisibilityResolution | undefined;
+    try {
+      decision = (
+        await resolveMeetingFileVisibility([path], new Set([path]))
+      ).get(path);
+    } catch {
+      decision = 'hidden';
+    }
+    if (decision !== 'visible') {
+      await removeHiddenMeetingSources([path]);
+      return;
+    }
+    await ragIndexFile(
+      path,
+      matterId,
+      resolvePrivilegeForPath(path),
+      'meeting'
+    );
   },
 
   /**
@@ -395,6 +549,10 @@ export const MemoryService = {
    */
   async indexWorkspace(matterId?: string): Promise<void> {
     if (!isMemoryEnabled()) return;
+    // A native walk can encounter meeting folders. Without the feature's exact
+    // file resolver, there is no safe way to distinguish them from normal CRM
+    // files, so defer the whole walk until wiring is installed.
+    if (!meetingFileVisibilityResolverInstalled) return;
     if (matterId === undefined) {
       const requestedWorkspace = activeWorkspaceKey;
       const requestedActivation = workspaceActivation;
@@ -469,12 +627,32 @@ export const MemoryService = {
    */
   async reindexPaths(paths: string[], matterId: string): Promise<number> {
     if (!isMemoryEnabled()) return 0;
+    if (!meetingFileVisibilityResolverInstalled) {
+      await removeHiddenMeetingSources(paths);
+      return paths.length;
+    }
     let failed = 0;
     for (const path of paths) {
       try {
+        let decision: MeetingFileVisibilityResolution | undefined;
+        try {
+          decision = (await resolveMeetingFileVisibility([path], new Set())).get(path);
+        } catch {
+          decision = 'hidden';
+        }
+        if (decision !== 'not-meeting' && decision !== 'visible') {
+          await removeHiddenMeetingSources([path]);
+          failed += 1;
+          continue;
+        }
         // WS-PRIV: preserve each file's privilege across a matter re-index so a
         // matter remap never silently un-privileges a source.
-        await ragIndexFile(path, matterId, resolvePrivilegeForPath(path));
+        await ragIndexFile(
+          path,
+          matterId,
+          resolvePrivilegeForPath(path),
+          decision === 'visible' ? 'meeting' : undefined
+        );
       } catch {
         // Skip this file and continue the batch, but remember it failed.
         failed += 1;
@@ -580,7 +758,9 @@ export const MemoryService = {
     // QA-44: fail closed on privilege and wrong-client exposure regardless of
     // whether a prior re-tag ever landed (a swallowed/failed re-tag left stale
     // tags in the index).
-    return applyFailClosedExclusions(hits, includePrivileged);
+    return filterMeetingFileVisibilityHits(
+      applyFailClosedExclusions(hits, includePrivileged)
+    );
   },
 
   /** Index a single PDF file into the RAG store. Reads bytes via the
@@ -614,6 +794,22 @@ export const MemoryService = {
     }
     if (!isPdfIndexingEnabled()) {
       return { indexed: false, pageCount: 0, reason: 'pdf-indexing-disabled' };
+    }
+    if (!meetingFileVisibilityResolverInstalled) {
+      await removeHiddenMeetingSources([path]);
+      return { indexed: false, pageCount: 0, reason: 'visibility-unavailable' };
+    }
+    let visibility: MeetingFileVisibilityResolution | undefined;
+    try {
+      visibility = (
+        await resolveMeetingFileVisibility([path], new Set<string>())
+      ).get(path);
+    } catch {
+      visibility = 'hidden';
+    }
+    if (visibility !== 'not-meeting' && visibility !== 'visible') {
+      await removeHiddenMeetingSources([path]);
+      return { indexed: false, pageCount: 0, reason: 'meeting-hidden' };
     }
     // Capture the native opening id BEFORE reading or slow OCR starts. The path
     // alone is not enough for A → B → A; the first A must not write into the

@@ -710,6 +710,7 @@ pub async fn rag_manifest_record_pdf(
         }),
         matter_id: matter,
         privilege,
+        meeting_derived: false,
         row_count: 0,
         indexed_at: now_unix_secs(),
     };

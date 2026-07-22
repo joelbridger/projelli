@@ -7,6 +7,7 @@ import {
 } from '@/features/meetings';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
+import { createLegacyUnrestrictedMeetingFileVisibilityManifest } from '@/features/meetings';
 
 const meetingBoundaryMint = vi.hoisted(() => ({
   selection: null as null | { householdRef: string; matterId: string },
@@ -84,11 +85,19 @@ function makeWorkspace() {
       ...baseMeta,
       startedAt: '2026-07-04T10:00:00Z',
       customTitle: 'Annual review',
+      meetingFileVisibility: createLegacyUnrestrictedMeetingFileVisibilityManifest({
+        meetingSubjectId: 'legacy-meeting-a',
+        fileNames: ['meeting.json', 'transcript.json'],
+      }),
     },
     b: {
       ...baseMeta,
       startedAt: '2026-07-05T10:00:00Z',
       customTitle: 'Roth planning',
+      meetingFileVisibility: createLegacyUnrestrictedMeetingFileVisibilityManifest({
+        meetingSubjectId: 'legacy-meeting-b',
+        fileNames: ['meeting.json', 'transcript.json'],
+      }),
     },
   };
   return {

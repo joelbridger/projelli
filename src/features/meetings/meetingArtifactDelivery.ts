@@ -13,6 +13,10 @@ import {
   type MeetingRecipient,
 } from './meetingRecipientPlan';
 import type { MeetingMeta } from './meetingStore';
+import {
+  MeetingFileVisibilityRevokedError,
+  requireCurrentMeetingFileAccess,
+} from './meetingFileVisibility';
 import type { TFunction } from 'i18next';
 
 export type MeetingSendStatus = 'sent' | 'failed';
@@ -55,6 +59,8 @@ export interface MeetingSendPreview {
 export interface MeetingSendDeps {
   workspaceService: Pick<WorkspaceService, 'readFile' | 'writeFile' | 'readFileBinary' | 'exists'>;
   meetingDir: string;
+  workspaceRoot: string;
+  workspaceGeneration: number;
   matterId: string;
   meta: MeetingMeta;
   account: ConnectedAccount;
@@ -165,7 +171,9 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
   }
   if (deps.preview.items.length === 0) return [];
 
+  await requireSendFileAccess(`${deps.meetingDir}/meeting.json`, deps);
   const raw = await deps.workspaceService.readFile(`${deps.meetingDir}/meeting.json`);
+  await requireSendFileAccess(`${deps.meetingDir}/meeting.json`, deps);
   const base = JSON.parse(raw) as MeetingMeta;
   if (base.matterId !== deps.matterId) {
     throw new Error('This meeting belongs to a different client.');
@@ -205,7 +213,12 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
   for (const item of deps.preview.items) {
     const id = deps.idFactory?.() ?? `meeting_send_${String(Date.now())}_${Math.random().toString(36).slice(2, 9)}`;
     try {
+      const sourcePath = artifactSourcePath(item.artifact, deps.meetingDir);
+      await requireSendFileAccess(sourcePath, deps);
       const attachment = await buildAttachment(item, deps);
+      // Attachment creation can await disk or document work. Recheck the exact
+      // source after that wait and immediately before the e-mail leaves.
+      await requireSendFileAccess(sourcePath, deps);
       validateMailAttachmentsForProvider(deps.account.provider, [attachment]);
       const messageId = await sendMail(
         deps.account.provider,
@@ -233,6 +246,7 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
       entries.push(entry);
       await logMeetingSendAudit(deps.audit, entry, deps.matterId, deps.meetingDir);
     } catch (error) {
+      if (error instanceof MeetingFileVisibilityRevokedError) throw error;
       const entry: MeetingSendLogEntry = {
         id,
         sentAt: now,
@@ -272,6 +286,33 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
   );
 
   return entries;
+}
+
+function requireSendFileAccess(
+  path: string,
+  deps: MeetingSendDeps
+): Promise<void> {
+  return requireCurrentMeetingFileAccess({
+    path,
+    workspace: deps.workspaceService,
+    workspaceRoot: deps.workspaceRoot,
+    workspaceGeneration: deps.workspaceGeneration,
+  });
+}
+
+function artifactSourcePath(
+  artifact: MeetingArtifact,
+  meetingDir: string
+): string {
+  switch (artifact) {
+    case 'audio':
+      return `${meetingDir}/audio.wav`;
+    case 'notes':
+    case 'summary':
+      return `${meetingDir}/notes.docx`;
+    case 'transcript':
+      return `${meetingDir}/transcript.json`;
+  }
 }
 
 export function artifactLabelFor(artifact: MeetingArtifact, t: TFunction): string {

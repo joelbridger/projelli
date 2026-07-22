@@ -125,9 +125,15 @@ pub async fn rag_index_file(
     path: String,
     matter_id: Option<String>,
     privilege: Option<String>,
+    source_type: Option<String>,
 ) -> Result<(), String> {
     let matter = resolve_matter(matter_id.as_deref())?;
     let privilege = resolve_privilege(privilege.as_deref())?;
+    let meeting_derived = match source_type.as_deref() {
+        None | Some("") => false,
+        Some("meeting") => true,
+        Some(other) => return Err(format!("invalid file source_type: {other}")),
+    };
     let workspace = require_workspace(&state).await?;
     let file_path = PathBuf::from(&path);
     // fix/ask-list-hang — NEVER index our own internal plumbing. The full walk
@@ -157,19 +163,23 @@ pub async fn rag_index_file(
     // second call is a cheap no-op instead of re-extracting/re-embedding.
     let token = crypto::path_token(&key, &file_path.to_string_lossy());
     let tombstoned = state.unsafe_tokens.lock().await.contains(&token);
-    let manifest_fresh_for_scope = {
+    let (manifest_fresh_for_scope, manifest_meeting_derived) = {
         let _mg = state.manifest_lock.lock().await;
         let manifest = manifest::load(&workspace, store::INDEX_VERSION);
-        manifest.get(&token).and_then(|entry| {
-            text_manifest_entry_is_fresh_for_scope(
-                Some(entry),
-                &file_path,
-                &matter,
-                &privilege,
-                tombstoned,
-            )
-            .then_some(entry.row_count)
-        })
+        let entry = manifest.get(&token);
+        (
+            entry.and_then(|entry| {
+                text_manifest_entry_is_fresh_for_scope(
+                    Some(entry),
+                    &file_path,
+                    &matter,
+                    &privilege,
+                    tombstoned,
+                )
+                .then_some(entry.row_count)
+            }),
+            entry.is_some_and(|entry| entry.meeting_derived),
+        )
     };
 
     let conn = store::open_connection(&workspace)
@@ -178,6 +188,28 @@ pub async fn rag_index_file(
     let table = store::open_or_create_table(&conn)
         .await
         .map_err(|e| format!("open table: {e}"))?;
+
+    let recorded_meeting_derived = if manifest_meeting_derived {
+        true
+    } else {
+        store::path_has_meeting_source_type(
+            &table,
+            &file_path.to_string_lossy(),
+            &key,
+        )
+        .await
+        .map_err(|e| format!("check durable meeting provenance: {e:#}"))?
+    };
+
+    if recorded_meeting_derived && !meeting_derived {
+        store::delete_path(&table, &file_path.to_string_lossy(), &key)
+            .await
+            .map_err(|e| format!("purge meeting source missing visibility manifest: {e:#}"))?;
+        return Err(
+            "meeting-derived source is missing its visibility manifest; indexing refused"
+                .to_string(),
+        );
+    }
 
     if text_manifest_fast_path_can_skip(
         &table,
@@ -190,6 +222,26 @@ pub async fn rag_index_file(
     .await
     .map_err(|e| format!("check indexed rows: {e}"))?
     {
+        if meeting_derived {
+            store::retag_meeting_source_type_for_path(
+                &table,
+                &file_path.to_string_lossy(),
+                &key,
+            )
+            .await
+            .map_err(|e| format!("stamp meeting provenance: {e:#}"))?;
+            record_text_manifest_entry(
+                &state,
+                &workspace,
+                &file_path,
+                &matter,
+                &privilege,
+                manifest_fresh_for_scope.unwrap_or(0),
+                true,
+                &key,
+            )
+            .await;
+        }
         return Ok(());
     }
 
@@ -207,6 +259,15 @@ pub async fn rag_index_file(
     // would silently skip every watcher-triggered single-file index.
     match index_one_file(&table, &file_path, &matter, &privilege, &key, None, vault_vmk).await {
         Ok(indexed) => {
+            if indexed && meeting_derived {
+                store::retag_meeting_source_type_for_path(
+                    &table,
+                    &file_path.to_string_lossy(),
+                    &key,
+                )
+                .await
+                .map_err(|e| format!("stamp meeting provenance: {e:#}"))?;
+            }
             // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) at fn exit.
             // BUG-099 tombstone self-heal: the file watcher's per-file re-index
             // CLEARS this path's tombstone (in memory AND on disk). Without this,
@@ -244,6 +305,7 @@ pub async fn rag_index_file(
                     &matter,
                     &privilege,
                     row_count as u32,
+                    meeting_derived,
                     &key,
                 )
                 .await;
@@ -963,9 +1025,28 @@ pub(crate) enum FileProcess {
     /// Cleanly indexed (or a clean silent skip: empty / too-large / missing) —
     /// the caller records a FRESH manifest signature carrying this row count.
     Recorded(u32),
+    /// The durable index receipt says this was meeting-derived, but its exact
+    /// sibling visibility manifest is now missing or no longer names the file.
+    /// Rows were purged; the caller must retain the provenance receipt so a
+    /// later walk cannot reclassify it as an ordinary document.
+    ProtectedMeetingMissingManifest,
     /// Failed / unreadable / purge-failed — the caller records NO manifest
     /// signature so the file is retried on the next boot.
     NotRecorded,
+}
+
+pub(crate) fn exact_meeting_manifest_names_file(file: &Path) -> bool {
+    file.parent()
+        .and_then(|parent| std::fs::read(parent.join("meeting.json")).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|value| value.get("meetingFileVisibility").cloned())
+        .and_then(|manifest| manifest.get("files").cloned())
+        .and_then(|files| files.as_object().cloned())
+        .is_some_and(|files| {
+            file.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| files.contains_key(name))
+        })
 }
 
 /// P1.1 — process exactly one workspace file: extract+embed under the timeout,
@@ -986,6 +1067,7 @@ pub(crate) async fn process_one_workspace_file(
     file: &Path,
     matter: &str,
     privilege: &str,
+    known_meeting_derived: bool,
     key: &[u8; 32],
     vault_vmk: Option<[u8; 32]>,
     cancel: &Arc<AtomicBool>,
@@ -993,6 +1075,29 @@ pub(crate) async fn process_one_workspace_file(
     total: u32,
     tally: &mut IndexTally,
 ) -> FileProcess {
+    let current_meeting_derived = exact_meeting_manifest_names_file(file);
+    if known_meeting_derived && !current_meeting_derived {
+        let path_str = file.to_string_lossy().to_string();
+        match store::delete_path(table, &path_str, key).await {
+            Ok(()) => {
+                clear_tombstone(state, workspace, &path_str, key).await;
+                return FileProcess::ProtectedMeetingMissingManifest;
+            }
+            Err(error) => {
+                if tombstone_path(state, workspace, &path_str, key).await.is_err() {
+                    tally.durable_tombstone_failed = true;
+                }
+                tally.cleanup_failed_files += 1;
+                tally.skipped_files += 1;
+                tally.failed_files += 1;
+                tally.skipped_paths.push(path_str);
+                log::error!(
+                    "rag: could not purge meeting-derived source with missing manifest: {error:#}"
+                );
+                return FileProcess::ProtectedMeetingMissingManifest;
+            }
+        }
+    }
     let file_for_task = file.to_path_buf();
     let cancel_for_task = cancel.clone();
     let vault_vmk_for_task = vault_vmk;
@@ -1026,7 +1131,17 @@ pub(crate) async fn process_one_workspace_file(
             // changes, silently dropping a temporarily-unreadable file from search.
             // Re-attempting the (cheap) read next boot is the fail-safe choice.
             let delete_only = matches!(data, ExtractedFileData::ShouldDelete);
-            match write_extracted_file(table, &path_str, data, matter, privilege, key).await {
+            let write_result =
+                write_extracted_file(table, &path_str, data, matter, privilege, key).await;
+            let write_result = match write_result {
+                Ok(skipped) if !skipped && !delete_only && current_meeting_derived => {
+                    store::retag_meeting_source_type_for_path(table, &path_str, key)
+                        .await
+                        .map(|_| skipped)
+                }
+                other => other,
+            };
+            match write_result {
                 Ok(true) => {
                     // SkippedUnreadable: extraction failed on a readable file. Stale
                     // rows WERE deleted, so the path is safe — clear any tombstone,
@@ -1303,6 +1418,7 @@ pub(crate) fn text_source_signature(
     matter: &str,
     privilege: &str,
     row_count: u32,
+    meeting_derived: bool,
 ) -> Option<manifest::SourceSignature> {
     let (size, mtime_ns) = manifest::stat_signature(file)?;
     Some(manifest::SourceSignature {
@@ -1315,6 +1431,7 @@ pub(crate) fn text_source_signature(
         pdf: None,
         matter_id: matter.to_string(),
         privilege: privilege.to_string(),
+        meeting_derived,
         row_count,
         indexed_at: now_unix_secs(),
     })
@@ -1376,9 +1493,16 @@ async fn record_text_manifest_entry(
     matter: &str,
     privilege: &str,
     row_count: u32,
+    meeting_derived: bool,
     key: &[u8; 32],
 ) {
-    let Some(sig) = text_source_signature(file, matter, privilege, row_count) else {
+    let Some(sig) = text_source_signature(
+        file,
+        matter,
+        privilege,
+        row_count,
+        meeting_derived,
+    ) else {
         return;
     };
     // Key by the source's path token (matches the rows; no plaintext path on disk).
@@ -1399,11 +1523,31 @@ mod qa88_tests {
     const TEST_KEY: [u8; 32] = [0x42u8; 32];
 
     #[test]
+    fn exact_meeting_manifest_requires_the_current_file_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes.docx");
+        std::fs::write(&notes, b"notes").unwrap();
+        std::fs::write(
+            dir.path().join("meeting.json"),
+            br#"{"meetingFileVisibility":{"files":{"meeting.json":{},"notes.docx":{}}}}"#,
+        )
+        .unwrap();
+        assert!(exact_meeting_manifest_names_file(&notes));
+
+        let transcript = dir.path().join("transcript.json");
+        std::fs::write(&transcript, b"{}").unwrap();
+        assert!(!exact_meeting_manifest_names_file(&transcript));
+
+        std::fs::remove_file(dir.path().join("meeting.json")).unwrap();
+        assert!(!exact_meeting_manifest_names_file(&notes));
+    }
+
+    #[test]
     fn fresh_manifest_entry_same_scope_skips_reindex() {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("notes.docx");
         std::fs::write(&file, b"docx bytes").unwrap();
-        let sig = text_source_signature(&file, "m-1", store::PRIVILEGE_NONE, 1).unwrap();
+        let sig = text_source_signature(&file, "m-1", store::PRIVILEGE_NONE, 1, false).unwrap();
 
         assert!(text_manifest_entry_is_fresh_for_scope(
             Some(&sig),
@@ -1419,7 +1563,7 @@ mod qa88_tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("transcript.json");
         std::fs::write(&file, br#"{"segments":[]}"#).unwrap();
-        let sig = text_source_signature(&file, "m-1", store::PRIVILEGE_NONE, 1).unwrap();
+        let sig = text_source_signature(&file, "m-1", store::PRIVILEGE_NONE, 1, false).unwrap();
 
         assert!(!text_manifest_entry_is_fresh_for_scope(
             Some(&sig),

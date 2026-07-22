@@ -15,6 +15,7 @@ import {
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { useFlag } from '@/platform/flags';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -35,6 +36,7 @@ import {
   projectMeetingList,
   readActiveMeetingClientBoundary,
   useActiveMeetingClientBoundary,
+  useMeetingFoundationPreferencesStore,
   type MeetingOpenTarget,
   type MeetingProjection,
   type SealedMeetingClientBoundary,
@@ -46,6 +48,11 @@ import { MeetingEntry } from '../MeetingEntry';
 import { meetingEntryHostIdentity } from '../meetingEntryHostIdentity';
 import { MeetingTemplatePanel } from '../MeetingTemplatePanel';
 import { createPreparedMeetingTemplateFillProvider } from '../meetingTemplateAi';
+import {
+  FILE_MEETING_OWNER_PRIVATE_POLICY,
+  meetingFileVisibilityContextIdentity,
+  requireCurrentMeetingFileAccess,
+} from '../meetingFileVisibility';
 import {
   useMeetingListComposition,
   useMeetingListToolComposition,
@@ -141,7 +148,7 @@ export function MeetingsDetailHost({
   );
 }
 
-function TemplateManagement({
+export function TemplateManagement({
   target,
   activeClientBoundary,
   runtime,
@@ -155,28 +162,76 @@ function TemplateManagement({
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
   const [loading, setLoading] = useState(target !== null);
   const workspace = runtime.workspace.serviceRef.current;
+  const workspaceRoot = runtime.workspace.rootPath ?? '';
+  const workspaceGeneration = useWorkspaceStore(
+    (state) => state.rootGeneration
+  );
+  const visibilityViewerId = useFirmStore(
+    (state) => state.session?.userId ?? null
+  );
+  const visibilityPreferences = useMeetingFoundationPreferencesStore();
+  const visibilityPolicies = visibilityPreferences.preferences.visibilityPolicies;
+  const visibilityIdentity = useMemo(
+    () =>
+      meetingFileVisibilityContextIdentity({
+        viewerId: visibilityViewerId,
+        policies: [
+          FILE_MEETING_OWNER_PRIVATE_POLICY,
+          ...visibilityPolicies,
+        ],
+      }),
+    [visibilityPolicies, visibilityViewerId]
+  );
+  const [authorizedVisibilityIdentity, setAuthorizedVisibilityIdentity] =
+    useState<string | null>(null);
 
   useEffect(() => {
-    let current = true;
+    const request = { current: true };
     queueMicrotask(() => {
-      if (!current) return;
+      if (!request.current) return;
       setTranscript(null);
+      setAuthorizedVisibilityIdentity(null);
       setLoading(target !== null);
     });
-    if (!target || !workspace) return () => { current = false; };
-    void workspace
-      .readFile(`${target.meetingDir}/transcript.json`)
-      .then((raw) => {
-        if (current) setTranscript(JSON.parse(raw) as TranscriptFile);
-      })
+    if (!target || !workspace) return () => { request.current = false; };
+    const transcriptPath = `${target.meetingDir}/transcript.json`;
+    void (async () => {
+      await requireCurrentMeetingFileAccess({
+        path: transcriptPath,
+        workspace,
+        workspaceRoot,
+        workspaceGeneration,
+        expectedVisibilityIdentity: visibilityIdentity,
+      });
+      const raw = await workspace.readFile(transcriptPath);
+      await requireCurrentMeetingFileAccess({
+        path: transcriptPath,
+        workspace,
+        workspaceRoot,
+        workspaceGeneration,
+        expectedVisibilityIdentity: visibilityIdentity,
+      });
+      if (request.current) {
+        setTranscript(JSON.parse(raw) as TranscriptFile);
+        setAuthorizedVisibilityIdentity(visibilityIdentity);
+      }
+    })()
       .catch(() => {
-        if (current) setTranscript(null);
+        if (request.current) setTranscript(null);
       })
       .finally(() => {
-        if (current) setLoading(false);
+        if (request.current) setLoading(false);
       });
-    return () => { current = false; };
-  }, [target, workspace]);
+    return () => { request.current = false; };
+  }, [
+    target,
+    visibilityPolicies,
+    visibilityViewerId,
+    workspace,
+    workspaceGeneration,
+    workspaceRoot,
+    visibilityIdentity,
+  ]);
 
   if (!workspace) {
     return (
@@ -185,12 +240,17 @@ function TemplateManagement({
       </div>
     );
   }
+  // A passive effect has not run yet on the first render after a viewer or
+  // policy change. Gate the old transcript synchronously by the authority that
+  // loaded it, so that one render can never expose a stale template fill.
+  const authorizedTranscript =
+    authorizedVisibilityIdentity === visibilityIdentity ? transcript : null;
   const fill =
-    target && transcript && activeClientBoundary
+    target && authorizedTranscript && activeClientBoundary
       ? {
           activeClientBoundary,
           target,
-          transcript,
+          transcript: authorizedTranscript,
           clientName:
             activeClientBoundary.displayName ??
             activeClientBoundary.householdRef,
@@ -209,7 +269,7 @@ function TemplateManagement({
         <div className="meetings-shell-local-state" data-testid="meetings-templates-loading">
           {t('meetings.shell.loading.templates')}
         </div>
-      ) : target && !transcript ? (
+      ) : target && !authorizedTranscript ? (
         <div className="meetings-shell-empty" data-testid="meetings-templates-unavailable">
           {t('meetings.shell.templates.no-transcript')}
         </div>

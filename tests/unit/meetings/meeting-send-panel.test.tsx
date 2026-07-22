@@ -6,6 +6,28 @@ import { emptyMeetingRecipientArtifacts, type MeetingDeliveryPlan } from '@/feat
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
 import type { Matter } from '@/platform/types/matter';
 
+const { sendArtifactsMock, requireFileAccessMock } = vi.hoisted(() => ({
+  sendArtifactsMock: vi.fn(),
+  requireFileAccessMock: vi.fn<() => Promise<void>>(),
+}));
+
+vi.mock('@/features/meetings/meetingFileVisibility', async (importOriginal) => {
+  const original = await importOriginal<
+    typeof import('@/features/meetings/meetingFileVisibility')
+  >();
+  return {
+    ...original,
+    requireCurrentMeetingFileAccess: requireFileAccessMock,
+  };
+});
+
+vi.mock('@/features/meetings/meetingArtifactDelivery', async (importOriginal) => {
+  const original = await importOriginal<
+    typeof import('@/features/meetings/meetingArtifactDelivery')
+  >();
+  return { ...original, sendMeetingArtifacts: sendArtifactsMock };
+});
+
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/utils/mail-commands')>();
   return {
@@ -73,6 +95,9 @@ function renderPanel(opts: { inputMeta?: MeetingMeta; ws?: ReturnType<typeof mak
     <MeetingSendPanel
       matterId="matter-1"
       meetingDir="/client/Meetings/one"
+      workspaceRoot="/client"
+      workspaceGeneration={17}
+      visibilityIdentity="test-viewer-and-policy"
       meta={opts.inputMeta ?? meta()}
       matter={opts.matter ?? null}
       clientName="Hendricks"
@@ -93,6 +118,8 @@ describe('MeetingSendPanel (merged send surface)', () => {
   beforeEach(() => {
     localOnlyState.value = false;
     vi.clearAllMocks();
+    sendArtifactsMock.mockResolvedValue([]);
+    requireFileAccessMock.mockResolvedValue();
   });
   afterEach(() => {
     localOnlyState.value = false;
@@ -163,6 +190,28 @@ describe('MeetingSendPanel (merged send surface)', () => {
     renderPanel();
     expect(await screen.findByTestId('meeting-send-trust-note')).toHaveTextContent(
       brandText('Review first. Sends by your email. Lantern never receives files.'),
+    );
+  });
+
+  it('shows a calm stop and forwards the live workspace generation when access is revoked during send', async () => {
+    sendArtifactsMock.mockRejectedValue(
+      new Error('Access to this meeting file changed. Nothing was sent or opened.')
+    );
+    renderPanel();
+
+    const review = await screen.findByTestId('meeting-send-review');
+    await waitFor(() => expect(review).toBeEnabled());
+    fireEvent.click(review);
+    fireEvent.click(await screen.findByTestId('meeting-send-confirm'));
+
+    await waitFor(() =>
+      expect(screen.getAllByText(/Access to this meeting file changed/).length).toBeGreaterThan(0)
+    );
+    expect(sendArtifactsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceRoot: '/client',
+        workspaceGeneration: 17,
+      })
     );
   });
 
@@ -255,6 +304,49 @@ describe('MeetingSendPanel (merged send surface)', () => {
       const emails = (disk.deliveryPlan?.artifacts.summary ?? []).map((r) => r.email);
       expect(emails).toContain('late@example.com');
     });
+  });
+
+  it('writes nothing when recipient access is revoked after the debounced plan read', async () => {
+    vi.useFakeTimers();
+    try {
+      const ws = makeWorkspace();
+      requireFileAccessMock
+        .mockResolvedValueOnce()
+        .mockRejectedValueOnce(
+          new Error('Access to this meeting file changed.')
+        );
+      renderPanel({ ws });
+
+      fireEvent.change(screen.getByTestId('meeting-recipient-input-person'), {
+        target: { value: 'revoked@example.com' },
+      });
+      fireEvent.click(screen.getByTestId('meeting-recipient-add-person'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600);
+      });
+
+      expect(requireFileAccessMock).toHaveBeenCalledTimes(2);
+      expect(ws.writeFile).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('writes nothing when a pending unmount flush has already lost access', async () => {
+    const ws = makeWorkspace();
+    requireFileAccessMock.mockRejectedValue(
+      new Error('Access to this meeting file changed.')
+    );
+    const { unmount } = renderPanel({ ws });
+
+    fireEvent.change(screen.getByTestId('meeting-recipient-input-person'), {
+      target: { value: 'revoked-on-close@example.com' },
+    });
+    fireEvent.click(screen.getByTestId('meeting-recipient-add-person'));
+    unmount();
+
+    await waitFor(() => expect(requireFileAccessMock).toHaveBeenCalled());
+    expect(ws.writeFile).not.toHaveBeenCalled();
   });
 
   it('(finding 3) offers known recipients (client emails / matter keys) as one-click suggestions in the add-person flow', async () => {
