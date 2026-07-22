@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { chmod, lstat, mkdir, open, rename, unlink, writeFile } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, open, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -133,10 +133,19 @@ export async function writeDiagnosticArtifact(input, directory = process.env.GOL
  * state advances even when publication is disabled, so readiness never
  * depends on a diagnostic side channel.
  */
-export function createProgressReporter(progressPath = process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE) {
+export function createProgressReporter(
+  progressPath = process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE,
+  { installNoReplace = link } = {},
+) {
   let progressIndex = -1;
-  let ownsTarget = false;
-  let targetIdentity;
+
+  const sameIdentity = (entry, identity) => entry.isFile() && !entry.isSymbolicLink()
+    && entry.dev === identity.dev && entry.ino === identity.ino;
+  const unlinkOwned = async (ownedPath, identity) => {
+    const current = await lstat(ownedPath);
+    if (!sameIdentity(current, identity)) throw new Error('progress ownership changed');
+    await unlink(ownedPath);
+  };
 
   return async function reportProgress(phase) {
     const nextIndex = PROGRESS_PHASES.indexOf(phase);
@@ -148,44 +157,55 @@ export function createProgressReporter(progressPath = process.env.GOLDEN_LOOP_DR
       return;
     }
 
-    const temporaryPath = `${progressPath}.tmp`;
+    // Every phase has an immutable final name. That lets the Linux hard-link
+    // installation be atomic and no-replace for every update, rather than
+    // unlinking or overwriting a previously published path.
+    const finalPath = nextIndex === 0 ? progressPath : `${progressPath}.${nextIndex}`;
+    const temporaryPath = `${finalPath}.tmp`;
     let handle;
     let createdTemporary = false;
+    let temporaryIdentity;
+    let installedFinal = false;
     try {
       handle = await open(temporaryPath, 'wx', 0o600);
       createdTemporary = true;
+      const temporaryStat = await handle.stat();
+      temporaryIdentity = { dev: temporaryStat.dev, ino: temporaryStat.ino };
       await handle.writeFile(`${phase}\n`, 'utf8');
       await handle.sync();
       await handle.close();
       handle = undefined;
 
-      if (!ownsTarget) {
-        try {
-          await lstat(progressPath);
-          throw new Error('unowned progress target');
-        } catch (error) {
-          if (error?.code !== 'ENOENT') throw error;
-        }
-      } else {
-        const current = await lstat(progressPath);
-        if (!current.isFile() || current.isSymbolicLink()
-          || current.dev !== targetIdentity.dev || current.ino !== targetIdentity.ino) {
-          throw new Error('progress ownership changed');
-        }
+      try {
+        await lstat(finalPath);
+        throw new Error('unowned progress target');
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
       }
 
-      await rename(temporaryPath, progressPath);
-      createdTemporary = false;
-      await chmod(progressPath, 0o600);
-      const installed = await lstat(progressPath);
-      if (!installed.isFile() || installed.isSymbolicLink()) throw new Error('unsafe progress target');
-      targetIdentity = { dev: installed.dev, ino: installed.ino };
-      ownsTarget = true;
+      // link(2) fails with EEXIST for every kind of planted destination entry.
+      // Unlike rename(), it can never replace that entry in the check/install gap.
+      await installNoReplace(temporaryPath, finalPath);
+      installedFinal = true;
+      const installed = await lstat(finalPath);
+      if (!sameIdentity(installed, temporaryIdentity)) throw new Error('unsafe progress target');
+      const directory = await open(path.dirname(finalPath), 'r');
+      try {
+        await directory.sync();
+        await unlinkOwned(temporaryPath, temporaryIdentity);
+        createdTemporary = false;
+        await directory.sync();
+      } finally {
+        await directory.close();
+      }
       progressIndex = nextIndex;
     } catch {
       try { await handle?.close(); } catch {}
-      if (createdTemporary) {
-        try { await unlink(temporaryPath); } catch {}
+      if (installedFinal && temporaryIdentity) {
+        try { await unlinkOwned(finalPath, temporaryIdentity); } catch {}
+      }
+      if (createdTemporary && temporaryIdentity) {
+        try { await unlinkOwned(temporaryPath, temporaryIdentity); } catch {}
       }
       throw new Error('progress publication refused');
     }

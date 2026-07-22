@@ -220,9 +220,12 @@ stop_unowned_driver_leader() {
 }
 
 run_driver() {
-  local status_file="$TEMP_ROOT/driver.status" hold_file="$TEMP_ROOT/driver.hold" progress_file="$TEMP_ROOT/driver.progress"
+  local driver_phase="${1:-}" status_file hold_file progress_file
   local deadline startup_deadline status current_start progress renderer_ready=0
-  rm -f "$status_file" "$status_file".* "$hold_file" "$progress_file" "$progress_file.tmp"
+  case "$driver_phase" in write|assert) ;; *) return 1 ;; esac
+  status_file="$TEMP_ROOT/driver-$driver_phase.status"
+  hold_file="$TEMP_ROOT/driver-$driver_phase.hold"
+  progress_file="$TEMP_ROOT/driver-$driver_phase.progress"
   mkfifo "$hold_file" || return 1
   setsid bash -c '
     status_file="$1"; shift
@@ -270,7 +273,13 @@ run_driver() {
       if ! stop_driver_group; then return 1; fi
       return 124
     fi
-    progress="$(cat "$progress_file" 2>/dev/null || true)"
+    if [ -s "$progress_file.2" ]; then
+      progress="$(cat "$progress_file.2" 2>/dev/null || true)"
+    elif [ -s "$progress_file.1" ]; then
+      progress="$(cat "$progress_file.1" 2>/dev/null || true)"
+    else
+      progress="$(cat "$progress_file" 2>/dev/null || true)"
+    fi
     case "$progress" in
       bridge-healthy)
         [ "$renderer_ready" -eq 1 ] || DIAGNOSTIC_PHASE="renderer-dispatch"
@@ -289,7 +298,13 @@ run_driver() {
   done
   # The child may publish readiness and exit between controller polls. Latch
   # the final fixed-grammar value before classifying its status.
-  progress="$(cat "$progress_file" 2>/dev/null || true)"
+  if [ -s "$progress_file.2" ]; then
+    progress="$(cat "$progress_file.2" 2>/dev/null || true)"
+  elif [ -s "$progress_file.1" ]; then
+    progress="$(cat "$progress_file.1" 2>/dev/null || true)"
+  else
+    progress="$(cat "$progress_file" 2>/dev/null || true)"
+  fi
   case "$progress" in
     renderer-ready|later-driver)
       renderer_ready=1
@@ -469,7 +484,7 @@ GOLDEN_LOOP_HEALTH_BOUND_MS="$DRIVER_HEALTH_BOUND_MS" \
 GOLDEN_LOOP_READINESS_BOUND_MS="$DRIVER_READINESS_BOUND_MS" \
 GOLDEN_LOOP_SNAPSHOT_BOUND_MS="$DRIVER_SNAPSHOT_BOUND_MS" \
 GOLDEN_LOOP_ARTIFACT_BOUND_MS="$DRIVER_ARTIFACT_BOUND_MS" \
-GOLDEN_LOOP_DRIVER_PROGRESS_FILE="$TEMP_ROOT/driver.progress" \
+GOLDEN_LOOP_DRIVER_PROGRESS_FILE="$TEMP_ROOT/driver-write.progress" \
   run_driver write "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
   || fail "the golden-loop write driver failed"
 
@@ -484,7 +499,7 @@ GOLDEN_LOOP_HEALTH_BOUND_MS="$DRIVER_HEALTH_BOUND_MS" \
 GOLDEN_LOOP_READINESS_BOUND_MS="$DRIVER_READINESS_BOUND_MS" \
 GOLDEN_LOOP_SNAPSHOT_BOUND_MS="$DRIVER_SNAPSHOT_BOUND_MS" \
 GOLDEN_LOOP_ARTIFACT_BOUND_MS="$DRIVER_ARTIFACT_BOUND_MS" \
-GOLDEN_LOOP_DRIVER_PROGRESS_FILE="$TEMP_ROOT/driver.progress" \
+GOLDEN_LOOP_DRIVER_PROGRESS_FILE="$TEMP_ROOT/driver-assert.progress" \
   run_driver assert "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
   || fail "the golden-loop restart driver failed"
 

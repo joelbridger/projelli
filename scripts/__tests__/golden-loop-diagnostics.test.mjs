@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, lstat, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -148,17 +148,67 @@ test('progress reporter writes only monotonic fixed phases and keeps private fil
     await report('bridge-healthy');
     assert.equal(await readFile(target, 'utf8'), 'bridge-healthy\n');
     await report('renderer-ready');
-    assert.equal(await readFile(target, 'utf8'), 'renderer-ready\n');
+    assert.equal(await readFile(`${target}.1`, 'utf8'), 'renderer-ready\n');
     await report('renderer-ready');
     await report('later-driver');
-    assert.equal(await readFile(target, 'utf8'), 'later-driver\n');
-    assert.equal((await stat(target)).mode & 0o777, 0o600);
+    assert.equal(await readFile(`${target}.2`, 'utf8'), 'later-driver\n');
+    assert.equal((await stat(`${target}.2`)).mode & 0o777, 0o600);
     await assert.rejects(report('renderer-ready'), /progress publication refused/);
     await assert.rejects(report('client-name-or-path'), /progress publication refused/);
-    assert.equal(await readFile(target, 'utf8'), 'later-driver\n');
-    assert.deepEqual((await readdir(root)).sort(), ['progress']);
+    assert.equal(await readFile(`${target}.2`, 'utf8'), 'later-driver\n');
+    assert.deepEqual((await readdir(root)).sort(), ['progress', 'progress.1', 'progress.2']);
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('progress reporter atomically refuses regular files and symlinks planted during installation', async () => {
+  for (const planted of ['regular-file', 'symlink']) {
+    const root = `${testDirectory()}-install-race-${planted}`;
+    const target = path.join(root, 'private-client-secret-progress');
+    const victim = path.join(root, 'private-client-secret-victim');
+    let reporterTemporary;
+    await mkdir(root, { mode: 0o700 });
+    await writeFile(victim, 'original-link-target-bytes');
+    const installNoReplace = async (temporaryPath, finalPath) => {
+      reporterTemporary = temporaryPath;
+      if (planted === 'symlink') await symlink(victim, finalPath);
+      else await writeFile(finalPath, 'original-planted-bytes');
+      await link(temporaryPath, finalPath);
+    };
+    try {
+      let refusal;
+      await assert.rejects(
+        createProgressReporter(target, { installNoReplace })('bridge-healthy'),
+        (error) => {
+          refusal = error;
+          assert.equal(error.message, 'progress publication refused');
+          assert.equal(error.message.includes(root), false);
+          assert.equal(error.message.includes('original-planted-bytes'), false);
+          assert.equal(error.message.includes(victim), false);
+          return true;
+        },
+      );
+      assert.equal(await readFile(victim, 'utf8'), 'original-link-target-bytes');
+      if (planted === 'symlink') {
+        assert.equal((await lstat(target)).isSymbolicLink(), true);
+        assert.equal(await readlink(target), victim);
+      } else {
+        assert.equal(await readFile(target, 'utf8'), 'original-planted-bytes');
+      }
+      await assert.rejects(lstat(reporterTemporary), { code: 'ENOENT' });
+      assert.deepEqual((await readdir(root)).sort(),
+        ['private-client-secret-progress', 'private-client-secret-victim']);
+      const diagnostic = JSON.stringify(safeArtifact({
+        phase: 'write',
+        renderer: { snapshotError: refusal.message },
+      }));
+      for (const privateValue of [root, target, victim, 'original-planted-bytes', 'original-link-target-bytes']) {
+        assert.equal(diagnostic.includes(privateValue), false);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   }
 });
 
@@ -210,7 +260,7 @@ test('renderer readiness is sticky across repeated calls with and without progre
       await waitForRenderer();
       assert.equal(healthCalls, 1, `progress=${withProgress}`);
       assert.equal(evalCalls, 1, `progress=${withProgress}`);
-      if (withProgress) assert.equal(await readFile(path.join(root, 'progress'), 'utf8'), 'renderer-ready\n');
+      if (withProgress) assert.equal(await readFile(path.join(root, 'progress.1'), 'utf8'), 'renderer-ready\n');
       else assert.deepEqual(await readdir(root), []);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -396,7 +446,7 @@ kill() {
   builtin kill "$@"
 }
 set +e
-run_driver unused
+run_driver write
 status=$?
 printf 'status=%s pid=%s pgid=%s start=%s\\n' \
   "$status" "$DRIVER_PID" "$DRIVER_PGID" "$DRIVER_GROUP_START_TIME"
@@ -487,7 +537,12 @@ echo $! >"$LANTERN_APP_PID_FILE"
 const { appendFileSync, writeFileSync } = await import('node:fs');
 const mode = process.env.GOLDEN_LOOP_TEST_MODE;
 const progress = process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE;
-const publish = (value) => writeFileSync(progress, value + '\\n', { mode: 0o600 });
+const phases = ['bridge-healthy', 'renderer-ready', 'later-driver'];
+const publish = (value) => {
+  const index = phases.indexOf(value);
+  const target = index === 0 ? progress : progress + '.' + index;
+  writeFileSync(target, value + '\\n', { mode: 0o600, flag: 'wx' });
+};
 if (mode === 'controller-success') {
   appendFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_CALLS, process.argv[2] + '\\n');
   publish('bridge-healthy'); publish('renderer-ready'); publish('later-driver');
