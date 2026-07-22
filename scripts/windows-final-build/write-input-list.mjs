@@ -4,7 +4,10 @@ import { validateLogicalPath } from './contract.mjs';
 const [manifestPath, generatedConfig, outPath] = process.argv.slice(2);
 if (!outPath)
   throw new Error('manifest, generated config, and output required');
-const tracked = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+const sourceManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+if (!Array.isArray(sourceManifest.files))
+  throw new Error('source manifest files missing');
+const tracked = sourceManifest.files
   .filter((x) => x.type === 'blob')
   .map((x) => x.path);
 const walk = (dir) =>
@@ -38,6 +41,6 @@ for (const value of values) {
     throw new Error(`not a regular input: ${value}`);
 }
 fs.writeFileSync(outPath, values.join('\n') + '\n', {
-  encoding: 'ascii',
+  encoding: 'utf8',
   flag: 'wx',
 });

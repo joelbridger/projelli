@@ -50,7 +50,7 @@ internal static class Recorder {
   }
   static long Length(SafeFileHandle h){if(!GetFileInformationByHandle(h,out var i))throw new IOException($"length failed: {Marshal.GetLastWin32Error()}");return ((long)i.sizeHi<<32)|i.sizeLo;}
   static void SafeName(string rel,HashSet<string> seen) {
-    if(rel!=rel.Normalize(NormalizationForm.FormC) || rel.Any(c=>c<32 || c>126) || rel.Contains('\\') || rel.StartsWith("/") || rel.Contains(':')) throw new IOException($"unsafe path: {rel}");
+    if(rel!=rel.Normalize(NormalizationForm.FormC) || rel.Any(c=>c<32 || c==127 || Char.IsSurrogate(c)) || rel.Contains('\\') || rel.StartsWith("/") || rel.Contains(':')) throw new IOException($"unsafe path: {rel}");
     foreach(var p in rel.Split('/')) if(p.Length==0||p=="."||p==".."||p.EndsWith(".")||p.EndsWith(" ")||Devices.Contains(p.Split('.')[0])) throw new IOException($"unsafe path: {rel}");
     var key=rel.Normalize(NormalizationForm.FormC).ToUpperInvariant();
     if(!seen.Add(key)) throw new IOException($"case/NFC collision: {rel}");
@@ -74,12 +74,16 @@ internal static class Recorder {
     }}
     files.Sort(StringComparer.Ordinal);return files;
   }
+  static string Relative(string root,string file) {
+    var prefix=root.EndsWith(Path.DirectorySeparatorChar.ToString())?root:root+Path.DirectorySeparatorChar;
+    return Uri.UnescapeDataString(new Uri(prefix).MakeRelativeUri(new Uri(file)).ToString()).Replace('\\','/');
+  }
   static Result Inventory(string root,string category) {
     root=Path.GetFullPath(root); if(!Directory.Exists(root)) throw new DirectoryNotFoundException(root);
     using var rootHandle=Open(root,true); var result=new Result{root_identity=Id(rootHandle)};
     var seen=new HashSet<string>(StringComparer.Ordinal);
     foreach(var path in SafeWalk(root)) {
-      var rel=Path.GetRelativePath(root,path).Replace('\\','/'); SafeName(rel,seen);
+      var rel=Relative(root,path); SafeName(rel,seen);
       var attr=File.GetAttributes(path); if((attr&FileAttributes.ReparsePoint)!=0) throw new IOException($"reparse point forbidden: {rel}");
       NoStreams(path); using var h=Open(path); var before=Id(h); if(before.links!=1) throw new IOException($"hard link forbidden: {rel}");
       var bytes=Length(h); var digest=Hash(h); var after=Id(h);
@@ -118,12 +122,29 @@ internal static class Recorder {
       return result;
     } finally { foreach(var item in held)item.Item2.Dispose(); }
   }
+  static Result GuardFile(string file,string logical,string category,string readyPath,string releasePath) {
+    file=Path.GetFullPath(file);var seen=new HashSet<string>(StringComparer.Ordinal);SafeName(logical,seen);
+    var parent=Path.GetDirectoryName(file);using var rootHandle=Open(parent,true,1);var result=new Result{root_identity=Id(rootHandle)};
+    NoStreams(file);using var h=Open(file,false,1);var before=Id(h);if(before.links!=1)throw new IOException($"hard link forbidden: {logical}");
+    var bytes=Length(h);var digest=Hash(h);File.WriteAllText(readyPath,"ready",new UTF8Encoding(false));
+    var deadline=DateTime.UtcNow.AddHours(2);while(!File.Exists(releasePath)){if(DateTime.UtcNow>deadline)throw new IOException("guard release timeout");Thread.Sleep(50);}
+    var after=Id(h);var afterDigest=Hash(h);NoStreams(file);if(IdentityJson(before)!=IdentityJson(after)||digest!=afterDigest||Length(h)!=bytes)throw new IOException($"guarded file changed: {logical}");
+    result.rows.Add(new Row{category=category,logical_path=logical,bytes=bytes,sha256=digest,identity_before=before,identity_after=after});return result;
+  }
+  static Result InventoryFile(string file,string logical,string category) {
+    file=Path.GetFullPath(file);var seen=new HashSet<string>(StringComparer.Ordinal);SafeName(logical,seen);
+    using var rootHandle=Open(Path.GetDirectoryName(file),true);var result=new Result{root_identity=Id(rootHandle)};
+    NoStreams(file);using var h=Open(file);var before=Id(h);if(before.links!=1)throw new IOException($"hard link forbidden: {logical}");
+    var bytes=Length(h);var digest=Hash(h);var after=Id(h);if(IdentityJson(before)!=IdentityJson(after)||Length(h)!=bytes)throw new IOException($"file changed while hashing: {logical}");
+    result.rows.Add(new Row{category=category,logical_path=logical,bytes=bytes,sha256=digest,identity_before=before,identity_after=after});return result;
+  }
   public static int Main(string[] args) {
     try {
-      bool guard=args[0]=="guard-list",list=args[0]=="inventory-list";
-      if((guard&&args.Length!=7)||(list&&args.Length!=5)||(!guard&&!list&&(args[0]!="inventory"||args.Length!=4))) Die("usage: recorder inventory <root> <category> <output> | inventory-list <root> <list> <category> <output> | guard-list <root> <list> <category> <output> <ready> <release>");
-      var output=Path.GetFullPath(args[guard||list?4:3]); if(File.Exists(output)) throw new IOException("recorder output already exists");
-      var json=ResultJson(guard?GuardList(args[1],args[2],args[3],args[5],args[6]):list?InventoryList(args[1],args[2],args[3]):Inventory(args[1],args[2]));
+      if(args.Length==1&&args[0]=="--version"){Console.WriteLine("aph-native-recorder-v2");return 0;}
+      bool guard=args[0]=="guard-list",guardFile=args[0]=="guard-file",inventoryFile=args[0]=="inventory-file",list=args[0]=="inventory-list";
+      if((guard&&args.Length!=7)||(guardFile&&args.Length!=7)||(inventoryFile&&args.Length!=5)||(list&&args.Length!=5)||(!guard&&!guardFile&&!inventoryFile&&!list&&(args[0]!="inventory"||args.Length!=4))) Die("usage: recorder inventory <root> <category> <output> | inventory-file <file> <logical> <category> <output> | inventory-list <root> <list> <category> <output> | guard-list <root> <list> <category> <output> <ready> <release> | guard-file <file> <logical> <category> <output> <ready> <release>");
+      var output=Path.GetFullPath(args[guard||guardFile||inventoryFile||list?4:3]); if(File.Exists(output)) throw new IOException("recorder output already exists");
+      var json=ResultJson(guard?GuardList(args[1],args[2],args[3],args[5],args[6]):guardFile?GuardFile(args[1],args[2],args[3],args[5],args[6]):inventoryFile?InventoryFile(args[1],args[2],args[3]):list?InventoryList(args[1],args[2],args[3]):Inventory(args[1],args[2]));
       File.WriteAllText(output,json,new UTF8Encoding(false)); return 0;
     } catch(Exception e) { Console.Error.WriteLine(e.Message); return 2; }
   }

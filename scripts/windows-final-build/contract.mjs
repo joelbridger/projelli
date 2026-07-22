@@ -48,7 +48,7 @@ export function validateLogicalPath(value) {
   if (
     typeof value !== 'string' ||
     !value ||
-    !/^[\x20-\x7e]+$/.test(value) ||
+    /[\x00-\x1f\x7f]/u.test(value) ||
     value.includes('\\') ||
     value.startsWith('/') ||
     /^[A-Za-z]:/.test(value)
@@ -61,6 +61,7 @@ export function validateLogicalPath(value) {
       part === '.' ||
       part === '..' ||
       part.includes(':') ||
+      /[<>"|?*]/u.test(part) ||
       /[. ]$/.test(part) ||
       DEVICE.test(part) ||
       /[\x00-\x1f]/.test(part)
@@ -80,7 +81,7 @@ function identity(value, where) {
     where
   );
   for (const key of ['volume_serial', 'file_id', 'last_write_utc'])
-    if (typeof value[key] !== 'string' || !/^[\x20-\x7e]+$/.test(value[key]))
+    if (typeof value[key] !== 'string' || /[\x00-\x1f\x7f]/u.test(value[key]))
       fail(`${where}.${key} invalid`);
   integer(value.links, `${where}.links`);
   if (value.links !== 1) fail(`${where} is a hard link`);
@@ -108,7 +109,7 @@ function fileRow(row, tracked, seen) {
     fail(`${row.logical_path} changed while read`);
   if (
     tracked &&
-    (!/^(100644|100755)$/.test(row.git_mode) ||
+    (!/^(100644|100755|120000)$/.test(row.git_mode) ||
       !/^[0-9a-f]{40}$/.test(row.git_blob))
   )
     fail(`${row.logical_path} git identity invalid`);
@@ -120,8 +121,8 @@ function noForbiddenSecretShape(value, path = '') {
     (typeof value === 'number' && !Number.isSafeInteger(value))
   )
     fail(`${path || 'capsule'} contains null, float, or unsafe integer`);
-  if (typeof value === 'string' && !/^[\x20-\x7e]*$/.test(value))
-    fail(`${path || 'capsule'} contains non-ASCII`);
+  if (typeof value === 'string' && /[\x00-\x1f\x7f]/u.test(value))
+    fail(`${path || 'capsule'} contains control characters`);
   if (Array.isArray(value))
     return value.forEach((entry, i) =>
       noForbiddenSecretShape(entry, `${path}[${i}]`)
@@ -206,6 +207,7 @@ export function validateCapsule(capsule) {
     for (const row of list) fileRow(row, false, seen);
   if (!Array.isArray(capsule.toolchain) || !Array.isArray(capsule.commands))
     fail('toolchain and commands must be arrays');
+  const toolNames = new Set();
   for (const item of capsule.toolchain) {
     exactKeys(item, ['name', 'version', 'executable_sha256'], 'toolchain row');
     if (
@@ -216,7 +218,29 @@ export function validateCapsule(capsule) {
       !SHA256.test(item.executable_sha256)
     )
       fail('invalid toolchain row');
+    if (toolNames.has(item.name)) fail(`duplicate toolchain row: ${item.name}`);
+    toolNames.add(item.name);
   }
+  const requiredTools = [
+    'git',
+    'node',
+    'npm',
+    'rustc',
+    'cargo',
+    'tauri',
+    'msvc',
+    'cmake',
+    'clang',
+    'protoc',
+    'nsis',
+    'sevenzip',
+    'recorder',
+  ];
+  if (
+    requiredTools.some((name) => !toolNames.has(name)) ||
+    toolNames.size !== requiredTools.length
+  )
+    fail('toolchain is not the exact required set');
   for (const item of capsule.commands) {
     exactKeys(
       item,
@@ -229,7 +253,7 @@ export function validateCapsule(capsule) {
       item.argv.some(
         (arg) =>
           typeof arg !== 'string' ||
-          !/^[\x20-\x7e]+$/.test(arg) ||
+          /[\x00-\x1f\x7f]/u.test(arg) ||
           /SECRET|CLIENT_ID/i.test(arg)
       ) ||
       item.exit_code !== 0
@@ -305,7 +329,9 @@ export function validateCapsule(capsule) {
   );
   if (
     observation.inspection_tool.name !== 'sevenzip' ||
-    !SHA256.test(observation.inspection_tool.executable_sha256)
+    !SHA256.test(observation.inspection_tool.executable_sha256) ||
+    canonical(observation.inspection_tool) !==
+      canonical(capsule.toolchain.find((tool) => tool.name === 'sevenzip'))
   )
     fail('invalid inspection tool');
   const payloadSeen = new Set();
@@ -335,11 +361,27 @@ export function validateCapsule(capsule) {
     companion.classification !== 'byte-identical-embedded-companion'
   )
     fail('invalid MCPB companion');
+  const stagedMcpb = capsule.staged_inputs.filter(
+    (row) =>
+      row.logical_path === 'src-tauri/resources/mcpb/lantern-windows.mcpb'
+  );
+  const payloadMcpb = observation.extracted_payload.filter(
+    (row) => row.logical_path === 'mcpb/lantern-windows.mcpb'
+  );
+  if (
+    stagedMcpb.length !== 1 ||
+    payloadMcpb.length !== 1 ||
+    stagedMcpb[0].sha256 !== companion.sha256 ||
+    payloadMcpb[0].sha256 !== companion.sha256 ||
+    stagedMcpb[0].bytes !== companion.bytes ||
+    payloadMcpb[0].bytes !== companion.bytes
+  )
+    fail('embedded/payload/companion MCPB byte identity is not closed');
   return capsule;
 }
 export function writeCapsule(path, capsule) {
   validateCapsule(capsule);
-  const bytes = Buffer.from(canonical(capsule), 'ascii');
+  const bytes = Buffer.from(canonical(capsule), 'utf8');
   if (
     !bytes.length ||
     bytes.length > 67_108_864 ||

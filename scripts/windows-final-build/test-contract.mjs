@@ -47,8 +47,32 @@ const good = {
   },
   tracked_inputs: [row],
   generated_inputs: [],
-  staged_inputs: [],
-  toolchain: [{ name: 'node', version: 'v20', executable_sha256: h }],
+  staged_inputs: [
+    {
+      ...stabilityRow,
+      category: 'staged',
+      logical_path: 'src-tauri/resources/mcpb/lantern-windows.mcpb',
+    },
+  ],
+  toolchain: [
+    'git',
+    'node',
+    'npm',
+    'rustc',
+    'cargo',
+    'tauri',
+    'msvc',
+    'cmake',
+    'clang',
+    'protoc',
+    'nsis',
+    'sevenzip',
+    'recorder',
+  ].map((name) => ({
+    name,
+    version: name === 'sevenzip' ? '7-Zip 24' : 'v1',
+    executable_sha256: h,
+  })),
   commands: [
     {
       cwd: 'ROOT',
@@ -73,12 +97,21 @@ const good = {
     installer_bytes: 10,
     signature_status: 'NotSigned',
     verified_uncompressed_payload_bytes: 20,
-    inspection_tool: { name: 'sevenzip', version: '1', executable_sha256: h },
+    inspection_tool: {
+      name: 'sevenzip',
+      version: '7-Zip 24',
+      executable_sha256: h,
+    },
     extracted_payload: [
       {
         ...stabilityRow,
         category: 'installer-payload',
         logical_path: 'lantern.exe',
+      },
+      {
+        ...stabilityRow,
+        category: 'installer-payload',
+        logical_path: 'mcpb/lantern-windows.mcpb',
       },
     ],
     lantern_exe_sha256: h,
@@ -99,7 +132,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'capsule-fixture-')),
 writeCapsule(out, good);
 const bytes = fs.readFileSync(out);
 assert.equal(bytes.at(-1) === 10, false);
-assert.equal(bytes.toString('ascii'), canonical(good));
+assert.equal(bytes.toString('utf8'), canonical(good));
 for (const mutate of [
   (x) => (x.tracked_inputs[0].logical_path = 'CON.txt'),
   (x) => (x.environment.LANTERN_GMAIL_CLIENT_SECRET.value = 'forbidden'),
