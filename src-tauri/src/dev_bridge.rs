@@ -54,19 +54,38 @@ pub fn golden_loop_diagnostics_initialization_script() -> Option<String> {
         return None;
     }
     Some(r#"(() => {
-const limit = (value, max = 1000) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max);
 const recorder = window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__ = { pageErrors: [], consoleErrors: [], unhandledRejections: [], resourceFailures: [], networkFailures: [] };
-const add = (key, value) => { if (recorder[key].length < 20) recorder[key].push(limit(value)); };
+const add = (key, value) => { if (recorder[key].length < 20) recorder[key].push(value); };
+const location = (value) => {
+  try { return new URL(String(value), window.location.href).href; } catch { return ''; }
+};
+const errorCategory = (error) => {
+  const name = String(error?.name || '');
+  if (name === 'SyntaxError') return 'syntax-error';
+  if (name === 'ReferenceError') return 'reference-error';
+  if (name === 'TypeError') return 'type-error';
+  return 'javascript-error';
+};
 window.addEventListener('error', (event) => {
   const target = event.target;
-  if (target && target !== window && (target.src || target.href)) add('resourceFailures', `${target.tagName || 'resource'} ${target.src || target.href}`);
-  else add('pageErrors', event.error?.stack || event.message || 'window error');
+  if (target && target !== window && (target.src || target.href)) {
+    add('resourceFailures', { category: 'resource-load-failure', location: location(target.src || target.href) });
+  } else {
+    const category = /module|import/i.test(String(event.message || '')) ? 'module-import' : errorCategory(event.error);
+    add('pageErrors', { category, location: location(event.filename) });
+  }
 }, true);
-window.addEventListener('unhandledrejection', (event) => add('unhandledRejections', event.reason?.stack || event.reason?.message || event.reason || 'unhandled rejection'));
+window.addEventListener('unhandledrejection', () => add('unhandledRejections', { category: 'unhandled-rejection', location: '' }));
 const originalError = console.error.bind(console);
-console.error = (...args) => { add('consoleErrors', args.map((arg) => typeof arg === 'string' ? arg : String(arg)).join(' ')); return originalError(...args); };
+console.error = (...args) => { add('consoleErrors', { category: 'console-error', location: '' }); return originalError(...args); };
 const originalFetch = window.fetch;
-if (typeof originalFetch === 'function') window.fetch = (...args) => originalFetch(...args).catch((error) => { add('networkFailures', error?.message || error); throw error; });
+if (typeof originalFetch === 'function') window.fetch = (...args) => {
+  const requestLocation = location(args[0]?.url || args[0]);
+  return originalFetch(...args).then((response) => {
+    if (response.status >= 400 && response.status <= 599) add('networkFailures', { category: 'http-response-failure', status: response.status, location: requestLocation });
+    return response;
+  }).catch((error) => { add('networkFailures', { category: 'fetch-rejected', location: requestLocation }); throw error; });
+};
 })();"#.to_string())
 }
 

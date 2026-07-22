@@ -144,10 +144,11 @@ pub fn run() {
                 // installed before the Vite entry module executes, then read
                 // through the existing debug-only bridge if that module fails.
                 #[cfg(debug_assertions)]
-                let builder = match crate::dev_bridge::golden_loop_diagnostics_initialization_script() {
-                    Some(script) => builder.initialization_script(script),
-                    None => builder,
-                };
+                let builder =
+                    match crate::dev_bridge::golden_loop_diagnostics_initialization_script() {
+                        Some(script) => builder.initialization_script(script),
+                        None => builder,
+                    };
 
                 // A release build deliberately has no command-line or
                 // environment workspace override at all. This makes the

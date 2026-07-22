@@ -83,12 +83,15 @@ const pointerClick = (testid) => evaluate(`(() => {
 async function rendererSnapshot() {
   try {
     return await rawEvaluate(`({
-      href: location.href,
+      url: location.href,
       readyState: document.readyState,
       hasTauriInvoke: typeof window.__TAURI_INTERNALS__?.invoke === 'function',
       explicitWorkspace: Boolean(window.__LANTERN_WORKSPACE__),
-      testids: Array.from(document.querySelectorAll('[data-testid]')).slice(0, 30).map((el) => el.getAttribute('data-testid')),
-      dom: (document.body?.outerHTML || '').slice(0, 4000),
+      testIdCount: Math.min(document.querySelectorAll('[data-testid]').length, 100),
+      dom: {
+        elementCount: Math.min(document.querySelectorAll('*').length, 500),
+        tags: Array.from(new Set(Array.from(document.querySelectorAll('*')).slice(0, 500).map((el) => el.tagName.toLowerCase()))).slice(0, 8)
+      },
       rootPresent: Boolean(document.getElementById('root')),
       rootHasChildren: Boolean(document.getElementById('root')?.childElementCount),
       events: window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__ || {}
@@ -293,13 +296,12 @@ try {
     console.log(`PASS persistence: ${documentFile} survived restart and is visible`);
   }
 } catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
   const renderer = await rendererSnapshot();
   try {
-    const diagnostic = await writeDiagnosticArtifact({ phase, failure: message, renderer, events: renderer.events });
-    console.error(`${message}\nGOLDEN LOOP DIAGNOSTIC: path=${diagnostic.path} sha256=${diagnostic.sha256} classification=${diagnostic.artifact.classification}`);
+    const diagnostic = await writeDiagnosticArtifact({ phase, renderer, events: renderer.events });
+    console.error(`GOLDEN LOOP DIAGNOSTIC: path=${diagnostic.path} sha256=${diagnostic.sha256} classification=${diagnostic.artifact.classification}`);
   } catch (diagnosticError) {
-    console.error(`${message}\nGOLDEN LOOP DIAGNOSTIC FAILED: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+    console.error('GOLDEN LOOP DIAGNOSTIC FAILED');
   }
   process.exitCode = 1;
 }

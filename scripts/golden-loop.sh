@@ -12,6 +12,7 @@ REPO="${1:-${GOLDEN_LOOP_REPO:-$DEFAULT_REPO}}"
 APP_BINARY="${2:-${GOLDEN_LOOP_BINARY:-}}"
 LAUNCHER="${GOLDEN_LOOP_LAUNCHER:-$HERE/golden-loop-launch-app.sh}"
 DRIVER="${GOLDEN_LOOP_DRIVER:-$HERE/golden-loop-driver.mjs}"
+DIAGNOSTIC_WRITER="${GOLDEN_LOOP_DIAGNOSTIC_WRITER:-$HERE/write-golden-loop-diagnostic.mjs}"
 TIMEOUT_SECONDS="${GOLDEN_LOOP_TIMEOUT_SECONDS:-150}"
 TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/lantern-golden-loop.XXXXXX")"
 WORKSPACE="$TEMP_ROOT/workspace"
@@ -27,12 +28,17 @@ TIP_SHA=""
 VITE_PID=""
 APP_PID=""
 XVFB_PID=""
+DIAGNOSTIC_PHASE="preflight"
 
 export XDG_CONFIG_HOME="$TEMP_ROOT/xdg-config"
 export XDG_DATA_HOME="$TEMP_ROOT/xdg-data"
 export XDG_CACHE_HOME="$TEMP_ROOT/xdg-cache"
 
-fail() { echo "GOLDEN LOOP FAILED: $*" >&2; exit 1; }
+fail() {
+  echo "GOLDEN LOOP FAILED: $*" >&2
+  node "$DIAGNOSTIC_WRITER" "$DIAGNOSTIC_PHASE" >&2 || echo 'GOLDEN LOOP DIAGNOSTIC FAILED' >&2
+  exit 1
+}
 
 free_port() {
   python3 - <<'PY'
@@ -79,9 +85,11 @@ wait_for_http() {
   while [ "$SECONDS" -lt "$end" ]; do
     if curl --silent --show-error --fail "$url" >/dev/null 2>&1; then return 0; fi
     if [ -n "$APP_PID" ] && ! kill -0 "$APP_PID" 2>/dev/null; then
+      DIAGNOSTIC_PHASE="app-exit"
       fail "$label stopped before it became ready"
     fi
     if [ -n "$VITE_PID" ] && ! kill -0 "$VITE_PID" 2>/dev/null; then
+      DIAGNOSTIC_PHASE="vite-startup"
       fail "$label screen server stopped before it became ready"
     fi
     sleep 0.2
@@ -101,6 +109,7 @@ read_dev_url() {
 }
 
 launch_app() {
+  DIAGNOSTIC_PHASE="launcher"
   rm -f "$APP_PID_FILE"
   if ! LANTERN_GOLDEN_LOOP_DIAGNOSTICS=1 \
        LANTERN_APP_PID_FILE="$APP_PID_FILE" \
@@ -145,6 +154,7 @@ if curl --silent --fail "$DEV_URL" >/dev/null 2>&1; then
 fi
 # Positional parameters intentionally expand inside the child bash process.
 # shellcheck disable=SC2016
+DIAGNOSTIC_PHASE="vite-startup"
 CHOKIDAR_USEPOLLING=1 CHOKIDAR_INTERVAL=300 \
   setsid bash -c 'cd "$1" && exec npm run dev -- --host "$2" --port "$3" --strictPort' \
   _ "$REPO" "$DEV_HOST" "$DEV_PORT" >"$TEMP_ROOT/vite.log" 2>&1 &
@@ -155,6 +165,7 @@ BRIDGE_PORT="$(free_port)"
 mkdir -p "$WORKSPACE"
 echo "golden loop provenance: source_sha=$TIP_SHA binary=$APP_BINARY dev_url=$DEV_URL"
 launch_app
+DIAGNOSTIC_PHASE="bridge-health"
 wait_for_http "the desktop app bridge" "http://127.0.0.1:$BRIDGE_PORT/health"
 
 echo "golden loop: workspace=$WORKSPACE bridge=$BRIDGE_PORT document=$DOCUMENT_NAME.docx"
@@ -164,7 +175,9 @@ GOLDEN_LOOP_DEV_URL="$DEV_URL" \
 
 stop_pid "$APP_PID"
 APP_PID=""
+DIAGNOSTIC_PHASE="restart"
 launch_app
+DIAGNOSTIC_PHASE="bridge-health"
 wait_for_http "the restarted desktop app bridge" "http://127.0.0.1:$BRIDGE_PORT/health"
 GOLDEN_LOOP_DRIVER_TIMEOUT_MS="$((TIMEOUT_SECONDS * 1000))" \
 GOLDEN_LOOP_DEV_URL="$DEV_URL" \
