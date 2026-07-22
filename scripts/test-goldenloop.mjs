@@ -4,14 +4,78 @@
  * process and directory so CI can run it repeatedly without sharing state.
  */
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { constants, existsSync } from 'node:fs';
+import { access, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+export function resolveCargoBinary(
+  cargoWorkingDirectory,
+  cargoTargetDirectory,
+  platform = process.platform
+) {
+  const targetRoot =
+    cargoTargetDirectory === undefined
+      ? path.join(cargoWorkingDirectory, 'src-tauri/target')
+      : path.isAbsolute(cargoTargetDirectory)
+        ? cargoTargetDirectory
+        : path.resolve(cargoWorkingDirectory, cargoTargetDirectory);
+  const binaryName = platform === 'win32' ? 'lantern.exe' : 'lantern';
+  return path.join(targetRoot, 'debug', binaryName);
+}
+
+export async function requireBuiltBinary(binaryPath) {
+  let binaryStat;
+  try {
+    binaryStat = await stat(binaryPath);
+  } catch {
+    throw new Error(`Cargo did not produce the expected debug binary: ${binaryPath}`);
+  }
+  if (!binaryStat.isFile()) {
+    throw new Error(`Cargo debug binary is not a regular file: ${binaryPath}`);
+  }
+  try {
+    await access(binaryPath, constants.X_OK);
+  } catch {
+    throw new Error(`Cargo debug binary is not executable: ${binaryPath}`);
+  }
+  return binaryPath;
+}
+
+export function appLaunchInvocation({
+  binaryPath,
+  bridgePort,
+  workspace,
+  vitePort,
+  displayNumber,
+  xvfbPidFile,
+  screenshots,
+}) {
+  return {
+    file: 'bash',
+    args: ['scripts/crm-loop/launch-app.sh', String(bridgePort), workspace],
+    env: {
+      LANTERN_APP_BINARY: binaryPath,
+      LANTERN_VITE_PORT: String(vitePort),
+      LANTERN_XVFB_DISPLAY: `:${displayNumber}`,
+      LANTERN_XVFB_PID_FILE: xvfbPidFile,
+      CRM_LOOP_WORKSPACE: workspace,
+      CRM_LOOP_SCREENSHOTS_DIR: screenshots,
+      // Always own a fresh virtual screen, even from an interactive shell.
+      DISPLAY: '',
+    },
+  };
+}
+
+const isMain =
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMain) {
 const tempRoot = await mkdtemp(
   path.join(os.tmpdir(), 'lantern-crm-golden-loop-')
 );
@@ -25,6 +89,7 @@ let sidecarFetch;
 let vitePort;
 let bridgePort;
 let displayNumber;
+let appBinary;
 const ownedXvfbPids = new Set();
 let tornDown = false;
 
@@ -115,21 +180,16 @@ async function stop(child, name) {
   console.log(`teardown: ${name} stopped`);
 }
 async function startApp() {
-  app = command(
-    'bash',
-    ['scripts/crm-loop/launch-app.sh', String(bridgePort), workspace],
-    {
-      env: {
-        LANTERN_VITE_PORT: String(vitePort),
-        LANTERN_XVFB_DISPLAY: `:${displayNumber}`,
-        LANTERN_XVFB_PID_FILE: xvfbPidFile,
-        CRM_LOOP_WORKSPACE: workspace,
-        CRM_LOOP_SCREENSHOTS_DIR: screenshots,
-        // Always own a fresh virtual screen, even from an interactive shell.
-        DISPLAY: '',
-      },
-    }
-  );
+  const invocation = appLaunchInvocation({
+    binaryPath: appBinary,
+    bridgePort,
+    workspace,
+    vitePort,
+    displayNumber,
+    xvfbPidFile,
+    screenshots,
+  });
+  app = command(invocation.file, invocation.args, { env: invocation.env });
   await waitFor('desktop bridge', () => httpReady(bridgePort, '/health'));
   await waitFor('owned virtual display', async () => {
     const pid = Number((await readFile(xvfbPidFile, 'utf8')).trim());
@@ -235,11 +295,15 @@ try {
   // The binary is always a normal debug binary. TAURI_CONFIG only gives this
   // isolated run its own dev-server address, so concurrent CI jobs never share
   // Vite's old fixed :5174 port.
+  appBinary = resolveCargoBinary(root, process.env.CARGO_TARGET_DIR);
   build = command(
     'cargo',
     ['build', '--manifest-path', 'src-tauri/Cargo.toml', '--locked'],
     {
       env: {
+        // Pin Cargo and the launcher to the same resolved directory. This also
+        // keeps machine-global Cargo configuration from changing the proof.
+        CARGO_TARGET_DIR: path.dirname(path.dirname(appBinary)),
         TAURI_CONFIG: JSON.stringify({
           build: { devUrl: `http://127.0.0.1:${vitePort}` },
         }),
@@ -248,6 +312,7 @@ try {
   );
   if (await exitCode(build))
     throw new Error('Could not build the debug desktop binary.');
+  await requireBuiltBinary(appBinary);
 
   vite = command('npm', [
     'run',
@@ -279,4 +344,5 @@ try {
   console.log('🟢 GOLDEN LOOP: app flows and restart persistence both passed.');
 } finally {
   await teardown();
+}
 }
