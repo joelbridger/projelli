@@ -140,6 +140,16 @@ function setShellFlags(crmShellEnabled: boolean | undefined) {
   setDevFlagOverride('meetings-shell-v1', false);
 }
 
+function setProductionShellFlags() {
+  setDevFlagOverride('v1-shell-frame', true);
+  setDevFlagOverride('home-surface-v1', false);
+  setDevFlagOverride('crm-shell-v1', false);
+  setDevFlagOverride('settings-shell-v1', false);
+  setDevFlagOverride('selection-authority-boot-gate', true);
+  setDevFlagOverride('meetings-shell-v1', true);
+  setDevFlagOverride('shared-client-bar', true);
+}
+
 describe('real CRM surface flag-gated swap', () => {
   beforeEach(() => {
     useLiveCrmRecords.mockClear();
@@ -148,8 +158,12 @@ describe('real CRM surface flag-gated swap', () => {
   afterEach(() => {
     cleanup();
     setDevFlagOverride('v1-shell-frame', undefined);
+    setDevFlagOverride('home-surface-v1', undefined);
     setDevFlagOverride('crm-shell-v1', undefined);
+    setDevFlagOverride('settings-shell-v1', undefined);
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
     setDevFlagOverride('meetings-shell-v1', undefined);
+    setDevFlagOverride('shared-client-bar', undefined);
   });
 
   it('keeps the legacy CRM mounted through the existing registry, main navigation, and router while dark', async () => {
@@ -206,5 +220,22 @@ describe('real CRM surface flag-gated swap', () => {
       screen.getByTestId('crm-task-record-shell-live-task')
     ).toHaveTextContent('Review Northcrest plan');
     expect(useLiveCrmRecords).toHaveBeenCalled();
+  });
+
+  it('keeps production Home and CRM on the real M1 surfaces while only the frame changes', async () => {
+    setProductionShellFlags();
+    render(<CrmRouteHarness />);
+
+    expect(await screen.findByTestId('crm-screen-today')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-v1-surface')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('crm-shell-frame')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('v1-shell-nav-matters'));
+
+    expect(
+      await screen.findByTestId('crm-directory-surface')
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('home-v1-surface')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('crm-shell-frame')).not.toBeInTheDocument();
   });
 });

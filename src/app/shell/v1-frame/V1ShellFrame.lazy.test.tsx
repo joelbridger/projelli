@@ -1,8 +1,9 @@
 import { createElement } from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { Trash2 } from 'lucide-react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
+import { getKnownAppSurfaceDescriptors } from '@/app/shell/registry/appSurfaceRegistry';
 
 const lazyRegistration = vi.hoisted(() => {
   let resolve!: (descriptor: AppSurfaceDescriptor) => void;
@@ -26,7 +27,7 @@ vi.mock('@/app/shell/registry/legacyAppSurfaceDescriptors', async () => {
 import { V1ShellFrame } from '@/app/shell/v1-frame';
 
 describe('V1ShellFrame lazy registry integration', () => {
-  it('adds navigation after the real registry hook resolves a lazy descriptor', async () => {
+  it('keeps a lazy non-blessed destination out of the permanent rail after resolution', async () => {
     render(
       <V1ShellFrame
         activeSurface="home"
@@ -53,6 +54,11 @@ describe('V1ShellFrame lazy registry integration', () => {
       await lazyRegistration.promise;
     });
 
-    expect(await screen.findByTestId('v1-shell-nav-trash')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        getKnownAppSurfaceDescriptors().some(({ id }) => id === 'trash')
+      ).toBe(true);
+    });
+    expect(screen.queryByTestId('v1-shell-nav-trash')).not.toBeInTheDocument();
   });
 });

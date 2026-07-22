@@ -2,7 +2,10 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Command, Search } from 'lucide-react';
 import type { AppSurface } from '@/platform/types/navigation';
-import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
+import {
+  getBlessedAppRailLabel,
+  getOrderedAppSurfaces,
+} from '@/app/shell/registry/appSurfaceRegistry';
 import { SharedClientBar } from '@/app/shell/SharedClientBar';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { BRAND } from '@/config/brand';
@@ -45,11 +48,7 @@ export function V1ShellFrameFlagGate({
   legacy,
   ...frameProps
 }: V1ShellFrameFlagGateProps) {
-  return useFlag('v1-shell-frame') ? (
-    <V1ShellFrame {...frameProps} />
-  ) : (
-    legacy
-  );
+  return useFlag('v1-shell-frame') ? <V1ShellFrame {...frameProps} /> : legacy;
 }
 
 function initials(name: string): string {
@@ -71,7 +70,12 @@ function RegistryNavItems({
   descriptors: ReturnType<typeof useAppSurfaceRegistry>['descriptors'];
 }) {
   const { t } = useTranslation();
-  const surfaces = getOrderedAppSurfaces(placement, descriptors);
+  const surfaces = getOrderedAppSurfaces(placement, descriptors).filter(
+    (surface) =>
+      placement === 'primary'
+        ? getBlessedAppRailLabel(surface.id) !== undefined
+        : surface.id === 'settings'
+  );
 
   return (
     <div
@@ -81,6 +85,7 @@ function RegistryNavItems({
       {surfaces.map((surface) => {
         const Icon = surface.icon;
         const active = surface.id === activeSurface;
+        const label = getBlessedAppRailLabel(surface.id) ?? t(surface.labelKey);
         return (
           <button
             aria-current={active ? 'page' : undefined}
@@ -97,7 +102,7 @@ function RegistryNavItems({
             type="button"
           >
             <Icon aria-hidden="true" className="size-4 shrink-0" />
-            <span>{t(surface.labelKey)}</span>
+            <span>{label}</span>
           </button>
         );
       })}
@@ -105,13 +110,19 @@ function RegistryNavItems({
   );
 }
 
-function FirmCard({ onOpenSettings }: { onOpenSettings: (category: 'workspace' | 'organization') => void }) {
+function FirmCard({
+  onOpenSettings,
+}: {
+  onOpenSettings: (category: 'workspace' | 'organization') => void;
+}) {
   const { t } = useTranslation();
   const firmName = useProfileStore((state) => state.firmName);
   const firm = useFirmStore((state) => state.session);
 
   const workspaceName =
-    firmName.trim() || firm?.org?.name || t('shell-frame.firm-card.default-name');
+    firmName.trim() ||
+    firm?.org?.name ||
+    t('shell-frame.firm-card.default-name');
 
   return (
     <DropdownMenu>
@@ -223,6 +234,10 @@ export function V1ShellFrame({
   const activeDescriptor = descriptors.find(
     (descriptor) => descriptor.id === activeSurface
   );
+  const schedulingDescriptor = descriptors.find(
+    (descriptor) => descriptor.id === 'scheduling'
+  );
+  const SchedulingIcon = schedulingDescriptor?.icon;
   const hasSharedClientContext = activeDescriptor?.clientContext === 'shared';
 
   return (
@@ -287,7 +302,7 @@ export function V1ShellFrame({
             <FirmCard
               onOpenSettings={(category) => {
                 window.dispatchEvent(
-                  new CustomEvent(EV_OPEN_SETTINGS, { detail: { category } }),
+                  new CustomEvent(EV_OPEN_SETTINGS, { detail: { category } })
                 );
                 onSurfaceChange('settings');
               }}
@@ -314,7 +329,8 @@ export function V1ShellFrame({
             </span>
             <span className="font-medium text-slate-800">
               {activeDescriptor
-                ? t(activeDescriptor.labelKey)
+                ? (getBlessedAppRailLabel(activeDescriptor.id) ??
+                  t(activeDescriptor.labelKey))
                 : t('shell-frame.breadcrumb.unknown')}
             </span>
           </nav>
@@ -334,6 +350,22 @@ export function V1ShellFrame({
               <Command aria-hidden="true" className="mr-0.5 inline size-3" />K
             </kbd>
           </button>
+          {schedulingDescriptor && SchedulingIcon ? (
+            <button
+              aria-current={
+                activeSurface === schedulingDescriptor.id ? 'page' : undefined
+              }
+              aria-label={t(schedulingDescriptor.labelKey)}
+              className="flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950"
+              data-testid="scheduling-topbar-button"
+              onClick={() => {
+                onSurfaceChange(schedulingDescriptor.id);
+              }}
+              type="button"
+            >
+              <SchedulingIcon aria-hidden="true" className="size-4" />
+            </button>
+          ) : null}
           <NotificationBellSlot slot={notificationBellSlot} />
           <UserAvatar
             onOpenSettings={() => {

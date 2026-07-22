@@ -7,40 +7,70 @@ import {
   type NotificationBellSlotDescriptor,
   V1ShellFrame,
 } from '@/app/shell/v1-frame';
-import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { setDevFlagOverride } from '@/platform/flags';
 
 describe('V1ShellFrame', () => {
   afterEach(() => {
     useFirmStore.setState({ session: null });
+    setDevFlagOverride('meetings-shell-v1', undefined);
   });
 
-  it('renders primary and utility navigation in registry placement and order', () => {
+  it('renders the permanent rail in its approved order and keeps Scheduling in the top bar', async () => {
+    setDevFlagOverride('meetings-shell-v1', true);
+    const onSurfaceChange = vi.fn();
     render(
       <V1ShellFrame
         activeSurface="home"
         onOpenCommandPalette={vi.fn()}
-        onSurfaceChange={vi.fn()}
+        onSurfaceChange={onSurfaceChange}
       >
         <div>Surface</div>
       </V1ShellFrame>
     );
 
-    for (const placement of ['primary', 'utility'] as const) {
-      const renderedIds = Array.from(
-        screen
-          .getByTestId(`v1-shell-${placement}-nav`)
-          .querySelectorAll('button')
-      ).map((button) =>
-        button.getAttribute('data-testid')?.replace('v1-shell-nav-', '')
-      );
-      expect(renderedIds).toEqual(
-        getOrderedAppSurfaces(placement).map((surface) => surface.id)
-      );
-    }
+    expect(await screen.findByTestId('v1-shell-nav-meetings')).toBeVisible();
+    expect(
+      Array.from(
+        screen.getByTestId('v1-shell-primary-nav').querySelectorAll('button')
+      ).map((button) => button.textContent)
+    ).toEqual(['Today', 'CRM', 'Meetings', 'Ask']);
+    expect(
+      Array.from(
+        screen.getByTestId('v1-shell-utility-nav').querySelectorAll('button')
+      ).map((button) => button.textContent)
+    ).toEqual(['Settings']);
+    expect(screen.queryByTestId('v1-shell-nav-scheduling')).toBeNull();
+    fireEvent.click(screen.getByTestId('scheduling-topbar-button'));
+    expect(onSurfaceChange).toHaveBeenCalledWith('scheduling');
     expect(
       screen.getByRole('link', { name: 'Skip to content' })
     ).toHaveAttribute('href', '#main-content');
+  });
+
+  it('uses the approved Today and CRM labels in the breadcrumb', () => {
+    const props = {
+      onOpenCommandPalette: vi.fn(),
+      onSurfaceChange: vi.fn(),
+    };
+    const { rerender } = render(
+      <V1ShellFrame activeSurface="home" {...props}>
+        <div />
+      </V1ShellFrame>
+    );
+
+    expect(
+      screen.getByRole('navigation', { name: 'Breadcrumb' })
+    ).toHaveTextContent('Workspace/Today');
+
+    rerender(
+      <V1ShellFrame activeSurface="matters" {...props}>
+        <div />
+      </V1ShellFrame>
+    );
+    expect(
+      screen.getByRole('navigation', { name: 'Breadcrumb' })
+    ).toHaveTextContent('Workspace/CRM');
   });
 
   it('opens the existing command palette through its supplied trigger', () => {
@@ -147,7 +177,7 @@ describe('V1ShellFrame', () => {
     expect(topbar).toContainElement(customButton);
     expect(customButton.parentElement).toBe(topbar);
     expect(customButton.previousElementSibling).toBe(
-      screen.getByTestId('v1-shell-command-trigger')
+      screen.getByTestId('scheduling-topbar-button')
     );
     expect(customButton.nextElementSibling).toBe(
       screen.getByTestId('v1-shell-account-identity')
@@ -227,13 +257,15 @@ describe('V1ShellFrame', () => {
       button: 0,
       ctrlKey: false,
     });
-    expect(await screen.findByTestId('v1-shell-workspace-settings')).toBeVisible();
+    expect(
+      await screen.findByTestId('v1-shell-workspace-settings')
+    ).toBeVisible();
     expect(screen.getByTestId('v1-shell-workspace-organization')).toBeVisible();
 
     fireEvent.click(screen.getByTestId('v1-shell-workspace-organization'));
     expect(onSurfaceChange).toHaveBeenCalledWith('settings');
     expect(onOpenSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ detail: { category: 'organization' } }),
+      expect.objectContaining({ detail: { category: 'organization' } })
     );
     window.removeEventListener('lantern:open-settings', onOpenSettings);
   });
