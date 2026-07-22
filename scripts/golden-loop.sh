@@ -17,6 +17,7 @@ DEFAULT_DIAGNOSTIC_WRITER="$HERE/write-golden-loop-diagnostic.mjs"
 DIAGNOSTIC_WRITER="${GOLDEN_LOOP_DIAGNOSTIC_WRITER:-$DEFAULT_DIAGNOSTIC_WRITER}"
 TIMEOUT_SECONDS="${GOLDEN_LOOP_TIMEOUT_SECONDS:-150}"
 TERM_GRACE_SECONDS="${GOLDEN_LOOP_TERM_GRACE_SECONDS:-10}"
+DRIVER_STARTUP_TIMEOUT_SECONDS="${GOLDEN_LOOP_DRIVER_STARTUP_TIMEOUT_SECONDS:-15}"
 TEMP_ROOT=""
 WORKSPACE=""
 APP_PID_FILE=""
@@ -203,9 +204,9 @@ stop_unowned_driver_leader() {
 }
 
 run_driver() {
-  local status_file="$TEMP_ROOT/driver.status" hold_file="$TEMP_ROOT/driver.hold"
-  local deadline status current_start
-  rm -f "$status_file" "$status_file".* "$hold_file"
+  local status_file="$TEMP_ROOT/driver.status" hold_file="$TEMP_ROOT/driver.hold" progress_file="$TEMP_ROOT/driver.progress"
+  local deadline startup_deadline status current_start progress
+  rm -f "$status_file" "$status_file".* "$hold_file" "$progress_file" "$progress_file".*
   mkfifo "$hold_file" || return 1
   setsid bash -c '
     status_file="$1"; shift
@@ -238,6 +239,10 @@ run_driver() {
   fi
 
   deadline=$((SECONDS + TIMEOUT_SECONDS))
+  # The driver's short request deadlines have room to write their own exact
+  # artifact. This is only the fail-closed guard for native dispatch blocking
+  # before Rust or Node can regain control.
+  startup_deadline=$((SECONDS + DRIVER_STARTUP_TIMEOUT_SECONDS))
   while [ ! -s "$status_file" ]; do
     if ! kill -0 "$DRIVER_PID" 2>/dev/null; then
       if wait "$DRIVER_PID"; then status=0; else status=$?; fi
@@ -245,6 +250,16 @@ run_driver() {
       return "$status"
     fi
     if [ "$SECONDS" -ge "$deadline" ]; then
+      if ! stop_driver_group; then return 1; fi
+      return 124
+    fi
+    progress="$(cat "$progress_file" 2>/dev/null || true)"
+    if [ "$progress" != "renderer-ready" ] && [ "$SECONDS" -ge "$startup_deadline" ]; then
+      if [ "$progress" = "bridge-healthy" ]; then
+        DIAGNOSTIC_PHASE="renderer-dispatch"
+      else
+        DIAGNOSTIC_PHASE="driver-startup"
+      fi
       if ! stop_driver_group; then return 1; fi
       return 124
     fi
@@ -416,6 +431,7 @@ echo "golden loop: workspace=$WORKSPACE bridge=$BRIDGE_PORT document=$DOCUMENT_N
 DIAGNOSTIC_PHASE="driver-startup"
 GOLDEN_LOOP_DRIVER_TIMEOUT_MS="$((TIMEOUT_SECONDS * 1000))" \
 GOLDEN_LOOP_DEV_URL="$DEV_URL" \
+GOLDEN_LOOP_DRIVER_PROGRESS_FILE="$TEMP_ROOT/driver.progress" \
   run_driver write "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
   || fail "the golden-loop write driver failed"
 
@@ -426,6 +442,7 @@ launch_app restart
 wait_for_http "the restarted desktop app bridge" "http://127.0.0.1:$BRIDGE_PORT/health"
 GOLDEN_LOOP_DRIVER_TIMEOUT_MS="$((TIMEOUT_SECONDS * 1000))" \
 GOLDEN_LOOP_DEV_URL="$DEV_URL" \
+GOLDEN_LOOP_DRIVER_PROGRESS_FILE="$TEMP_ROOT/driver.progress" \
   run_driver assert "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
   || fail "the golden-loop restart driver failed"
 

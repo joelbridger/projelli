@@ -323,11 +323,6 @@ async fn eval_in_main_webview(
     js: String,
     timeout_ms: u64,
 ) -> Result<Value, String> {
-    let webview = app
-        .get_webview_window("main")
-        .or_else(|| app.webview_windows().into_values().next())
-        .ok_or_else(|| "main webview is not available".to_string())?;
-
     let state = app.state::<DevBridgeState>();
     // Do not hold a global lock while the page awaits an async Tauri command.
     // The previous lock made a slow store open block every later probe/click;
@@ -344,13 +339,39 @@ async fn eval_in_main_webview(
         .insert(id.clone(), sender);
 
     let wrapper = eval_wrapper_js(&id, &js);
-    if let Err(error) = webview.eval(wrapper) {
+    // `Webview::eval` can itself wait for the platform webview thread. Queue
+    // it there so the receiver deadline also bounds dispatch, not only the
+    // renderer callback. A late closure removes only its own request id.
+    let dispatch_app = app.clone();
+    let dispatch_id = id.clone();
+    if let Err(error) = app.run_on_main_thread(move || {
+        let outcome = dispatch_app
+            .get_webview_window("main")
+            .or_else(|| dispatch_app.webview_windows().into_values().next())
+            .ok_or_else(|| "main webview is not available".to_string())
+            .and_then(|webview| {
+                webview
+                    .eval(wrapper)
+                    .map_err(|error| format!("webview eval failed: {error}"))
+            });
+        if let Err(error) = outcome {
+            if let Ok(mut pending) = dispatch_app.state::<DevBridgeState>().pending.lock() {
+                if let Some(sender) = pending.remove(&dispatch_id) {
+                    let _ = sender.send(EvalResult {
+                        ok: false,
+                        result_json: None,
+                        error: Some(error),
+                    });
+                }
+            }
+        }
+    }) {
         let _ = state
             .pending
             .lock()
             .map_err(|_| "dev bridge state lock poisoned".to_string())?
             .remove(&id);
-        return Err(format!("webview eval failed: {error}"));
+        return Err(format!("webview eval dispatch failed: {error}"));
     }
 
     let started = Instant::now();

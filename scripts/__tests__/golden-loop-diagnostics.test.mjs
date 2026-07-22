@@ -349,7 +349,7 @@ echo $! >"$LANTERN_APP_PID_FILE"
 `);
   await writeExecutable(driver, `#!/usr/bin/env node
 if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-startup') process.exit(1);
-if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
+if (['driver-timeout', 'driver-no-progress'].includes(process.env.GOLDEN_LOOP_TEST_MODE)) {
   const { spawn } = await import('node:child_process');
   const { readFileSync, writeFileSync } = await import('node:fs');
   const processIdentity = () => {
@@ -361,6 +361,9 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     return { group, leaderStartTime: leaderFields[19] };
   };
   writeFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_PID, String(process.pid));
+  if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
+    writeFileSync(process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE, 'bridge-healthy\\n', { mode: 0o600 });
+  }
   const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1_000)'], {
     stdio: 'ignore',
   });
@@ -392,7 +395,8 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     GOLDEN_LOOP_DIAGNOSTIC_DIR: diagnostics,
     GOLDEN_LOOP_LAUNCHER: launcher,
     GOLDEN_LOOP_DRIVER: driver,
-    GOLDEN_LOOP_TIMEOUT_SECONDS: '1',
+    GOLDEN_LOOP_TIMEOUT_SECONDS: '3',
+    GOLDEN_LOOP_DRIVER_STARTUP_TIMEOUT_SECONDS: '2',
     GOLDEN_LOOP_TERM_GRACE_SECONDS: '3',
     TMPDIR: temporaryDirectory,
     ...(mode === 'diagnostic-writer-validation' ? { GOLDEN_LOOP_DIAGNOSTIC_WRITER: invalidWriter } : {}),
@@ -403,7 +407,7 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     try {
       await execFileAsync('bash', [new URL('../golden-loop.sh', import.meta.url).pathname, repo, app], {
         env,
-        timeout: mode === 'driver-timeout' ? 20_000 : 10_000,
+        timeout: ['driver-timeout', 'driver-no-progress'].includes(mode) ? 20_000 : 10_000,
       });
     } catch (error) {
       failure = error;
@@ -414,7 +418,7 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     assert.ok(names.length >= 1, `${mode} left no artifact`);
     const artifact = JSON.parse(await readFile(path.join(diagnostics, names.at(-1)), 'utf8'));
     assert.match(failure.stderr, /GOLDEN LOOP DIAGNOSTIC: path=.* sha256=[a-f0-9]{64} classification=/);
-    if (mode === 'driver-timeout') {
+    if (['driver-timeout', 'driver-no-progress'].includes(mode)) {
       const driverPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_PID, 'utf8'));
       const childPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_CHILD_PID, 'utf8'));
       const leaderBefore = JSON.parse(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_LEADER_BEFORE, 'utf8'));
@@ -430,7 +434,7 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     }
     return artifact;
   } finally {
-    if (mode === 'driver-timeout') {
+    if (['driver-timeout', 'driver-no-progress'].includes(mode)) {
       for (const pidFile of [env.GOLDEN_LOOP_TEST_DRIVER_PID, env.GOLDEN_LOOP_TEST_DRIVER_CHILD_PID]) {
         try { process.kill(Number(await readFile(pidFile, 'utf8')), 'SIGKILL'); } catch (error) {
           if (error.code !== 'ESRCH' && error.code !== 'ENOENT') throw error;
@@ -467,13 +471,24 @@ test('real shell routes every injected early failure to a red, bounded artifact'
 test('the owned group leader survives TERM grace before escalation removes every descendant', async () => {
   const startedAt = Date.now();
   const artifact = await runShellFailure('driver-timeout');
-  assert.equal(artifact.classification, 'driver-startup-failure');
+  assert.equal(artifact.classification, 'renderer-dispatch-timeout');
   assert.ok(Date.now() - startedAt >= 3_000, 'cleanup escalated before the configured TERM grace elapsed');
   assert.ok(Date.now() - startedAt < 15_000, 'driver timeout exceeded its TERM plus KILL grace');
   const shellSource = await readFile(new URL('../golden-loop.sh', import.meta.url), 'utf8');
   assert.match(shellSource, /setsid bash -c[\s\S]*DRIVER_PGID=\$DRIVER_PID/, 'driver must have a tracked dedicated process group');
   assert.match(shellSource, /driver_group_is_owned[\s\S]*kill -TERM -- "-\$DRIVER_PGID"[\s\S]*driver_group_is_owned[\s\S]*kill -KILL -- "-\$DRIVER_PGID"/, 'each group signal must immediately follow an ownership check');
   assert.doesNotMatch(shellSource, /timeout[^\n]*\n\s*node "\$DRIVER"/, 'timeout must not own only the direct Node process');
+  assert.match(shellSource, /GOLDEN_LOOP_DRIVER_PROGRESS_FILE=.*driver\.progress/, 'the shell must pass a private progress marker path');
+});
+
+test('a driver with no startup progress marker is stopped early and remains fail-closed', async () => {
+  const startedAt = Date.now();
+  const artifact = await runShellFailure('driver-no-progress');
+  assert.equal(artifact.classification, 'driver-startup-failure');
+  assert.ok(Date.now() - startedAt < 15_000, 'missing startup marker waited for the full controller deadline');
+  const encoded = JSON.stringify(artifact);
+  assert.equal(encoded.includes('driver.progress'), false, 'artifact exposed controller internals');
+  assert.equal(encoded.includes('workspace'), false, 'artifact exposed workspace content');
 });
 
 test('real product-gate shell routes build and provenance failures to artifacts', async () => {

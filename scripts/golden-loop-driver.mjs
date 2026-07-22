@@ -3,7 +3,7 @@
  * Create a Word document through the visible Documents surface, then prove the
  * exact file is still visible after restarting the native app.
  */
-import { readdir } from 'node:fs/promises';
+import { readdir, rename, writeFile } from 'node:fs/promises';
 import { writeDiagnosticArtifact } from './golden-loop-diagnostics.mjs';
 
 const [phase, bridgePort, workspace, documentName] = process.argv.slice(2);
@@ -17,6 +17,16 @@ const expectedDevUrl = process.env.GOLDEN_LOOP_DEV_URL || 'the configured deskto
 const timeoutMs = Number(process.env.GOLDEN_LOOP_DRIVER_TIMEOUT_MS || 30_000);
 const HEALTH_REQUEST_TIMEOUT_MS = 2_000;
 const BRIDGE_TRANSPORT_ALLOWANCE_MS = 1_000;
+const progressFile = process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE;
+
+async function reportProgress(phase) {
+  if (!progressFile) return;
+  // Fixed phase names only: never persist request source, URLs, workspace
+  // names, or user-provided content through this controller channel.
+  const temporary = `${progressFile}.${process.pid}`;
+  await writeFile(temporary, `${phase}\n`, { encoding: 'utf8', mode: 0o600 });
+  await rename(temporary, progressFile);
+}
 
 function fail(message) {
   throw new Error(`GOLDEN LOOP FAILED: ${message}`);
@@ -151,6 +161,7 @@ async function waitFor(label, predicate, waitTimeoutMs = timeoutMs) {
 
 async function waitForRendererCallback() {
   await request('/health');
+  await reportProgress('bridge-healthy');
   const deadline = Date.now() + 20_000;
   let lastError;
   while (Date.now() < deadline) {
@@ -160,7 +171,10 @@ async function waitForRendererCallback() {
         readyState: document.readyState,
         hasTauriInvoke: typeof window.__TAURI_INTERNALS__?.invoke === 'function'
       })`, 2_000);
-      if (state?.hasTauriInvoke && state.readyState !== 'loading') return;
+      if (state?.hasTauriInvoke && state.readyState !== 'loading') {
+        await reportProgress('renderer-ready');
+        return;
+      }
       lastError = new Error(`page state was ${JSON.stringify(state)}`);
     } catch (error) {
       if (error instanceof BridgeRequestTimeoutError) throw error;
@@ -314,6 +328,7 @@ async function assertPresent(where) {
 }
 
 try {
+  await reportProgress('driver-started');
   if (phase === 'write') {
     await prepareExplicitWorkspaceForGoldenLoop();
     await click('documents-create-document');
