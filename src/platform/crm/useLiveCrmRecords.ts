@@ -34,6 +34,40 @@ const currentRecordsByWorkspace = new Map<
   readonly LiveCrmRecord[]
 >();
 
+type CapturedWorkspace = {
+  readonly rootPath: string | null;
+  readonly generation: number;
+};
+
+function workspaceGeneration(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) ? value : 0;
+}
+
+/**
+ * A returned live-record adapter may outlive the render that created it. Read
+ * the workspace store itself before a held reader or writer acts so an A→B
+ * switch cannot be hidden by the old hook closure (including A→B→A).
+ *
+ * The optional shape keeps narrow unit-test store doubles compatible; the real
+ * Zustand store always provides getState().
+ */
+function capturedWorkspaceIsActive(captured: CapturedWorkspace): boolean {
+  const getState = (
+    useWorkspaceStore as unknown as {
+      getState?: () => { rootPath: string | null; rootGeneration?: number };
+    }
+  ).getState;
+  if (!getState) return true;
+  const active = getState();
+  return (
+    active.rootPath === captured.rootPath &&
+    workspaceGeneration(active.rootGeneration) === captured.generation
+  );
+}
+
+const WORKSPACE_CHANGED_MESSAGE =
+  'The workspace changed while CRM data was being updated. Try again.';
+
 const CRM_CLIENT_SELECTION_REQUEST = {
   operationClass: 'client-scoped',
   allowAllMatters: false,
@@ -43,6 +77,9 @@ const CRM_CLIENT_SELECTION_REQUEST = {
 /** Keeps a mounted CRM screen in step with the encrypted record store. */
 export function useLiveCrmRecords() {
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
+  const rootGeneration = workspaceGeneration(
+    useWorkspaceStore((state) => state.rootGeneration)
+  );
   const clientSelection = useSelectionOperationDecision(CRM_CLIENT_SELECTION_REQUEST);
   const sharedMatterId =
     clientSelection.kind === 'matter' &&
@@ -65,19 +102,19 @@ export function useLiveCrmRecords() {
     useState(workspaceRoot);
   const [error, setError] = useState<string | null>(null);
   const [errorWorkspaceRoot, setErrorWorkspaceRoot] = useState(workspaceRoot);
-  const workspaceRootRef = useRef(workspaceRoot);
-  useEffect(() => {
-    workspaceRootRef.current = workspaceRoot;
-  }, [workspaceRoot]);
   const [freshness, setFreshness] = useState<CrmEngineFreshness>(
     getCrmEngineFreshness
   );
   useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
   const reloadRecords = useCallback(async () => {
     const rootAtStart = workspaceRoot;
+    const capturedAtStart: CapturedWorkspace = {
+      rootPath: rootAtStart,
+      generation: rootGeneration,
+    };
     try {
       const loaded = await loadLiveCrmRecords(rootAtStart);
-      if (workspaceRootRef.current !== rootAtStart) return;
+      if (!capturedWorkspaceIsActive(capturedAtStart)) return;
       currentRecordsRef.current = { workspaceRoot: rootAtStart, records: loaded };
       if (rootAtStart) currentRecordsByWorkspace.set(rootAtStart, loaded);
       setRecordsWorkspaceRoot(rootAtStart);
@@ -86,12 +123,12 @@ export function useLiveCrmRecords() {
       setError(null);
       return loaded;
     } catch (reason) {
-      if (workspaceRootRef.current !== rootAtStart) return;
+      if (!capturedWorkspaceIsActive(capturedAtStart)) return;
       setErrorWorkspaceRoot(rootAtStart);
       setError(reason instanceof Error ? reason.message : String(reason));
       return undefined;
     }
-  }, [workspaceRoot]);
+  }, [rootGeneration, workspaceRoot]);
   const reload = useCallback(async (): Promise<void> => {
     await reloadRecords();
   }, [reloadRecords]);
@@ -133,9 +170,22 @@ export function useLiveCrmRecords() {
   const publishSavedRecord = useCallback(
     (saved: LiveCrmRecord) => {
       const rootAtStart = workspaceRoot;
-      if (workspaceRootRef.current !== rootAtStart) return saved;
-      const current = currentRecordsRef.current.workspaceRoot === rootAtStart
-        ? currentRecordsRef.current.records
+      const capturedAtStart: CapturedWorkspace = {
+        rootPath: rootAtStart,
+        generation: rootGeneration,
+      };
+      if (!capturedWorkspaceIsActive(capturedAtStart)) {
+        throw new Error(WORKSPACE_CHANGED_MESSAGE);
+      }
+      // Another mounted screen may have written a newer policy snapshot before
+      // this hook re-rendered. Always merge into the shared per-workspace truth;
+      // a hook-local ref is only a boot fallback before that shared snapshot
+      // exists. Otherwise stale screen B can resurrect policy revoked by A.
+      const current = rootAtStart
+        ? currentRecordsByWorkspace.get(rootAtStart) ??
+          (currentRecordsRef.current.workspaceRoot === rootAtStart
+            ? currentRecordsRef.current.records
+            : [])
         : [];
       const next = current.some((item) => item.id === saved.id)
         ? current.map((item) => (item.id === saved.id ? saved : item))
@@ -148,7 +198,7 @@ export function useLiveCrmRecords() {
       window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
       return saved;
     },
-    [workspaceRoot]
+    [rootGeneration, workspaceRoot]
   );
   const save = useCallback(
     async (record: LiveCrmRecord) => {
@@ -184,10 +234,20 @@ export function useLiveCrmRecords() {
           ? { ...record, matterId: currentSharedMatterId }
           : record;
       const rootAtStart = workspaceRoot;
+      const capturedAtStart: CapturedWorkspace = {
+        rootPath: rootAtStart,
+        generation: rootGeneration,
+      };
+      if (!capturedWorkspaceIsActive(capturedAtStart)) {
+        throw new Error(WORKSPACE_CHANGED_MESSAGE);
+      }
       const saved = await saveLiveCrmRecord(rootAtStart, scoped);
+      if (!capturedWorkspaceIsActive(capturedAtStart)) {
+        throw new Error(WORKSPACE_CHANGED_MESSAGE);
+      }
       return publishSavedRecord(saved);
     },
-    [publishSavedRecord, workspaceRoot]
+    [publishSavedRecord, rootGeneration, workspaceRoot]
   );
   // Derive the user-facing state from the same shared-matter check that starts
   // the relay. This also prevents a one-frame offline warning while React is
@@ -196,11 +256,23 @@ export function useLiveCrmRecords() {
     sharedMatterId && workspaceRoot ? freshness : { kind: 'idle' };
   return {
     records: recordsWorkspaceRoot === workspaceRoot ? records : [],
-    getCurrentRecords: () =>
-      (workspaceRoot ? currentRecordsByWorkspace.get(workspaceRoot) : undefined) ??
-      (currentRecordsRef.current.workspaceRoot === workspaceRoot
-        ? currentRecordsRef.current.records
-        : []),
+    getCurrentRecords: () => {
+      if (
+        !capturedWorkspaceIsActive({
+          rootPath: workspaceRoot,
+          generation: rootGeneration,
+        })
+      )
+        return [];
+      return (
+        (workspaceRoot
+          ? currentRecordsByWorkspace.get(workspaceRoot)
+          : undefined) ??
+        (currentRecordsRef.current.workspaceRoot === workspaceRoot
+          ? currentRecordsRef.current.records
+          : [])
+      );
+    },
     save,
     publishSavedRecord,
     reload,
