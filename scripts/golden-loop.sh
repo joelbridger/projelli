@@ -44,6 +44,7 @@ BRIDGE_PORT=""
 DEV_URL=""
 DEV_HOST=""
 DEV_PORT=""
+ENTRY_MODULE_URL=""
 TIP_SHA=""
 VITE_PID=""
 APP_PID=""
@@ -390,6 +391,26 @@ wait_for_http() {
   fail "timed out waiting for $label at $url"
 }
 
+wait_for_entry_module() {
+  local url="$1" status end=$((SECONDS + TIMEOUT_SECONDS))
+  while [ "$SECONDS" -lt "$end" ]; do
+    # This check intentionally permits only the fixed local HTTP module URL
+    # derived below. Readiness means an explicit three-digit 2xx response from
+    # that loopback server; proxy settings and every other response refuse it.
+    if status="$(curl --silent --show-error --noproxy '*' \
+      --connect-timeout 1 --max-time 1 --proto '=http' \
+      --output /dev/null --write-out '%{http_code}' "$url" 2>/dev/null)" \
+      && [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
+      return 0
+    fi
+    if [ -n "$VITE_PID" ] && ! kill -0 "$VITE_PID" 2>/dev/null; then
+      fail "the matching app screen server stopped before its entry module became ready"
+    fi
+    sleep 0.2
+  done
+  fail "timed out waiting for the matching app entry module at $url"
+}
+
 read_dev_url() {
   node -e '
     const fs = require("node:fs");
@@ -440,14 +461,18 @@ TIP_SHA="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" || fail "could not read t
 
 DEV_URL="$(read_dev_url "$REPO")"
 readarray -t DEV_PARTS < <(node -e '
-  const url = new URL(process.argv[1]);
-  if (url.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(url.hostname) || !url.port) process.exit(2);
-  console.log(url.hostname);
-  console.log(url.port);
+  const devUrl = new URL(process.argv[1]);
+  if (devUrl.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(devUrl.hostname) || !devUrl.port) process.exit(2);
+  const entryUrl = new URL("/src/main.tsx", devUrl.origin);
+  if (entryUrl.protocol !== "http:" || entryUrl.origin !== devUrl.origin || entryUrl.pathname !== "/src/main.tsx" || entryUrl.search || entryUrl.hash) process.exit(2);
+  console.log(devUrl.hostname);
+  console.log(devUrl.port);
+  console.log(entryUrl.href);
 ' "$DEV_URL") || fail "desktop dev URL must be an explicit localhost HTTP port: $DEV_URL"
 DEV_HOST="${DEV_PARTS[0]:-}"
 DEV_PORT="${DEV_PARTS[1]:-}"
-if [ -z "$DEV_HOST" ] || [ -z "$DEV_PORT" ]; then
+ENTRY_MODULE_URL="${DEV_PARTS[2]:-}"
+if [ -z "$DEV_HOST" ] || [ -z "$DEV_PORT" ] || [ -z "$ENTRY_MODULE_URL" ]; then
   fail "could not parse desktop dev URL: $DEV_URL"
 fi
 
@@ -462,6 +487,7 @@ CHOKIDAR_USEPOLLING=1 CHOKIDAR_INTERVAL=300 \
   _ "$REPO" "$DEV_HOST" "$DEV_PORT" >"$TEMP_ROOT/vite.log" 2>&1 &
 VITE_PID=$!
 wait_for_http "the matching app screen server" "$DEV_URL"
+wait_for_entry_module "$ENTRY_MODULE_URL"
 
 DIAGNOSTIC_PHASE="port-selection"
 if ! BRIDGE_PORT="$(free_port)"; then
