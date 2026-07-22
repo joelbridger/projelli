@@ -29,6 +29,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:build": "tauri build",
+    "windows:final-build": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy RemoteSigned -File scripts/windows-final-build/build.ps1",
+    "windows:final-build:contract": "node scripts/windows-final-build/test-contract.mjs",
     "tauri:dev": "tauri dev",
     "test": "/home/jameson/lantern/coordination/box-test-slot.sh vitest run",
     "test:impact": "node scripts/test-impact.mjs",

@@ -60,4 +60,9 @@ for required in \
   test -s "$required" || { echo "Required meeting-voice asset is missing: $required" >&2; exit 1; }
 done
 
+if [[ "$TARGET_TRIPLE" == "x86_64-pc-windows-msvc" ]]; then
+  compgen -G 'src-tauri/binaries/diarize/*sherpa-onnx-c-api.dll' >/dev/null || { echo "Required diarization sherpa DLL is missing" >&2; exit 1; }
+  compgen -G 'src-tauri/binaries/diarize/*onnxruntime*.dll' >/dev/null || { echo "Required diarization ONNX Runtime DLL is missing" >&2; exit 1; }
+fi
+
 echo "Meeting voice sidecars staged for $TARGET_TRIPLE."
