@@ -13,6 +13,10 @@ export type MeetingVisibilityPreferenceState =
   | 'error';
 
 interface MeetingVisibilityPreferenceCommonProps {
+  /** Identity of the MeetingEntry host that is rendering right now. */
+  readonly currentMeetingIdentityKey: string;
+  /** Identity attached to the loaded preference snapshot below. */
+  readonly preferenceMeetingIdentityKey: string;
   readonly ownerMemberId: string;
   readonly members: readonly MeetingVisibilityPreferenceMember[];
   readonly selectedMemberIds: readonly string[];
@@ -24,7 +28,10 @@ export type MeetingVisibilityPreferenceControlProps =
     (
       | {
           readonly mode: 'editable';
-          readonly onSelectionChange: (memberIds: readonly string[]) => void;
+          readonly onSelectionChange: (change: {
+            readonly meetingIdentityKey: string;
+            readonly memberIds: readonly string[];
+          }) => void;
         }
       | {
           /** Used for an included coworker who is not allowed to change the preference. */
@@ -51,10 +58,22 @@ export function MeetingVisibilityPreferenceControl(
   props: MeetingVisibilityPreferenceControlProps
 ) {
   const { t } = useTranslation();
-  const selected = new Set(props.selectedMemberIds);
-  selected.add(props.ownerMemberId);
+  const identityMatches =
+    props.currentMeetingIdentityKey.length > 0 &&
+    props.currentMeetingIdentityKey === props.preferenceMeetingIdentityKey;
 
-  if (props.state === 'loading') {
+  if (
+    !identityMatches ||
+    props.state === 'loading' ||
+    props.state === 'error'
+  ) {
+    const messageKey = !identityMatches
+      ? 'meetings.entry.visibility-preference.identity-mismatch'
+      : props.state === 'error'
+        ? 'meetings.entry.visibility-preference.error'
+        : 'meetings.entry.visibility-preference.loading';
+    const role =
+      props.state === 'error' && identityMatches ? 'alert' : 'status';
     return (
       <section
         data-testid="meeting-visibility-preference"
@@ -63,10 +82,13 @@ export function MeetingVisibilityPreferenceControl(
         <h3 id="meeting-visibility-preference-title">
           {t('meetings.entry.visibility-preference.title')}
         </h3>
-        <p role="status">{t('meetings.entry.visibility-preference.loading')}</p>
+        <p role={role}>{t(messageKey)}</p>
       </section>
     );
   }
+
+  const selected = new Set(props.selectedMemberIds);
+  selected.add(props.ownerMemberId);
 
   const readOnly = props.mode === 'shared-readonly';
   const busy = props.state === 'saving';
@@ -131,9 +153,14 @@ export function MeetingVisibilityPreferenceControl(
                     const next = new Set(selected);
                     if (event.target.checked) next.add(member.id);
                     else next.delete(member.id);
-                    props.onSelectionChange(
-                      orderedSelection(props.members, next, props.ownerMemberId)
-                    );
+                    props.onSelectionChange({
+                      meetingIdentityKey: props.currentMeetingIdentityKey,
+                      memberIds: orderedSelection(
+                        props.members,
+                        next,
+                        props.ownerMemberId
+                      ),
+                    });
                   }}
                 />
                 <span>{member.displayName}</span>
@@ -164,10 +191,7 @@ export function MeetingVisibilityPreferenceControl(
       </p>
 
       {props.state !== 'ready' && (
-        <p
-          role={props.state === 'error' ? 'alert' : 'status'}
-          style={{ margin: 0, fontSize: 'var(--kp-font-xs)' }}
-        >
+        <p role="status" style={{ margin: 0, fontSize: 'var(--kp-font-xs)' }}>
           {t(`meetings.entry.visibility-preference.${props.state}`)}
         </p>
       )}

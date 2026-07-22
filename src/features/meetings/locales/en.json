@@ -223,6 +223,7 @@
         "boundary-explanation": "This organizes normal coworker views. It does not change encryption or security boundaries.",
         "owner": "Owner",
         "loading": "Loading visibility preference…",
+        "identity-mismatch": "Loading this meeting's visibility preference…",
         "saving": "Saving…",
         "saved": "Saved",
         "error": "The visibility preference could not be saved. Try again."

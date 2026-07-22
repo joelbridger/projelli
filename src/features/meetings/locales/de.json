@@ -225,6 +225,7 @@
         "boundary-explanation": "Dies ordnet die normalen Ansichten für Kolleginnen und Kollegen. Es ändert weder die Verschlüsselung noch Sicherheitsgrenzen.",
         "owner": "Verantwortlich",
         "loading": "Sichtbarkeitseinstellung wird geladen…",
+        "identity-mismatch": "Sichtbarkeitseinstellung dieser Besprechung wird geladen…",
         "saving": "Wird gespeichert…",
         "saved": "Gespeichert",
         "error": "Die Sichtbarkeitseinstellung konnte nicht gespeichert werden. Versuchen Sie es erneut."
