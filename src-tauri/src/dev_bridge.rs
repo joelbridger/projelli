@@ -89,7 +89,7 @@ console.error = (...args) => { add('consoleErrors', { category: 'console-error',
 const originalFetch = window.fetch;
 if (typeof originalFetch === 'function') window.fetch = (...args) => {
   const requestLocation = locationFacts(args[0]?.url || args[0]);
-  return originalFetch(...args).then((response) => {
+  return originalFetch.apply(window, args).then((response) => {
     if (response.status >= 400 && response.status <= 599) add('networkFailures', { category: 'http-response-failure', status: response.status, ...requestLocation });
     return response;
   }).catch((error) => { add('networkFailures', { category: 'fetch-rejected', ...requestLocation }); throw error; });

@@ -243,6 +243,7 @@ echo "golden loop: workspace=$WORKSPACE bridge=$BRIDGE_PORT document=$DOCUMENT_N
 DIAGNOSTIC_PHASE="driver-startup"
 GOLDEN_LOOP_DRIVER_TIMEOUT_MS="$((TIMEOUT_SECONDS * 1000))" \
 GOLDEN_LOOP_DEV_URL="$DEV_URL" \
+  timeout --signal=TERM --kill-after=10s "${TIMEOUT_SECONDS}s" \
   node "$DRIVER" write "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
   || fail "the golden-loop write driver failed"
 
@@ -253,6 +254,7 @@ launch_app restart
 wait_for_http "the restarted desktop app bridge" "http://127.0.0.1:$BRIDGE_PORT/health"
 GOLDEN_LOOP_DRIVER_TIMEOUT_MS="$((TIMEOUT_SECONDS * 1000))" \
 GOLDEN_LOOP_DEV_URL="$DEV_URL" \
+  timeout --signal=TERM --kill-after=10s "${TIMEOUT_SECONDS}s" \
   node "$DRIVER" assert "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
   || fail "the golden-loop restart driver failed"
 
