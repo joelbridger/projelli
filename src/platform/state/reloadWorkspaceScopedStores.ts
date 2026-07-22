@@ -17,6 +17,7 @@ import { setActiveWorkspaceScopeRoot } from '@/platform/state/workspaceScope';
 import {
   useMatterStore,
   hydrateMattersFromWorkspaceDisk,
+  setMatterWorkspaceHydrationPending,
 } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
@@ -39,6 +40,10 @@ import { replaceCanonicalHouseholdDirectory } from '@/platform/client-context';
  * workspace's matters into the new scope's key.
  */
 export function reloadWorkspaceScopedStores(root: string | null): void {
+  // This readiness signal is deliberately outside the persisted Zustand
+  // state, so changing it can never write the old workspace's matter snapshot
+  // under the new workspace key.
+  setMatterWorkspaceHydrationPending();
   setActiveWorkspaceScopeRoot(root);
   // The provider directory belongs to the workspace that was just left. Mark
   // it unavailable before the new workspace's saved selection is classified.

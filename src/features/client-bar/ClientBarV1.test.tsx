@@ -131,6 +131,22 @@ describe('ClientBarV1', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('does not expose a provisional household list before workspace hydration is ready', () => {
+    const { rerender } = render(
+      <ClientBarV1 directoryReady={false} households={HOUSEHOLDS} />
+    );
+
+    fireEvent.click(screen.getByTestId('client-bar-picker'));
+    expect(
+      screen.queryByTestId('client-picker-option-household-foster')
+    ).not.toBeInTheDocument();
+
+    rerender(<ClientBarV1 directoryReady households={HOUSEHOLDS} />);
+    expect(
+      screen.getByTestId('client-picker-option-household-foster')
+    ).toBeInTheDocument();
+  });
+
   it('never asks a connector to populate the picker', async () => {
     tauriBoundary.isTauri.mockReturnValue(true);
     render(<ClientBarV1 />);

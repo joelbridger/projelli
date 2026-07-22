@@ -15,6 +15,8 @@ import { type ClientBarQuickAction } from './quickActions';
 
 export interface ClientBarV1Props {
   households?: readonly ClientPickerHousehold[] | undefined;
+  /** False while the active workspace's durable client facts are still loading. */
+  directoryReady?: boolean | undefined;
   quickActions?: readonly ClientBarQuickAction[] | undefined;
   onNavigate?: ((surfaceId: string) => void) | undefined;
   /** Called when the picker button is opened, for shell telemetry or focus handling. */
@@ -23,6 +25,7 @@ export interface ClientBarV1Props {
 
 export function ClientBarV1({
   households = [],
+  directoryReady = true,
   quickActions = [],
   onChooseClient,
   onNavigate,
@@ -30,10 +33,14 @@ export function ClientBarV1({
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
   const client = useClientContextStore((state) => state.client);
+  const visibleHouseholds = directoryReady ? households : [];
 
   useEffect(() => {
-    replaceCanonicalHouseholdDirectory('wealthbox', households);
-  }, [households]);
+    replaceCanonicalHouseholdDirectory(
+      'wealthbox',
+      directoryReady ? households : null
+    );
+  }, [directoryReady, households]);
 
   const openPicker = () => {
     onChooseClient?.();
@@ -115,7 +122,7 @@ export function ClientBarV1({
         </div>
       </section>
       <ClientPickerModal
-        households={households}
+        households={visibleHouseholds}
         onClear={clearSelectedClient}
         onOpenChange={setPickerOpen}
         onSelect={selectClient}

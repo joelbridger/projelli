@@ -10,7 +10,10 @@ import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry
 import { useOptionalAppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
 import { useFlag } from '@/platform/flags';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import { useMatters } from '@/platform/matter/matterStore';
+import {
+  useMatters,
+  useMatterWorkspaceHydrationReady,
+} from '@/platform/matter/matterStore';
 import {
   requestClearClientSelection,
   useClientContextStore,
@@ -26,6 +29,7 @@ export function SharedClientBar({ onChooseClient }: SharedClientBarProps) {
   const { t } = useTranslation();
   const client = useClientContextStore((state) => state.client);
   const matters = useMatters();
+  const matterDirectoryReady = useMatterWorkspaceHydrationReady();
   const liveCrm = useLiveCrmRecords();
   const { descriptors } = useAppSurfaceRegistry();
   const capabilities = useOptionalAppSurfaceCapabilities();
@@ -42,6 +46,7 @@ export function SharedClientBar({ onChooseClient }: SharedClientBarProps) {
   if (sharedClientBarV1Enabled) {
     return (
       <ClientBarV1
+        directoryReady={matterDirectoryReady}
         households={households}
         onChooseClient={onChooseClient}
         onNavigate={navigate}

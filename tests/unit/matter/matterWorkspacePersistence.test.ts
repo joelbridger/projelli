@@ -29,6 +29,8 @@ import {
   hydrateMattersFromWorkspaceDisk,
   flushMattersWorkspaceDiskWrites,
   __resetMattersWorkspaceDiskSyncForTests,
+  readMatterWorkspaceHydrationReady,
+  setMatterWorkspaceHydrationPending,
 } from '@/platform/matter/matterStore';
 import {
   setActiveWorkspaceScopeRoot,
@@ -160,6 +162,7 @@ function readDiskMatterIds(files: Map<string, string>, root: string): string[] {
  *  then run the workspace-disk hydrate and let all disk work settle. */
 async function openWorkspace(root: string, service: WorkspaceService): Promise<void> {
   setActiveWorkspaceService(service);
+  setMatterWorkspaceHydrationPending();
   setActiveWorkspaceScopeRoot(root);
   await useMatterStore.persist.rehydrate();
   await hydrateMattersFromWorkspaceDisk(root);
@@ -297,6 +300,77 @@ describe('writer-owned workspace-disk rehydration', () => {
       version: 1,
       source: 'specific-matter',
       matterId: selected.id,
+    });
+  });
+
+  it('keeps a disk-only saved client untrusted during a held fresh-profile read, then restores it', async () => {
+    let releaseRead = (): void => {};
+    let readStartedResolve = (): void => {};
+    const readStarted = new Promise<void>((resolve) => {
+      readStartedResolve = resolve;
+    });
+    const heldRead = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const client = {
+      provider: 'wealthbox' as const,
+      householdId: 'household-disk',
+      displayName: 'Disk household',
+    };
+    const selectedMatter = {
+      ...persistedMatter('matter-disk', '/wsDisk', 'Disk household'),
+      crmHouseholdKeys: ['household-disk'],
+    };
+    const selectionHint = {
+      version: 1,
+      source: 'shared-client',
+      client,
+    };
+    const { service, files } = createMockWorkspaceService('/wsDisk');
+    seedDiskFile(
+      files,
+      '/wsDisk',
+      [selectedMatter],
+      selectedMatter.id,
+      selectionHint
+    );
+    const readFile = service.readFile.bind(service);
+    service.readFile = async (path: string) => {
+      readStartedResolve();
+      await heldRead;
+      return readFile(path);
+    };
+
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    setActiveWorkspaceService(service);
+    reloadWorkspaceScopedStores('/wsDisk');
+    await readStarted;
+
+    // The first render sees no cached matters, but that empty projection is not
+    // authoritative while the workspace file is still being read.
+    expect(useMatterStore.getState().matters).toEqual([]);
+    expect(readMatterWorkspaceHydrationReady()).toBe(false);
+    expect(useClientContextStore.getState().client).toBeNull();
+
+    releaseRead();
+    await flushMattersWorkspaceDiskWrites();
+
+    expect(useMatterStore.getState().matters).toEqual([selectedMatter]);
+    expect(readMatterWorkspaceHydrationReady()).toBe(true);
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: null,
+      scope: { kind: 'blocked-unresolved' },
+      persistenceHint: selectionHint,
+    });
+
+    replaceCanonicalHouseholdDirectory('wealthbox', [client]);
+    await vi.waitFor(() => {
+      expect(useClientContextStore.getState().client).toEqual(client);
+      expect(readAuthoritativeMatterScope()).toEqual({
+        kind: 'matter',
+        matterId: selectedMatter.id,
+      });
     });
   });
 });

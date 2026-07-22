@@ -1118,6 +1118,17 @@ function classifyRehydration(input: unknown): RehydratedClassification {
           });
         }
         case 'explicit-all-matters': {
+          if (hint.client && !providerDirectoryAvailable(hint.client.provider)) {
+            return Object.freeze({
+              kind: 'all-matters',
+              client: null,
+              hint,
+              fingerprint: JSON.stringify({
+                hint,
+                state: 'provider-directory-unavailable',
+              }),
+            });
+          }
           const client = hint.client && isClientLive(hint.client) ? hint.client : null;
           return Object.freeze({
             kind: 'all-matters',
@@ -1491,6 +1502,19 @@ function revalidateCurrentSelection(): void {
       return;
     }
     case 'all-matters':
+      if (
+        !source.client &&
+        source.persistenceHint.source === 'explicit-all-matters' &&
+        source.persistenceHint.client
+      ) {
+        consumeRehydratedSelection(
+          issueRehydratedSelection({
+            kind: 'persisted-hint',
+            value: source.persistenceHint,
+          })
+        );
+        return;
+      }
       if (source.client && !isClientLive(source.client)) {
         writeSourceSelection(
           null,

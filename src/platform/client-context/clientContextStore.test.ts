@@ -502,6 +502,34 @@ describe('authority is re-derived across every restart', () => {
     expect(useClientContextStore.getState().client).toEqual(clientA);
   });
 
+  it('preserves an explicit All scope client hint while the provider list loads', async () => {
+    seed([matter('matter-a', ['household-a'])]);
+    publish(clientA);
+    await selectClient(clientA);
+    await requestMatterScopeSelection(issueAllMattersScopeSelection());
+    const persisted = useClientContextStore.getState().persistenceHint;
+    expect(persisted).toEqual({
+      version: 1,
+      source: 'explicit-all-matters',
+      client: clientA,
+    });
+
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    restartFrom(persisted);
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: null,
+      scope: { kind: 'all-matters' },
+      persistenceHint: persisted,
+    });
+
+    publish(clientA);
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: clientA,
+      scope: { kind: 'all-matters' },
+      persistenceHint: persisted,
+    });
+  });
+
   it('clears a saved choice when the selected client or linked matter was deleted', async () => {
     seed([matter('matter-a', ['household-a'])]);
     publish(clientA);
