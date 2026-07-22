@@ -72,8 +72,13 @@
   .lantern-date{font-size:12px;font-weight:700;color:var(--muted)}
   .lantern-title{font-family:"Fraunces",Georgia,serif;font-size:clamp(26px,4vw,38px);line-height:1.12;letter-spacing:-.02em;margin:0;max-width:760px}
   .lantern-lead{font-size:16px;color:var(--ink-soft);max-width:760px;margin:12px 0 22px}
+  .lantern-milestone{background:#fff;border:1px solid #c8d7f5;border-left:5px solid var(--accent);border-radius:14px;padding:18px 20px}
+  .lantern-milestone-label{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--info);margin:0 0 5px}
+  .lantern-milestone-title{font-family:"Fraunces",Georgia,serif;font-size:23px;line-height:1.2;margin:0 0 6px;color:var(--navy)}
+  .lantern-milestone-text{font-size:13.5px;color:var(--ink-soft);margin:0}
+  .lantern-milestone-replaces{font-size:12px;font-weight:700;color:var(--muted);margin:9px 0 0}
   .lantern-proof{display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:22px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px}
-  .lantern-proof-number{font-family:"Fraunces",Georgia,serif;font-size:44px;line-height:1;color:var(--navy);font-weight:600;letter-spacing:-.03em}
+  .lantern-proof-number{font-family:"Fraunces",Georgia,serif;font-size:34px;line-height:1;color:var(--navy);font-weight:600;letter-spacing:-.03em}
   .lantern-proof-label{font-size:13px;font-weight:700;color:var(--ink-soft);margin-top:6px}
   .lantern-bar{height:12px;border-radius:999px;background:#e8edf5;overflow:hidden}
   .lantern-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#2f6df0,#5e8df3)}
@@ -91,14 +96,24 @@
   .lantern-section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:var(--shadow)}
   .lantern-section h3{font-family:"Fraunces",Georgia,serif;font-size:22px;margin:0 0 5px}
   .lantern-section-intro{font-size:13.5px;color:var(--muted);margin:0 0 17px}
-  .lantern-path{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;position:relative}
-  .lantern-step{border-radius:12px;padding:15px;border:1px solid var(--line);background:var(--bg);min-height:134px}
-  .lantern-step.done{background:var(--good-bg);border-color:#bfe7cc}
-  .lantern-step.now{background:var(--info-bg);border-color:#bfd1fb;box-shadow:inset 0 0 0 1px #d2def8}
-  .lantern-step.next{background:var(--warn-bg);border-color:#f0d4ac}
-  .lantern-step-num{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  .lantern-step-name{font-weight:800;font-size:14px;margin:6px 0 5px;color:var(--ink)}
-  .lantern-step-text{font-size:12.5px;color:var(--ink-soft);margin:0;line-height:1.45}
+  .lantern-journey{display:grid;grid-template-columns:repeat(6,1fr);gap:18px;list-style:none;padding:0;margin:0}
+  .lantern-journey-step{position:relative;border-radius:12px;padding:14px 13px;border:1px solid #cbd9f6;background:linear-gradient(150deg,#f3f7ff,#fff);min-height:146px}
+  .lantern-journey-step::after{content:"→";position:absolute;right:-15px;top:50%;transform:translateY(-50%);color:#7d91b8;font-weight:900;font-size:17px}
+  .lantern-journey-step:last-child::after{display:none}
+  .lantern-journey-num{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;background:var(--navy);color:#fff;font-size:11px;font-weight:800;margin-bottom:10px}
+  .lantern-journey-name{font-weight:800;font-size:13.5px;margin:0 0 5px;color:var(--ink)}
+  .lantern-journey-text{font-size:12px;color:var(--ink-soft);margin:0;line-height:1.4}
+  .lantern-priorities{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .lantern-priority{border:1px solid var(--line);border-radius:13px;padding:16px;background:var(--bg)}
+  .lantern-priority.now{background:var(--info-bg);border-color:#bfd1fb}
+  .lantern-priority.before{background:var(--good-bg);border-color:#bfe7cc}
+  .lantern-priority.later{background:#f5f6f8}
+  .lantern-priority-label{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;margin:0 0 9px;color:var(--navy)}
+  .lantern-priority .lantern-list{margin-top:0}
+  .lantern-priority .lantern-list li{font-size:12.5px;padding-left:18px}
+  .lantern-priority .lantern-list li::before{content:"→";color:var(--accent)}
+  .lantern-staff-gate{display:flex;gap:11px;align-items:flex-start;margin-top:12px;background:#fff8e8;border:1px solid #eed19c;border-radius:12px;padding:13px 15px;color:#79511d;font-size:13px;font-weight:650}
+  .lantern-staff-icon{font-size:18px;line-height:1.2}
   .lantern-doors{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
   .lantern-door{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:15px}
   .lantern-door-icon{font-size:20px;line-height:1}
@@ -111,6 +126,10 @@
   .lantern-list li::before{content:"✓";position:absolute;left:0;top:0;color:var(--good);font-weight:900}
   .lantern-list.next li::before{content:"→";color:var(--accent)}
   .lantern-list.hold li::before{content:"—";color:var(--warn)}
+  .lantern-hold{background:#fff8e8;border-color:#edcf97;border-left:6px solid #d98817}
+  .lantern-hold .lantern-section-intro{color:#79511d}
+  .lantern-hold .lantern-list{columns:2;column-gap:30px}
+  .lantern-hold .lantern-list li{break-inside:avoid}
   .lantern-bottom{background:var(--navy);color:#fff;border-radius:16px;padding:22px;box-shadow:var(--shadow)}
   .lantern-bottom h3{font-family:"Fraunces",Georgia,serif;font-size:22px;margin:0 0 6px}
   .lantern-bottom p{margin:0;color:#d7e0f2;font-size:14px;max-width:800px}
@@ -243,8 +262,11 @@
     .area-title{font-size:19px}
     .lantern-hero{padding:20px}
     .lantern-proof{grid-template-columns:1fr;gap:14px}
-    .lantern-glance,.lantern-path,.lantern-doors,.lantern-two{grid-template-columns:1fr}
-    .lantern-step{min-height:0}
+    .lantern-glance,.lantern-journey,.lantern-priorities,.lantern-doors,.lantern-two{grid-template-columns:1fr}
+    .lantern-journey{gap:20px}
+    .lantern-journey-step{min-height:0}
+    .lantern-journey-step::after{content:"↓";right:auto;left:50%;top:auto;bottom:-20px;transform:translateX(-50%)}
+    .lantern-hold .lantern-list{columns:1}
   }
 </style>
 </head>
@@ -397,21 +419,27 @@
     var glance=(s.glance||[]).map(function(x){
       return '<div class="lantern-card"><p class="lantern-card-label">'+esc(x.label)+'</p><h3 class="lantern-card-title">'+esc(x.title)+'</h3><p class="lantern-card-text">'+esc(x.text)+'</p></div>';
     }).join('');
-    var stages=(s.stages||[]).map(function(x,i){
-      return '<div class="lantern-step '+esc(x.state||'')+'"><div class="lantern-step-num">'+esc(x.marker||('Stage '+(i+1)))+'</div><div class="lantern-step-name">'+esc(x.name)+'</div><p class="lantern-step-text">'+esc(x.text)+'</p></div>';
+    var journey=(s.journey||[]).map(function(x,i){
+      return '<li class="lantern-journey-step"><div class="lantern-journey-num">'+esc(i+1)+'</div><div class="lantern-journey-name">'+esc(x.name)+'</div><p class="lantern-journey-text">'+esc(x.text)+'</p></li>';
     }).join('');
     var doors=(s.doors||[]).map(function(x){
       return '<div class="lantern-door"><div class="lantern-door-icon">'+esc(x.icon)+'</div><div class="lantern-door-name">'+esc(x.name)+'</div><p class="lantern-door-text">'+esc(x.text)+'</p></div>';
     }).join('');
     var proofWidth=Math.max(0,Math.min(100,parseFloat(s.proof.percent)||0));
+    var priorities=s.priorities||{};
+    var priorityCards='<div class="lantern-priority now"><p class="lantern-priority-label">Now</p>'+list(priorities.now,'next')+'</div>'
+      +'<div class="lantern-priority before"><p class="lantern-priority-label">Before first advisor</p>'+list(priorities.before,'next')+'</div>'
+      +'<div class="lantern-priority later"><p class="lantern-priority-label">Later</p>'+list(priorities.later,'next')+'</div>';
     return '<div class="lantern-shell">'
       +'<div class="lantern-hero"><div class="lantern-kicker">'+chip('info',s.phase)+'<span class="lantern-date">Updated '+esc(s.updated)+'</span></div><h2 class="lantern-title">'+esc(s.headline)+'</h2><p class="lantern-lead">'+esc(s.lead)+'</p>'
-      +'<div class="lantern-proof"><div><div class="lantern-proof-number">'+esc(s.proof.percent)+'</div><div class="lantern-proof-label">'+esc(s.proof.label)+'</div></div><div><div class="lantern-bar" role="img" aria-label="'+esc(s.proof.accessible)+'"><div class="lantern-bar-fill" style="width:'+proofWidth+'%"></div></div><div class="lantern-bar-key"><span>'+esc(s.proof.working)+'</span><span>'+esc(s.proof.partial)+'</span><span>'+esc(s.proof.failed)+'</span><span>'+esc(s.proof.unproven)+'</span></div><p class="lantern-caveat">'+esc(s.proof.caveat)+'</p></div></div></div>'
+      +'<div class="lantern-milestone"><p class="lantern-milestone-label">'+esc(s.milestone.label)+'</p><h3 class="lantern-milestone-title">'+esc(s.milestone.title)+'</h3><p class="lantern-milestone-text">'+esc(s.milestone.text)+'</p><p class="lantern-milestone-replaces">'+esc(s.milestone.replaces)+'</p></div></div>'
       +'<div class="lantern-glance">'+glance+'</div>'
-      +'<div class="lantern-section"><h3>'+esc(s.pathTitle)+'</h3><p class="lantern-section-intro">'+esc(s.pathIntro)+'</p><div class="lantern-path">'+stages+'</div></div>'
+      +'<div class="lantern-section"><h3>'+esc(s.journeyTitle)+'</h3><p class="lantern-section-intro">'+esc(s.journeyIntro)+'</p><ol class="lantern-journey">'+journey+'</ol></div>'
+      +'<div class="lantern-section"><h3>'+esc(s.prioritiesTitle)+'</h3><p class="lantern-section-intro">'+esc(s.prioritiesIntro)+'</p><div class="lantern-priorities">'+priorityCards+'</div><div class="lantern-staff-gate"><span class="lantern-staff-icon" aria-hidden="true">🔒</span><span>'+esc(s.staffGate)+'</span></div></div>'
       +'<div class="lantern-section"><h3>'+esc(s.doorsTitle)+'</h3><p class="lantern-section-intro">'+esc(s.doorsIntro)+'</p><div class="lantern-doors">'+doors+'</div></div>'
-      +'<div class="lantern-two"><div class="lantern-section"><h3>'+esc(s.builtTitle)+'</h3>'+list(s.built,'')+'</div><div class="lantern-section"><h3>'+esc(s.nextTitle)+'</h3>'+list(s.next,'next')+'</div></div>'
-      +'<div class="lantern-two"><div class="lantern-section"><h3>'+esc(s.decisionsTitle)+'</h3>'+list(s.decisions,'')+'</div><div class="lantern-section"><h3>'+esc(s.holdTitle)+'</h3>'+list(s.hold,'hold')+'</div></div>'
+      +'<div class="lantern-section lantern-hold"><h3>'+esc(s.holdTitle)+'</h3><p class="lantern-section-intro">'+esc(s.holdIntro)+'</p>'+list(s.hold,'hold')+'</div>'
+      +'<div class="lantern-section"><h3>'+esc(s.proofTitle)+'</h3><p class="lantern-section-intro">'+esc(s.proofIntro)+'</p><div class="lantern-proof"><div><div class="lantern-proof-number">'+esc(s.proof.percent)+'</div><div class="lantern-proof-label">'+esc(s.proof.label)+'</div></div><div><div class="lantern-bar" role="img" aria-label="'+esc(s.proof.accessible)+'"><div class="lantern-bar-fill" style="width:'+proofWidth+'%"></div></div><div class="lantern-bar-key"><span>'+esc(s.proof.working)+'</span><span>'+esc(s.proof.partial)+'</span><span>'+esc(s.proof.failed)+'</span><span>'+esc(s.proof.unproven)+'</span></div><p class="lantern-caveat">'+esc(s.proof.caveat)+'</p></div></div></div>'
+      +'<div class="lantern-section"><h3>'+esc(s.decisionsTitle)+'</h3>'+list(s.decisions,'')+'</div>'
       +'<div class="lantern-bottom"><h3>'+esc(s.bottomTitle)+'</h3><p>'+esc(s.bottomText)+'</p></div>'
       +'</div>';
   }

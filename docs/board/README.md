@@ -19,7 +19,9 @@ and **Insights & open ideas**.
 ## Other tabs
 The first tab is now **Lantern**, a current, plain-language view of product progress,
 the four-part product direction, and the remaining path to an advisor-ready release.
-It intentionally separates proven foundation coverage from launch readiness.
+Its main measure is one complete advisor journey from Today through cited Ask. The
+67% foundation coverage number remains lower on the page as useful context, not as
+the V1 finish line.
 
 Beyond that, the board has a **Demo** walkthrough, **Roadmap**, **Testing**,
 **Questions**, and a **Personal Development** tab — an interactive checklist of Jameson's

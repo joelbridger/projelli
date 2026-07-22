@@ -31,6 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Lantern board status now follows the fastest path to V1.** The private dashboard
+  records that Control Day is complete, makes one advisor's full Wealthbox-and-Jump
+  replacement journey the next milestone, and separates Now, Before first advisor,
+  Later, and Not doing now. Foundation proof coverage remains visible as secondary
+  context. Files: `docs/board/board-data.json`, `docs/board/index.html`,
+  `docs/board/README.md`.
+
 ### Added
 - **Meetings foundation seam** - Added the local-first public Meetings contract
   for canonical meeting records, append-only artifacts, legal lifecycle
