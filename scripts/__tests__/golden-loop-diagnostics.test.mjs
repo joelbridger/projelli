@@ -210,8 +210,13 @@ echo $! >"$LANTERN_APP_PID_FILE"
   await writeExecutable(driver, `#!/usr/bin/env node
 if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-startup') process.exit(1);
 if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
+  const { spawn } = await import('node:child_process');
   const { writeFileSync } = await import('node:fs');
   writeFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_PID, String(process.pid));
+  const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1_000)'], {
+    stdio: 'ignore',
+  });
+  writeFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_CHILD_PID, String(child.pid));
   process.on('SIGTERM', () => {});
   setInterval(() => {}, 1_000);
 }
@@ -226,6 +231,7 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     GOLDEN_LOOP_TEST_CURL_COUNT: path.join(root, 'curl-count'),
     GOLDEN_LOOP_TEST_LAUNCH_COUNT: path.join(root, 'launch-count'),
     GOLDEN_LOOP_TEST_DRIVER_PID: path.join(root, 'driver-pid'),
+    GOLDEN_LOOP_TEST_DRIVER_CHILD_PID: path.join(root, 'driver-child-pid'),
     GOLDEN_LOOP_DIAGNOSTIC_DIR: diagnostics,
     GOLDEN_LOOP_LAUNCHER: launcher,
     GOLDEN_LOOP_DRIVER: driver,
@@ -252,11 +258,20 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     assert.match(failure.stderr, /GOLDEN LOOP DIAGNOSTIC: path=.* sha256=[a-f0-9]{64} classification=/);
     if (mode === 'driver-timeout') {
       const driverPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_PID, 'utf8'));
+      const childPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_CHILD_PID, 'utf8'));
       assert.throws(() => process.kill(driverPid, 0), { code: 'ESRCH' });
+      assert.throws(() => process.kill(childPid, 0), { code: 'ESRCH' });
       assert.deepEqual(await (await import('node:fs/promises')).readdir(temporaryDirectory), []);
     }
     return artifact;
   } finally {
+    if (mode === 'driver-timeout') {
+      for (const pidFile of [env.GOLDEN_LOOP_TEST_DRIVER_PID, env.GOLDEN_LOOP_TEST_DRIVER_CHILD_PID]) {
+        try { process.kill(Number(await readFile(pidFile, 'utf8')), 'SIGKILL'); } catch (error) {
+          if (error.code !== 'ESRCH' && error.code !== 'ENOENT') throw error;
+        }
+      }
+    }
     await rm(root, { recursive: true, force: true });
   }
 }
@@ -289,6 +304,9 @@ test('a never-exiting driver is killed within the wall-clock bound and fully cle
   const artifact = await runShellFailure('driver-timeout');
   assert.equal(artifact.classification, 'driver-startup-failure');
   assert.ok(Date.now() - startedAt < 15_000, 'driver timeout exceeded its TERM plus KILL grace');
+  const shellSource = await readFile(new URL('../golden-loop.sh', import.meta.url), 'utf8');
+  assert.match(shellSource, /setsid bash -c[\s\S]*DRIVER_PGID=\$DRIVER_PID/, 'driver must have a tracked dedicated process group');
+  assert.doesNotMatch(shellSource, /timeout[^\n]*\n\s*node "\$DRIVER"/, 'timeout must not own only the direct Node process');
 });
 
 test('real product-gate shell routes build and provenance failures to artifacts', async () => {

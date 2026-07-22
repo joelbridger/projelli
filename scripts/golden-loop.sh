@@ -33,6 +33,9 @@ XVFB_PID=""
 DIAGNOSTIC_PHASE="preflight"
 DIAGNOSTIC_WRITER_READY=0
 ERROR_TRAP_ACTIVE=0
+DRIVER_PID=""
+DRIVER_PGID=""
+DRIVER_GROUP_START_TIME=""
 
 emit_diagnostic() {
   if [ "$DIAGNOSTIC_WRITER_READY" -eq 1 ]; then
@@ -88,6 +91,111 @@ stop_pid() {
   kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
 }
 
+process_start_time() {
+  local pid="$1" stat
+  local -a stat_fields
+  [ -r "/proc/$pid/stat" ] || return 1
+  IFS= read -r stat <"/proc/$pid/stat" || return 1
+  stat="${stat##*) }"
+  read -ra stat_fields <<<"$stat"
+  printf '%s\n' "${stat_fields[19]:-}"
+}
+
+driver_group_has_live_members() {
+  local stat rest state process_group stat_path
+  for stat_path in /proc/[0-9]*/stat; do
+    [ -r "$stat_path" ] || continue
+    IFS= read -r stat <"$stat_path" || continue
+    rest="${stat##*) }"
+    read -r state _ process_group _ <<<"$rest"
+    if [ "$process_group" = "$DRIVER_PGID" ] && [ "$state" != "Z" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+stop_driver_group() {
+  local end current_start
+  [ -n "$DRIVER_PGID" ] || return 0
+  if ! [[ "$DRIVER_PGID" =~ ^[1-9][0-9]*$ ]]; then
+    DRIVER_PID="" DRIVER_PGID="" DRIVER_GROUP_START_TIME=""
+    return 0
+  fi
+
+  # The group leader remains alive until this function stops it. Checking its
+  # Linux start time prevents a recycled PID from ever naming an unrelated group.
+  if current_start="$(process_start_time "$DRIVER_PGID" 2>/dev/null)" \
+    && [ "$current_start" != "$DRIVER_GROUP_START_TIME" ]; then
+    echo "GOLDEN LOOP WARNING: refusing to stop a reused driver process id" >&2
+    DRIVER_PID="" DRIVER_PGID="" DRIVER_GROUP_START_TIME=""
+    return 0
+  fi
+
+  kill -TERM -- "-$DRIVER_PGID" 2>/dev/null || true
+  end=$((SECONDS + 10))
+  while driver_group_has_live_members && [ "$SECONDS" -lt "$end" ]; do sleep 0.1; done
+  if driver_group_has_live_members; then
+    kill -KILL -- "-$DRIVER_PGID" 2>/dev/null || true
+    end=$((SECONDS + 2))
+    while driver_group_has_live_members && [ "$SECONDS" -lt "$end" ]; do sleep 0.05; done
+  fi
+  if [ -n "$DRIVER_PID" ]; then
+    wait "$DRIVER_PID" 2>/dev/null || true
+  fi
+  DRIVER_PID="" DRIVER_PGID="" DRIVER_GROUP_START_TIME=""
+}
+
+run_driver() {
+  local status_file="$TEMP_ROOT/driver.status" deadline status current_start
+  rm -f "$status_file" "$status_file".*
+  setsid bash -c '
+    status_file="$1"; shift
+    driver="$1"; shift
+    node "$driver" "$@" &
+    child=$!
+    trap '\''kill -TERM "$child" 2>/dev/null || true; exit 143'\'' TERM INT
+    set +e
+    wait "$child"
+    status=$?
+    temporary_status="$status_file.$$"
+    printf "%s\n" "$status" >"$temporary_status" && mv "$temporary_status" "$status_file"
+    while :; do sleep 3600 & wait $!; done
+  ' _ "$status_file" "$DRIVER" "$@" &
+  DRIVER_PID=$!
+  DRIVER_PGID=$DRIVER_PID
+  DRIVER_GROUP_START_TIME=""
+  for _ in {1..20}; do
+    if current_start="$(process_start_time "$DRIVER_PID" 2>/dev/null)"; then
+      DRIVER_GROUP_START_TIME="$current_start"
+      break
+    fi
+    sleep 0.01
+  done
+  if [ -z "$DRIVER_GROUP_START_TIME" ]; then
+    stop_driver_group
+    return 1
+  fi
+
+  deadline=$((SECONDS + TIMEOUT_SECONDS))
+  while [ ! -s "$status_file" ]; do
+    if ! kill -0 "$DRIVER_PID" 2>/dev/null; then
+      if wait "$DRIVER_PID"; then status=0; else status=$?; fi
+      stop_driver_group
+      return "$status"
+    fi
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      stop_driver_group
+      return 124
+    fi
+    sleep 0.05
+  done
+  status="$(<"$status_file")"
+  [[ "$status" =~ ^[0-9]+$ ]] || status=1
+  stop_driver_group
+  return "$status"
+}
+
 cleanup() {
   local status=$?
   if [ "$status" -ne 0 ]; then
@@ -99,6 +207,7 @@ cleanup() {
     [ -z "$TEMP_ROOT" ] || tail -120 "$TEMP_ROOT/vite.log" >&2 2>/dev/null || true
   fi
   stop_pid "$APP_PID"
+  stop_driver_group
   stop_pid "$VITE_PID"
   if [ -n "$XVFB_PID_FILE" ] && [ -s "$XVFB_PID_FILE" ]; then
     XVFB_PID="$(cat "$XVFB_PID_FILE" 2>/dev/null || true)"
@@ -243,8 +352,7 @@ echo "golden loop: workspace=$WORKSPACE bridge=$BRIDGE_PORT document=$DOCUMENT_N
 DIAGNOSTIC_PHASE="driver-startup"
 GOLDEN_LOOP_DRIVER_TIMEOUT_MS="$((TIMEOUT_SECONDS * 1000))" \
 GOLDEN_LOOP_DEV_URL="$DEV_URL" \
-  timeout --signal=TERM --kill-after=10s "${TIMEOUT_SECONDS}s" \
-  node "$DRIVER" write "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
+  run_driver write "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
   || fail "the golden-loop write driver failed"
 
 stop_pid "$APP_PID"
@@ -254,8 +362,7 @@ launch_app restart
 wait_for_http "the restarted desktop app bridge" "http://127.0.0.1:$BRIDGE_PORT/health"
 GOLDEN_LOOP_DRIVER_TIMEOUT_MS="$((TIMEOUT_SECONDS * 1000))" \
 GOLDEN_LOOP_DEV_URL="$DEV_URL" \
-  timeout --signal=TERM --kill-after=10s "${TIMEOUT_SECONDS}s" \
-  node "$DRIVER" assert "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
+  run_driver assert "$BRIDGE_PORT" "$WORKSPACE" "$DOCUMENT_NAME" \
   || fail "the golden-loop restart driver failed"
 
 echo "GOLDEN LOOP PASS: real Documents create/save/restart/persistence verified."
