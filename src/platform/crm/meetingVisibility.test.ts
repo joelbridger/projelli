@@ -3,6 +3,10 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import type { LiveCrmRecord } from './liveRecords';
 import { filterLiveCrmRecordsByMeetingVisibility } from './meetingVisibility';
+import {
+  MEETING_VISIBILITY_MIGRATION_FIELD,
+  MEETING_VISIBILITY_MIGRATION_VERSION,
+} from './meetingVisibilityMigration';
 
 const preferences: LiveCrmRecord = {
   id: 'meeting-foundation-preferences',
@@ -153,6 +157,18 @@ describe('CRM meeting visibility boundary', () => {
     ).toEqual([legacy.id]);
   });
 
+  it('keeps a corrupted unmarked meeting hidden after migration completed', () => {
+    const migratedPreferences = {
+      ...preferences,
+      [MEETING_VISIBILITY_MIGRATION_FIELD]:
+        MEETING_VISIBILITY_MIGRATION_VERSION,
+    };
+    const { visibilityPolicyId: _removedPolicy, ...corrupted } = meeting;
+    expect(idsFor([migratedPreferences, corrupted, legacy], 'owner-advisor')).toEqual([
+      legacy.id,
+    ]);
+  });
+
   it('uses internal visibility preferences without returning their secret member IDs', () => {
     const visible = filterLiveCrmRecordsByMeetingVisibility(records, 'owner-advisor');
     expect(visible.some((record) => record.kind === 'meeting_foundation_preferences')).toBe(false);
@@ -160,9 +176,12 @@ describe('CRM meeting visibility boundary', () => {
     expect(JSON.stringify(visible)).not.toContain('excluded-advisor');
   });
 
-  it('mechanically reserves the unfiltered snapshot for existing Meetings foundation adapters', () => {
+  it('mechanically reserves the unfiltered doorway for meeting preferences only', () => {
     const sourceRoot = path.join(process.cwd(), 'src');
-    const token = 'unfilteredRecordsForInternalMeetingStores';
+    const tokens = [
+      'unfilteredRecordsForInternalMeetingPreferences',
+      'reloadUnfilteredRecordsForInternalMeetingPreferences',
+    ];
     const uses = new Map<string, number>();
     const walk = (directory: string) => {
       for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -170,7 +189,11 @@ describe('CRM meeting visibility boundary', () => {
         if (entry.isDirectory()) {
           walk(absolute);
         } else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.includes('.test.')) {
-          const count = readFileSync(absolute, 'utf8').split(token).length - 1;
+          const source = readFileSync(absolute, 'utf8');
+          const count = tokens.reduce(
+            (total, token) => total + source.split(token).length - 1,
+            0
+          );
           if (count > 0) uses.set(path.relative(sourceRoot, absolute), count);
         }
       }
@@ -178,8 +201,28 @@ describe('CRM meeting visibility boundary', () => {
     walk(sourceRoot);
 
     expect(Object.fromEntries(uses)).toEqual({
-      'features/meetings/foundation/contract.ts': 7,
-      'platform/crm/useLiveCrmRecords.ts': 2,
+      'features/meetings/foundation/contract.ts': 2,
+      'platform/crm/useLiveCrmRecords.ts': 6,
     });
+  });
+
+  it('prevents feature code from reopening the raw CRM collection', () => {
+    const featureRoot = path.join(process.cwd(), 'src', 'features');
+    const offenders: string[] = [];
+    const walk = (directory: string) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const absolute = path.join(directory, entry.name);
+        if (entry.isDirectory()) walk(absolute);
+        else if (
+          /\.(ts|tsx)$/.test(entry.name) &&
+          !entry.name.includes('.test.') &&
+          readFileSync(absolute, 'utf8').includes('loadLiveCrmRecords')
+        ) {
+          offenders.push(path.relative(featureRoot, absolute));
+        }
+      }
+    };
+    walk(featureRoot);
+    expect(offenders).toEqual([]);
   });
 });

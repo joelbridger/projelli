@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 const boundary = vi.hoisted(() => ({
+  viewerId: 'member-1' as string | null,
   records: [] as LiveCrmRecord[],
   commands: [] as string[],
   published: [] as LiveCrmRecord[],
@@ -11,6 +12,21 @@ const boundary = vi.hoisted(() => ({
       (command: string, args?: { record?: LiveCrmRecord }) => Promise<unknown>
     >(),
 }));
+
+vi.mock('@/platform/firm/firmStore', () => {
+  const useFirmStore = Object.assign(
+    <T,>(selector: (state: { session: { userId: string } | null }) => T) =>
+      selector({
+        session: boundary.viewerId ? { userId: boundary.viewerId } : null,
+      }),
+    {
+      getState: () => ({
+        session: boundary.viewerId ? { userId: boundary.viewerId } : null,
+      }),
+    }
+  );
+  return { useFirmStore };
+});
 
 vi.mock('@/platform/client-context', () => ({
   useSelectionOperationDecision: () => ({
@@ -68,6 +84,10 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
 
 import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
 import {
+  MEETING_VISIBILITY_MIGRATION_FIELD,
+  MEETING_VISIBILITY_MIGRATION_VERSION,
+} from '@/platform/crm/meetingVisibilityMigration';
+import {
   useMeetingArtifactStore,
   useMeetingFoundationPreferencesStore,
   useMeetingFoundationStore,
@@ -92,6 +112,7 @@ const draft = {
 
 describe('meetings canonical live-record round trip', () => {
   beforeEach(() => {
+    boundary.viewerId = 'member-1';
     boundary.records = [];
     boundary.commands = [];
     boundary.published = [];
@@ -257,5 +278,79 @@ describe('meetings canonical live-record round trip', () => {
     );
     const firstUpsert = boundary.commands.indexOf('crm_live_upsert');
     expect(boundary.commands.slice(firstUpsert + 1)).toContain('crm_live_list');
+  });
+
+  it('never reloads an excluded coworker meeting or its artifact into feature stores', async () => {
+    boundary.viewerId = 'excluded-member';
+    boundary.records = [
+      {
+        id: 'meeting-preferences',
+        kind: 'meeting_foundation_preferences',
+        matterId: 'firm_home',
+        createdAt: '2026-07-01T00:00:00.000Z',
+        updatedAt: '2026-07-01T00:00:00.000Z',
+        visibilityPolicies: [{
+          id: 'private-policy',
+          mode: 'explicit-review',
+          includedMemberIds: ['member-1'],
+          excludedMemberIds: ['excluded-member'],
+        }],
+        owners: [],
+        deferredDescriptors: [],
+        [MEETING_VISIBILITY_MIGRATION_FIELD]:
+          MEETING_VISIBILITY_MIGRATION_VERSION,
+      },
+      {
+        id: 'private-meeting',
+        kind: 'meeting',
+        matterId: 'matter-1',
+        householdRef: 'household-1',
+        workspaceId: 'workspace-1',
+        typeId: 'review',
+        ownerRef: 'member-1',
+        scheduledStartUtc: '2026-07-20T09:00:00.000Z',
+        scheduledEndUtc: '2026-07-20T10:00:00.000Z',
+        timezone: 'America/Chicago',
+        state: 'draft',
+        references: [],
+        visibilityPolicyId: 'private-policy',
+        createdAt: '2026-07-01T00:00:00.000Z',
+        updatedAt: '2026-07-01T00:00:00.000Z',
+      },
+      {
+        id: 'private-artifact',
+        kind: 'meeting_artifact',
+        meetingId: 'private-meeting',
+        householdRef: 'household-1',
+        matterId: 'matter-1',
+        artifactKind: 'structured-notes',
+        schemaVersion: 2,
+        producedAt: '2026-07-20T10:00:00.000Z',
+        sourceRefs: [],
+        provenance: 'local-entry',
+        payload: { secret: true },
+        createdAt: '2026-07-01T00:00:00.000Z',
+        updatedAt: '2026-07-01T00:00:00.000Z',
+      },
+    ];
+
+    const meetings = renderHook(() => useMeetingFoundationStore());
+    await waitFor(() => {
+      expect(boundary.commands.filter((command) => command === 'crm_live_list').length)
+        .toBeGreaterThan(0);
+    });
+    await expect(meetings.result.current.get('private-meeting')).resolves.toBeUndefined();
+    expect(meetings.result.current.list).toEqual([]);
+
+    const artifacts = renderHook(() => useMeetingArtifactStore());
+    await waitFor(() => {
+      expect(
+        artifacts.result.current.readerFor(
+          meetings.result.current,
+          { householdRef: 'household-1', matterId: 'matter-1' } as SealedMeetingClientBoundary,
+          [{ kind: 'structured-notes', minimumSchemaVersion: 2 }]
+        ).get('private-artifact')
+      ).toBeNull();
+    });
   });
 });

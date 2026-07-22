@@ -1,6 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from './liveRecords';
+import {
+  MEETING_VISIBILITY_MIGRATION_FIELD,
+  MEETING_VISIBILITY_MIGRATION_VERSION,
+} from './meetingVisibilityMigration';
 
 const boundary = vi.hoisted(() => {
   const listeners = new Set<() => void>();
@@ -20,10 +24,11 @@ const boundary = vi.hoisted(() => {
 
 vi.mock('@/platform/firm/firmStore', async () => {
   const React = await import('react');
-  return {
-    useFirmStore: <T,>(
-      selector: (state: { session: { userId: string } | null }) => T
-    ) =>
+  const state = () => ({
+    session: boundary.viewerId ? { userId: boundary.viewerId } : null,
+  });
+  const useFirmStore = Object.assign(
+    <T,>(selector: (value: ReturnType<typeof state>) => T) =>
       React.useSyncExternalStore(
         (listener) => {
           boundary.listeners.add(listener);
@@ -31,11 +36,12 @@ vi.mock('@/platform/firm/firmStore', async () => {
             boundary.listeners.delete(listener);
           };
         },
-        () =>
-          selector({
-            session: boundary.viewerId ? { userId: boundary.viewerId } : null,
-          })
+        () => selector(state())
       ),
+    { getState: state }
+  );
+  return {
+    useFirmStore,
   };
 });
 vi.mock('@/platform/fs/workspaceStore', () => ({
@@ -102,6 +108,8 @@ const preferences = (
       excludedMemberIds,
     },
   ],
+  [MEETING_VISIBILITY_MIGRATION_FIELD]:
+    MEETING_VISIBILITY_MIGRATION_VERSION,
 });
 
 describe('useLiveCrmRecords meeting visibility reactivity', () => {
@@ -124,7 +132,7 @@ describe('useLiveCrmRecords meeting visibility reactivity', () => {
       );
     });
     expect(
-      result.current.unfilteredRecordsForInternalMeetingStores.find(
+      result.current.unfilteredRecordsForInternalMeetingPreferences.find(
         (record) => record.kind === 'meeting_foundation_preferences'
       )?.['visibilityPolicies']
     ).toEqual(preferences(['included-advisor'])['visibilityPolicies']);
@@ -139,6 +147,12 @@ describe('useLiveCrmRecords meeting visibility reactivity', () => {
     expect(result.current.records.map((record) => record.id)).toEqual([
     ]);
     expect(JSON.stringify(result.current.records)).not.toContain('included-advisor');
+    await expect(result.current.reloadRecords()).resolves.toEqual([]);
+    await expect(
+      result.current.reloadUnfilteredRecordsForInternalMeetingPreferences()
+    ).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'meeting_foundation_preferences' }),
+    ]));
   });
 
   it('re-filters after a policy reload and never shows an old async result to the new viewer', async () => {

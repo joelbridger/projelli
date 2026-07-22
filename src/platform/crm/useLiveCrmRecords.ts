@@ -22,6 +22,7 @@ import {
   publishLiveRecord,
 } from './liveRecordRelay';
 import { filterLiveCrmRecordsByMeetingVisibility } from './meetingVisibility';
+import { migrateCanonicalMeetingVisibility } from './meetingVisibilityMigration';
 
 // Several CRM surfaces can be mounted at once inside the Home shell. A write
 // from one surface must refresh the others too; otherwise a migration-created
@@ -33,6 +34,42 @@ const CRM_CLIENT_SELECTION_REQUEST = {
   allowAllMatters: false,
   requireFollowerAgreement: true,
 } as const;
+
+const visibilityMigrations = new Map<
+  string,
+  Promise<readonly LiveCrmRecord[]>
+>();
+
+/** Load one visibility-ready raw snapshot, serializing concurrent mounts. */
+async function loadVisibilityReadyCrmRecords(
+  workspaceRoot: string
+): Promise<readonly LiveCrmRecord[]> {
+  const active = visibilityMigrations.get(workspaceRoot);
+  if (active) return active;
+  const migration = Promise.resolve().then(async () => {
+    const loaded = await loadLiveCrmRecords(workspaceRoot);
+    return migrateCanonicalMeetingVisibility(loaded, (record) =>
+      saveLiveCrmRecord(workspaceRoot, record)
+    );
+  });
+  visibilityMigrations.set(workspaceRoot, migration);
+  try {
+    return await migration;
+  } finally {
+    if (visibilityMigrations.get(workspaceRoot) === migration) {
+      visibilityMigrations.delete(workspaceRoot);
+    }
+  }
+}
+
+/** One-shot visibility-filtered read for non-React feature consumers. */
+export async function loadVisibleCrmRecordsForViewer(
+  workspaceRoot: string,
+  viewerId: string | null | undefined
+): Promise<readonly LiveCrmRecord[]> {
+  const records = await loadVisibilityReadyCrmRecords(workspaceRoot);
+  return filterLiveCrmRecordsByMeetingVisibility(records, viewerId);
+}
 
 /** Keeps a mounted CRM screen in step with the encrypted record store. */
 export function useLiveCrmRecords() {
@@ -64,10 +101,12 @@ export function useLiveCrmRecords() {
     getCrmEngineFreshness
   );
   useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
-  const reloadRecords = useCallback(async () => {
+  const reloadUnfilteredRecordsForInternalMeetingPreferences = useCallback(async () => {
     const rootAtStart = workspaceRoot;
     try {
-      const loaded = await loadLiveCrmRecords(rootAtStart);
+      const loaded = rootAtStart
+        ? await loadVisibilityReadyCrmRecords(rootAtStart)
+        : [];
       if (workspaceRootRef.current !== rootAtStart) return;
       setRecordsWorkspaceRoot(rootAtStart);
       setRecords(loaded);
@@ -81,6 +120,15 @@ export function useLiveCrmRecords() {
       return undefined;
     }
   }, [workspaceRoot]);
+  const reloadRecords = useCallback(async () => {
+    const loaded = await reloadUnfilteredRecordsForInternalMeetingPreferences();
+    return loaded
+      ? filterLiveCrmRecordsByMeetingVisibility(
+          loaded,
+          useFirmStore.getState().session?.userId ?? null
+        )
+      : undefined;
+  }, [reloadUnfilteredRecordsForInternalMeetingPreferences]);
   const reload = useCallback(async (): Promise<void> => {
     await reloadRecords();
   }, [reloadRecords]);
@@ -183,15 +231,16 @@ export function useLiveCrmRecords() {
   const currentRecords = recordsWorkspaceRoot === workspaceRoot
     ? filterLiveCrmRecordsByMeetingVisibility(records, viewerId)
     : [];
-  const unfilteredRecordsForInternalMeetingStores =
+  const unfilteredRecordsForInternalMeetingPreferences =
     recordsWorkspaceRoot === workspaceRoot ? records : [];
   return {
     records: currentRecords,
     /**
-     * Raw encrypted snapshot for existing Meetings foundation store adapters.
-     * Never use this in a user surface, search, Ask, citations, or a new store.
+     * Raw encrypted snapshot for the internal meeting-preferences controller.
+     * Never use this in any other store, user surface, search, Ask, or citation.
      */
-    unfilteredRecordsForInternalMeetingStores,
+    unfilteredRecordsForInternalMeetingPreferences,
+    reloadUnfilteredRecordsForInternalMeetingPreferences,
     save,
     publishSavedRecord,
     reload,

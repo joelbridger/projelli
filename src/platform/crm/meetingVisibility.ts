@@ -5,10 +5,12 @@ import {
   type MeetingVisibilitySubjectRef,
 } from '@/platform/meeting-visibility';
 import type { LiveCrmRecord } from './liveRecords';
+import {
+  MEETING_VISIBILITY_LEGACY_VALUE,
+  MEETING_VISIBILITY_LINEAGE_FIELD,
+} from './meetingVisibilityMigration';
 
 const PREFERENCES_KIND = 'meeting_foundation_preferences';
-const LEGACY_LINEAGE_FIELD = 'meetingVisibilityLineage';
-const LEGACY_LINEAGE_VALUE = 'legacy-unrestricted';
 
 const owns = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
@@ -134,10 +136,12 @@ function lineageState(
   if (visiting.has(key)) return 'unresolved';
   if (record.kind === 'meeting') {
     const hasPolicy = owns(record, 'visibilityPolicyId');
-    const hasLineage = owns(record, LEGACY_LINEAGE_FIELD);
+    const hasLineage = owns(record, MEETING_VISIBILITY_LINEAGE_FIELD);
     if (hasPolicy && hasLineage) return 'unresolved';
     if (hasPolicy) return 'restricted';
-    return hasLineage && record[LEGACY_LINEAGE_FIELD] === LEGACY_LINEAGE_VALUE
+    return hasLineage &&
+      record[MEETING_VISIBILITY_LINEAGE_FIELD] ===
+        MEETING_VISIBILITY_LEGACY_VALUE
       ? 'legacy'
       : 'unresolved';
   }

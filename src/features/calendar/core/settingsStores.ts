@@ -1,5 +1,5 @@
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import { loadLiveCrmRecords, type LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
   CALENDAR_WEEKDAYS,
   type BookingAvailabilityDraft,
@@ -171,7 +171,7 @@ export function useCalendarCapabilityStore(): CalendarCapabilityStore {
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+    reloadRecords: live.reloadRecords,
   });
 }
 
@@ -407,7 +407,7 @@ export function useCalendarSettingsStore(): CalendarSettingsStore {
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+    reloadRecords: live.reloadRecords,
   });
 }
 
@@ -434,6 +434,6 @@ export function useBookingAvailabilityStore(): BookingAvailabilityStore {
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+    reloadRecords: live.reloadRecords,
   });
 }

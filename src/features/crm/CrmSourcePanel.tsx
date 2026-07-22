@@ -11,7 +11,9 @@ import { useEffect, useState } from 'react';
 import { X, Database } from 'lucide-react';
 import { EV_OPEN_CRM } from '@/config/identity';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { loadLiveCrmRecords, type LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { loadVisibleCrmRecordsForViewer } from '@/platform/crm/useLiveCrmRecords';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 interface CrmSourceState {
   sourceId: string;
@@ -22,6 +24,7 @@ export function CrmSourcePanel() {
   const [source, setSource] = useState<CrmSourceState | null>(null);
   const [record, setRecord] = useState<LiveCrmRecord | null>(null);
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
+  const viewerId = useFirmStore((state) => state.session?.userId ?? null);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -41,7 +44,7 @@ export function CrmSourcePanel() {
     const entityId = parts.length >= 3 ? parts.slice(2).join(':') : null;
     if (!entityId) return;
     let cancelled = false;
-    void loadLiveCrmRecords(workspaceRoot)
+    void loadVisibleCrmRecordsForViewer(workspaceRoot, viewerId)
       .then((records) => {
         if (!cancelled) setRecord(records.find((item) => item.id === entityId) ?? null);
       })
@@ -49,7 +52,7 @@ export function CrmSourcePanel() {
         if (!cancelled) setRecord(null);
       });
     return () => { cancelled = true; };
-  }, [source, workspaceRoot]);
+  }, [source, viewerId, workspaceRoot]);
 
   if (!source) return null;
 

@@ -1,8 +1,5 @@
 import { useMemo } from 'react';
-import {
-  loadLiveCrmRecords,
-  type LiveCrmRecord,
-} from '@/platform/crm/liveRecords';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type {
   AskClientSnapshot,
@@ -434,11 +431,11 @@ export function useAskConversation<ClientReference, MeetingReference>(
           records: live.records,
           workspaceRoot: live.workspaceRoot,
           save: live.save,
-          reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+          reloadRecords: live.reloadRecords,
         },
         options
       ),
-    [live.records, live.workspaceRoot, live.save, options]
+    [live.records, live.reloadRecords, live.workspaceRoot, live.save, options]
   );
 }
 

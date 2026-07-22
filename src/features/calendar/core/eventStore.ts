@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import { loadLiveCrmRecords, type LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { CalendarFoundationError } from './errors';
 import { expandCalendarEvents } from './recurrence';
 import { calendarCapabilityFromRecords } from './settingsStores';
@@ -237,8 +237,8 @@ export function useCalendarEventStore(): CalendarEventStore {
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
-  }), [live.error, live.records, live.save, live.workspaceRoot]);
+    reloadRecords: live.reloadRecords,
+  }), [live.error, live.records, live.reloadRecords, live.save, live.workspaceRoot]);
 }
 
 export interface CalendarRecordDraftDefaults {

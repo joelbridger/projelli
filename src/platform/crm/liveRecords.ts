@@ -31,10 +31,10 @@ function inCrmWorkspace<T>(workspaceRoot: string, operation: () => Promise<T>): 
 }
 
 /**
- * Raw internal collection read. This intentionally includes control records
- * such as meeting visibility preferences for their owning platform stores.
- * User-facing lists, search, Ask, and citations must use the filtered CRM
- * boundary instead of exposing this raw result.
+ * Lowest-level encrypted collection read. Visibility migration consumes it
+ * internally; only the meeting-preferences controller receives a raw snapshot.
+ * User-facing stores, lists, search, Ask, and citations use the filtered CRM
+ * boundary and must never expose this result directly.
  */
 export async function loadLiveCrmRecords(workspaceRoot: string | null | undefined): Promise<readonly LiveCrmRecord[]> {
   if (!isTauri() || !workspaceRoot) return [];

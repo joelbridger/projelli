@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { searchCrmRecords, loadLiveCrmRecords, firmState } = vi.hoisted(() => ({
+const { searchCrmRecords, loadVisibleCrmRecordsForViewer, firmState } = vi.hoisted(() => ({
   searchCrmRecords: vi.fn(),
-  loadLiveCrmRecords: vi.fn(),
+  loadVisibleCrmRecordsForViewer: vi.fn(),
   firmState: { viewerId: 'advisor-owner' as string | null },
 }));
 vi.mock('@/platform/crm/search', () => ({ searchCrmRecords }));
-vi.mock('@/platform/crm/liveRecords', () => ({ loadLiveCrmRecords }));
+vi.mock('@/platform/crm/useLiveCrmRecords', () => ({ loadVisibleCrmRecordsForViewer }));
 vi.mock('@/platform/firm/firmStore', () => ({
   useFirmStore: { getState: () => ({ session: firmState.viewerId ? { userId: firmState.viewerId } : null }) },
 }));
@@ -20,7 +20,7 @@ import {
 describe('CRM Ask retrieval', () => {
   beforeEach(() => {
     searchCrmRecords.mockReset();
-    loadLiveCrmRecords.mockReset().mockResolvedValue([]);
+    loadVisibleCrmRecordsForViewer.mockReset().mockResolvedValue([]);
     firmState.viewerId = 'advisor-owner';
   });
 
@@ -34,7 +34,7 @@ describe('CRM Ask retrieval', () => {
   });
 
   it('keeps a walled household out even if a backend result is accidentally mixed in', async () => {
-    loadLiveCrmRecords.mockResolvedValue([
+    loadVisibleCrmRecordsForViewer.mockResolvedValue([
       { id: 'note-a', kind: 'note', matterId: 'household-a' },
       { id: 'note-b', kind: 'note', matterId: 'household-b' },
     ]);
@@ -87,7 +87,13 @@ describe('CRM Ask retrieval', () => {
       { id: 'meeting-private', kind: 'meeting', matterId: 'household-a', ownerRef: 'advisor-owner', visibilityPolicyId: 'private-policy' },
       { id: 'private-note', kind: 'note', matterId: 'household-a', meetingId: 'meeting-private' },
     ];
-    loadLiveCrmRecords.mockResolvedValue(records);
+    loadVisibleCrmRecordsForViewer.mockImplementation(
+      (_workspaceRoot, viewerId) => Promise.resolve(
+        viewerId === 'advisor-excluded'
+          ? []
+          : records.filter((record) => record.kind !== 'meeting_foundation_preferences')
+      )
+    );
     searchCrmRecords.mockImplementationOnce(() => {
       firmState.viewerId = 'advisor-excluded';
       return Promise.resolve([

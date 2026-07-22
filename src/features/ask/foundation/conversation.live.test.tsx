@@ -17,6 +17,7 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
     records: boundary.records.map((record) => structuredClone(record)),
     workspaceRoot: '/fixture-workspace',
     save: boundary.save,
+    reloadRecords: boundary.load,
   }),
 }));
 

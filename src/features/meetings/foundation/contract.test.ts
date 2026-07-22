@@ -62,6 +62,10 @@ import {
   type LegacyMeetingLinkStatus,
 } from './contract';
 import { readReviewNeededMeetingArtifacts } from '../reviewArtifacts';
+import {
+  MEETING_VISIBILITY_LEGACY_VALUE,
+  MEETING_VISIBILITY_LINEAGE_FIELD,
+} from '@/platform/crm/meetingVisibilityMigration';
 
 function sealedBoundary(
   householdRef: string,
@@ -195,6 +199,27 @@ const requirements: readonly MeetingArtifactRequirement[] = [
 ];
 
 describe('meetings foundation contract', () => {
+  it('persists exactly one visibility state for new and updated meetings', async () => {
+    const live = canonicalPort();
+    const store = createMeetingStore(live);
+    const created = await store.createDraft(draft);
+    expect(live.readCanonical().find((record) => record.id === created.id)).toMatchObject({
+      [MEETING_VISIBILITY_LINEAGE_FIELD]: MEETING_VISIBILITY_LEGACY_VALUE,
+    });
+
+    await store.update(created.id, { visibilityPolicyId: 'private-policy' });
+    const restricted = live.readCanonical().find((record) => record.id === created.id);
+    expect(restricted).toMatchObject({ visibilityPolicyId: 'private-policy' });
+    expect(restricted).not.toHaveProperty(MEETING_VISIBILITY_LINEAGE_FIELD);
+
+    await store.update(created.id, { visibilityPolicyId: null });
+    const unrestricted = live.readCanonical().find((record) => record.id === created.id);
+    expect(unrestricted).not.toHaveProperty('visibilityPolicyId');
+    expect(unrestricted).toMatchObject({
+      [MEETING_VISIBILITY_LINEAGE_FIELD]: MEETING_VISIBILITY_LEGACY_VALUE,
+    });
+  });
+
   it('preserves unknown fields and merges additive references on update', async () => {
     const live = canonicalPort();
     const store = createMeetingStore({
