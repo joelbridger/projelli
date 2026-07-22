@@ -481,7 +481,7 @@ describe('authority is re-derived across every restart', () => {
     }
   });
 
-  it('classifies unavailable provider liveness to blocked and never auto-upgrades it', async () => {
+  it('keeps a saved choice blocked while the provider list loads, then restores it', async () => {
     seed([matter('matter-a', ['household-a'])]);
     publish(clientA);
     await selectClient(clientA);
@@ -495,13 +495,64 @@ describe('authority is re-derived across every restart', () => {
     });
 
     publish(clientA);
-    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
-    expect(useClientContextStore.getState().client).toBeNull();
-
-    await selectClient(clientA);
     expect(readAuthoritativeMatterScope()).toEqual({
       kind: 'matter',
       matterId: 'matter-a',
+    });
+    expect(useClientContextStore.getState().client).toEqual(clientA);
+  });
+
+  it('preserves an explicit All scope client hint while the provider list loads', async () => {
+    seed([matter('matter-a', ['household-a'])]);
+    publish(clientA);
+    await selectClient(clientA);
+    await requestMatterScopeSelection(issueAllMattersScopeSelection());
+    const persisted = useClientContextStore.getState().persistenceHint;
+    expect(persisted).toEqual({
+      version: 1,
+      source: 'explicit-all-matters',
+      client: clientA,
+    });
+
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    restartFrom(persisted);
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: null,
+      scope: { kind: 'all-matters' },
+      persistenceHint: persisted,
+    });
+
+    publish(clientA);
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: clientA,
+      scope: { kind: 'all-matters' },
+      persistenceHint: persisted,
+    });
+  });
+
+  it('clears a saved choice when the selected client or linked matter was deleted', async () => {
+    seed([matter('matter-a', ['household-a'])]);
+    publish(clientA);
+    await selectClient(clientA);
+    const persisted = useClientContextStore.getState().persistenceHint;
+
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    restartFrom(persisted);
+    publish();
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: null,
+      scope: { kind: 'blocked-unresolved' },
+      persistenceHint: { version: 1, source: 'blocked/refused' },
+    });
+
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    seed([]);
+    restartFrom(persisted);
+    publish(clientA);
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: null,
+      scope: { kind: 'blocked-unresolved' },
+      persistenceHint: { version: 1, source: 'blocked/refused' },
     });
   });
 

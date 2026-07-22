@@ -253,6 +253,10 @@ function currentProviderDirectory(provider: CrmProviderId): ProviderDirectory {
   );
 }
 
+function providerDirectoryAvailable(provider: CrmProviderId): boolean {
+  return currentProviderDirectory(provider).available;
+}
+
 /** Provider adapters publish their current live directory; callers never assert liveness. */
 export function replaceCanonicalHouseholdDirectory(
   provider: CrmProviderId,
@@ -1040,9 +1044,20 @@ function classifyRehydration(input: unknown): RehydratedClassification {
           if (!matter) {
             return Object.freeze({
               kind: 'blocked-unresolved',
-              client: hint.client && isClientLive(hint.client) ? hint.client : null,
+              client: null,
               hint: blockedRehydrationHint(),
               fingerprint: JSON.stringify({ hint, state: 'matter-invalid' }),
+            });
+          }
+          if (hint.client && !providerDirectoryAvailable(hint.client.provider)) {
+            return Object.freeze({
+              kind: 'blocked-unresolved',
+              client: null,
+              hint,
+              fingerprint: JSON.stringify({
+                hint,
+                state: 'provider-directory-unavailable',
+              }),
             });
           }
           if (!hint.client) {
@@ -1074,6 +1089,17 @@ function classifyRehydration(input: unknown): RehydratedClassification {
           });
         }
         case 'shared-client': {
+          if (!providerDirectoryAvailable(hint.client.provider)) {
+            return Object.freeze({
+              kind: 'blocked-unresolved',
+              client: null,
+              hint,
+              fingerprint: JSON.stringify({
+                hint,
+                state: 'provider-directory-unavailable',
+              }),
+            });
+          }
           const classified = classifyClientSelection(hint.client);
           if (classified.kind === 'full-pair') {
             return Object.freeze({
@@ -1086,12 +1112,23 @@ function classifyRehydration(input: unknown): RehydratedClassification {
           }
           return Object.freeze({
             kind: 'blocked-unresolved',
-            client: classified.client,
+            client: null,
             hint: blockedRehydrationHint(),
             fingerprint: classified.fingerprint,
           });
         }
         case 'explicit-all-matters': {
+          if (hint.client && !providerDirectoryAvailable(hint.client.provider)) {
+            return Object.freeze({
+              kind: 'all-matters',
+              client: null,
+              hint,
+              fingerprint: JSON.stringify({
+                hint,
+                state: 'provider-directory-unavailable',
+              }),
+            });
+          }
           const client = hint.client && isClientLive(hint.client) ? hint.client : null;
           return Object.freeze({
             kind: 'all-matters',
@@ -1465,6 +1502,19 @@ function revalidateCurrentSelection(): void {
       return;
     }
     case 'all-matters':
+      if (
+        !source.client &&
+        source.persistenceHint.source === 'explicit-all-matters' &&
+        source.persistenceHint.client
+      ) {
+        consumeRehydratedSelection(
+          issueRehydratedSelection({
+            kind: 'persisted-hint',
+            value: source.persistenceHint,
+          })
+        );
+        return;
+      }
       if (source.client && !isClientLive(source.client)) {
         writeSourceSelection(
           null,
@@ -1475,6 +1525,19 @@ function revalidateCurrentSelection(): void {
       }
       return;
     case 'blocked-unresolved':
+      if (
+        source.persistenceHint.source === 'shared-client' ||
+        (source.persistenceHint.source === 'specific-matter' &&
+          source.persistenceHint.client)
+      ) {
+        consumeRehydratedSelection(
+          issueRehydratedSelection({
+            kind: 'persisted-hint',
+            value: source.persistenceHint,
+          })
+        );
+        return;
+      }
       if (source.client && !isClientLive(source.client)) {
         writeBlockedSourceSelection(null);
       }

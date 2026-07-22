@@ -17,9 +17,11 @@ import { setActiveWorkspaceScopeRoot } from '@/platform/state/workspaceScope';
 import {
   useMatterStore,
   hydrateMattersFromWorkspaceDisk,
+  setMatterWorkspaceHydrationPending,
 } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
+import { replaceCanonicalHouseholdDirectory } from '@/platform/client-context';
 
 /**
  * Point the matter + client-map stores at `root` and reload their in-memory
@@ -27,8 +29,9 @@ import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
  * migration on a workspace's first open). Pass `null` to fall back to the
  * legacy global keys (no workspace open).
  *
- * Order matters: the scope is set first, THEN the matter store rehydrates, THEN
- * the client-map store (its migration filters by `getMatters()`, which must
+ * Order matters: the scope is set first, THEN the old workspace's provider
+ * directory is invalidated, THEN the matter store rehydrates, THEN the
+ * client-map store (its migration filters by `getMatters()`, which must
  * already reflect the new workspace). `rehydrate()` applies synchronously for
  * our synchronous localStorage adapters, so `getMatters()` is up to date by the
  * time the client-map rehydrate reads it. Ephemeral cross-workspace nav is
@@ -37,7 +40,18 @@ import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
  * workspace's matters into the new scope's key.
  */
 export function reloadWorkspaceScopedStores(root: string | null): void {
+  // This readiness signal is deliberately outside the persisted Zustand
+  // state, so changing it can never write the old workspace's matter snapshot
+  // under the new workspace key.
+  setMatterWorkspaceHydrationPending();
   setActiveWorkspaceScopeRoot(root);
+  // The provider directory belongs to the workspace that was just left. Mark
+  // it unavailable before the new workspace's saved selection is classified.
+  // The client bar republishes the new workspace directory after its local
+  // matter/CRM data renders. Until then the authority stays blocked and keeps
+  // the new workspace's restart hint, rather than rejecting it against stale
+  // clients from the previous workspace.
+  replaceCanonicalHouseholdDirectory('wealthbox', null);
   void useMatterStore.persist.rehydrate();
   void useClientMapStore.persist.rehydrate();
   // Client groups are per-workspace too (ids-only rail grouping); reload them to

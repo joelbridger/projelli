@@ -19,7 +19,12 @@ import { meetingsSharedClientContextAdapter } from '@/features/meetings';
 import { readSharedClientContext } from '@/platform/client-context';
 import { setDevFlagOverride } from '@/platform/flags';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { useMatterStore } from '@/platform/matter/matterStore';
+import {
+  __resetMattersWorkspaceDiskSyncForTests,
+  hydrateMattersFromWorkspaceDisk,
+  useMatterStore,
+} from '@/platform/matter/matterStore';
+import { setActiveWorkspaceScopeRoot } from '@/platform/state/workspaceScope';
 
 const tauriBoundary = vi.hoisted(() => ({
   invoke:
@@ -38,6 +43,8 @@ describe('shared client bar seam', () => {
     setDevFlagOverride('selection-authority-boot-gate', undefined);
     replaceCanonicalHouseholdDirectory('wealthbox', null);
     useMatterStore.setState({ matters: [], activeMatterId: null });
+    setActiveWorkspaceScopeRoot(null);
+    __resetMattersWorkspaceDiskSyncForTests();
     useWorkspaceStore.setState({ rootPath: null });
     tauriBoundary.invoke.mockReset();
   });
@@ -120,6 +127,8 @@ describe('shared client bar seam', () => {
       return Promise.reject(new Error(`Unexpected native command: ${command}`));
     });
     useWorkspaceStore.setState({ rootPath: 'C:\\Lantern-M1-Smoke' });
+    setActiveWorkspaceScopeRoot('C:\\Lantern-M1-Smoke');
+    await hydrateMattersFromWorkspaceDisk('C:\\Lantern-M1-Smoke');
     useMatterStore.setState({
       matters: [
         {

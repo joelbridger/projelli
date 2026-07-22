@@ -29,6 +29,8 @@ import {
   hydrateMattersFromWorkspaceDisk,
   flushMattersWorkspaceDiskWrites,
   __resetMattersWorkspaceDiskSyncForTests,
+  readMatterWorkspaceHydrationReady,
+  setMatterWorkspaceHydrationPending,
 } from '@/platform/matter/matterStore';
 import {
   setActiveWorkspaceScopeRoot,
@@ -43,10 +45,12 @@ import {
   readAuthoritativeMatterScope,
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,
+  issueSharedClientSelection,
   rehydrateSelectionHint,
   replaceCanonicalHouseholdDirectory,
   requestClearClientSelection,
   requestMatterScopeSelection,
+  requestSharedClientSelection,
   useClientContextStore,
 } from '@/platform/client-context';
 import { setDevFlagOverride } from '@/platform/flags/router';
@@ -128,13 +132,20 @@ function seedDiskFile(
   root: string,
   matters: unknown[],
   activeMatterId: string | null = null,
+  selectionHint?: unknown,
 ): void {
   files.set(
     mattersFilePath(root),
     JSON.stringify({
       version: 10,
       savedAt: '2026-07-01T00:00:00Z',
-      state: { matters, activeMatterId, snapshots: {}, cache: {} },
+      state: {
+        matters,
+        activeMatterId,
+        ...(selectionHint === undefined ? {} : { selectionHint }),
+        snapshots: {},
+        cache: {},
+      },
     }),
   );
 }
@@ -151,6 +162,7 @@ function readDiskMatterIds(files: Map<string, string>, root: string): string[] {
  *  then run the workspace-disk hydrate and let all disk work settle. */
 async function openWorkspace(root: string, service: WorkspaceService): Promise<void> {
   setActiveWorkspaceService(service);
+  setMatterWorkspaceHydrationPending();
   setActiveWorkspaceScopeRoot(root);
   await useMatterStore.persist.rehydrate();
   await hydrateMattersFromWorkspaceDisk(root);
@@ -290,6 +302,77 @@ describe('writer-owned workspace-disk rehydration', () => {
       matterId: selected.id,
     });
   });
+
+  it('keeps a disk-only saved client untrusted during a held fresh-profile read, then restores it', async () => {
+    let releaseRead = (): void => {};
+    let readStartedResolve = (): void => {};
+    const readStarted = new Promise<void>((resolve) => {
+      readStartedResolve = resolve;
+    });
+    const heldRead = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const client = {
+      provider: 'wealthbox' as const,
+      householdId: 'household-disk',
+      displayName: 'Disk household',
+    };
+    const selectedMatter = {
+      ...persistedMatter('matter-disk', '/wsDisk', 'Disk household'),
+      crmHouseholdKeys: ['household-disk'],
+    };
+    const selectionHint = {
+      version: 1,
+      source: 'shared-client',
+      client,
+    };
+    const { service, files } = createMockWorkspaceService('/wsDisk');
+    seedDiskFile(
+      files,
+      '/wsDisk',
+      [selectedMatter],
+      selectedMatter.id,
+      selectionHint
+    );
+    const readFile = service.readFile.bind(service);
+    service.readFile = async (path: string) => {
+      readStartedResolve();
+      await heldRead;
+      return readFile(path);
+    };
+
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    setActiveWorkspaceService(service);
+    reloadWorkspaceScopedStores('/wsDisk');
+    await readStarted;
+
+    // The first render sees no cached matters, but that empty projection is not
+    // authoritative while the workspace file is still being read.
+    expect(useMatterStore.getState().matters).toEqual([]);
+    expect(readMatterWorkspaceHydrationReady()).toBe(false);
+    expect(useClientContextStore.getState().client).toBeNull();
+
+    releaseRead();
+    await flushMattersWorkspaceDiskWrites();
+
+    expect(useMatterStore.getState().matters).toEqual([selectedMatter]);
+    expect(readMatterWorkspaceHydrationReady()).toBe(true);
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: null,
+      scope: { kind: 'blocked-unresolved' },
+      persistenceHint: selectionHint,
+    });
+
+    replaceCanonicalHouseholdDirectory('wealthbox', [client]);
+    await vi.waitFor(() => {
+      expect(useClientContextStore.getState().client).toEqual(client);
+      expect(readAuthoritativeMatterScope()).toEqual({
+        kind: 'matter',
+        matterId: selectedMatter.id,
+      });
+    });
+  });
 });
 
 // ── (a) fresh-profile durability — the reproduced Windows-bench data loss ────
@@ -427,6 +510,74 @@ describe('multi-workspace isolation', () => {
     // Switching back still shows A's set — nothing bled between scopes.
     await openWorkspace('/wsA', wsA.service);
     expect(getMatters().map((m) => m.id)).toEqual([a.id]);
+  });
+
+  it('restores each workspace own selected client and never carries the other workspace choice across', async () => {
+    const wsA = createMockWorkspaceService('/wsA');
+    const wsB = createMockWorkspaceService('/wsB');
+    const matterA = {
+      ...persistedMatter('matter-a', '/wsA', 'Alpha household'),
+      crmHouseholdKeys: ['household-a'],
+    };
+    const matterB = {
+      ...persistedMatter('matter-b', '/wsB', 'Beta household'),
+      crmHouseholdKeys: ['household-b'],
+    };
+    const clientA = {
+      provider: 'wealthbox' as const,
+      householdId: 'household-a',
+      displayName: 'Alpha household',
+    };
+    const clientB = {
+      provider: 'wealthbox' as const,
+      householdId: 'household-b',
+      displayName: 'Beta household',
+    };
+
+    seedDiskFile(wsA.files, '/wsA', [matterA]);
+    seedDiskFile(wsB.files, '/wsB', [matterB]);
+    setDevFlagOverride('selection-authority-boot-gate', true);
+
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    await openWorkspace('/wsA', wsA.service);
+    replaceCanonicalHouseholdDirectory('wealthbox', [clientA]);
+    await requestSharedClientSelection(issueSharedClientSelection(clientA));
+    await vi.waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe('matter-a');
+    });
+    await flushMattersWorkspaceDiskWrites();
+
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    await openWorkspace('/wsB', wsB.service);
+    replaceCanonicalHouseholdDirectory('wealthbox', [clientB]);
+    await requestSharedClientSelection(issueSharedClientSelection(clientB));
+    await vi.waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe('matter-b');
+    });
+    await flushMattersWorkspaceDiskWrites();
+
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    await openWorkspace('/wsA', wsA.service);
+    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
+    replaceCanonicalHouseholdDirectory('wealthbox', [clientA]);
+    await vi.waitFor(() => {
+      expect(useClientContextStore.getState().client).toEqual(clientA);
+      expect(readAuthoritativeMatterScope()).toEqual({
+        kind: 'matter',
+        matterId: 'matter-a',
+      });
+    });
+
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    await openWorkspace('/wsB', wsB.service);
+    replaceCanonicalHouseholdDirectory('wealthbox', [clientB]);
+    await vi.waitFor(() => {
+      expect(useClientContextStore.getState().client).toEqual(clientB);
+      expect(readAuthoritativeMatterScope()).toEqual({
+        kind: 'matter',
+        matterId: 'matter-b',
+      });
+    });
   });
 });
 
@@ -674,6 +825,67 @@ describe('reloadWorkspaceScopedStores wiring', () => {
     await vi.waitFor(() => {
       expect(useMatterStore.getState().activeMatterId).toBe('m_wired');
       expect(useClientContextStore.getState().followerStatus).toBe('converged');
+    });
+  });
+
+  it('does not judge a new workspace saved client against the previous workspace directory', async () => {
+    const clientA = {
+      provider: 'wealthbox' as const,
+      householdId: 'household-a',
+      displayName: 'Alpha household',
+    };
+    const clientB = {
+      provider: 'wealthbox' as const,
+      householdId: 'household-b',
+      displayName: 'Beta household',
+    };
+    const matterA = {
+      ...persistedMatter('matter-a', '/wsA', 'Alpha household'),
+      crmHouseholdKeys: ['household-a'],
+    };
+    const matterB = {
+      ...persistedMatter('matter-b', '/wsB', 'Beta household'),
+      crmHouseholdKeys: ['household-b'],
+    };
+    const selectionB = {
+      version: 1,
+      source: 'shared-client',
+      client: clientB,
+    };
+    const wsB = createMockWorkspaceService('/wsB');
+
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    useMatterStore.setState({ matters: [matterA] });
+    replaceCanonicalHouseholdDirectory('wealthbox', [clientA]);
+    await requestSharedClientSelection(issueSharedClientSelection(clientA));
+    await vi.waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe('matter-a');
+    });
+
+    seedLocalStorage(scopedMattersKey('/wsB'), {
+      state: {
+        matters: [matterB],
+        activeMatterId: 'matter-b',
+        selectionHint: selectionB,
+      },
+      version: 10,
+    });
+    seedDiskFile(wsB.files, '/wsB', [matterB], 'matter-b', selectionB);
+
+    setActiveWorkspaceService(wsB.service);
+    reloadWorkspaceScopedStores('/wsB');
+    await flushMattersWorkspaceDiskWrites();
+
+    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
+    expect(useClientContextStore.getState().persistenceHint).toEqual(selectionB);
+
+    replaceCanonicalHouseholdDirectory('wealthbox', [clientB]);
+    await vi.waitFor(() => {
+      expect(useClientContextStore.getState().client).toEqual(clientB);
+      expect(readAuthoritativeMatterScope()).toEqual({
+        kind: 'matter',
+        matterId: 'matter-b',
+      });
     });
   });
 });

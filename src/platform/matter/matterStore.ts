@@ -38,6 +38,7 @@
  */
 
 import { create } from 'zustand';
+import { useSyncExternalStore } from 'react';
 import { persist } from 'zustand/middleware';
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
@@ -501,6 +502,23 @@ const UI_BASE_KEY = SK_MATTER_UI_SNAPSHOTS;
 const GLANCE_BASE_KEY = SK_MATTER_AT_A_GLANCE;
 const MATTERS_VERSION = 10;
 let pendingSelectionRehydration: RehydratedSelectionInput | null = null;
+let matterWorkspaceHydrationReady = false;
+const matterWorkspaceHydrationListeners = new Set<() => void>();
+
+function setMatterWorkspaceHydrationReady(ready: boolean): void {
+  if (matterWorkspaceHydrationReady === ready) return;
+  matterWorkspaceHydrationReady = ready;
+  for (const listener of matterWorkspaceHydrationListeners) listener();
+}
+
+/** Begin a workspace swap without touching the persisted matter store. */
+export function setMatterWorkspaceHydrationPending(): void {
+  setMatterWorkspaceHydrationReady(false);
+}
+
+export function readMatterWorkspaceHydrationReady(): boolean {
+  return matterWorkspaceHydrationReady;
+}
 
 function selectionRehydrationInput(
   state: Pick<PersistedMatterState, 'activeMatterId' | 'selectionHint'>
@@ -992,6 +1010,7 @@ export function __resetMattersWorkspaceDiskSyncForTests(): void {
   mattersDiskQueue = Promise.resolve();
   diskHydratedScopes.clear();
   lastDiskWriteJsonByScope.clear();
+  setMatterWorkspaceHydrationPending();
 }
 
 /** The open workspace's service, ONLY when the active scope, the active
@@ -1009,6 +1028,12 @@ function resolveWorkspaceDiskTarget(
   const serviceRoot = service.getRootPath();
   if (!serviceRoot || workspaceScopeId(serviceRoot) !== scopeId) return null;
   return { service, scopeId };
+}
+
+function markWorkspaceHydrationReady(root: string): void {
+  const activeRoot = getActiveWorkspaceScopeRoot();
+  if (!activeRoot || workspaceScopeId(activeRoot) !== workspaceScopeId(root)) return;
+  setMatterWorkspaceHydrationReady(true);
 }
 
 /** One canonical serialization for the change-detection compare (same key
@@ -1105,7 +1130,12 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
   };
   return enqueueMattersDiskOp(async () => {
     const target = resolveWorkspaceDiskTarget(root);
-    if (!target) return;
+    if (!target) {
+      // Browser/test environments have no durable service; their scoped cache
+      // is the only available authority and finished rehydrating synchronously.
+      markWorkspaceHydrationReady(root);
+      return;
+    }
     // CLOSE the write gate for the duration of this hydrate. The scope may
     // still be marked hydrated from an EARLIER visit this session; without
     // this, a read failure below would return early with the stale gate open
@@ -1211,6 +1241,7 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
           cache: applied.cache,
         });
       }
+      markWorkspaceHydrationReady(root);
       return;
     }
 
@@ -1250,6 +1281,7 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
           target.scopeId,
           serializeDiskState(preSnapshot, MATTERS_VERSION),
         );
+        markWorkspaceHydrationReady(root);
       }
       return;
     }
@@ -1269,6 +1301,7 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
     };
     if (snapshot.matters.length === 0) {
       // Nothing to migrate — don't dirty a workspace that has no organization.
+      markWorkspaceHydrationReady(root);
       return;
     }
     await writeMattersWorkspaceFile(target.service, root, {
@@ -1279,6 +1312,7 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
       cache: snapshot.cache,
     }, MATTERS_VERSION);
     lastDiskWriteJsonByScope.set(target.scopeId, serializeDiskState(snapshot, MATTERS_VERSION));
+    markWorkspaceHydrationReady(root);
   });
 }
 
@@ -2285,6 +2319,17 @@ export function getActiveScope(): MatterScope {
  *  and any "everything" view must use this so archived matters still resolve. */
 export function useMatters(): Matter[] {
   return useMatterStore((s) => s.matters);
+}
+
+export function useMatterWorkspaceHydrationReady(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      matterWorkspaceHydrationListeners.add(listener);
+      return () => matterWorkspaceHydrationListeners.delete(listener);
+    },
+    readMatterWorkspaceHydrationReady,
+    readMatterWorkspaceHydrationReady
+  );
 }
 
 /** Subscribe to the non-archived matters — the day-to-day list the matter
