@@ -11,12 +11,12 @@ import {
   meetingVisibilityParentForRecord,
   meetingVisibilityRoot,
 } from '@/platform/meeting-visibility';
-import { mergeCrmTaskRecord } from '@/features/crm-home/shared/liveTaskAdapter';
 import {
   createMeetingWorkflowProposal,
   createTemplate,
+  mergeCrmTaskRecord,
   startWorkflow,
-} from '@/features/crm-home/workflowLive';
+} from '@/features/crm-home';
 import {
   MEETING_VISIBILITY_MIGRATION_FIELD,
   MEETING_VISIBILITY_MIGRATION_VERSION,
@@ -221,12 +221,14 @@ describe('CRM meeting visibility boundary', () => {
       record === preferences
         ? {
             ...record,
-            visibilityPolicies: [{
-              id: 'private-meeting',
-              mode: 'explicit-review',
-              includedMemberIds: [],
-              excludedMemberIds: [],
-            }],
+            visibilityPolicies: [
+              {
+                id: 'private-meeting',
+                mode: 'explicit-review',
+                includedMemberIds: [],
+                excludedMemberIds: [],
+              },
+            ],
           }
         : record
     );
@@ -259,8 +261,9 @@ describe('CRM meeting visibility boundary', () => {
         id: 'conflicting-nested-task',
       },
     };
-    expect(idsFor([...records, malformed, conflicting], 'owner-advisor'))
-      .not.toEqual(expect.arrayContaining([malformed.id, conflicting.id]));
+    expect(
+      idsFor([...records, malformed, conflicting], 'owner-advisor')
+    ).not.toEqual(expect.arrayContaining([malformed.id, conflicting.id]));
   });
 
   it('keeps a complete old unrestricted meeting chain usable only by explicit legacy classification', () => {
@@ -309,16 +312,15 @@ describe('CRM meeting visibility boundary', () => {
       savedArtifact.id,
     ]);
     expect(idsFor([savedArtifact], null)).toEqual([]);
-    expect(idsFor([
-      preferences,
-      meeting,
-      { ...savedArtifact, meetingId: meeting.id },
-    ], 'owner-advisor')).not.toContain(savedArtifact.id);
-    expect(idsFor([
-      oldMeeting,
-      { ...oldMeeting },
-      savedArtifact,
-    ], null)).not.toContain(savedArtifact.id);
+    expect(
+      idsFor(
+        [preferences, meeting, { ...savedArtifact, meetingId: meeting.id }],
+        'owner-advisor'
+      )
+    ).not.toContain(savedArtifact.id);
+    expect(
+      idsFor([oldMeeting, { ...oldMeeting }, savedArtifact], null)
+    ).not.toContain(savedArtifact.id);
   });
 
   it.each([null, 'broken', [], false])(
@@ -326,29 +328,38 @@ describe('CRM meeting visibility boundary', () => {
     (brokenVisibility) => {
       const malformed: readonly LiveCrmRecord[] = [
         {
-          id: 'bad-artifact', kind: 'meeting_artifact', meetingId: meeting.id,
+          id: 'bad-artifact',
+          kind: 'meeting_artifact',
+          meetingId: meeting.id,
           meetingVisibility: brokenVisibility,
         },
         {
-          id: 'bad-task', kind: 'task', source: { origin: 'user', sources: [] },
+          id: 'bad-task',
+          kind: 'task',
+          source: { origin: 'user', sources: [] },
           meetingVisibility: brokenVisibility,
         },
         {
-          id: 'bad-activity', kind: 'activityEvent', verb: 'task.created',
+          id: 'bad-activity',
+          kind: 'activityEvent',
+          verb: 'task.created',
           meetingVisibility: brokenVisibility,
         },
         {
-          id: 'bad-proposal', kind: 'proposalRecord',
+          id: 'bad-proposal',
+          kind: 'proposalRecord',
           source: { origin: 'meeting', sources: [] },
           meetingVisibility: brokenVisibility,
         },
         {
-          id: 'bad-workflow', kind: 'crm_workflow_instance',
+          id: 'bad-workflow',
+          kind: 'crm_workflow_instance',
           meetingVisibility: brokenVisibility,
         },
       ];
-      expect(idsFor([preferences, meeting, ...malformed], 'owner-advisor'))
-        .toEqual([meeting.id]);
+      expect(
+        idsFor([preferences, meeting, ...malformed], 'owner-advisor')
+      ).toEqual([meeting.id]);
     }
   );
 
@@ -375,14 +386,19 @@ describe('CRM meeting visibility boundary', () => {
         MEETING_VISIBILITY_MIGRATION_VERSION,
     };
     const { visibilityPolicyId: _removedPolicy, ...corrupted } = meeting;
-    expect(idsFor([migratedPreferences, corrupted, legacy], 'owner-advisor')).toEqual([
-      legacy.id,
-    ]);
+    expect(
+      idsFor([migratedPreferences, corrupted, legacy], 'owner-advisor')
+    ).toEqual([legacy.id]);
   });
 
   it('uses internal visibility preferences without returning their secret member IDs', () => {
-    const visible = filterLiveCrmRecordsByMeetingVisibility(records, 'owner-advisor');
-    expect(visible.some((record) => record.kind === 'meeting_foundation_preferences')).toBe(false);
+    const visible = filterLiveCrmRecordsByMeetingVisibility(
+      records,
+      'owner-advisor'
+    );
+    expect(
+      visible.some((record) => record.kind === 'meeting_foundation_preferences')
+    ).toBe(false);
     expect(JSON.stringify(visible)).not.toContain('included-advisor');
     expect(JSON.stringify(visible)).not.toContain('excluded-advisor');
   });
@@ -399,7 +415,10 @@ describe('CRM meeting visibility boundary', () => {
         const absolute = path.join(directory, entry.name);
         if (entry.isDirectory()) {
           walk(absolute);
-        } else if (/\.(ts|tsx)$/.test(entry.name) && !entry.name.includes('.test.')) {
+        } else if (
+          /\.(ts|tsx)$/.test(entry.name) &&
+          !entry.name.includes('.test.')
+        ) {
           const source = readFileSync(absolute, 'utf8');
           const count = tokens.reduce(
             (total, token) => total + source.split(token).length - 1,
@@ -413,7 +432,7 @@ describe('CRM meeting visibility boundary', () => {
 
     expect(Object.fromEntries(uses)).toEqual({
       'features/meetings/foundation/contract.ts': 2,
-      'platform/crm/useLiveCrmRecords.ts': 6,
+      'platform/crm/useLiveCrmRecords.ts': 7,
     });
   });
 

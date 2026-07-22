@@ -6,18 +6,27 @@
  * documentation (scope toggle, citation-first design, chatId convention).
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { flushSync } from 'react-dom';
 import {
-  SAMPLE_MATTER_ID,
-} from '@/platform/matter/matterStore';
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
+import { flushSync } from 'react-dom';
+import { SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import {
   readSelectionOperationDecision,
   useSelectionOperationDecision,
 } from '@/platform/client-context';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import {
+  readCurrentMeetingVisibilityPolicyVersion,
+  useLiveCrmRecords,
+} from '@/platform/crm/useLiveCrmRecords';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import {
   getDemoAnswerForWorkspace,
@@ -197,6 +206,20 @@ export function askChatId(
   return rootPath ? `${base}::${rootPath}` : base;
 }
 
+function currentMeetingVisibilityAuthorityIdentity(): string {
+  const workspace = useWorkspaceStore.getState();
+  const viewerId = useFirmStore.getState().session?.userId ?? null;
+  return JSON.stringify([
+    workspace.rootPath,
+    workspace.rootGeneration,
+    viewerId,
+    readCurrentMeetingVisibilityPolicyVersion(
+      workspace.rootPath,
+      workspace.rootGeneration
+    ),
+  ]);
+}
+
 type AskVisibilityHitFilter = (hits: readonly RagHit[]) => Promise<RagHit[]>;
 
 function visibilityHit(path: string, sourceType?: string): RagHit {
@@ -341,15 +364,16 @@ export function useAsk({
   const activeMatter = selection.kind === 'matter' ? selection.matter : null;
   const hasActiveMatter = Boolean(activeMatter);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
+  const rootGeneration = useWorkspaceStore((s) => s.rootGeneration);
   const currentMeetingViewerId = useFirmStore(
     (state) => state.session?.userId ?? null
   );
   const liveCrm = useLiveCrmRecords();
   const meetingVisibilityIdentity = JSON.stringify([
+    rootPath,
+    rootGeneration,
     currentMeetingViewerId,
-    liveCrm.records
-      .filter((record) => record.kind === 'meeting_foundation_preferences')
-      .map((record) => record['visibilityPolicies']),
+    liveCrm.meetingVisibilityPolicyVersion,
   ]);
   const profession = useProfessionStore((s) => s.profession);
   // B-PRIV-1: subscribe to the confidentiality mode so the egress banner is
@@ -443,8 +467,56 @@ export function useAsk({
   );
 
   // Conversation state
-  const [turns, setTurns] = useState<AskTurn[]>([]);
-  const [streamingTurn, setStreamingTurn] = useState<AskTurn | null>(null);
+  const [turnState, setTurnState] = useState<{
+    authority: string;
+    value: AskTurn[];
+  }>(() => ({ authority: meetingVisibilityIdentity, value: [] }));
+  const [streamingTurnState, setStreamingTurnState] = useState<{
+    authority: string;
+    value: AskTurn | null;
+  }>(() => ({ authority: meetingVisibilityIdentity, value: null }));
+  const turns = useMemo(
+    () =>
+      turnState.authority === meetingVisibilityIdentity ? turnState.value : [],
+    [meetingVisibilityIdentity, turnState]
+  );
+  const streamingTurn =
+    streamingTurnState.authority === meetingVisibilityIdentity
+      ? streamingTurnState.value
+      : null;
+  const setTurns = useCallback<Dispatch<SetStateAction<AskTurn[]>>>(
+    (next) => {
+      const authority = meetingVisibilityIdentity;
+      setTurnState((previous) => {
+        if (currentMeetingVisibilityAuthorityIdentity() !== authority)
+          return previous;
+        const current = previous.authority === authority ? previous.value : [];
+        return {
+          authority,
+          value: typeof next === 'function' ? next(current) : next,
+        };
+      });
+    },
+    [meetingVisibilityIdentity]
+  );
+  const setStreamingTurn = useCallback<
+    Dispatch<SetStateAction<AskTurn | null>>
+  >(
+    (next) => {
+      const authority = meetingVisibilityIdentity;
+      setStreamingTurnState((previous) => {
+        if (currentMeetingVisibilityAuthorityIdentity() !== authority)
+          return previous;
+        const current =
+          previous.authority === authority ? previous.value : null;
+        return {
+          authority,
+          value: typeof next === 'function' ? next(current) : next,
+        };
+      });
+    },
+    [meetingVisibilityIdentity]
+  );
   const [question, setQuestion] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
   const [selectedTurnIdx, setSelectedTurnIdx] = useState<number | null>(null);
@@ -662,15 +734,20 @@ export function useAsk({
     const generation = ++meetingVisibilityGenerationRef.current;
     abortRef.current?.abort();
     setStreamingTurn(null);
-    if (statusRef.current === 'retrieving' || statusRef.current === 'answering') {
+    if (
+      statusRef.current === 'retrieving' ||
+      statusRef.current === 'answering'
+    ) {
       pendingQuestionRef.current = null;
       setStatus('idle');
     }
-    setTurns([]);
+    // `turns` is already synchronously empty for this render because its saved
+    // authority no longer matches `meetingVisibilityIdentity`. Keep the old
+    // value quarantined while the current-policy filter runs; never re-tag old
+    // prose as current merely to clear it in a passive effect.
     setSelected(null);
     setSelectedTurnIdx(null);
-    const messages =
-      useAIChatStore.getState().sessions[chatId]?.messages ?? [];
+    const messages = useAIChatStore.getState().sessions[chatId]?.messages ?? [];
     void filterPersistedAskMessagesForMeetingVisibility(messages).then(
       async (visibleMessages) => {
         if (generation !== meetingVisibilityGenerationRef.current) return;
@@ -690,7 +767,13 @@ export function useAsk({
       if (generation === meetingVisibilityGenerationRef.current)
         meetingVisibilityGenerationRef.current += 1;
     };
-  }, [chatId, meetingVisibilityIdentity, updateMessages]);
+  }, [
+    chatId,
+    meetingVisibilityIdentity,
+    setStreamingTurn,
+    setTurns,
+    updateMessages,
+  ]);
 
   // Auto-scroll to bottom when turns change or streaming turn updates
   useEffect(() => {
@@ -815,7 +898,7 @@ export function useAsk({
     setAnswerStalled(false);
     setLocalAiStarting(false);
     setLocalEvaluating(false);
-  }, [activeMatter, rootPath]);
+  }, [activeMatter, rootPath, setStreamingTurn, setTurns]);
 
   const handleLoadSession = useCallback(
     (sid: string) => {
@@ -856,7 +939,9 @@ export function useAsk({
       const q = (overrideQuestion ?? question).trim();
       if (!q || status === 'retrieving' || status === 'answering') return;
 
-      const currentSelection = readSelectionOperationDecision(ASK_SELECTION_REQUEST);
+      const currentSelection = readSelectionOperationDecision(
+        ASK_SELECTION_REQUEST
+      );
       if (currentSelection.kind === 'refused') {
         setErrorMsg(currentSelection.message);
         setStatus('error');
@@ -879,6 +964,13 @@ export function useAsk({
       const sendRootGeneration = useWorkspaceStore.getState().rootGeneration;
       const sendMeetingVisibilityGeneration =
         meetingVisibilityGenerationRef.current;
+      const sendMeetingVisibilityIdentity = meetingVisibilityIdentity;
+      const sendMeetingVisibilityIsCurrent = (): boolean =>
+        !abort.signal.aborted &&
+        sendMeetingVisibilityIdentity ===
+          currentMeetingVisibilityAuthorityIdentity() &&
+        sendMeetingVisibilityGeneration ===
+          meetingVisibilityGenerationRef.current;
 
       setErrorMsg(null);
       setCrmUnavailableNotice(null);
@@ -924,12 +1016,7 @@ export function useAsk({
           useAIChatStore.getState().sessions[chatId]?.messages ?? [];
         const visibleMessages =
           await filterPersistedAskMessagesForMeetingVisibility(currentMessages);
-        if (
-          abort.signal.aborted ||
-          sendMeetingVisibilityGeneration !==
-            meetingVisibilityGenerationRef.current
-        )
-          return;
+        if (!sendMeetingVisibilityIsCurrent()) return;
         if (safeTurnsForSend.length !== turns.length)
           setTurns(safeTurnsForSend);
         if (visibleMessages.length !== currentMessages.length)
@@ -940,9 +1027,10 @@ export function useAsk({
         if (isSampleMatter && rootPath) {
           const cloudKey = await hasCloudKey();
           if (!cloudKey) {
+            if (!sendMeetingVisibilityIsCurrent()) return;
             const demo = getDemoAnswerForWorkspace(q, rootPath, profession);
             if (demo) {
-              if (abort.signal.aborted) return;
+              if (!sendMeetingVisibilityIsCurrent()) return;
               // In smart mode, present the demo answer under the new "From your
               // files" provenance label (a single files block) so the sample
               // matter — the first thing a new advisor sees — shows the labelled
@@ -1006,7 +1094,7 @@ export function useAsk({
             // A4: sample matter + no cloud key + question not in demo set.
             // Do not fall through to RAG or the AI provider — neither will work.
             // Push a calm bridging message and stop.
-            if (abort.signal.aborted) return;
+            if (!sendMeetingVisibilityIsCurrent()) return;
             const bridgeAnswer =
               'That question is outside this sample. Connect an AI provider in Settings to ask your own files, or try one of the example questions below.';
             const bridgeTurn: AskTurn = {
@@ -1168,7 +1256,7 @@ export function useAsk({
         // than pass private text onward.
         hits = await filterAskMeetingVisibilityHits(hits);
 
-        if (abort.signal.aborted) return;
+        if (!sendMeetingVisibilityIsCurrent()) return;
 
         /* BUG-016: retrieval-evidence gate (FILES-ONLY mode).
          * When indexing IS on but retrieval found nothing in scope, decline
@@ -1187,6 +1275,7 @@ export function useAsk({
          * so an empty context can never produce a green, fake-cited claim.
          */
         const emitDecline = (answer: string): void => {
+          if (!sendMeetingVisibilityIsCurrent()) return;
           const declineTurn: AskTurn = {
             question: q,
             answer,
@@ -1270,8 +1359,7 @@ export function useAsk({
               }
             );
             // The user can switch questions while this dialog is open; bail if so.
-            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
-            if (abort.signal.aborted) return;
+            if (!sendMeetingVisibilityIsCurrent()) return;
             onAuditLog?.(
               auditEventToEntry({
                 type: 'external_export_consent',
@@ -1322,8 +1410,7 @@ export function useAsk({
         // after it — worse on providers with no streaming signal, which never
         // see the abort at all downstream. Bail the same way every other
         // post-await checkpoint in this function does.
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
-        if (abort.signal.aborted) return;
+        if (!sendMeetingVisibilityIsCurrent()) return;
 
         // FINAL SYNCHRONOUS LOCAL-ONLY SEND GUARD (Codex re-review #4 — the
         // important one). This is a real privacy enforcement, not a display fix:
@@ -1347,18 +1434,15 @@ export function useAsk({
           // QA-25 (P2, Codex review) — same re-check as above: this branch adds
           // its OWN await, so a navigation-triggered abort during THIS one must
           // be caught here too, not just after the first resolution.
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
-          if (abort.signal.aborted) return;
+          if (!sendMeetingVisibilityIsCurrent()) return;
         }
         // Provider resolution can wait on keychain/sidecar work. Re-read the
         // current viewer and policy after those awaits, before any prompt is
         // constructed. A coworker switch or newly narrowed policy therefore
         // removes the meeting text from both the prompt and future citations.
         hits = await filterAskMeetingVisibilityHits(hits);
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal can flip while the visibility check awaits current policy.
-        if (abort.signal.aborted) return;
-        if (useWorkspaceStore.getState().rootGeneration !== sendRootGeneration)
-          return;
+        if (!sendMeetingVisibilityIsCurrent()) return;
+        if (!sendMeetingVisibilityIsCurrent()) return;
         // Airtight backstop: there is NO await between this assertion and the send
         // below (only synchronous setup + flushSync), so the mode cannot change in
         // between. If we somehow still hold a cloud provider in Local-only mode,
@@ -1671,8 +1755,7 @@ export function useAsk({
             setLocalAiStarting(starting);
           },
         });
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
-        if (abort.signal.aborted) return;
+        if (!sendMeetingVisibilityIsCurrent()) return;
 
         // QA-7 — the "Answering…" spinner had no ceiling: a stalled provider call
         // (most often the embedded local model still mid-download/load) left it
@@ -1785,7 +1868,7 @@ export function useAsk({
                     ? { requestTimeoutMs: providerRequestTimeoutMs }
                     : {}),
                   onChunk: (chunk) => {
-                    if (abort.signal.aborted) return;
+                    if (!sendMeetingVisibilityIsCurrent()) return;
                     watchdog.markProgress();
                     setAnswerStalled(false);
                     // lp/localai-patience — the first token means eval is done and
@@ -1912,13 +1995,11 @@ export function useAsk({
           setLocalEvaluating(false);
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (abort.signal.aborted) return;
+        if (!sendMeetingVisibilityIsCurrent()) return;
 
         const finalVisibleGroundingHits =
           await filterAskMeetingVisibilityHits(groundingHits);
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal can flip while the visibility check awaits current policy.
-        if (abort.signal.aborted) return;
+        if (!sendMeetingVisibilityIsCurrent()) return;
         if (finalVisibleGroundingHits.length !== groundingHits.length) {
           // The answer may already contain prose learned from a source that was
           // just hidden. Never display a partially-redacted answer: discard the
@@ -1929,12 +2010,7 @@ export function useAsk({
         groundingHits = finalVisibleGroundingHits;
         const finalVisibleHistory =
           await filterPersistedAskTurnsForMeetingVisibility(historyInPrompt);
-        if (
-          abort.signal.aborted ||
-          sendMeetingVisibilityGeneration !==
-            meetingVisibilityGenerationRef.current
-        )
-          return;
+        if (!sendMeetingVisibilityIsCurrent()) return;
         if (finalVisibleHistory.length !== historyInPrompt.length) {
           emitDecline(NO_EVIDENCE_DECLINE);
           return;
@@ -2073,6 +2149,7 @@ export function useAsk({
           // scope-aware history redaction after a reload.
           ...(grounding.scope ? { askGroundingScope: grounding.scope } : {}),
         };
+        if (!sendMeetingVisibilityIsCurrent()) return;
         addMessage(chatId, userMsg);
         addMessage(chatId, assistantMsg);
 
@@ -2085,11 +2162,12 @@ export function useAsk({
           turn: completedTurn,
           onAnswerCompleted,
         });
+        if (!sendMeetingVisibilityIsCurrent()) return;
         setStreamingTurn(null);
         setStatus('done');
         pendingQuestionRef.current = null;
       } catch (err) {
-        if (abort.signal.aborted) return;
+        if (!sendMeetingVisibilityIsCurrent()) return;
         console.error('Ask failed', err);
         if (providerCallStarted && providerAudit) {
           const egress = resolveEgress({
@@ -2199,6 +2277,10 @@ export function useAsk({
       confirmExportConsent,
       onAnswerCompleted,
       askMode,
+      meetingVisibilityIdentity,
+      setStreamingTurn,
+      setTurns,
+      updateMessages,
     ]
   );
 

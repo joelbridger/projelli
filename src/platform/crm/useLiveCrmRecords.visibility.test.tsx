@@ -134,11 +134,7 @@ const proposal = derivedRecord(
   'proposalRecord',
   'proposal'
 );
-const activity = derivedRecord(
-  'private-activity',
-  'activityEvent',
-  'activity'
-);
+const activity = derivedRecord('private-activity', 'activityEvent', 'activity');
 const preferences = (
   includedMemberIds: readonly string[] = [],
   excludedMemberIds: readonly string[] = []
@@ -153,8 +149,7 @@ const preferences = (
       excludedMemberIds,
     },
   ],
-  [MEETING_VISIBILITY_MIGRATION_FIELD]:
-    MEETING_VISIBILITY_MIGRATION_VERSION,
+  [MEETING_VISIBILITY_MIGRATION_FIELD]: MEETING_VISIBILITY_MIGRATION_VERSION,
 });
 
 describe('useLiveCrmRecords meeting visibility reactivity', () => {
@@ -189,23 +184,28 @@ describe('useLiveCrmRecords meeting visibility reactivity', () => {
         (record) => record.kind === 'meeting_foundation_preferences'
       )?.['visibilityPolicies']
     ).toEqual(preferences(['included-advisor'])['visibilityPolicies']);
-    expect(result.current.records.some(
-      (record) => record.kind === 'meeting_foundation_preferences'
-    )).toBe(false);
+    expect(
+      result.current.records.some(
+        (record) => record.kind === 'meeting_foundation_preferences'
+      )
+    ).toBe(false);
 
     act(() => {
       boundary.setViewer('excluded-advisor');
     });
 
-    expect(result.current.records.map((record) => record.id)).toEqual([
-    ]);
-    expect(JSON.stringify(result.current.records)).not.toContain('included-advisor');
+    expect(result.current.records.map((record) => record.id)).toEqual([]);
+    expect(JSON.stringify(result.current.records)).not.toContain(
+      'included-advisor'
+    );
     await expect(result.current.reloadRecords()).resolves.toEqual([]);
     await expect(
       result.current.reloadUnfilteredRecordsForInternalMeetingPreferences()
-    ).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'meeting_foundation_preferences' }),
-    ]));
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'meeting_foundation_preferences' }),
+      ])
+    );
   });
 
   it('re-filters after a policy reload and never shows an old async result to the new viewer', async () => {
@@ -229,8 +229,7 @@ describe('useLiveCrmRecords meeting visibility reactivity', () => {
       finishOldLoad?.(structuredClone(boundary.records));
     });
     await waitFor(() => {
-      expect(result.current.records.map((record) => record.id)).toEqual([
-      ]);
+      expect(result.current.records.map((record) => record.id)).toEqual([]);
     });
 
     act(() => {
@@ -246,9 +245,35 @@ describe('useLiveCrmRecords meeting visibility reactivity', () => {
       window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
     });
     await waitFor(() => {
-      expect(result.current.records.map((record) => record.id)).toEqual([
-      ]);
+      expect(result.current.records.map((record) => record.id)).toEqual([]);
     });
+  });
+
+  it('publishes only an opaque policy version when the same viewer is revoked', async () => {
+    boundary.viewerId = 'included-advisor';
+    const { result } = renderHook(() => useLiveCrmRecords());
+    await waitFor(() => {
+      expect(result.current.records.map((record) => record.id)).toContain(
+        task.id
+      );
+    });
+    const allowedVersion = result.current.meetingVisibilityPolicyVersion;
+
+    boundary.records = [preferences([], ['included-advisor']), meeting, task];
+    act(() => {
+      window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
+    });
+
+    await waitFor(() => {
+      expect(result.current.records).toEqual([]);
+      expect(result.current.meetingVisibilityPolicyVersion).not.toBe(
+        allowedVersion
+      );
+    });
+    expect(typeof result.current.meetingVisibilityPolicyVersion).toBe('string');
+    expect(
+      JSON.stringify(result.current.meetingVisibilityPolicyVersion)
+    ).not.toContain('included-advisor');
   });
 
   it('keeps allowed derived work visible without exposing policy rows and revokes it immediately', async () => {

@@ -53,6 +53,7 @@ export type { MeetingSummary } from './ClientMeetingsTab';
 export {
   createAccountlessUnrestrictedMeetingFileVisibilityManifest,
   createLegacyUnrestrictedMeetingFileVisibilityManifest,
+  MeetingFileVisibilityRevokedError,
   migrateLegacyMeetingFileVisibility,
 } from './meetingFileVisibility';
 export { MeetingEntry } from './MeetingEntry';

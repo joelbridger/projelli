@@ -4,8 +4,8 @@ import {
   updateMeetingJson,
   type MeetingJsonMutationGuard,
   type MeetingMeta,
-} from '@/features/meetings/meetingStore';
-import { markMeetingReviewed } from '@/features/meetings/insights/review/meetingReviewArtifactStore';
+} from './meetingStore';
+import { markMeetingReviewed } from './insights/review/meetingReviewArtifactStore';
 
 const meetingDir = '/ws/Client/Meetings/one';
 
@@ -21,8 +21,8 @@ function workspace() {
     },
   };
   return {
-    readFile: vi.fn(async () => JSON.stringify(meta)),
-    writeFile: vi.fn(async () => undefined),
+    readFile: vi.fn(() => Promise.resolve(JSON.stringify(meta))),
+    writeFile: vi.fn(() => Promise.resolve()),
   };
 }
 

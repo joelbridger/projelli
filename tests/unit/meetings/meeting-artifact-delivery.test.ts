@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildMeetingArtifactAvailability,
   buildMeetingSendPreview,
@@ -10,25 +10,17 @@ import {
   type MeetingArtifactAvailability,
   type MeetingSendPreview,
 } from '@/features/meetings/meetingArtifactDelivery';
-import { emptyMeetingRecipientArtifacts, type MeetingDeliveryPlan } from '@/features/meetings/meetingRecipientPlan';
+import {
+  emptyMeetingRecipientArtifacts,
+  type MeetingDeliveryPlan,
+} from '@/features/meetings/meetingRecipientPlan';
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
 import type { AuditService } from '@/platform/audit/AuditService';
-import type { ConnectedAccount, MailAttachmentInput } from '@/platform/utils/mail-commands';
-import { MeetingFileVisibilityRevokedError } from '@/features/meetings/meetingFileVisibility';
-
-const { requireAccessMock } = vi.hoisted(() => ({
-  requireAccessMock: vi.fn<(input: { path: string }) => Promise<void>>(),
-}));
-
-vi.mock('@/features/meetings/meetingFileVisibility', async (importOriginal) => {
-  const original = await importOriginal<
-    typeof import('@/features/meetings/meetingFileVisibility')
-  >();
-  return {
-    ...original,
-    requireCurrentMeetingFileAccess: requireAccessMock,
-  };
-});
+import type {
+  ConnectedAccount,
+  MailAttachmentInput,
+} from '@/platform/utils/mail-commands';
+import { MeetingFileVisibilityRevokedError } from '@/features/meetings';
 
 vi.mock('@/platform/privacy/localOnlyGuard', () => ({
   isPersistedLocalOnly: vi.fn(() => false),
@@ -46,6 +38,7 @@ function sendMeetingArtifacts(
   deps: Omit<MeetingSendDeps, 'workspaceRoot' | 'workspaceGeneration'>
 ) {
   return sendMeetingArtifactsRaw({
+    requireFileAccess: () => Promise.resolve(),
     ...deps,
     workspaceRoot: '/client',
     workspaceGeneration: 1,
@@ -61,7 +54,7 @@ type TestMailSend = (
   subject: string,
   body: string,
   inReplyToId?: string,
-  attachments?: MailAttachmentInput[],
+  attachments?: MailAttachmentInput[]
 ) => Promise<string>;
 type TestAuditLogDurable = Pick<AuditService, 'logDurable'>['logDurable'];
 
@@ -77,10 +70,14 @@ function t(key: string, values?: Record<string, unknown>): string {
     'meetings.entry.recipients.artifacts.transcript.label': 'Transcript',
     'meetings.entry.recipients.artifacts.summary.label': 'Summary',
     'meetings.entry.recipients.artifacts.notes.label': 'Notes',
-    'meetings.entry.send.email-subject': '{{client}} meeting {{artifact}}: {{title}}',
-    'meetings.entry.send.email-body': 'Attached is {{artifact}} for {{client}}: {{title}}.',
+    'meetings.entry.send.email-subject':
+      '{{client}} meeting {{artifact}}: {{title}}',
+    'meetings.entry.send.email-body':
+      'Attached is {{artifact}} for {{client}}: {{title}}.',
   };
-  return (map[key] ?? key).replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(values?.[name] ?? ''));
+  return (map[key] ?? key).replace(/\{\{(\w+)\}\}/g, (_, name: string) =>
+    String(values?.[name] ?? '')
+  );
 }
 
 function plan(): MeetingDeliveryPlan {
@@ -89,8 +86,12 @@ function plan(): MeetingDeliveryPlan {
     updatedAt: NOW,
     artifacts: {
       ...emptyMeetingRecipientArtifacts(),
-      notes: [{ email: 'client@example.com', name: 'Client', source: 'manual' }],
-      summary: [{ email: 'client@example.com', name: 'Client', source: 'manual' }],
+      notes: [
+        { email: 'client@example.com', name: 'Client', source: 'manual' },
+      ],
+      summary: [
+        { email: 'client@example.com', name: 'Client', source: 'manual' },
+      ],
       audio: [{ email: 'ops@example.com', source: 'manual' }],
     },
   };
@@ -124,11 +125,13 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-
 function makeWs(initial: MeetingMeta) {
   const files = new Map<string, string | ArrayBuffer>();
   files.set('/client/Meetings/one/meeting.json', JSON.stringify(initial));
-  files.set('/client/Meetings/one/notes.docx', new Uint8Array([1, 2, 3]).buffer);
+  files.set(
+    '/client/Meetings/one/notes.docx',
+    new Uint8Array([1, 2, 3]).buffer
+  );
   files.set('/client/Meetings/one/audio.wav', new Uint8Array([4, 5, 6]).buffer);
   return {
     files,
@@ -143,7 +146,8 @@ function makeWs(initial: MeetingMeta) {
       }),
       readFileBinary: vi.fn(async (path: string) => {
         const value = files.get(path);
-        if (typeof value === 'string' || value === undefined) throw new Error(`missing binary ${path}`);
+        if (typeof value === 'string' || value === undefined)
+          throw new Error(`missing binary ${path}`);
         return value;
       }),
       exists: vi.fn(async (path: string) => files.has(path)),
@@ -151,18 +155,18 @@ function makeWs(initial: MeetingMeta) {
   };
 }
 
-beforeEach(() => {
-  requireAccessMock.mockReset().mockResolvedValue(undefined);
-});
+const fullAvailability: MeetingArtifactAvailability =
+  buildMeetingArtifactAvailability({
+    hasAudio: true,
+    hasTranscript: false,
+    hasNotes: true,
+    summaryReady: true,
+  });
 
-const fullAvailability: MeetingArtifactAvailability = buildMeetingArtifactAvailability({
-  hasAudio: true,
-  hasTranscript: false,
-  hasNotes: true,
-  summaryReady: true,
-});
-
-function previewFor(inputMeta: MeetingMeta, availability = fullAvailability): MeetingSendPreview {
+function previewFor(
+  inputMeta: MeetingMeta,
+  availability = fullAvailability
+): MeetingSendPreview {
   return buildMeetingSendPreview({
     meta: inputMeta,
     availability,
@@ -191,13 +195,18 @@ describe('meeting artifact delivery', () => {
       t: t as never,
     });
 
-    expect(preview.items.map((item) => item.artifact)).toEqual(['notes', 'summary']);
+    expect(preview.items.map((item) => item.artifact)).toEqual([
+      'notes',
+      'summary',
+    ]);
     expect(preview.missing).toEqual(['audio']);
     expect(preview.items[0]).toMatchObject({
       artifactLabel: 'Notes',
       attachmentName: 'Annual review notes.docx',
       subject: 'Hendricks meeting Notes: Annual review',
-      recipients: [{ email: 'client@example.com', name: 'Client', source: 'manual' }],
+      recipients: [
+        { email: 'client@example.com', name: 'Client', source: 'manual' },
+      ],
     });
   });
 
@@ -229,7 +238,12 @@ describe('meeting artifact delivery', () => {
       t: t as never,
     });
 
-    expect(preview.items.map((item) => item.artifact)).toEqual(['notes', 'transcript', 'summary', 'audio']);
+    expect(preview.items.map((item) => item.artifact)).toEqual([
+      'notes',
+      'transcript',
+      'summary',
+      'audio',
+    ]);
     expect(preview.items[0]?.recipients).toEqual([
       { email: 'alex@example.com', name: 'Alex', source: 'calendar' },
       { email: 'sam@example.com', name: 'Sam', source: 'calendar' },
@@ -254,7 +268,8 @@ describe('meeting artifact delivery', () => {
     const sendMail = vi.fn<TestMailSend>(async () => 'provider-message-1');
     const audit = {
       logDurable: vi.fn<TestAuditLogDurable>(
-        async () => ({ id: 'audit-1' }) as Awaited<ReturnType<TestAuditLogDurable>>,
+        async () =>
+          ({ id: 'audit-1' }) as Awaited<ReturnType<TestAuditLogDurable>>
       ),
     };
 
@@ -291,20 +306,41 @@ describe('meeting artifact delivery', () => {
     expect(firstSendCall[7]).toBeUndefined();
     expect(firstSendCall[8]?.[0]).toMatchObject({
       name: 'Annual review notes.docx',
-      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      contentType:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     });
 
-    const written = JSON.parse(String(files.get('/client/Meetings/one/meeting.json'))) as MeetingMeta & {
+    const written = JSON.parse(
+      String(files.get('/client/Meetings/one/meeting.json'))
+    ) as MeetingMeta & {
       deliveryStatus: MeetingDeliveryStatus;
     };
-    expect(written.deliveryStatus.sendLog.map((entry) => ({
-      artifact: entry.artifact,
-      status: entry.status,
-      recipients: entry.recipients,
-    }))).toEqual([
-      { artifact: 'notes', status: 'sent', recipients: [{ email: 'client@example.com', name: 'Client', source: 'manual' }] },
-      { artifact: 'summary', status: 'sent', recipients: [{ email: 'client@example.com', name: 'Client', source: 'manual' }] },
-      { artifact: 'audio', status: 'sent', recipients: [{ email: 'ops@example.com', source: 'manual' }] },
+    expect(
+      written.deliveryStatus.sendLog.map((entry) => ({
+        artifact: entry.artifact,
+        status: entry.status,
+        recipients: entry.recipients,
+      }))
+    ).toEqual([
+      {
+        artifact: 'notes',
+        status: 'sent',
+        recipients: [
+          { email: 'client@example.com', name: 'Client', source: 'manual' },
+        ],
+      },
+      {
+        artifact: 'summary',
+        status: 'sent',
+        recipients: [
+          { email: 'client@example.com', name: 'Client', source: 'manual' },
+        ],
+      },
+      {
+        artifact: 'audio',
+        status: 'sent',
+        recipients: [{ email: 'ops@example.com', source: 'manual' }],
+      },
     ]);
 
     expect(audit.logDurable).toHaveBeenCalledTimes(3);
@@ -314,14 +350,17 @@ describe('meeting artifact delivery', () => {
     expect(firstAuditCall[0]).toBe('email.send');
     const firstAuditOptions = firstAuditCall[2];
     expect(firstAuditOptions).toBeDefined();
-    if (!firstAuditOptions) throw new Error('Expected the first audit log options.');
+    if (!firstAuditOptions)
+      throw new Error('Expected the first audit log options.');
     expect(firstAuditOptions.metadata).toMatchObject({
       matterId: 'matter-1',
       meetingDir: '/client/Meetings/one',
       mailProvider: 'm365',
       recipientCount: 1,
     });
-    expect(JSON.stringify(firstAuditOptions.metadata)).not.toContain('client@example.com');
+    expect(JSON.stringify(firstAuditOptions.metadata)).not.toContain(
+      'client@example.com'
+    );
   });
 
   it('stops before e-mail when exact-file access is revoked while an attachment is being built', async () => {
@@ -354,9 +393,11 @@ describe('meeting artifact delivery', () => {
     const attachment = deferred<Uint8Array>();
     const attachmentStarted = deferred<void>();
     let revoked = false;
-    requireAccessMock.mockImplementation(async () => {
-      if (revoked) throw new MeetingFileVisibilityRevokedError();
-    });
+    const requireAccessMock = vi.fn<(input: { path: string }) => Promise<void>>(
+      async () => {
+        if (revoked) throw new MeetingFileVisibilityRevokedError();
+      }
+    );
     const sendMail = vi.fn<TestMailSend>(async () => 'must-not-send');
 
     const pending = sendMeetingArtifacts({
@@ -375,6 +416,7 @@ describe('meeting artifact delivery', () => {
       },
       audit: { logDurable: vi.fn() } as never,
       sendMail: sendMail as never,
+      requireFileAccess: requireAccessMock,
     });
 
     await attachmentStarted.promise;
@@ -406,24 +448,26 @@ describe('meeting artifact delivery', () => {
       t: t as never,
     });
 
-    await expect(sendMeetingArtifacts({
-      workspaceService: ws,
-      meetingDir: '/client/Meetings/one',
-      matterId: 'matter-1',
-      meta: original,
-      account,
-      preview,
-      availability: buildMeetingArtifactAvailability({
-        hasAudio: true,
-        hasTranscript: false,
-        hasNotes: false,
-        summaryReady: false,
-      }),
-      clientName: 'Hendricks',
-      t: t as never,
-      audit: { logDurable: vi.fn() } as never,
-      sendMail: vi.fn() as never,
-    })).rejects.toThrow('This meeting belongs to a different client.');
+    await expect(
+      sendMeetingArtifacts({
+        workspaceService: ws,
+        meetingDir: '/client/Meetings/one',
+        matterId: 'matter-1',
+        meta: original,
+        account,
+        preview,
+        availability: buildMeetingArtifactAvailability({
+          hasAudio: true,
+          hasTranscript: false,
+          hasNotes: false,
+          summaryReady: false,
+        }),
+        clientName: 'Hendricks',
+        t: t as never,
+        audit: { logDurable: vi.fn() } as never,
+        sendMail: vi.fn() as never,
+      })
+    ).rejects.toThrow('This meeting belongs to a different client.');
   });
 
   it('writes a failed send log when an attachment is missing at confirm time', async () => {
@@ -468,9 +512,15 @@ describe('meeting artifact delivery', () => {
 
     expect(sendMail).not.toHaveBeenCalled();
     expect(entries).toMatchObject([
-      { artifact: 'audio', status: 'failed', attachmentNames: ['Annual review audio.wav'] },
+      {
+        artifact: 'audio',
+        status: 'failed',
+        attachmentNames: ['Annual review audio.wav'],
+      },
     ]);
-    const written = JSON.parse(String(files.get('/client/Meetings/one/meeting.json'))) as MeetingMeta & {
+    const written = JSON.parse(
+      String(files.get('/client/Meetings/one/meeting.json'))
+    ) as MeetingMeta & {
       deliveryStatus: MeetingDeliveryStatus;
     };
     expect(written.deliveryStatus.sendLog[0]).toMatchObject({
@@ -482,8 +532,11 @@ describe('meeting artifact delivery', () => {
       'email.send',
       expect.stringContaining('Failed to send'),
       expect.objectContaining({
-        outputs: expect.objectContaining({ status: 'failed', artifact: 'audio' }),
-      }),
+        outputs: expect.objectContaining({
+          status: 'failed',
+          artifact: 'audio',
+        }),
+      })
     );
   });
 
@@ -493,7 +546,13 @@ describe('meeting artifact delivery', () => {
         ...plan(),
         artifacts: {
           ...plan().artifacts,
-          notes: [{ email: 'updated@example.com', name: 'Updated Client', source: 'manual' }],
+          notes: [
+            {
+              email: 'updated@example.com',
+              name: 'Updated Client',
+              source: 'manual',
+            },
+          ],
         },
       },
     });
@@ -501,25 +560,29 @@ describe('meeting artifact delivery', () => {
     files.set('/client/Meetings/one/meeting.json', JSON.stringify(latest));
     const sendMail = vi.fn<TestMailSend>(async () => 'provider-message-1');
 
-    await expect(sendMeetingArtifacts({
-      workspaceService: ws,
-      meetingDir: '/client/Meetings/one',
-      matterId: 'matter-1',
-      meta: latest,
-      account,
-      // The confirmed preview reflects the latest saved plan (as the panel
-      // always builds it from the same meta it sends).
-      preview: previewFor(latest),
-      availability: fullAvailability,
-      clientName: 'Hendricks',
-      t: t as never,
-      buildSummaryDocxBytes: async () => new Uint8Array([7, 8, 9]),
-      audit: { logDurable: vi.fn() } as never,
-      sendMail: sendMail as never,
-      nowIso: NOW,
-    })).resolves.toHaveLength(3);
+    await expect(
+      sendMeetingArtifacts({
+        workspaceService: ws,
+        meetingDir: '/client/Meetings/one',
+        matterId: 'matter-1',
+        meta: latest,
+        account,
+        // The confirmed preview reflects the latest saved plan (as the panel
+        // always builds it from the same meta it sends).
+        preview: previewFor(latest),
+        availability: fullAvailability,
+        clientName: 'Hendricks',
+        t: t as never,
+        buildSummaryDocxBytes: async () => new Uint8Array([7, 8, 9]),
+        audit: { logDurable: vi.fn() } as never,
+        sendMail: sendMail as never,
+        nowIso: NOW,
+      })
+    ).resolves.toHaveLength(3);
 
-    const notesCall = sendMail.mock.calls.find((call) => call[5] === 'Hendricks meeting Notes: Annual review');
+    const notesCall = sendMail.mock.calls.find(
+      (call) => call[5] === 'Hendricks meeting Notes: Annual review'
+    );
     expect(notesCall?.[2]).toEqual(['updated@example.com']);
   });
 
@@ -530,21 +593,23 @@ describe('meeting artifact delivery', () => {
     files.set('/client/Meetings/one/meeting.json', JSON.stringify(renamed));
     const sendMail = vi.fn<TestMailSend>(async () => 'provider-message-1');
 
-    await expect(sendMeetingArtifacts({
-      workspaceService: ws,
-      meetingDir: '/client/Meetings/one',
-      matterId: 'matter-1',
-      meta: opened,
-      account,
-      preview: previewFor(opened),
-      availability: fullAvailability,
-      clientName: 'Hendricks',
-      t: t as never,
-      buildSummaryDocxBytes: async () => new Uint8Array([7, 8, 9]),
-      audit: { logDurable: vi.fn() } as never,
-      sendMail: sendMail as never,
-      nowIso: NOW,
-    })).rejects.toThrow(MEETING_SEND_REVIEW_AGAIN_MESSAGE);
+    await expect(
+      sendMeetingArtifacts({
+        workspaceService: ws,
+        meetingDir: '/client/Meetings/one',
+        matterId: 'matter-1',
+        meta: opened,
+        account,
+        preview: previewFor(opened),
+        availability: fullAvailability,
+        clientName: 'Hendricks',
+        t: t as never,
+        buildSummaryDocxBytes: async () => new Uint8Array([7, 8, 9]),
+        audit: { logDurable: vi.fn() } as never,
+        sendMail: sendMail as never,
+        nowIso: NOW,
+      })
+    ).rejects.toThrow(MEETING_SEND_REVIEW_AGAIN_MESSAGE);
     expect(sendMail).not.toHaveBeenCalled();
   });
 
@@ -553,21 +618,23 @@ describe('meeting artifact delivery', () => {
     const { ws } = makeWs(unreviewed);
     const sendMail = vi.fn<TestMailSend>(async () => 'provider-message-1');
 
-    await expect(sendMeetingArtifacts({
-      workspaceService: ws,
-      meetingDir: '/client/Meetings/one',
-      matterId: 'matter-1',
-      meta: unreviewed,
-      account,
-      preview: previewFor(unreviewed),
-      availability: fullAvailability,
-      clientName: 'Hendricks',
-      t: t as never,
-      buildSummaryDocxBytes: async () => new Uint8Array([7, 8, 9]),
-      audit: { logDurable: vi.fn() } as never,
-      sendMail: sendMail as never,
-      nowIso: NOW,
-    })).rejects.toThrow(MEETING_SEND_NOT_REVIEWED_MESSAGE);
+    await expect(
+      sendMeetingArtifacts({
+        workspaceService: ws,
+        meetingDir: '/client/Meetings/one',
+        matterId: 'matter-1',
+        meta: unreviewed,
+        account,
+        preview: previewFor(unreviewed),
+        availability: fullAvailability,
+        clientName: 'Hendricks',
+        t: t as never,
+        buildSummaryDocxBytes: async () => new Uint8Array([7, 8, 9]),
+        audit: { logDurable: vi.fn() } as never,
+        sendMail: sendMail as never,
+        nowIso: NOW,
+      })
+    ).rejects.toThrow(MEETING_SEND_NOT_REVIEWED_MESSAGE);
     expect(sendMail).not.toHaveBeenCalled();
   });
 
@@ -578,7 +645,13 @@ describe('meeting artifact delivery', () => {
         ...plan(),
         artifacts: {
           ...plan().artifacts,
-          notes: [{ email: 'changed@example.com', name: 'Changed Client', source: 'manual' }],
+          notes: [
+            {
+              email: 'changed@example.com',
+              name: 'Changed Client',
+              source: 'manual',
+            },
+          ],
         },
       },
     });
@@ -586,26 +659,31 @@ describe('meeting artifact delivery', () => {
     files.set('/client/Meetings/one/meeting.json', JSON.stringify(latest));
     const sendMail = vi.fn();
 
-    await expect(sendMeetingArtifacts({
-      workspaceService: ws,
-      meetingDir: '/client/Meetings/one',
-      matterId: 'matter-1',
-      meta: opened,
-      account,
-      preview: previewFor(opened),
-      availability: fullAvailability,
-      clientName: 'Hendricks',
-      t: t as never,
-      audit: { logDurable: vi.fn() } as never,
-      sendMail: sendMail as never,
-    })).rejects.toThrow(MEETING_SEND_REVIEW_AGAIN_MESSAGE);
+    await expect(
+      sendMeetingArtifacts({
+        workspaceService: ws,
+        meetingDir: '/client/Meetings/one',
+        matterId: 'matter-1',
+        meta: opened,
+        account,
+        preview: previewFor(opened),
+        availability: fullAvailability,
+        clientName: 'Hendricks',
+        t: t as never,
+        audit: { logDurable: vi.fn() } as never,
+        sendMail: sendMail as never,
+      })
+    ).rejects.toThrow(MEETING_SEND_REVIEW_AGAIN_MESSAGE);
     expect(sendMail).not.toHaveBeenCalled();
   });
 
   it('blocks only artifacts whose attachment exceeds the provider limit before sending', async () => {
     const original = meta();
     const { files, ws } = makeWs(original);
-    files.set('/client/Meetings/one/audio.wav', new Uint8Array((3 * 1024 * 1024) + 1).buffer);
+    files.set(
+      '/client/Meetings/one/audio.wav',
+      new Uint8Array(3 * 1024 * 1024 + 1).buffer
+    );
     const sendMail = vi.fn(async () => 'provider-message-1');
 
     const entries = await sendMeetingArtifacts({
@@ -624,7 +702,12 @@ describe('meeting artifact delivery', () => {
       nowIso: NOW,
     });
 
-    expect(entries.map((entry) => ({ artifact: entry.artifact, status: entry.status }))).toEqual([
+    expect(
+      entries.map((entry) => ({
+        artifact: entry.artifact,
+        status: entry.status,
+      }))
+    ).toEqual([
       { artifact: 'notes', status: 'sent' },
       { artifact: 'summary', status: 'sent' },
       { artifact: 'audio', status: 'failed' },

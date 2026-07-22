@@ -46,6 +46,40 @@ type CurrentWorkspaceRecords = {
 
 const currentRecordsByWorkspace = new Map<string, CurrentWorkspaceRecords>();
 
+// Opaque render-safe identities for immutable preference records. A consumer
+// can compare the returned token, but cannot recover member IDs or raw rows
+// from it. Re-loading an equivalent row may advance the token; that conservative
+// extra invalidation is safe and keeps raw policy data behind this boundary.
+const meetingPolicyRecordVersions = new WeakMap<object, number>();
+let nextMeetingPolicyRecordVersion = 1;
+
+function meetingVisibilityPolicyVersion(
+  records: readonly LiveCrmRecord[]
+): string {
+  return records
+    .filter((record) => record.kind === 'meeting_foundation_preferences')
+    .map((record) => {
+      const existing = meetingPolicyRecordVersions.get(record);
+      if (existing !== undefined) return String(existing);
+      const version = nextMeetingPolicyRecordVersion++;
+      meetingPolicyRecordVersions.set(record, version);
+      return String(version);
+    })
+    .join(':');
+}
+
+/** Live opaque policy identity for last-moment authorization checks. */
+export function readCurrentMeetingVisibilityPolicyVersion(
+  workspaceRoot: string | null,
+  generation: number
+): string {
+  if (!workspaceRoot) return '';
+  const current = currentRecordsByWorkspace.get(workspaceRoot);
+  return current?.generation === generation
+    ? meetingVisibilityPolicyVersion(current.records)
+    : '';
+}
+
 type CapturedWorkspace = {
   readonly rootPath: string | null;
   readonly generation: number;
@@ -176,40 +210,41 @@ export function useLiveCrmRecords() {
     getCrmEngineFreshness
   );
   useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
-  const reloadUnfilteredRecordsForInternalMeetingPreferences = useCallback(async () => {
-    const rootAtStart = workspaceRoot;
-    const capturedAtStart: CapturedWorkspace = {
-      rootPath: rootAtStart,
-      generation: rootGeneration,
-    };
-    try {
-      const loaded = rootAtStart
-        ? await loadVisibilityReadyCrmRecords(rootAtStart)
-        : [];
-      if (!capturedWorkspaceIsActive(capturedAtStart)) return;
-      currentRecordsRef.current = {
-        workspaceRoot: rootAtStart,
+  const reloadUnfilteredRecordsForInternalMeetingPreferences =
+    useCallback(async () => {
+      const rootAtStart = workspaceRoot;
+      const capturedAtStart: CapturedWorkspace = {
+        rootPath: rootAtStart,
         generation: rootGeneration,
-        records: loaded,
       };
-      if (rootAtStart) {
-        currentRecordsByWorkspace.set(rootAtStart, {
+      try {
+        const loaded = rootAtStart
+          ? await loadVisibilityReadyCrmRecords(rootAtStart)
+          : [];
+        if (!capturedWorkspaceIsActive(capturedAtStart)) return;
+        currentRecordsRef.current = {
+          workspaceRoot: rootAtStart,
           generation: rootGeneration,
           records: loaded,
-        });
+        };
+        if (rootAtStart) {
+          currentRecordsByWorkspace.set(rootAtStart, {
+            generation: rootGeneration,
+            records: loaded,
+          });
+        }
+        setRecordsWorkspaceRoot(rootAtStart);
+        setRecords(loaded);
+        setErrorWorkspaceRoot(rootAtStart);
+        setError(null);
+        return loaded;
+      } catch (reason) {
+        if (!capturedWorkspaceIsActive(capturedAtStart)) return;
+        setErrorWorkspaceRoot(rootAtStart);
+        setError(reason instanceof Error ? reason.message : String(reason));
+        return undefined;
       }
-      setRecordsWorkspaceRoot(rootAtStart);
-      setRecords(loaded);
-      setErrorWorkspaceRoot(rootAtStart);
-      setError(null);
-      return loaded;
-    } catch (reason) {
-      if (!capturedWorkspaceIsActive(capturedAtStart)) return;
-      setErrorWorkspaceRoot(rootAtStart);
-      setError(reason instanceof Error ? reason.message : String(reason));
-      return undefined;
-    }
-  }, [rootGeneration, workspaceRoot]);
+    }, [rootGeneration, workspaceRoot]);
   const reloadRecords = useCallback(async () => {
     const loaded = await reloadUnfilteredRecordsForInternalMeetingPreferences();
     return loaded
@@ -275,13 +310,13 @@ export function useLiveCrmRecords() {
         ? currentRecordsByWorkspace.get(rootAtStart)
         : undefined;
       const current = rootAtStart
-        ? (shared?.generation === rootGeneration
-          ? shared.records
-          : undefined) ??
-          (currentRecordsRef.current.workspaceRoot === rootAtStart
-            && currentRecordsRef.current.generation === rootGeneration
+        ? ((shared?.generation === rootGeneration
+            ? shared.records
+            : undefined) ??
+          (currentRecordsRef.current.workspaceRoot === rootAtStart &&
+          currentRecordsRef.current.generation === rootGeneration
             ? currentRecordsRef.current.records
-            : [])
+            : []))
         : [];
       const next = current.some((item) => item.id === saved.id)
         ? current.map((item) => (item.id === saved.id ? saved : item))
@@ -396,11 +431,19 @@ export function useLiveCrmRecords() {
   // switching from a firm matter to a solo workspace.
   const effectiveFreshness: CrmEngineFreshness =
     sharedMatterId && workspaceRoot ? freshness : { kind: 'idle' };
-  const currentRecords = recordsWorkspaceRoot === workspaceRoot
-    ? filterLiveCrmRecordsByMeetingVisibility(records, viewerId)
-    : [];
+  const currentRecords =
+    recordsWorkspaceRoot === workspaceRoot
+      ? filterLiveCrmRecordsByMeetingVisibility(records, viewerId)
+      : [];
   const unfilteredRecordsForInternalMeetingPreferences =
     recordsWorkspaceRoot === workspaceRoot ? records : [];
+  // The raw member lists stay inside this platform hook. Consumers that need
+  // to invalidate already-rendered private material receive only a local,
+  // opaque counter whose value changes when the persisted policy snapshot (or
+  // its workspace) changes.
+  const currentMeetingVisibilityPolicyVersion = meetingVisibilityPolicyVersion(
+    unfilteredRecordsForInternalMeetingPreferences
+  );
   const currentRawRecords = (): readonly LiveCrmRecord[] => {
     if (
       !capturedWorkspaceIsActive({
@@ -456,6 +499,7 @@ export function useLiveCrmRecords() {
      */
     unfilteredRecordsForInternalMeetingPreferences,
     reloadUnfilteredRecordsForInternalMeetingPreferences,
+    meetingVisibilityPolicyVersion: currentMeetingVisibilityPolicyVersion,
     save,
     publishSavedRecord,
     reload,

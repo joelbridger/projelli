@@ -22,15 +22,16 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { MemoryService } from '@/platform/rag/MemoryService';
-import {
-  formatCitationsForDisplay,
-} from '@/features/meetings/meetingNoteTemplate';
+import { formatCitationsForDisplay } from '@/features/meetings/meetingNoteTemplate';
 import {
   generateMeetingNoteMarkdown,
   MeetingNotesLocalOnlyError,
   type ResolvedMeetingNotesProvider,
 } from '@/features/meetings/meetingNotesAi';
-import { withMeetingNotesTimeout, isMeetingNotesTimeoutError } from '@/features/meetings/meetingNotesTimeout';
+import {
+  withMeetingNotesTimeout,
+  isMeetingNotesTimeoutError,
+} from '@/features/meetings/meetingNotesTimeout';
 import {
   LocalOnlyEgressError,
   LocalOnlyExternalError,
@@ -41,11 +42,17 @@ import { detectMeetingType, makeMeetingTypesStore } from './meetingTypes';
 import { dictationToMeeting } from './dictationToMeeting';
 import { makeConsentLedger } from './consentLedger';
 import { customNoticeScript } from './noticeSettings';
-import { startNoticeCard, stopNoticeCard } from './noticeCard/noticeCardLifecycle';
+import {
+  startNoticeCard,
+  stopNoticeCard,
+} from './noticeCard/noticeCardLifecycle';
 import type { NoticeCardStatus } from './noticeCard/supervisor';
 import type { NoticeCardPlatform } from './noticeCard/noticeCardTypes';
 import type { NoticeCardVisual } from './noticeCard/canvasCard';
-import { ensureNoticeVerified, type NoticeVerificationDeps } from './noticeVerification';
+import {
+  ensureNoticeVerified,
+  type NoticeVerificationDeps,
+} from './noticeVerification';
 import type { NoticeLocale } from './noticeMatcher';
 import i18n from '@/i18n';
 import type { MeetingDeliveryPlan } from './meetingRecipientPlan';
@@ -297,7 +304,9 @@ export async function checkLowDiskSpaceWarning(): Promise<boolean> {
   const workspace = resolveWorkspaceRoot();
   if (!workspace) return false;
   try {
-    const bytes = await invoke<number>('capture_free_disk_bytes', { path: workspace });
+    const bytes = await invoke<number>('capture_free_disk_bytes', {
+      path: workspace,
+    });
     return bytes < LOW_DISK_WARNING_THRESHOLD_BYTES;
   } catch {
     return false;
@@ -324,34 +333,29 @@ export function setMeetingsWorkspaceService(
   const visibilityMemory = MemoryService as Partial<
     Pick<
       typeof MemoryService,
-      | 'resetMeetingFileVisibilityResolver'
-      | 'setMeetingFileVisibilityResolver'
+      'resetMeetingFileVisibilityResolver' | 'setMeetingFileVisibilityResolver'
     >
   >;
   if (!service) {
     visibilityMemory.resetMeetingFileVisibilityResolver?.();
     return;
   }
-  visibilityMemory.setMeetingFileVisibilityResolver?.(async (
-    sourceIds,
-    meetingDerivedSourceIds
-  ) => {
-    const context = await readCurrentMeetingFileVisibilityContext(
-      resolveWorkspaceRoot()
-    );
-    const decisions = await resolveMeetingFilePathsVisibility({
-      paths: sourceIds,
-      workspace: service,
-      context,
-      meetingDerivedPaths: meetingDerivedSourceIds,
-    });
-    return new Map(
-      [...decisions].map(([sourceId, decision]) => [
-        sourceId,
-        decision.kind,
-      ])
-    );
-  });
+  visibilityMemory.setMeetingFileVisibilityResolver?.(
+    async (sourceIds, meetingDerivedSourceIds) => {
+      const context = await readCurrentMeetingFileVisibilityContext(
+        resolveWorkspaceRoot()
+      );
+      const decisions = await resolveMeetingFilePathsVisibility({
+        paths: sourceIds,
+        workspace: service,
+        context,
+        meetingDerivedPaths: meetingDerivedSourceIds,
+      });
+      return new Map(
+        [...decisions].map(([sourceId, decision]) => [sourceId, decision.kind])
+      );
+    }
+  );
 }
 
 export function resolveMatterFolder(matterId: string): string {
@@ -381,7 +385,7 @@ export async function writeMeetingJson(
 export interface MeetingJsonMutationGuard {
   /** Re-check the exact meeting-file authority. Called before the canonical
    * read and again after it, immediately before the write. */
-  assertCurrentAccess(): Promise<void>;
+  readonly assertCurrentAccess: () => Promise<void>;
 }
 
 export async function updateMeetingJson(
@@ -404,7 +408,9 @@ export async function updateMeetingJson(
   return next;
 }
 
-function meetingStartCalendarFields(opts: StartOpts): Pick<MeetingMeta, 'calendarTitle' | 'calendarEvent'> {
+function meetingStartCalendarFields(
+  opts: StartOpts
+): Pick<MeetingMeta, 'calendarTitle' | 'calendarEvent'> {
   if (opts.calendarEvent) {
     return {
       calendarTitle: opts.calendarEvent.title,
@@ -461,14 +467,22 @@ function classifyNotesError(err: unknown): MeetingNotesError['kind'] {
  *  meeting.json (re-read fresh so this never stomps fields written
  *  concurrently, e.g. reviewedAt/typeId). A meeting.json that can't be read
  *  is left alone — the meeting stays usable via its transcript regardless. */
-async function recordNotesError(meetingDir: string, err: unknown): Promise<void> {
+async function recordNotesError(
+  meetingDir: string,
+  err: unknown
+): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws) return;
   try {
-    const base = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
+    const base = JSON.parse(
+      await ws.readFile(`${meetingDir}/meeting.json`)
+    ) as MeetingMeta;
     await writeMeetingJson(meetingDir, {
       ...base,
-      notesError: { kind: classifyNotesError(err), at: new Date().toISOString() },
+      notesError: {
+        kind: classifyNotesError(err),
+        at: new Date().toISOString(),
+      },
     });
   } catch {
     // best-effort — see doc comment above.
@@ -481,7 +495,9 @@ async function clearNotesError(meetingDir: string): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws) return;
   try {
-    const base = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
+    const base = JSON.parse(
+      await ws.readFile(`${meetingDir}/meeting.json`)
+    ) as MeetingMeta;
     if (!base.notesError) return;
     const { notesError: _clearedNotesError, ...rest } = base;
     await writeMeetingJson(meetingDir, rest);
@@ -498,21 +514,30 @@ async function clearNotesError(meetingDir: string): Promise<void> {
  *  (sidecars/parakeet.rs, commands/voice.rs) rather than on error type. */
 function classifyTranscriptError(err: unknown): MeetingTranscriptError['kind'] {
   const msg = err instanceof Error ? err.message : String(err);
-  if (msg.includes('not bundled') || msg.includes('no voice model bundled')) return 'not-installed';
+  if (msg.includes('not bundled') || msg.includes('no voice model bundled'))
+    return 'not-installed';
   if (msg.includes('timed out')) return 'timeout';
   return 'error';
 }
 
 /** Best-effort merge-write of `transcriptError` into the meeting's existing
  *  meeting.json — mirrors recordNotesError above. */
-async function recordTranscriptError(meetingDir: string, err: unknown): Promise<void> {
+async function recordTranscriptError(
+  meetingDir: string,
+  err: unknown
+): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws) return;
   try {
-    const base = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
+    const base = JSON.parse(
+      await ws.readFile(`${meetingDir}/meeting.json`)
+    ) as MeetingMeta;
     await writeMeetingJson(meetingDir, {
       ...base,
-      transcriptError: { kind: classifyTranscriptError(err), at: new Date().toISOString() },
+      transcriptError: {
+        kind: classifyTranscriptError(err),
+        at: new Date().toISOString(),
+      },
     });
   } catch {
     // best-effort — see recordNotesError.
@@ -525,7 +550,9 @@ async function clearTranscriptError(meetingDir: string): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws) return;
   try {
-    const base = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
+    const base = JSON.parse(
+      await ws.readFile(`${meetingDir}/meeting.json`)
+    ) as MeetingMeta;
     if (!base.transcriptError) return;
     const { transcriptError: _clearedTranscriptError, ...rest } = base;
     await writeMeetingJson(meetingDir, rest);
@@ -546,7 +573,9 @@ async function clearTranscriptError(meetingDir: string): Promise<void> {
  *  trying to sub-classify the underlying OS errno. */
 function classifyRecordingError(err: unknown): MeetingRecordingError['kind'] {
   const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes('part of the audio failed to save') ? 'disk-full' : 'error';
+  return msg.includes('part of the audio failed to save')
+    ? 'disk-full'
+    : 'error';
 }
 
 /** Best-effort merge-write of `recordingError` into the meeting's existing
@@ -555,17 +584,26 @@ function classifyRecordingError(err: unknown): MeetingRecordingError['kind'] {
  *  that even `finalize_session`'s own metadata write never landed) is left
  *  alone — there's nothing durable yet to annotate, and the raw chunks under
  *  `.capture/` already survive untouched on that failure path (session.rs). */
-async function recordRecordingError(meetingDir: string, err: unknown): Promise<void> {
+async function recordRecordingError(
+  meetingDir: string,
+  err: unknown
+): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws) return;
   try {
-    const existing = await ws.readFile(`${meetingDir}/meeting.json`).catch(() => null);
+    const existing = await ws
+      .readFile(`${meetingDir}/meeting.json`)
+      .catch(() => null);
     if (!existing) return;
     const base = JSON.parse(existing) as MeetingMeta;
     const message = err instanceof Error ? err.message : String(err);
     await writeMeetingJson(meetingDir, {
       ...base,
-      recordingError: { kind: classifyRecordingError(err), at: new Date().toISOString(), message },
+      recordingError: {
+        kind: classifyRecordingError(err),
+        at: new Date().toISOString(),
+        message,
+      },
     });
   } catch {
     // best-effort — see recordNotesError.
@@ -615,9 +653,11 @@ function transcribeMeetingSerialized(
 ): Promise<boolean> {
   const existing = inFlightTranscriptions.get(meetingDir);
   if (existing) return existing;
-  const run = runTranscribeMeeting(meetingDir, workspaceRoot, model).finally(() => {
-    inFlightTranscriptions.delete(meetingDir);
-  });
+  const run = runTranscribeMeeting(meetingDir, workspaceRoot, model).finally(
+    () => {
+      inFlightTranscriptions.delete(meetingDir);
+    }
+  );
   inFlightTranscriptions.set(meetingDir, run);
   return run;
 }
@@ -630,7 +670,10 @@ async function indexMeetingFile(
   try {
     await MemoryService.indexMeetingFile(`${meetingDir}/${filename}`, matterId);
   } catch (err) {
-    console.warn(`[meetings] failed to index ${filename} for ${meetingDir}:`, err);
+    console.warn(
+      `[meetings] failed to index ${filename} for ${meetingDir}:`,
+      err
+    );
   }
 }
 
@@ -647,9 +690,11 @@ async function ensureMeetingFileEntries(
     ) as MeetingMeta;
     const existing = meetingFileVisibilityManifestFromMeta(current);
     const manifest = addMeetingFileVisibilityEntries(
-      existing ?? fallbackManifest ?? (() => {
-        throw new Error('Meeting visibility identity is missing.');
-      })(),
+      existing ??
+        fallbackManifest ??
+        (() => {
+          throw new Error('Meeting visibility identity is missing.');
+        })(),
       fileNames
     );
     await writeMeetingJson(
@@ -782,9 +827,11 @@ function generateNotesSerialized(
 ): Promise<void> {
   const existing = inFlightNotesGenerations.get(meetingDir);
   if (existing) return existing;
-  const run = tryGenerateNotes(meetingDir, matterId, resolveProvider).finally(() => {
-    inFlightNotesGenerations.delete(meetingDir);
-  });
+  const run = tryGenerateNotes(meetingDir, matterId, resolveProvider).finally(
+    () => {
+      inFlightNotesGenerations.delete(meetingDir);
+    }
+  );
   inFlightNotesGenerations.set(meetingDir, run);
   return run;
 }
@@ -812,7 +859,9 @@ export async function retryMeetingNotes(
   try {
     await generateNotesSerialized(meetingDir, matterId, resolveProvider);
   } finally {
-    useMeetingStore.setState((s) => ({ processingCount: Math.max(0, s.processingCount - 1) }));
+    useMeetingStore.setState((s) => ({
+      processingCount: Math.max(0, s.processingCount - 1),
+    }));
   }
 }
 
@@ -838,16 +887,23 @@ export async function retryMeetingTranscript(
       'notes.docx',
     ]))
   )
-    throw new Error('This meeting recording is not available to the current user.');
+    throw new Error(
+      'This meeting recording is not available to the current user.'
+    );
   useMeetingStore.setState((s) => ({ processingCount: s.processingCount + 1 }));
   try {
-    const transcribed = await transcribeMeetingSerialized(meetingDir, workspaceRoot);
+    const transcribed = await transcribeMeetingSerialized(
+      meetingDir,
+      workspaceRoot
+    );
     if (transcribed) {
       await indexMeetingFile(meetingDir, 'transcript.json', matterId);
     }
     await generateNotesSerialized(meetingDir, matterId, resolveProvider);
   } finally {
-    useMeetingStore.setState((s) => ({ processingCount: Math.max(0, s.processingCount - 1) }));
+    useMeetingStore.setState((s) => ({
+      processingCount: Math.max(0, s.processingCount - 1),
+    }));
   }
 }
 
@@ -867,7 +923,10 @@ function noticeLocaleFromLanguage(lang: string | undefined): NoticeLocale {
  * opens (batch-transcribed or pre-existing meetings get verified on view).
  * Fully local — reads only the on-device transcript.
  */
-export async function ensureMeetingNoticeVerified(meetingDir: string, matterId: string): Promise<void> {
+export async function ensureMeetingNoticeVerified(
+  meetingDir: string,
+  matterId: string
+): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws || !meetingDir || !matterId) return;
   if (!(await meetingFilesVisible(meetingDir, ['transcript.json']))) return;
@@ -883,12 +942,16 @@ export async function ensureMeetingNoticeVerified(meetingDir: string, matterId: 
   // later settings edit can't change how a past recording is judged
   // (codex-review R6).
   const ctx = await ledger.noticeContext(meetingDir).catch(() => null);
-  const custom = ctx ? ctx.customScript : customNoticeScript((k) => useSettingsStore.getState().getSetting(k));
+  const custom = ctx
+    ? ctx.customScript
+    : customNoticeScript((k) => useSettingsStore.getState().getSetting(k));
   const locale = ctx ? ctx.locale : noticeLocaleFromLanguage(i18n.language);
   const deps: NoticeVerificationDeps = {
     async readTranscript() {
       try {
-        return JSON.parse(await ws.readFile(`${meetingDir}/transcript.json`)) as TranscriptFile;
+        return JSON.parse(
+          await ws.readFile(`${meetingDir}/transcript.json`)
+        ) as TranscriptFile;
       } catch {
         return null; // transcription still queued.
       }
@@ -910,7 +973,9 @@ export async function ensureMeetingNoticeVerified(meetingDir: string, matterId: 
  * Best-effort ledger append bound to the active meeting; the clipboard copy
  * itself happens in the UI. No-ops if nothing is recording.
  */
-export async function recordChatNoticeForActiveMeeting(text: string): Promise<void> {
+export async function recordChatNoticeForActiveMeeting(
+  text: string
+): Promise<void> {
   const { activeMatterId, status } = useMeetingStore.getState();
   const meetingDir = status.meetingDir;
   const ws = activeWorkspaceService;
@@ -988,7 +1053,9 @@ export async function fileDictationAsMeeting(
  *  healthy, already-saved recording — this recording is fine; there was
  *  simply nothing left for this call to do. */
 function isBenignStopStateError(err: unknown): boolean {
-  return err instanceof Error ? err.message === 'not recording' : err === 'not recording';
+  return err instanceof Error
+    ? err.message === 'not recording'
+    : err === 'not recording';
 }
 
 /**
@@ -1030,18 +1097,15 @@ async function runPostStopPipeline(
         // Task 12c: thin type detection — a matched calendar title (when the
         // recording started from one) plus any taught corrections decide the
         // type; ad-hoc recordings (no title) simply get no typeId.
-        const calendarTitle = activeConsent.calendarEvent?.title ?? activeConsent.calendarTitle;
+        const calendarTitle =
+          activeConsent.calendarEvent?.title ?? activeConsent.calendarTitle;
         const typeId = await (async () => {
-          if (!calendarTitle || !activeWorkspaceService)
-            return undefined;
+          if (!calendarTitle || !activeWorkspaceService) return undefined;
           try {
             const { learned } = await makeMeetingTypesStore(
               activeWorkspaceService
             ).load();
-            return (
-              detectMeetingType(calendarTitle, learned) ??
-              undefined
-            );
+            return detectMeetingType(calendarTitle, learned) ?? undefined;
           } catch {
             return undefined;
           }
@@ -1074,7 +1138,10 @@ async function runPostStopPipeline(
       // (see runTranscribeMeeting above) — capture still never depends on
       // this succeeding, but a failure is now recorded as an honest,
       // retryable transcriptError instead of vanishing.
-      transcribed = await transcribeMeetingSerialized(meetingDir, resolveWorkspaceRoot());
+      transcribed = await transcribeMeetingSerialized(
+        meetingDir,
+        resolveWorkspaceRoot()
+      );
       if (transcribed && matterId) {
         await indexMeetingFile(meetingDir, 'transcript.json', matterId);
       }
@@ -1089,14 +1156,12 @@ async function runPostStopPipeline(
     }
 
     if (meetingDir && matterId) {
-      await generateNotesSerialized(
-        meetingDir,
-        matterId,
-        resolveProvider
-      );
+      await generateNotesSerialized(meetingDir, matterId, resolveProvider);
     }
   } finally {
-    useMeetingStore.setState((s) => ({ processingCount: Math.max(0, s.processingCount - 1) }));
+    useMeetingStore.setState((s) => ({
+      processingCount: Math.max(0, s.processingCount - 1),
+    }));
   }
 }
 
@@ -1184,7 +1249,9 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
           meetingDir: r.meetingDir,
           at: new Date().toISOString(),
           customScript: captureOpts.noticeCustomScript ?? '',
-          locale: noticeLocaleFromLanguage(captureOpts.noticeLanguage ?? i18n.language),
+          locale: noticeLocaleFromLanguage(
+            captureOpts.noticeLanguage ?? i18n.language
+          ),
         })
         .catch(() => {});
       // Notice Card — join the online meeting as the local notice participant.
@@ -1193,7 +1260,9 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       if (captureOpts.noticeCard && isTauri()) {
         const nc = captureOpts.noticeCard;
         const cameraVisual: NoticeCardVisual = {
-          title: i18n.t('meetings.notice-card.card-title', { name: nc.advisorName }),
+          title: i18n.t('meetings.notice-card.card-title', {
+            name: nc.advisorName,
+          }),
           lines: [
             i18n.t('meetings.notice-card.card-line-1'),
             i18n.t('meetings.notice-card.card-line-2'),
@@ -1218,8 +1287,12 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
           onStatus: (noticeCardStatus) => {
             set({ noticeCardStatus });
           },
-          entryAnnouncement: i18n.t('meetings.notice-card.announce-recording-started'),
-          stopAnnouncement: i18n.t('meetings.notice-card.announce-recording-stopped'),
+          entryAnnouncement: i18n.t(
+            'meetings.notice-card.announce-recording-started'
+          ),
+          stopAnnouncement: i18n.t(
+            'meetings.notice-card.announce-recording-stopped'
+          ),
         });
         if (nc.zoomNativeRecordAttested) {
           void ledger
@@ -1282,7 +1355,12 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
           set((s) =>
             s.status.recording
               ? {
-                  status: { recording: false, meetingDir: null, elapsedMs: 0, writeError: null },
+                  status: {
+                    recording: false,
+                    meetingDir: null,
+                    elapsedMs: 0,
+                    writeError: null,
+                  },
                   activeMatterId: null,
                   activeConsent: null,
                   noticeCardStatus: null,
@@ -1305,10 +1383,18 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         // forever with a dead Stop button, on EVERY capture_stop failure, not
         // just disk-full ones. That's the QA-35 "Stop doesn't respond" symptom.
         set({
-          status: { recording: false, meetingDir: null, elapsedMs: 0, writeError: null },
+          status: {
+            recording: false,
+            meetingDir: null,
+            elapsedMs: 0,
+            writeError: null,
+          },
           activeMatterId: null,
           activeConsent: null,
-          lastWriteFailure: { message: i18n.t('meetings.pill.write-error'), at: new Date().toISOString() },
+          lastWriteFailure: {
+            message: i18n.t('meetings.pill.write-error'),
+            at: new Date().toISOString(),
+          },
           noticeCardStatus: null,
         });
         const matterId = activeMatterId ?? '';
@@ -1327,7 +1413,12 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         // surface THAT case as a durable "didn't finish saving" state
         // instead (see the recordingError + !hasAudio checks there).
         if (startedMeetingDir && classifyRecordingError(err) === 'disk-full') {
-          return { meetingDir: startedMeetingDir, matterId, activeConsent, durationMs: undefined };
+          return {
+            meetingDir: startedMeetingDir,
+            matterId,
+            activeConsent,
+            durationMs: undefined,
+          };
         }
         return null;
       }
@@ -1396,7 +1487,10 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       // whatever was captured before the failure (recordRecordingError,
       // called from stopRecording's own error path, records the truncation).
       set({
-        lastWriteFailure: { message: i18n.t('meetings.pill.write-error'), at: new Date().toISOString() },
+        lastWriteFailure: {
+          message: i18n.t('meetings.pill.write-error'),
+          at: new Date().toISOString(),
+        },
       });
       await get().stopRecording();
     }

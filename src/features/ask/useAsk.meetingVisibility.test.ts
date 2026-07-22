@@ -1,5 +1,6 @@
 import '@/i18n';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { flushSync } from 'react-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import type { AskTurn } from './askHelpers';
@@ -7,25 +8,59 @@ import { SK_ASK_FILES_ONLY } from '@/config/identity';
 
 const {
   buildResolvedAskProviderMock,
+  policyState,
   retrieveMock,
   visibilityState,
 } = vi.hoisted(() => ({
   buildResolvedAskProviderMock: vi.fn<() => Promise<unknown>>(),
+  policyState: {
+    version: 1,
+    listeners: new Set<() => void>(),
+    bump() {
+      this.version += 1;
+      this.listeners.forEach((listener) => {
+        listener();
+      });
+    },
+  },
   retrieveMock: vi.fn<(...args: unknown[]) => Promise<RagHit[]>>(),
-  visibilityState: { allowed: true },
+  visibilityState: {
+    allowed: true,
+    heldResult: null as Promise<RagHit[]> | null,
+  },
 }));
 
+vi.mock('@/platform/crm/useLiveCrmRecords', async () => {
+  const React = await import('react');
+  return {
+    readCurrentMeetingVisibilityPolicyVersion: () =>
+      String(policyState.version),
+    useLiveCrmRecords: () => ({
+      meetingVisibilityPolicyVersion: React.useSyncExternalStore(
+        (listener) => {
+          policyState.listeners.add(listener);
+          return () => {
+            policyState.listeners.delete(listener);
+          };
+        },
+        () => String(policyState.version)
+      ),
+    }),
+  };
+});
+
 vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
-  const original = await importOriginal<
-    typeof import('@/platform/rag/MemoryService')
-  >();
+  const original =
+    await importOriginal<typeof import('@/platform/rag/MemoryService')>();
   return {
     ...original,
     isMemoryEnabled: () => true,
     MemoryService: {
       ...original.MemoryService,
-      retrieve: (...args: unknown[]): Promise<RagHit[]> => retrieveMock(...args),
+      retrieve: (...args: unknown[]): Promise<RagHit[]> =>
+        retrieveMock(...args),
       filterMeetingFileVisibilityHits: (hits: readonly RagHit[]) =>
+        visibilityState.heldResult ??
         Promise.resolve(visibilityState.allowed ? [...hits] : []),
     },
   };
@@ -66,7 +101,10 @@ beforeEach(() => {
   localStorage.setItem(SK_ASK_FILES_ONLY, '0');
   useAIChatStore.getState().clearAllSessions();
   useFirmStore.setState({ session: null });
+  policyState.version = 1;
+  policyState.listeners.clear();
   visibilityState.allowed = true;
+  visibilityState.heldResult = null;
   retrieveMock.mockReset();
   buildResolvedAskProviderMock.mockReset();
 });
@@ -80,6 +118,23 @@ function hit(path: string, text: string): RagHit {
     paragraphIndex: 0,
     matterId: 'matter-1',
   };
+}
+
+function signInAsAdvisorOne(): void {
+  useFirmStore.setState({
+    session: {
+      userId: 'advisor-1',
+      email: 'advisor-1@example.com',
+      role: 'member',
+      org: null,
+      seatId: 'seat-1',
+      tier: 'practice',
+      packs: [],
+      seats: 1,
+      lastValidatedAt: null,
+      activated: true,
+    },
+  });
 }
 
 describe('Ask meeting visibility backstop', () => {
@@ -182,6 +237,56 @@ describe('Ask meeting visibility backstop', () => {
     ).resolves.toEqual([]);
   });
 
+  it('hides old private prose synchronously on a same-viewer policy-only revocation', async () => {
+    signInAsAdvisorOne();
+    const privatePath = '/ws/client/Meetings/private/notes.docx';
+    useAIChatStore.getState().initSession('ask-global', [
+      { role: 'user', content: 'What changed?', timestamp: 't1' },
+      {
+        role: 'assistant',
+        content: 'The secret transfer was approved.',
+        timestamp: 't2',
+        askGroundedFromFiles: true,
+        askReadSources: [
+          {
+            id: privatePath,
+            label: 'Private meeting notes',
+            sourceType: 'meeting',
+            path: privatePath,
+            matterId: 'matter-1',
+            chunkCount: 1,
+          },
+        ],
+      },
+    ]);
+    const { result } = renderHook(() => useAsk({}));
+    await waitFor(() => {
+      expect(JSON.stringify(result.current.turns)).toContain('secret transfer');
+    });
+
+    const heldVisibility = deferred<RagHit[]>();
+    visibilityState.allowed = false;
+    visibilityState.heldResult = heldVisibility.promise;
+    flushSync(() => {
+      policyState.bump();
+    });
+
+    // The current-policy filter is deliberately still pending. The render
+    // authority mismatch itself must remove the old prose before effects finish.
+    expect(useFirmStore.getState().session?.userId).toBe('advisor-1');
+    expect(result.current.turns).toEqual([]);
+    expect(JSON.stringify(result.current.turns)).not.toContain('secret');
+
+    heldVisibility.resolve([]);
+    await waitFor(() => {
+      expect(
+        JSON.stringify(
+          useAIChatStore.getState().sessions[result.current.chatId]
+        )
+      ).not.toContain('secret');
+    });
+  });
+
   it('does not render or persist a private answer when the viewer is revoked during the real provider await', async () => {
     const privatePath = '/ws/client/Meetings/private/transcript.json';
     retrieveMock.mockResolvedValue([
@@ -211,20 +316,7 @@ describe('Ask meeting visibility backstop', () => {
       providerId: 'lantern-local',
       model: 'test-local',
     });
-    useFirmStore.setState({
-      session: {
-        userId: 'advisor-1',
-        email: 'advisor-1@example.com',
-        role: 'member',
-        org: null,
-        seatId: 'seat-1',
-        tier: 'practice',
-        packs: [],
-        seats: 1,
-        lastValidatedAt: null,
-        activated: true,
-      },
-    });
+    signInAsAdvisorOne();
 
     const { result } = renderHook(() => useAsk({}));
     act(() => {
@@ -258,7 +350,79 @@ describe('Ask meeting visibility backstop', () => {
       expect(result.current.status).toBe('idle');
     });
     expect(JSON.stringify(result.current.turns)).not.toContain('secret');
-    expect(JSON.stringify(result.current.streamingTurn)).not.toContain('secret');
+    expect(JSON.stringify(result.current.streamingTurn)).not.toContain(
+      'secret'
+    );
+    expect(
+      JSON.stringify(useAIChatStore.getState().sessions[result.current.chatId])
+    ).not.toContain('secret');
+  });
+
+  it('discards in-flight private output on a same-viewer policy-only revocation', async () => {
+    const privatePath = '/ws/client/Meetings/private/transcript.json';
+    retrieveMock.mockResolvedValue([
+      {
+        ...hit(privatePath, 'secret retirement promise'),
+        sourceType: 'meeting',
+      },
+    ]);
+    const response = deferred<{
+      content: string;
+      usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+      cost: number;
+      latency: number;
+      model: string;
+      stopReason: string;
+    }>();
+    const sendMessage = vi.fn(() => response.promise);
+    buildResolvedAskProviderMock.mockResolvedValue({
+      provider: {
+        isConfigured: () => true,
+        sendMessage,
+        getMetadata: () => ({
+          model: 'test-local',
+          capabilities: { maxContextTokens: 16_000 },
+        }),
+      },
+      providerId: 'lantern-local',
+      model: 'test-local',
+    });
+    signInAsAdvisorOne();
+
+    const { result } = renderHook(() => useAsk({}));
+    act(() => {
+      // eslint-disable-next-line lantern-async/no-silent-failure -- handleAsk owns its error state; the test observes the hook result
+      void result.current.handleAsk('What private promise was made?');
+    });
+    await waitFor(() => {
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    visibilityState.allowed = false;
+    flushSync(() => {
+      policyState.bump();
+    });
+    expect(useFirmStore.getState().session?.userId).toBe('advisor-1');
+    expect(result.current.streamingTurn).toBeNull();
+
+    act(() => {
+      response.resolve({
+        content: 'The secret retirement promise was approved.',
+        usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 },
+        cost: 0,
+        latency: 1,
+        model: 'test-local',
+        stopReason: 'stop',
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('idle');
+    });
+    expect(JSON.stringify(result.current.turns)).not.toContain('secret');
+    expect(JSON.stringify(result.current.streamingTurn)).not.toContain(
+      'secret'
+    );
     expect(
       JSON.stringify(useAIChatStore.getState().sessions[result.current.chatId])
     ).not.toContain('secret');

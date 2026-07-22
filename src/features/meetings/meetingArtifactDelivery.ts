@@ -1,9 +1,15 @@
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import type { ConnectedAccount, MailAttachmentInput } from '@/platform/utils/mail-commands';
+import type {
+  ConnectedAccount,
+  MailAttachmentInput,
+} from '@/platform/utils/mail-commands';
 import { mailSend as defaultMailSend } from '@/platform/utils/mail-commands';
 import { validateMailAttachmentsForProvider } from '@/platform/utils/mail-commands';
 import type { AuditService } from '@/platform/audit/AuditService';
-import { isPersistedLocalOnly, LocalOnlyExternalError } from '@/platform/privacy/localOnlyGuard';
+import {
+  isPersistedLocalOnly,
+  LocalOnlyExternalError,
+} from '@/platform/privacy/localOnlyGuard';
 import { meetingDisplayTitle } from './meetingDisplay';
 import {
   MEETING_ARTIFACTS,
@@ -57,7 +63,10 @@ export interface MeetingSendPreview {
 }
 
 export interface MeetingSendDeps {
-  workspaceService: Pick<WorkspaceService, 'readFile' | 'writeFile' | 'readFileBinary' | 'exists'>;
+  workspaceService: Pick<
+    WorkspaceService,
+    'readFile' | 'writeFile' | 'readFileBinary' | 'exists'
+  >;
   meetingDir: string;
   workspaceRoot: string;
   workspaceGeneration: number;
@@ -72,13 +81,19 @@ export interface MeetingSendDeps {
   buildSummaryDocxBytes?: () => Promise<Uint8Array>;
   audit: Pick<AuditService, 'logDurable'>;
   sendMail?: typeof defaultMailSend;
+  /** Narrow test/integration seam; production uses the live file-authority
+   * resolver below. */
+  requireFileAccess?: typeof requireCurrentMeetingFileAccess;
   nowIso?: string;
   idFactory?: () => string;
 }
 
-const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-export const MEETING_SEND_REVIEW_AGAIN_MESSAGE = 'Recipients changed. Review the send again before emailing.';
-export const MEETING_SEND_NOT_REVIEWED_MESSAGE = 'Mark the meeting reviewed before sending.';
+const DOCX_TYPE =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+export const MEETING_SEND_REVIEW_AGAIN_MESSAGE =
+  'Recipients changed. Review the send again before emailing.';
+export const MEETING_SEND_NOT_REVIEWED_MESSAGE =
+  'Mark the meeting reviewed before sending.';
 
 /** A stable signature of a send preview's user-visible facts (per artifact:
  *  the subject, body, attachment name, and recipient set). Two previews with
@@ -93,7 +108,7 @@ function sendPreviewSignature(preview: MeetingSendPreview): string {
         item.attachmentName,
         item.recipients.map((recipient) => recipient.email).sort(),
       ])
-      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
   );
 }
 
@@ -102,11 +117,13 @@ export function emptyMeetingDeliveryStatus(): MeetingDeliveryStatus {
 }
 
 export function normalizeMeetingDeliveryStatus(
-  status: Partial<MeetingDeliveryStatus> | null | undefined,
+  status: Partial<MeetingDeliveryStatus> | null | undefined
 ): MeetingDeliveryStatus {
   return {
     version: 1,
-    sendLog: Array.isArray(status?.sendLog) ? status.sendLog.filter(isSendLogEntry) : [],
+    sendLog: Array.isArray(status?.sendLog)
+      ? status.sendLog.filter(isSendLogEntry)
+      : [],
   };
 }
 
@@ -165,14 +182,18 @@ export function buildMeetingSendPreview(input: {
   return { items, missing };
 }
 
-export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<MeetingSendLogEntry[]> {
+export async function sendMeetingArtifacts(
+  deps: MeetingSendDeps
+): Promise<MeetingSendLogEntry[]> {
   if (isPersistedLocalOnly()) {
     throw new LocalOnlyExternalError('send meeting artifacts by email');
   }
   if (deps.preview.items.length === 0) return [];
 
   await requireSendFileAccess(`${deps.meetingDir}/meeting.json`, deps);
-  const raw = await deps.workspaceService.readFile(`${deps.meetingDir}/meeting.json`);
+  const raw = await deps.workspaceService.readFile(
+    `${deps.meetingDir}/meeting.json`
+  );
   await requireSendFileAccess(`${deps.meetingDir}/meeting.json`, deps);
   const base = JSON.parse(raw) as MeetingMeta;
   if (base.matterId !== deps.matterId) {
@@ -201,7 +222,9 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
     clientName: deps.clientName,
     t: deps.t,
   });
-  if (sendPreviewSignature(freshPreview) !== sendPreviewSignature(deps.preview)) {
+  if (
+    sendPreviewSignature(freshPreview) !== sendPreviewSignature(deps.preview)
+  ) {
     throw new Error(MEETING_SEND_REVIEW_AGAIN_MESSAGE);
   }
   if (deps.preview.items.length === 0) return [];
@@ -211,7 +234,9 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
   const entries: MeetingSendLogEntry[] = [];
 
   for (const item of deps.preview.items) {
-    const id = deps.idFactory?.() ?? `meeting_send_${String(Date.now())}_${Math.random().toString(36).slice(2, 9)}`;
+    const id =
+      deps.idFactory?.() ??
+      `meeting_send_${String(Date.now())}_${Math.random().toString(36).slice(2, 9)}`;
     try {
       const sourcePath = artifactSourcePath(item.artifact, deps.meetingDir);
       await requireSendFileAccess(sourcePath, deps);
@@ -229,7 +254,7 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
         item.subject,
         item.body,
         undefined,
-        [attachment],
+        [attachment]
       );
       const entry: MeetingSendLogEntry = {
         id,
@@ -244,7 +269,12 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
         ...(messageId ? { messageId } : {}),
       };
       entries.push(entry);
-      await logMeetingSendAudit(deps.audit, entry, deps.matterId, deps.meetingDir);
+      await logMeetingSendAudit(
+        deps.audit,
+        entry,
+        deps.matterId,
+        deps.meetingDir
+      );
     } catch (error) {
       if (error instanceof MeetingFileVisibilityRevokedError) throw error;
       const entry: MeetingSendLogEntry = {
@@ -260,11 +290,18 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
         error: error instanceof Error ? error.message : String(error),
       };
       entries.push(entry);
-      await logMeetingSendAudit(deps.audit, entry, deps.matterId, deps.meetingDir);
+      await logMeetingSendAudit(
+        deps.audit,
+        entry,
+        deps.matterId,
+        deps.meetingDir
+      );
     }
   }
 
-  const latestRaw = await deps.workspaceService.readFile(`${deps.meetingDir}/meeting.json`);
+  const latestRaw = await deps.workspaceService.readFile(
+    `${deps.meetingDir}/meeting.json`
+  );
   const latest = JSON.parse(latestRaw) as MeetingMeta;
   if (latest.matterId !== deps.matterId) {
     throw new Error('This meeting belongs to a different client.');
@@ -281,8 +318,8 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
         },
       },
       null,
-      2,
-    ),
+      2
+    )
   );
 
   return entries;
@@ -292,7 +329,7 @@ function requireSendFileAccess(
   path: string,
   deps: MeetingSendDeps
 ): Promise<void> {
-  return requireCurrentMeetingFileAccess({
+  return (deps.requireFileAccess ?? requireCurrentMeetingFileAccess)({
     path,
     workspace: deps.workspaceService,
     workspaceRoot: deps.workspaceRoot,
@@ -315,7 +352,10 @@ function artifactSourcePath(
   }
 }
 
-export function artifactLabelFor(artifact: MeetingArtifact, t: TFunction): string {
+export function artifactLabelFor(
+  artifact: MeetingArtifact,
+  t: TFunction
+): string {
   switch (artifact) {
     case 'notes':
       return t('meetings.entry.recipients.artifacts.notes.label');
@@ -344,29 +384,40 @@ function attachmentNameFor(artifact: MeetingArtifact, title: string): string {
 
 async function buildAttachment(
   item: MeetingSendPreviewItem,
-  deps: MeetingSendDeps,
+  deps: MeetingSendDeps
 ): Promise<MailAttachmentInput> {
   switch (item.artifact) {
     case 'audio':
       return {
         name: item.attachmentName,
         contentType: 'audio/wav',
-        contentBase64: arrayBufferToBase64(await deps.workspaceService.readFileBinary(`${deps.meetingDir}/audio.wav`)),
+        contentBase64: arrayBufferToBase64(
+          await deps.workspaceService.readFileBinary(
+            `${deps.meetingDir}/audio.wav`
+          )
+        ),
       };
     case 'notes':
       return {
         name: item.attachmentName,
         contentType: DOCX_TYPE,
-        contentBase64: arrayBufferToBase64(await deps.workspaceService.readFileBinary(`${deps.meetingDir}/notes.docx`)),
+        contentBase64: arrayBufferToBase64(
+          await deps.workspaceService.readFileBinary(
+            `${deps.meetingDir}/notes.docx`
+          )
+        ),
       };
     case 'transcript':
       return {
         name: item.attachmentName,
         contentType: 'text/plain; charset=utf-8',
-        contentBase64: textToBase64(deps.transcriptText ?? await readTranscriptText(deps)),
+        contentBase64: textToBase64(
+          deps.transcriptText ?? (await readTranscriptText(deps))
+        ),
       };
     case 'summary': {
-      if (!deps.buildSummaryDocxBytes) throw new Error('Summary is not ready yet.');
+      if (!deps.buildSummaryDocxBytes)
+        throw new Error('Summary is not ready yet.');
       return {
         name: item.attachmentName,
         contentType: DOCX_TYPE,
@@ -387,7 +438,7 @@ async function logMeetingSendAudit(
   audit: Pick<AuditService, 'logDurable'>,
   entry: MeetingSendLogEntry,
   matterId: string,
-  meetingDir: string,
+  meetingDir: string
 ): Promise<void> {
   await audit.logDurable(
     'email.send',
@@ -412,13 +463,13 @@ async function logMeetingSendAudit(
         ...(entry.messageId ? { messageId: entry.messageId } : {}),
         ...(entry.error ? { error: entry.error } : {}),
       },
-    },
+    }
   );
 }
 
 function sameRecipientArtifacts(
   a: Record<MeetingArtifact, MeetingRecipient[]>,
-  b: Record<MeetingArtifact, MeetingRecipient[]>,
+  b: Record<MeetingArtifact, MeetingRecipient[]>
 ): boolean {
   for (const artifact of MEETING_ARTIFACTS) {
     if (stableRecipientsKey(a[artifact]) !== stableRecipientsKey(b[artifact])) {
@@ -436,12 +487,14 @@ function stableRecipientsKey(recipients: MeetingRecipient[]): string {
 }
 
 function sanitizeFileStem(value: string): string {
-  return value
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, '-')
-    .replace(/\s+/g, ' ')
-    .slice(0, 80)
-    .replace(/[.\s-]+$/g, '') || 'meeting';
+  return (
+    value
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .replace(/\s+/g, ' ')
+      .slice(0, 80)
+      .replace(/[.\s-]+$/g, '') || 'meeting'
+  );
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -476,10 +529,15 @@ function isSendLogEntry(value: unknown): value is MeetingSendLogEntry {
   );
 }
 
-export function meetingSendLogSummary(meta: MeetingMeta | null): MeetingSendLogEntry[] {
+export function meetingSendLogSummary(
+  meta: MeetingMeta | null
+): MeetingSendLogEntry[] {
   return normalizeMeetingDeliveryStatus(meta?.deliveryStatus).sendLog;
 }
 
-export function meetingSendTitle(meta: MeetingMeta | null, t: TFunction): string {
+export function meetingSendTitle(
+  meta: MeetingMeta | null,
+  t: TFunction
+): string {
   return meetingDisplayTitle(meta, t);
 }
