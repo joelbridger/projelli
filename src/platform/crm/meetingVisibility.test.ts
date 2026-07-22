@@ -2,7 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import type { LiveCrmRecord } from './liveRecords';
-import { filterLiveCrmRecordsByMeetingVisibility } from './meetingVisibility';
+import {
+  filterLiveCrmRecordsByMeetingVisibility,
+  visibleLiveCrmRecordIds,
+} from './meetingVisibility';
+import {
+  derivedMeetingVisibility,
+  meetingVisibilityParentForRecord,
+  meetingVisibilityRoot,
+} from '@/platform/meeting-visibility';
+import { mergeCrmTaskRecord } from '@/features/crm-home/shared/liveTaskAdapter';
+import {
+  createMeetingWorkflowProposal,
+  createTemplate,
+  startWorkflow,
+} from '@/features/crm-home/workflowLive';
 import {
   MEETING_VISIBILITY_MIGRATION_FIELD,
   MEETING_VISIBILITY_MIGRATION_VERSION,
@@ -57,6 +71,71 @@ const idsFor = (
   filterLiveCrmRecordsByMeetingVisibility(records, viewerId).map(
     (record) => record.id
   );
+
+function realNestedWriterRecords() {
+  const root = meetingVisibilityRoot(meeting);
+  if (!root) throw new Error('fixture meeting root is invalid');
+  const nestedArtifact: LiveCrmRecord = {
+    id: 'nested-artifact',
+    kind: 'meeting_artifact',
+    matterId: 'matter-1',
+    meetingVisibility: derivedMeetingVisibility(
+      'meeting-artifact',
+      'nested-artifact',
+      root
+    ),
+  };
+  const nestedTask = mergeCrmTaskRecord(
+    {
+      id: 'nested-task',
+      title: 'Private follow-up',
+      assigneeUserId: 'owner-advisor',
+      status: 'open',
+      priority: 'normal',
+      tagIds: [],
+    },
+    undefined,
+    'matter-1',
+    nestedArtifact
+  );
+  const taskParent = meetingVisibilityParentForRecord(nestedTask);
+  if (!taskParent) throw new Error('fixture task parent is invalid');
+  const nestedActivity: LiveCrmRecord = {
+    id: 'nested-activity',
+    kind: 'activityEvent',
+    matterId: 'matter-1',
+    verb: 'task.created',
+    summary: 'Created private follow-up',
+    meetingVisibility: derivedMeetingVisibility(
+      'activity',
+      'nested-activity',
+      taskParent
+    ),
+  };
+  const template = createTemplate('Private service', ['Follow up']);
+  const nestedProposal = createMeetingWorkflowProposal(
+    nestedActivity,
+    template,
+    { id: 'household-1', matterId: 'matter-1', label: 'River household' }
+  );
+  const proposalParent = meetingVisibilityParentForRecord(nestedProposal);
+  if (!proposalParent) throw new Error('fixture proposal parent is invalid');
+  const nestedWorkflow = startWorkflow(
+    template,
+    { id: 'household-1', matterId: 'matter-1', label: 'River household' },
+    { id: 'nested-workflow', visibilityParent: proposalParent }
+  );
+  return [
+    preferences,
+    meeting,
+    nestedArtifact,
+    nestedTask,
+    nestedActivity,
+    nestedProposal,
+    nestedWorkflow,
+    legacy,
+  ] as const;
+}
 
 describe('CRM meeting visibility boundary', () => {
   const records = [preferences, meeting, artifact, task, legacy];
@@ -116,6 +195,72 @@ describe('CRM meeting visibility boundary', () => {
     expect(
       idsFor([preferences, meeting, unrelated], 'excluded-advisor')
     ).toEqual([unrelated.id]);
+  });
+
+  it.each(['owner-advisor', 'included-advisor'])(
+    'shows nested-only records made by the real task and workflow writers to %s',
+    (viewerId) => {
+      const records = realNestedWriterRecords();
+      expect(idsFor(records, viewerId)).toEqual(
+        records
+          .filter((record) => record.kind !== 'meeting_foundation_preferences')
+          .map((record) => record.id)
+      );
+    }
+  );
+
+  it('removes all real nested descendants from search and Ask allow IDs after exclusion or revocation', () => {
+    const records = realNestedWriterRecords();
+    const privateIds = records
+      .filter((record) => record !== preferences && record !== legacy)
+      .map((record) => record.id);
+    expect(visibleLiveCrmRecordIds(records, 'excluded-advisor')).toEqual([
+      legacy.id,
+    ]);
+    const revoked = records.map((record) =>
+      record === preferences
+        ? {
+            ...record,
+            visibilityPolicies: [{
+              id: 'private-meeting',
+              mode: 'explicit-review',
+              includedMemberIds: [],
+              excludedMemberIds: [],
+            }],
+          }
+        : record
+    );
+    const revokedAllowIds = visibleLiveCrmRecordIds(
+      revoked as readonly LiveCrmRecord[],
+      'included-advisor'
+    );
+    expect(revokedAllowIds).toEqual([legacy.id]);
+    expect(revokedAllowIds).not.toEqual(expect.arrayContaining(privateIds));
+  });
+
+  it('fails closed for malformed or conflicting nested visibility instead of treating it as legacy', () => {
+    const records = realNestedWriterRecords();
+    const nestedTask = records.find((record) => record.id === 'nested-task');
+    if (!nestedTask) throw new Error('missing nested task fixture');
+    const malformed = {
+      ...nestedTask,
+      id: 'malformed-nested-task',
+      meetingVisibility: {
+        ...(nestedTask['meetingVisibility'] as Record<string, unknown>),
+        id: ' malformed-nested-task ',
+      },
+    };
+    const conflicting = {
+      ...nestedTask,
+      id: 'conflicting-nested-task',
+      meetingId: 'different-meeting',
+      meetingVisibility: {
+        ...(nestedTask['meetingVisibility'] as Record<string, unknown>),
+        id: 'conflicting-nested-task',
+      },
+    };
+    expect(idsFor([...records, malformed, conflicting], 'owner-advisor'))
+      .not.toEqual(expect.arrayContaining([malformed.id, conflicting.id]));
   });
 
   it('keeps a complete old unrestricted meeting chain usable only by explicit legacy classification', () => {

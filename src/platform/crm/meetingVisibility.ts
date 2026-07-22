@@ -1,4 +1,6 @@
 import {
+  MEETING_VISIBILITY_FIELD,
+  meetingVisibilitySubject,
   resolveMeetingVisibility,
   type MeetingVisibilitySubject,
   type MeetingVisibilitySubjectKind,
@@ -38,7 +40,19 @@ function visibilityKind(record: LiveCrmRecord): MeetingVisibilitySubjectKind {
   if (record.kind === 'task') return 'task';
   if (record.kind === 'proposalRecord') return 'proposal';
   if (record.kind.startsWith('activity')) return 'activity';
+  if (record.kind === 'crm_workflow_instance') return 'workflow';
   return 'file-reference';
+}
+
+function storedVisibilityKind(
+  record: LiveCrmRecord
+): Exclude<MeetingVisibilitySubjectKind, 'meeting-note'> | null {
+  if (record.kind.startsWith('meeting_artifact')) return 'meeting-artifact';
+  if (record.kind === 'task') return 'task';
+  if (record.kind === 'proposalRecord') return 'proposal';
+  if (record.kind.startsWith('activity')) return 'activity';
+  if (record.kind === 'crm_workflow_instance') return 'workflow';
+  return null;
 }
 
 function normalizedRef(value: unknown): MeetingVisibilitySubjectRef | null {
@@ -54,6 +68,40 @@ function normalizedRef(value: unknown): MeetingVisibilitySubjectRef | null {
     return { kind: 'meeting-artifact', id };
   }
   return null;
+}
+
+function normalizedParentRef(value: unknown): MeetingVisibilitySubjectRef | null {
+  const legacy = normalizedRef(value);
+  if (legacy) return legacy;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  const id = exactId(candidate['id']);
+  const kind = candidate['kind'];
+  if (!id) return null;
+  return kind === 'task' || kind === 'activity' || kind === 'proposal' ||
+    kind === 'workflow' || kind === 'file-reference'
+    ? { kind, id }
+    : null;
+}
+
+function hasParentMarkerValue(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const kind = (value as Record<string, unknown>)['kind'];
+  return kind === 'meeting' || kind === 'meeting-note' ||
+    kind === 'meeting_artifact' || kind === 'meeting-artifact';
+}
+
+function hasTopLevelParentMarker(record: LiveCrmRecord): boolean {
+  if (
+    owns(record, 'meetingId') ||
+    owns(record, 'meetingArtifactId') ||
+    owns(record, 'artifactId') ||
+    owns(record, 'parentRef')
+  ) return true;
+  return ['contextRefs', 'links'].some((key) => {
+    const values = record[key];
+    return Array.isArray(values) && values.some(hasParentMarkerValue);
+  });
 }
 
 function exactParentRefs(
@@ -83,6 +131,7 @@ function exactParentRefs(
     const artifactId = exactId(record['meetingArtifactId']);
     if (meetingId) add({ kind: 'meeting-note', id: meetingId });
     if (artifactId) add({ kind: 'meeting-artifact', id: artifactId });
+    if (owns(record, 'parentRef')) add(normalizedParentRef(record['parentRef']));
     for (const key of ['contextRefs', 'links'] as const) {
       const values = record[key];
       if (Array.isArray(values))
@@ -95,14 +144,22 @@ function exactParentRefs(
 }
 
 function hasMeetingLineageMarker(record: LiveCrmRecord): boolean {
+  const source = record['source'];
+  const origin = source && typeof source === 'object' && !Array.isArray(source)
+    ? (source as Record<string, unknown>)['origin']
+    : undefined;
+  const verb = record['verb'];
   if (record.kind.startsWith('meeting_artifact')) return true;
   if (
+    owns(record, MEETING_VISIBILITY_FIELD) ||
     owns(record, 'meetingId') ||
     owns(record, 'meetingArtifactId') ||
     owns(record, 'artifactId') ||
     owns(record, 'parentRef') ||
     owns(record, 'visibilityPolicyId')
   ) return true;
+  if (origin === 'meeting') return true;
+  if (typeof verb === 'string' && verb.startsWith('meeting.')) return true;
   return ['contextRefs', 'links'].some((key) => {
     const values = record[key];
     return Array.isArray(values) && values.some((value) => {
@@ -112,6 +169,54 @@ function hasMeetingLineageMarker(record: LiveCrmRecord): boolean {
         kind === 'meeting_artifact' || kind === 'meeting-artifact';
     });
   });
+}
+
+function malformedSubject(): MeetingVisibilitySubject {
+  return {
+    id: '',
+    kind: 'file-reference',
+    lineage: 'derived',
+    parentRef: { kind: 'meeting-note', id: '' },
+  };
+}
+
+/**
+ * New writers persist one canonical nested subject. If that field is present,
+ * it is authoritative: malformed data or a conflicting older marker must not
+ * fall back to the legacy-unrestricted path.
+ */
+function storedSubject(record: LiveCrmRecord): MeetingVisibilitySubject | undefined {
+  if (!owns(record, MEETING_VISIBILITY_FIELD)) return undefined;
+  const kind = storedVisibilityKind(record);
+  if (!kind) return malformedSubject();
+  const subject = meetingVisibilitySubject(record, kind);
+  if (!subject) return malformedSubject();
+
+  for (const key of ['ownerRef', 'visibilityPolicyId'] as const) {
+    if (
+      owns(record, key) &&
+      (typeof record[key] !== 'string' || record[key] !== subject[key])
+    ) return malformedSubject();
+  }
+  if (owns(record, MEETING_VISIBILITY_LINEAGE_FIELD)) {
+    if (
+      subject.lineage !== 'legacy-unrestricted' ||
+      record[MEETING_VISIBILITY_LINEAGE_FIELD] !==
+        MEETING_VISIBILITY_LEGACY_VALUE
+    ) return malformedSubject();
+  }
+
+  if (hasTopLevelParentMarker(record)) {
+    const refs = exactParentRefs(record);
+    if (
+      subject.lineage !== 'derived' ||
+      refs.length !== 1 ||
+      !subject.parentRef ||
+      refs[0]?.kind !== subject.parentRef.kind ||
+      refs[0]?.id !== subject.parentRef.id
+    ) return malformedSubject();
+  }
+  return subject;
 }
 
 export function isMeetingVisibilityControlRecord(
@@ -185,6 +290,8 @@ function subjectForRecord(
   record: LiveCrmRecord,
   recordsByRef: ReadonlyMap<string, LiveCrmRecord>
 ): MeetingVisibilitySubject {
+  const stored = storedSubject(record);
+  if (stored) return stored;
   const state = lineageState(record, recordsByRef);
   if (state === 'legacy') return legacySubject(record);
 

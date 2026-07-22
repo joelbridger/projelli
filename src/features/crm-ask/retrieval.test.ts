@@ -16,6 +16,8 @@ import {
   parseCrmCitationPath,
   retrieveCrmAskHits,
 } from './retrieval';
+import { filterLiveCrmRecordsByMeetingVisibility } from '@/platform/crm/meetingVisibility';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 describe('CRM Ask retrieval', () => {
   beforeEach(() => {
@@ -109,6 +111,55 @@ describe('CRM Ask retrieval', () => {
       '/tmp/lantern', 'private', 'household-a',
       ['meeting-private', 'private-note'],
     );
+  });
+
+  it('keeps nested private CRM rows out of Ask allowed IDs and returned citations', async () => {
+    const records: readonly LiveCrmRecord[] = [
+      {
+        id: 'preferences', kind: 'meeting_foundation_preferences',
+        visibilityPolicies: [{
+          id: 'private-policy', mode: 'explicit-review', includedMemberIds: [],
+          excludedMemberIds: ['advisor-excluded'],
+        }],
+      },
+      {
+        id: 'meeting-private', kind: 'meeting', matterId: 'household-a',
+        ownerRef: 'advisor-owner', visibilityPolicyId: 'private-policy',
+      },
+      {
+        id: 'workflow-private', kind: 'crm_workflow_instance', matterId: 'household-a',
+        meetingVisibility: {
+          kind: 'workflow', id: 'workflow-private', lineage: 'derived',
+          parentRef: { kind: 'meeting-note', id: 'meeting-private' },
+        },
+      },
+      { id: 'task-public', kind: 'task', matterId: 'household-a', title: 'Public task' },
+    ];
+    firmState.viewerId = 'advisor-excluded';
+    loadVisibleCrmRecordsForViewer.mockImplementation((_root, viewerId) =>
+      Promise.resolve(filterLiveCrmRecordsByMeetingVisibility(records, viewerId))
+    );
+    searchCrmRecords.mockResolvedValue([
+      {
+        entityId: 'workflow-private', entityKind: 'workflowInstance',
+        matterId: 'household-a', title: 'Private workflow', snippet: 'Secret',
+        content: '{"name":"Secret workflow"}',
+      },
+      {
+        entityId: 'task-public', entityKind: 'task', matterId: 'household-a',
+        title: 'Public task', snippet: 'Public', content: '{"title":"Public task"}',
+      },
+    ]);
+
+    const hits = await retrieveCrmAskHits(
+      '/tmp/lantern', 'workflow', 'household-a'
+    );
+
+    expect(searchCrmRecords).toHaveBeenCalledWith(
+      '/tmp/lantern', 'workflow', 'household-a', ['task-public']
+    );
+    expect(hits.map((hit) => hit.path)).toEqual(['crm:task:task-public']);
+    expect(JSON.stringify(hits)).not.toContain('Secret workflow');
   });
 
   it('fails soft when the encrypted CRM store cannot be opened', async () => {
