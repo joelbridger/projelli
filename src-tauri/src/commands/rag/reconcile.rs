@@ -429,10 +429,11 @@ pub(crate) async fn run_workspace_index(
     // the text/office portion from scratch); a Reconcile loads the durable one. A
     // missing/corrupt manifest loads empty → every file looks new → we re-index
     // everything (correct, just not faster).
+    let durable_manifest = manifest::load(&workspace, store::INDEX_VERSION);
     let mut manifest = if effective_full {
         manifest::Manifest::new(store::INDEX_VERSION)
     } else {
-        manifest::load(&workspace, store::INDEX_VERSION)
+        durable_manifest.clone()
     };
     manifest.index_version = store::INDEX_VERSION;
 
@@ -455,6 +456,7 @@ pub(crate) async fn run_workspace_index(
         file: PathBuf,
         matter: String,
         privilege: String,
+        meeting_derived: bool,
     }
     let mut work: Vec<WorkItem> = Vec::new();
     let mut reused: u32 = 0;
@@ -483,6 +485,12 @@ pub(crate) async fn run_workspace_index(
                 std::collections::HashMap::new()
             })
         };
+    // The row-level source type is a second durable privacy receipt. It repairs
+    // a missing/corrupt freshness manifest instead of allowing a full walk to
+    // downgrade a previously protected meeting file to ordinary text.
+    let meeting_source_tokens = store::meeting_source_tokens(&table)
+        .await
+        .map_err(|e| format!("read durable meeting provenance before reconcile: {e:#}"))?;
 
     for file in &all_files {
         if effective_full {
@@ -494,6 +502,13 @@ pub(crate) async fn run_workspace_index(
                 file: file.clone(),
                 matter: matter.clone(),
                 privilege: store::PRIVILEGE_NONE.to_string(),
+                meeting_derived: {
+                    let token = crypto::path_token(&key, &file.to_string_lossy());
+                    durable_manifest
+                        .get(&token)
+                        .is_some_and(|entry| entry.meeting_derived)
+                        || meeting_source_tokens.contains(&token)
+                },
             });
             continue;
         }
@@ -511,7 +526,10 @@ pub(crate) async fn run_workspace_index(
         ) {
             manifest::FileDecision::Skip => match manifest.get(&token) {
                 Some(entry) if reconcile_skip_is_row_backed(entry, &token, &scoped_counts) => {
-                    next_sources.insert(token, entry.clone());
+                    let mut retained = entry.clone();
+                    retained.meeting_derived = retained.meeting_derived
+                        || meeting_source_tokens.contains(&token);
+                    next_sources.insert(token, retained);
                     reused += 1;
                 }
                 Some(entry) => {
@@ -522,6 +540,8 @@ pub(crate) async fn run_workspace_index(
                         file: file.clone(),
                         matter: entry.matter_id.clone(),
                         privilege: entry.privilege.clone(),
+                        meeting_derived: entry.meeting_derived
+                            || meeting_source_tokens.contains(&token),
                     });
                 }
                 None => {
@@ -531,6 +551,7 @@ pub(crate) async fn run_workspace_index(
                         file: file.clone(),
                         matter: store::UNASSIGNED_MATTER.to_string(),
                         privilege: store::PRIVILEGE_NONE.to_string(),
+                        meeting_derived: meeting_source_tokens.contains(&token),
                     });
                 }
             },
@@ -541,7 +562,15 @@ pub(crate) async fn run_workspace_index(
                         store::PRIVILEGE_NONE.to_string(),
                     )
                 });
-                work.push(WorkItem { file: file.clone(), matter: m, privilege: p });
+                work.push(WorkItem {
+                    file: file.clone(),
+                    matter: m,
+                    privilege: p,
+                    meeting_derived: manifest
+                        .get(&token)
+                        .is_some_and(|entry| entry.meeting_derived)
+                        || meeting_source_tokens.contains(&token),
+                });
             }
         }
     }
@@ -708,6 +737,7 @@ pub(crate) async fn run_workspace_index(
             &item.file,
             &item.matter,
             &item.privilege,
+            item.meeting_derived,
             &key,
             vault_vmk,
             &cancel,
@@ -723,9 +753,20 @@ pub(crate) async fn run_workspace_index(
             FileProcess::Recorded(rc) => {
                 reindexed += 1;
                 if let Some(sig) =
-                    text_source_signature(&item.file, &item.matter, &item.privilege, rc)
+                    text_source_signature(
+                        &item.file,
+                        &item.matter,
+                        &item.privilege,
+                        rc,
+                        item.meeting_derived || exact_meeting_manifest_names_file(&item.file),
+                    )
                 {
                     next_sources.insert(token, sig);
+                }
+            }
+            FileProcess::ProtectedMeetingMissingManifest => {
+                if let Some(signature) = durable_manifest.get(&token) {
+                    next_sources.insert(token, signature.clone());
                 }
             }
             FileProcess::NotRecorded => {
@@ -832,6 +873,7 @@ mod flood_proofing_tests {
             pdf: None,
             matter_id: "unassigned".into(),
             privilege: "none".into(),
+            meeting_derived: false,
             row_count: 3,
             indexed_at: 0,
         }
@@ -1047,6 +1089,7 @@ mod qa92_tests {
             pdf: None,
             matter_id: matter.to_string(),
             privilege: privilege.to_string(),
+            meeting_derived: false,
             row_count,
             indexed_at: 0,
         }
