@@ -251,10 +251,10 @@ test('renderer readiness is sticky across repeated calls with and without progre
         healthRequest: async () => { healthCalls += 1; },
         readinessEvaluate: async () => {
           evalCalls += 1;
-          return { hasTauriInvoke: true, readyState: 'complete' };
+          return { hasTauriInvoke: true, readyState: 'complete', rootHasChildren: true };
         },
         publishProgress: report,
-        readinessTimeoutMs: 1_000,
+        readinessTimeoutMs: 1_200,
       });
       await waitForRenderer();
       await waitForRenderer();
@@ -266,6 +266,39 @@ test('renderer readiness is sticky across repeated calls with and without progre
       await rm(root, { recursive: true, force: true });
     }
   }
+});
+
+test('renderer readiness gets its full post-health deadline and never accepts an empty React root', async () => {
+  let now = 0;
+  const healthDeadlines = [];
+  const readinessCalls = [];
+  const waitForRenderer = createRendererReadiness({
+    healthRequest: async (deadlineMs) => {
+      healthDeadlines.push(deadlineMs);
+      now += 1_500;
+    },
+    readinessEvaluate: async (deadlineMs, operationTimeoutMs) => {
+      readinessCalls.push({ deadlineMs, operationTimeoutMs });
+      if (readinessCalls.length === 1) {
+        now += 2_500;
+        return { hasTauriInvoke: true, readyState: 'interactive', rootHasChildren: false };
+      }
+      return { hasTauriInvoke: true, readyState: 'complete', rootHasChildren: true };
+    },
+    healthTimeoutMs: 2_000,
+    readinessTimeoutMs: 4_000,
+    now: () => now,
+    pause: async (milliseconds) => { now += milliseconds; },
+  });
+
+  await waitForRenderer();
+
+  assert.deepEqual(healthDeadlines, [2_000]);
+  assert.deepEqual(readinessCalls, [
+    { deadlineMs: 5_500, operationTimeoutMs: 2_000 },
+    { deadlineMs: 5_500, operationTimeoutMs: 400 },
+  ]);
+  assert.ok(readinessCalls.every(({ operationTimeoutMs }) => operationTimeoutMs >= 100));
 });
 
 async function writeExecutable(target, source) {
@@ -380,6 +413,7 @@ test('readiness uses one absolute deadline so its final bridge poll cannot exten
     assert.ok(failure);
     assert.ok(Date.now() - startedAt < 3_000, 'last readiness poll extended beyond the absolute deadline');
     assert.ok(evalRequests <= 2, `unexpected readiness retry after deadline: ${evalRequests}`);
+    assert.doesNotMatch(String(failure.stderr), /bound=0ms/, 'readiness dispatched a bridge request without a usable budget');
     assert.equal(String(failure.stderr).includes('Private Client Query'), false);
   } finally {
     for (const socket of sockets) socket.destroy();
