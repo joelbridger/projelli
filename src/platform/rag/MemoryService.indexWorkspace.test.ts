@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { reconcileWorkspace, setWorkspaceNative } = vi.hoisted(() => ({
   reconcileWorkspace: vi.fn<() => Promise<void>>(),
@@ -15,7 +15,11 @@ vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
   };
 });
 
-import { MemoryService } from '@/platform/rag/MemoryService';
+import {
+  MemoryService,
+  resetMeetingFileVisibilityResolver,
+  setMeetingFileVisibilityResolver,
+} from '@/platform/rag/MemoryService';
 
 function deferred(): {
   promise: Promise<void>;
@@ -32,6 +36,13 @@ describe('MemoryService.indexWorkspace startup coalescing', () => {
   beforeEach(() => {
     reconcileWorkspace.mockReset();
     setWorkspaceNative.mockClear();
+    setMeetingFileVisibilityResolver((paths) =>
+      Promise.resolve(new Map(paths.map((path) => [path, 'not-meeting'] as const)))
+    );
+  });
+
+  afterEach(() => {
+    resetMeetingFileVisibilityResolver();
   });
 
   it('makes every overlapping caller wait for the same durable reconcile', async () => {

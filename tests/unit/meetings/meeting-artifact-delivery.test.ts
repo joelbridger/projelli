@@ -4,7 +4,8 @@ import {
   buildMeetingSendPreview,
   MEETING_SEND_REVIEW_AGAIN_MESSAGE,
   MEETING_SEND_NOT_REVIEWED_MESSAGE,
-  sendMeetingArtifacts,
+  sendMeetingArtifacts as sendMeetingArtifactsRaw,
+  type MeetingSendDeps,
   type MeetingDeliveryStatus,
   type MeetingArtifactAvailability,
   type MeetingSendPreview,
@@ -13,6 +14,21 @@ import { emptyMeetingRecipientArtifacts, type MeetingDeliveryPlan } from '@/feat
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
 import type { AuditService } from '@/platform/audit/AuditService';
 import type { ConnectedAccount, MailAttachmentInput } from '@/platform/utils/mail-commands';
+import { MeetingFileVisibilityRevokedError } from '@/features/meetings/meetingFileVisibility';
+
+const { requireAccessMock } = vi.hoisted(() => ({
+  requireAccessMock: vi.fn<(input: { path: string }) => Promise<void>>(),
+}));
+
+vi.mock('@/features/meetings/meetingFileVisibility', async (importOriginal) => {
+  const original = await importOriginal<
+    typeof import('@/features/meetings/meetingFileVisibility')
+  >();
+  return {
+    ...original,
+    requireCurrentMeetingFileAccess: requireAccessMock,
+  };
+});
 
 vi.mock('@/platform/privacy/localOnlyGuard', () => ({
   isPersistedLocalOnly: vi.fn(() => false),
@@ -25,6 +41,16 @@ vi.mock('@/platform/privacy/localOnlyGuard', () => ({
 }));
 
 const NOW = '2026-07-07T12:00:00.000Z';
+
+function sendMeetingArtifacts(
+  deps: Omit<MeetingSendDeps, 'workspaceRoot' | 'workspaceGeneration'>
+) {
+  return sendMeetingArtifactsRaw({
+    ...deps,
+    workspaceRoot: '/client',
+    workspaceGeneration: 1,
+  });
+}
 
 type TestMailSend = (
   provider: string,
@@ -90,6 +116,14 @@ function unreviewedMeta(): MeetingMeta {
   return rest as MeetingMeta;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 
 function makeWs(initial: MeetingMeta) {
   const files = new Map<string, string | ArrayBuffer>();
@@ -116,6 +150,10 @@ function makeWs(initial: MeetingMeta) {
     },
   };
 }
+
+beforeEach(() => {
+  requireAccessMock.mockReset().mockResolvedValue(undefined);
+});
 
 const fullAvailability: MeetingArtifactAvailability = buildMeetingArtifactAvailability({
   hasAudio: true,
@@ -284,6 +322,72 @@ describe('meeting artifact delivery', () => {
       recipientCount: 1,
     });
     expect(JSON.stringify(firstAuditOptions.metadata)).not.toContain('client@example.com');
+  });
+
+  it('stops before e-mail when exact-file access is revoked while an attachment is being built', async () => {
+    const original = meta({
+      deliveryPlan: {
+        version: 1,
+        updatedAt: NOW,
+        artifacts: {
+          ...emptyMeetingRecipientArtifacts(),
+          summary: [
+            { email: 'client@example.com', name: 'Client', source: 'manual' },
+          ],
+        },
+      },
+    });
+    const { ws } = makeWs(original);
+    const availability = buildMeetingArtifactAvailability({
+      hasAudio: false,
+      hasTranscript: false,
+      hasNotes: true,
+      summaryReady: true,
+    });
+    const preview = buildMeetingSendPreview({
+      meta: original,
+      availability,
+      title: 'Annual review',
+      clientName: 'Hendricks',
+      t: t as never,
+    });
+    const attachment = deferred<Uint8Array>();
+    const attachmentStarted = deferred<void>();
+    let revoked = false;
+    requireAccessMock.mockImplementation(async () => {
+      if (revoked) throw new MeetingFileVisibilityRevokedError();
+    });
+    const sendMail = vi.fn<TestMailSend>(async () => 'must-not-send');
+
+    const pending = sendMeetingArtifacts({
+      workspaceService: ws,
+      meetingDir: '/client/Meetings/one',
+      matterId: 'matter-1',
+      meta: original,
+      account,
+      preview,
+      availability,
+      clientName: 'Hendricks',
+      t: t as never,
+      buildSummaryDocxBytes: async () => {
+        attachmentStarted.resolve();
+        return attachment.promise;
+      },
+      audit: { logDurable: vi.fn() } as never,
+      sendMail: sendMail as never,
+    });
+
+    await attachmentStarted.promise;
+    revoked = true;
+    attachment.resolve(new Uint8Array([7, 8, 9]));
+
+    await expect(pending).rejects.toBeInstanceOf(
+      MeetingFileVisibilityRevokedError
+    );
+    expect(sendMail).not.toHaveBeenCalled();
+    expect(requireAccessMock.mock.calls.map(([input]) => input.path)).toContain(
+      '/client/Meetings/one/notes.docx'
+    );
   });
 
   it('refuses to write a send log for a meeting from another client', async () => {

@@ -250,9 +250,9 @@ describe('meeting store', () => {
     await useMeetingStore.getState().stopRecording();
     const metaWrite = writeFileMock.mock.calls.find((c) => (c[0] as string).endsWith('meeting.json'));
     const written = JSON.parse(metaWrite?.[1] as string) as typeof rustWritten;
-    expect(written.startedAt).toBe('2026-07-02T17:00:00Z');
-    expect(written.consent).toEqual(rustWritten.consent);
-    expect(written.matterId).toBe('m-1');
+    expect(written['startedAt']).toBe('2026-07-02T17:00:00Z');
+    expect(written['consent']).toEqual(rustWritten['consent']);
+    expect(written['matterId']).toBe('m-1');
   });
 
   // 2026-07-04 UX review S1 (coordinator codex pass): processing is a JOB

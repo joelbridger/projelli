@@ -1,5 +1,6 @@
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { loadLiveCrmRecords } from '@/platform/crm/liveRecords';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import {
   resolveMeetingVisibility,
   type MeetingVisibilityPolicy,
@@ -38,6 +39,13 @@ export type MeetingFileVisibilityResult =
   | { readonly kind: 'not-meeting' }
   | { readonly kind: 'visible' }
   | { readonly kind: 'hidden' };
+
+export class MeetingFileVisibilityRevokedError extends Error {
+  constructor() {
+    super('Access to this meeting file changed. Nothing was sent or opened.');
+    this.name = 'MeetingFileVisibilityRevokedError';
+  }
+}
 
 export const FILE_MEETING_OWNER_PRIVATE_POLICY_ID =
   'meeting-file-visibility:owner-private';
@@ -203,6 +211,64 @@ export async function readCurrentMeetingFileVisibilityContext(
     viewerId: readCurrentMeetingViewerId(),
     policies: [FILE_MEETING_OWNER_PRIVATE_POLICY, ...persisted],
   };
+}
+
+function requireCurrentWorkspace(
+  workspaceRoot: string,
+  workspaceGeneration: number
+): void {
+  const current = useWorkspaceStore.getState();
+  if (
+    current.rootGeneration !== workspaceGeneration ||
+    normalizedPath(current.rootPath ?? '') !== normalizedPath(workspaceRoot)
+  ) {
+    throw new MeetingFileVisibilityRevokedError();
+  }
+}
+
+/**
+ * Re-authorize one exact meeting file at the last safe moment before a caller
+ * reads, renders, attaches, or sends it. The file manifest is read first; then
+ * the current viewer and persisted policies are loaded. No awaited work occurs
+ * after the final workspace check and visibility decision, so callers cannot
+ * accidentally rely on the viewer or policy snapshot from when a panel opened.
+ */
+export async function requireCurrentMeetingFileAccess(input: {
+  readonly path: string;
+  readonly workspace: MeetingVisibilityWorkspace;
+  readonly workspaceRoot: string;
+  readonly workspaceGeneration: number;
+}): Promise<void> {
+  requireCurrentWorkspace(input.workspaceRoot, input.workspaceGeneration);
+  const split = splitFilePath(input.path);
+  if (!split) throw new MeetingFileVisibilityRevokedError();
+  const meetingJsonPath =
+    split.name === 'meeting.json'
+      ? normalizedPath(input.path)
+      : `${split.dir}/meeting.json`;
+
+  let manifest: MeetingFileVisibilityManifest | null = null;
+  try {
+    manifest = manifestFromMeta(
+      JSON.parse(await input.workspace.readFile(meetingJsonPath))
+    );
+  } catch {
+    throw new MeetingFileVisibilityRevokedError();
+  }
+  const context = await readCurrentMeetingFileVisibilityContext(
+    input.workspaceRoot
+  );
+  requireCurrentWorkspace(input.workspaceRoot, input.workspaceGeneration);
+  if (
+    !manifest ||
+    !decideMeetingFileVisibility({
+      manifest,
+      fileName: split.name,
+      context,
+    })
+  ) {
+    throw new MeetingFileVisibilityRevokedError();
+  }
 }
 
 function randomMeetingSubjectId(): string {
@@ -453,7 +519,11 @@ export async function migrateLegacyMeetingFileVisibility(input: {
             lastError = error;
           }
         }
-        if (lastError) throw lastError;
+        if (lastError) {
+          throw lastError instanceof Error
+            ? lastError
+            : new Error('Meeting visibility scan failed.');
+        }
       }
     } catch {
       // A transient scan failure cannot be committed as a completed migration.

@@ -1,11 +1,75 @@
-import { describe, expect, it } from 'vitest';
+import '@/i18n';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import type { AskTurn } from './askHelpers';
+import { SK_ASK_FILES_ONLY } from '@/config/identity';
+
+const {
+  buildResolvedAskProviderMock,
+  retrieveMock,
+  visibilityState,
+} = vi.hoisted(() => ({
+  buildResolvedAskProviderMock: vi.fn<() => Promise<unknown>>(),
+  retrieveMock: vi.fn<(...args: unknown[]) => Promise<RagHit[]>>(),
+  visibilityState: { allowed: true },
+}));
+
+vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
+  const original = await importOriginal<
+    typeof import('@/platform/rag/MemoryService')
+  >();
+  return {
+    ...original,
+    isMemoryEnabled: () => true,
+    MemoryService: {
+      ...original.MemoryService,
+      retrieve: (...args: unknown[]): Promise<RagHit[]> => retrieveMock(...args),
+      filterMeetingFileVisibilityHits: (hits: readonly RagHit[]) =>
+        Promise.resolve(visibilityState.allowed ? [...hits] : []),
+    },
+  };
+});
+
+vi.mock('./askHelpers', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./askHelpers')>();
+  return {
+    ...original,
+    buildResolvedAskProvider: (): Promise<unknown> =>
+      buildResolvedAskProviderMock(),
+  };
+});
+
+vi.mock('./useStillImporting', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./useStillImporting')>();
+  return { ...original, useStillImporting: () => 'idle' as const };
+});
 import {
   filterAskMeetingVisibilityHits,
   filterPersistedAskMessagesForMeetingVisibility,
   filterPersistedAskTurnsForMeetingVisibility,
+  useAsk,
 } from './useAsk';
+import { useAIChatStore } from '@/platform/state/aiChatStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem(SK_ASK_FILES_ONLY, '0');
+  useAIChatStore.getState().clearAllSessions();
+  useFirmStore.setState({ session: null });
+  visibilityState.allowed = true;
+  retrieveMock.mockReset();
+  buildResolvedAskProviderMock.mockReset();
+});
 
 function hit(path: string, text: string): RagHit {
   return {
@@ -27,7 +91,10 @@ describe('Ask meeting visibility backstop', () => {
     const visible = hit('/ws/client/tax.pdf', 'public tax fact');
     const filtered = await filterAskMeetingVisibilityHits(
       [hidden, visible],
-      async (hits) => hits.filter((candidate) => candidate.path !== hidden.path)
+      (hits) =>
+        Promise.resolve(
+          hits.filter((candidate) => candidate.path !== hidden.path)
+        )
     );
 
     expect(filtered.map((candidate) => candidate.chunkText)).toEqual([
@@ -64,7 +131,7 @@ describe('Ask meeting visibility backstop', () => {
 
     const visible = await filterPersistedAskTurnsForMeetingVisibility(
       [privateTurn, generalTurn],
-      async () => []
+      () => Promise.resolve([])
     );
 
     expect(visible).toEqual([generalTurn]);
@@ -80,7 +147,9 @@ describe('Ask meeting visibility backstop', () => {
       sources: [],
     };
     await expect(
-      filterPersistedAskTurnsForMeetingVisibility([legacy], async () => [])
+      filterPersistedAskTurnsForMeetingVisibility([legacy], () =>
+        Promise.resolve([])
+      )
     ).resolves.toEqual([]);
   });
 
@@ -107,7 +176,91 @@ describe('Ask meeting visibility backstop', () => {
       },
     ];
     await expect(
-      filterPersistedAskMessagesForMeetingVisibility(messages, async () => [])
+      filterPersistedAskMessagesForMeetingVisibility(messages, () =>
+        Promise.resolve([])
+      )
     ).resolves.toEqual([]);
+  });
+
+  it('does not render or persist a private answer when the viewer is revoked during the real provider await', async () => {
+    const privatePath = '/ws/client/Meetings/private/transcript.json';
+    retrieveMock.mockResolvedValue([
+      {
+        ...hit(privatePath, 'secret retirement promise'),
+        sourceType: 'meeting',
+      },
+    ]);
+    const response = deferred<{
+      content: string;
+      usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+      cost: number;
+      latency: number;
+      model: string;
+      stopReason: string;
+    }>();
+    const sendMessage = vi.fn(() => response.promise);
+    buildResolvedAskProviderMock.mockResolvedValue({
+      provider: {
+        isConfigured: () => true,
+        sendMessage,
+        getMetadata: () => ({
+          model: 'test-local',
+          capabilities: { maxContextTokens: 16_000 },
+        }),
+      },
+      providerId: 'lantern-local',
+      model: 'test-local',
+    });
+    useFirmStore.setState({
+      session: {
+        userId: 'advisor-1',
+        email: 'advisor-1@example.com',
+        role: 'member',
+        org: null,
+        seatId: 'seat-1',
+        tier: 'practice',
+        packs: [],
+        seats: 1,
+        lastValidatedAt: null,
+        activated: true,
+      },
+    });
+
+    const { result } = renderHook(() => useAsk({}));
+    act(() => {
+      // eslint-disable-next-line lantern-async/no-silent-failure -- handleAsk owns its error state; the test observes the hook result
+      void result.current.handleAsk('What private promise was made?');
+    });
+    await waitFor(() => {
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    visibilityState.allowed = false;
+    act(() => {
+      useFirmStore.setState((state) => ({
+        session: state.session
+          ? { ...state.session, userId: 'advisor-2' }
+          : null,
+      }));
+    });
+    act(() => {
+      response.resolve({
+        content: 'The secret retirement promise was approved.',
+        usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 },
+        cost: 0,
+        latency: 1,
+        model: 'test-local',
+        stopReason: 'stop',
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('idle');
+    });
+    expect(JSON.stringify(result.current.turns)).not.toContain('secret');
+    expect(JSON.stringify(result.current.streamingTurn)).not.toContain('secret');
+    expect(
+      JSON.stringify(useAIChatStore.getState().sessions[result.current.chatId])
+    ).not.toContain('secret');
   });
 });

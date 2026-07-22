@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { deletePath, indexFile } = vi.hoisted(() => ({
+const { deletePath, indexFile, reconcileWorkspace } = vi.hoisted(() => ({
   deletePath: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   indexFile: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  reconcileWorkspace: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
@@ -12,14 +13,17 @@ vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
     ...original,
     ragDeletePath: deletePath,
     ragIndexFile: indexFile,
+    ragReconcileWorkspace: reconcileWorkspace,
   };
 });
 
 import {
   MemoryService,
   resetMeetingFileVisibilityResolver,
+  resetPdfIndexingEnabledReader,
   resetRetrievalBackend,
   setMeetingFileVisibilityResolver,
+  setPdfIndexingEnabledReader,
   setRetrievalBackend,
 } from './MemoryService';
 import type { RagHit } from '@/platform/utils/tauri-commands';
@@ -40,28 +44,31 @@ describe('meeting visibility at the memory boundary', () => {
   beforeEach(() => {
     deletePath.mockClear();
     indexFile.mockClear();
+    reconcileWorkspace.mockClear();
+    setPdfIndexingEnabledReader(() => true);
   });
 
   afterEach(() => {
     resetMeetingFileVisibilityResolver();
     resetRetrievalBackend();
+    resetPdfIndexingEnabledReader();
   });
 
   it('drops and removes stale hidden meeting rows while leaving ordinary files', async () => {
     const hidden = '/ws/client/Meetings/m1/notes.docx';
     const ordinary = '/ws/client/tax.pdf';
-    setMeetingFileVisibilityResolver(async (paths) =>
-      new Map(
+    setMeetingFileVisibilityResolver((paths) =>
+      Promise.resolve(new Map(
         paths.map((path) => [
           path,
           path === hidden ? 'hidden' : 'not-meeting',
         ] as const)
-      )
+      ))
     );
-    setRetrievalBackend(async () => [
+    setRetrievalBackend(() => Promise.resolve([
       hit(hidden, 'private meeting text'),
       hit(ordinary, 'ordinary client text'),
-    ]);
+    ]));
 
     const result = await MemoryService.retrieve(
       'question',
@@ -78,15 +85,17 @@ describe('meeting visibility at the memory boundary', () => {
   it('rechecks the current viewer on every retrieval', async () => {
     const notes = '/ws/client/Meetings/m1/notes.docx';
     let currentViewer: 'owner' | 'excluded' = 'owner';
-    setMeetingFileVisibilityResolver(async (paths) =>
-      new Map(
+    setMeetingFileVisibilityResolver((paths) =>
+      Promise.resolve(new Map(
         paths.map((path) => [
           path,
           currentViewer === 'owner' ? 'visible' : 'hidden',
         ] as const)
-      )
+      ))
     );
-    setRetrievalBackend(async () => [hit(notes, 'private meeting text')]);
+    setRetrievalBackend(() =>
+      Promise.resolve([hit(notes, 'private meeting text')])
+    );
 
     await expect(
       MemoryService.retrieve('q', 5, { kind: 'allMatters' })
@@ -101,8 +110,10 @@ describe('meeting visibility at the memory boundary', () => {
   it('refuses indexing until exact meeting visibility is visible', async () => {
     const notes = '/ws/client/Meetings/m1/notes.docx';
     let visible = false;
-    setMeetingFileVisibilityResolver(async (paths) =>
-      new Map(paths.map((path) => [path, visible ? 'visible' : 'hidden']))
+    setMeetingFileVisibilityResolver((paths) =>
+      Promise.resolve(
+        new Map(paths.map((path) => [path, visible ? 'visible' : 'hidden']))
+      )
     );
 
     await MemoryService.indexFile(notes, 'matter-1');
@@ -119,19 +130,46 @@ describe('meeting visibility at the memory boundary', () => {
     );
   });
 
-  it('treats durable meeting provenance as hidden when wiring is missing, but leaves ordinary rows alone', async () => {
+  it('hides every retrieval row when exact-file visibility wiring is missing', async () => {
     const notes = '/ws/client/Meetings/m1/notes.docx';
     const ordinary = '/ws/client/tax.pdf';
     resetMeetingFileVisibilityResolver();
-    setRetrievalBackend(async () => [
+    setRetrievalBackend(() => Promise.resolve([
       hit(notes, 'stale private notes', 'meeting'),
       hit(ordinary, 'ordinary client text'),
-    ]);
+    ]));
 
     await expect(
       MemoryService.retrieve('q', 5, { kind: 'allMatters' })
-    ).resolves.toEqual([hit(ordinary, 'ordinary client text')]);
+    ).resolves.toEqual([]);
     expect(deletePath).toHaveBeenCalledWith(notes);
+    expect(deletePath).toHaveBeenCalledWith(ordinary);
+  });
+
+  it('refuses generic watcher and bulk indexing when visibility wiring is missing', async () => {
+    const possibleMeetingFile = '/ws/client/Meetings/m1/notes.docx';
+    resetMeetingFileVisibilityResolver();
+
+    await MemoryService.indexFile(possibleMeetingFile, 'matter-1');
+    await MemoryService.indexWorkspace();
+
+    expect(indexFile).not.toHaveBeenCalled();
+    expect(reconcileWorkspace).not.toHaveBeenCalled();
+    expect(deletePath).toHaveBeenCalledWith(possibleMeetingFile);
+  });
+
+  it('refuses PDF ingestion before reading bytes when visibility wiring is missing', async () => {
+    const readBinary = vi.fn(() => Promise.resolve(new ArrayBuffer(1)));
+    resetMeetingFileVisibilityResolver();
+
+    await expect(
+      MemoryService.indexPdfFile('/ws/meeting.pdf', { readBinary }, '/ws')
+    ).resolves.toMatchObject({
+      indexed: false,
+      reason: 'visibility-unavailable',
+    });
+    expect(readBinary).not.toHaveBeenCalled();
+    expect(deletePath).toHaveBeenCalledWith('/ws/meeting.pdf');
   });
 
   it('refuses the dedicated meeting index doorway when visibility wiring is missing', async () => {
@@ -146,10 +184,12 @@ describe('meeting visibility at the memory boundary', () => {
 
   it('fails closed when the meeting resolver is unavailable', async () => {
     const notes = '/ws/client/Meetings/m1/transcript.json';
-    setMeetingFileVisibilityResolver(async () => {
-      throw new Error('viewer changed');
-    });
-    setRetrievalBackend(async () => [hit(notes, 'hidden transcript')]);
+    setMeetingFileVisibilityResolver(() =>
+      Promise.reject(new Error('viewer changed'))
+    );
+    setRetrievalBackend(() =>
+      Promise.resolve([hit(notes, 'hidden transcript')])
+    );
 
     await expect(
       MemoryService.retrieve('q', 5, { kind: 'allMatters' })

@@ -65,6 +65,8 @@ import {
 export interface MeetingSendPanelProps {
   matterId: string;
   meetingDir: string;
+  workspaceRoot: string;
+  workspaceGeneration: number;
   meta: MeetingMeta;
   matter: Matter | null;
   clientName: string;
@@ -112,6 +114,8 @@ function artifactHelp(artifact: MeetingArtifact, t: TFunction): string {
 export function MeetingSendPanel({
   matterId,
   meetingDir,
+  workspaceRoot,
+  workspaceGeneration,
   meta,
   matter,
   clientName,
@@ -425,6 +429,8 @@ export function MeetingSendPanel({
       const entries = await sendMeetingArtifacts({
         workspaceService,
         meetingDir,
+        workspaceRoot,
+        workspaceGeneration,
         matterId,
         meta: previewMeta,
         account: selectedAccount,
@@ -861,7 +867,7 @@ export function MeetingSendPanel({
             <DialogButton type="button" variant="outline" onClick={() => { setConfirmOpen(false); }} disabled={sending}>
               {t('common.actions.cancel')}
             </DialogButton>
-            <DialogButton type="button" onClick={() => { void handleConfirmSend().catch((err: unknown) => { setError(err instanceof Error ? err.message : String(err)); }); }} disabled={sending || !canReview}>
+            <DialogButton data-testid="meeting-send-confirm" type="button" onClick={() => { void handleConfirmSend().catch((err: unknown) => { setError(err instanceof Error ? err.message : String(err)); }); }} disabled={sending || !canReview}>
               {sending ? t('meetings.entry.send.sending') : t('meetings.entry.send.confirm-button')}
             </DialogButton>
           </DialogFooter>

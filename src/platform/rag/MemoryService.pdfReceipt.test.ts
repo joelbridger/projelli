@@ -56,8 +56,10 @@ vi.mock('@/platform/rag/ocr/ocrEngine', () => ({
 
 import {
   MemoryService,
+  resetMeetingFileVisibilityResolver,
   resetPdfIndexingEnabledReader,
   setPdfIndexingEnabledReader,
+  setMeetingFileVisibilityResolver,
 } from '@/platform/rag/MemoryService';
 
 beforeEach(async () => {
@@ -105,11 +107,15 @@ beforeEach(async () => {
   isOcrEngineAvailable.mockReset().mockReturnValue(true);
   renderPdfPageToPng.mockReset().mockResolvedValue(new Uint8Array([1]));
   ocrPageImage.mockReset().mockRejectedValue(new Error('temporary OCR failure'));
+  setMeetingFileVisibilityResolver((paths) =>
+    Promise.resolve(new Map(paths.map((path) => [path, 'not-meeting'] as const)))
+  );
   await MemoryService.setWorkspace('C:/workspace');
 });
 
 afterEach(() => {
   resetPdfIndexingEnabledReader();
+  resetMeetingFileVisibilityResolver();
 });
 
 describe('MemoryService PDF persistence receipts', () => {

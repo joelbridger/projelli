@@ -351,6 +351,13 @@ export async function filterMeetingFileVisibilityHits(
 ): Promise<RagHit[]> {
   if (hits.length === 0) return [];
   const sourceIds = hits.map((hit) => hit.sourceId ?? hit.path);
+  // Without feature wiring the platform cannot prove that an ordinary-looking
+  // row is not a protected meeting file. Hide and purge every candidate rather
+  // than relying on a possibly stale source_type tag.
+  if (!meetingFileVisibilityResolverInstalled) {
+    await removeHiddenMeetingSources(sourceIds);
+    return [];
+  }
   const meetingDerivedSourceIds = new Set(
     hits
       .filter((hit) => hit.sourceType === 'meeting')
@@ -463,6 +470,10 @@ export const MemoryService = {
 
   async indexFile(path: string, matterId?: string): Promise<void> {
     if (!isMemoryEnabled()) return;
+    if (!meetingFileVisibilityResolverInstalled) {
+      await removeHiddenMeetingSources([path]);
+      return;
+    }
     let decision: MeetingFileVisibilityResolution | undefined;
     try {
       decision = (
@@ -538,6 +549,10 @@ export const MemoryService = {
    */
   async indexWorkspace(matterId?: string): Promise<void> {
     if (!isMemoryEnabled()) return;
+    // A native walk can encounter meeting folders. Without the feature's exact
+    // file resolver, there is no safe way to distinguish them from normal CRM
+    // files, so defer the whole walk until wiring is installed.
+    if (!meetingFileVisibilityResolverInstalled) return;
     if (matterId === undefined) {
       const requestedWorkspace = activeWorkspaceKey;
       const requestedActivation = workspaceActivation;
@@ -612,6 +627,10 @@ export const MemoryService = {
    */
   async reindexPaths(paths: string[], matterId: string): Promise<number> {
     if (!isMemoryEnabled()) return 0;
+    if (!meetingFileVisibilityResolverInstalled) {
+      await removeHiddenMeetingSources(paths);
+      return paths.length;
+    }
     let failed = 0;
     for (const path of paths) {
       try {
@@ -775,6 +794,22 @@ export const MemoryService = {
     }
     if (!isPdfIndexingEnabled()) {
       return { indexed: false, pageCount: 0, reason: 'pdf-indexing-disabled' };
+    }
+    if (!meetingFileVisibilityResolverInstalled) {
+      await removeHiddenMeetingSources([path]);
+      return { indexed: false, pageCount: 0, reason: 'visibility-unavailable' };
+    }
+    let visibility: MeetingFileVisibilityResolution | undefined;
+    try {
+      visibility = (
+        await resolveMeetingFileVisibility([path], new Set<string>())
+      ).get(path);
+    } catch {
+      visibility = 'hidden';
+    }
+    if (visibility !== 'not-meeting' && visibility !== 'visible') {
+      await removeHiddenMeetingSources([path]);
+      return { indexed: false, pageCount: 0, reason: 'meeting-hidden' };
     }
     // Capture the native opening id BEFORE reading or slow OCR starts. The path
     // alone is not enough for A → B → A; the first A must not write into the

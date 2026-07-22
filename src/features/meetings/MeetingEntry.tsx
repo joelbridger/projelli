@@ -60,6 +60,7 @@ import { meetingNoteOutboundGate } from './outboundNoteGate';
 import { deriveNoticeState } from './noticeLedger';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import {
   getMeetingPanelComposition,
   type MeetingPanelId,
@@ -223,6 +224,9 @@ function MeetingEntryHost({
   const firm = useFirm();
   const currentViewerId = useFirmStore(
     (state) => state.session?.userId ?? null
+  );
+  const workspaceGeneration = useWorkspaceStore(
+    (state) => state.rootGeneration
   );
   const visibilityPreferences = useMeetingFoundationPreferencesStore();
   const visibilityContext = useMemo<MeetingFileVisibilityContext>(
@@ -1398,6 +1402,8 @@ function MeetingEntryHost({
           <MeetingSendPanel
             matterId={matterId}
             meetingDir={meetingDir}
+            workspaceRoot={workspaceRoot}
+            workspaceGeneration={workspaceGeneration}
             meta={meta}
             matter={matter}
             clientName={clientName}

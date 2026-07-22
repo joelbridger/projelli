@@ -44,6 +44,7 @@ import { isEnabled } from '@/platform/flags';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { meetingsSurface } from './appSurface';
+import { TemplateManagement } from './MeetingsWorkspace';
 import { resolveMeetingsSurfaceNavigation } from './navigation';
 
 /**
@@ -103,6 +104,36 @@ class IsolationBackend implements FSBackend {
           mode: 'one-party',
           confirmedBy: 'advisor',
           confirmedAt: '2026-07-20T08:59:00.000Z',
+        },
+        meetingFileVisibility: {
+          version: 1,
+          meetingSubject: {
+            id: 'meeting-file:meeting-a',
+            kind: 'meeting-note',
+            lineage: 'root',
+            ownerRef: 'advisor-1',
+            visibilityPolicyId: 'meeting-file-visibility:owner-private',
+          },
+          files: {
+            'meeting.json': {
+              id: 'meeting-file:meeting-a:file:meeting.json',
+              kind: 'file-reference',
+              lineage: 'derived',
+              parentRef: {
+                id: 'meeting-file:meeting-a',
+                kind: 'meeting-note',
+              },
+            },
+            'transcript.json': {
+              id: 'meeting-file:meeting-a:file:transcript.json',
+              kind: 'file-reference',
+              lineage: 'derived',
+              parentRef: {
+                id: 'meeting-file:meeting-a',
+                kind: 'meeting-note',
+              },
+            },
+          },
         },
       })
     );
@@ -461,5 +492,54 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
       expect(screen.queryByTestId('meetings-row-meeting-b')).toBeNull();
     });
     expect(nativeRecords.commands).toContain('crm_live_list');
+  });
+
+  it('removes the production template transcript as soon as the viewer loses exact-file access', async () => {
+    useMatterStore.setState({ activeMatterId: 'matter-a' });
+    await expect(selectClient(CLIENT_A)).resolves.toMatchObject({
+      kind: 'selected',
+    });
+    const port = {
+      records: nativeRecords.records,
+      workspaceRoot: '/workspace',
+      error: null,
+      getActiveClientBoundary: readActiveMeetingClientBoundary,
+      getSelectionError: () => null,
+      save: (record: LiveCrmRecord) => Promise.resolve(record),
+      reloadRecords: () => Promise.resolve(nativeRecords.records),
+    };
+    const target = await resolveMeetingOpenTarget(
+      createMeetingStore(port),
+      'meeting-a',
+      readActiveMeetingClientBoundary
+    );
+    const boundary = readActiveMeetingClientBoundary();
+    expect(target).not.toBeNull();
+    expect(boundary).not.toBeNull();
+    if (!boundary) throw new Error('Expected a sealed meeting boundary.');
+
+    render(
+      <TemplateManagement
+        target={target}
+        activeClientBoundary={boundary}
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId('meetings-templates-loading')).toBeNull();
+      expect(screen.queryByTestId('meetings-templates-unavailable')).toBeNull();
+    });
+
+    act(() => {
+      useFirmStore.setState((state) => ({
+        session: state.session
+          ? { ...state.session, userId: 'advisor-2' }
+          : null,
+      }));
+    });
+
+    expect(
+      await screen.findByTestId('meetings-templates-unavailable')
+    ).toBeTruthy();
   });
 });

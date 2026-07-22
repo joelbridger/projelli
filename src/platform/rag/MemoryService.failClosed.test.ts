@@ -18,14 +18,16 @@
  *     content can never surface under the wrong client until the re-tag lands.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   MemoryService,
   resetPrivilegeResolver,
+  resetMeetingFileVisibilityResolver,
   resetRetrievalBackend,
   resetRetrievalHitExclusion,
   resetSourceIdForms,
   setPrivilegeResolver,
+  setMeetingFileVisibilityResolver,
   setRetrievalBackend,
   setRetrievalHitExclusion,
   setSourceIdForms,
@@ -51,11 +53,18 @@ function backend(hits: RagHit[]): void {
 
 const ALL: RetrievalScope = { kind: 'allMatters' };
 
+beforeEach(() => {
+  setMeetingFileVisibilityResolver((paths) =>
+    Promise.resolve(new Map(paths.map((path) => [path, 'not-meeting'] as const)))
+  );
+});
+
 afterEach(() => {
   resetRetrievalBackend();
   resetPrivilegeResolver();
   resetRetrievalHitExclusion();
   resetSourceIdForms();
+  resetMeetingFileVisibilityResolver();
 });
 
 describe('QA-44 privilege fail-closed at retrieval', () => {

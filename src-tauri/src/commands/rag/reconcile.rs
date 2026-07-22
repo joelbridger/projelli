@@ -94,6 +94,26 @@ pub(crate) fn compute_deleted_keys(
         .collect()
 }
 
+/// Preserve a durable privacy receipt when a file is known from existing rows
+/// to be meeting-derived but its exact sibling manifest is missing or corrupt.
+/// A zero-row signature deliberately records "checked and purged": the next
+/// reconcile still knows this is meeting material and can never downgrade it to
+/// an ordinary document merely because the purged rows are now gone.
+fn protected_meeting_receipt(
+    file: &Path,
+    matter: &str,
+    privilege: &str,
+    prior: Option<&manifest::SourceSignature>,
+) -> Option<manifest::SourceSignature> {
+    if let Some(prior) = prior {
+        let mut retained = prior.clone();
+        retained.meeting_derived = true;
+        retained.row_count = 0;
+        return Some(retained);
+    }
+    text_source_signature(file, matter, privilege, 0, true)
+}
+
 /// Durably record a rebuild-required the instant a stale-key-format manifest is
 /// first observed on workspace open — BEFORE any incremental manifest writer runs.
 ///
@@ -765,8 +785,13 @@ pub(crate) async fn run_workspace_index(
                 }
             }
             FileProcess::ProtectedMeetingMissingManifest => {
-                if let Some(signature) = durable_manifest.get(&token) {
-                    next_sources.insert(token, signature.clone());
+                if let Some(signature) = protected_meeting_receipt(
+                    &item.file,
+                    &item.matter,
+                    &item.privilege,
+                    durable_manifest.get(&token),
+                ) {
+                    next_sources.insert(token, signature);
                 }
             }
             FileProcess::NotRecorded => {
@@ -890,6 +915,46 @@ mod flood_proofing_tests {
             }),
             ..text_sig()
         }
+    }
+
+    #[test]
+    fn missing_manifest_meeting_receipt_survives_two_reconciles_without_rows() {
+        let path = std::env::temp_dir().join(format!(
+            "lantern-meeting-receipt-{}-{}.txt",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&path, b"private meeting transcript").unwrap();
+
+        // First reconcile: the freshness manifest is absent, but a durable row
+        // says this was meeting-derived. Purging that row must synthesize a
+        // zero-row receipt rather than forgetting the lineage with the row.
+        let first = protected_meeting_receipt(
+            &path,
+            "matter-private",
+            "none",
+            None,
+        )
+        .expect("a present protected file gets a durable receipt");
+        assert!(first.meeting_derived);
+        assert_eq!(first.row_count, 0);
+
+        // Second reconcile: no rows remain to rediscover provenance. The first
+        // receipt alone must keep the file protected and zero-row.
+        let second = protected_meeting_receipt(
+            &path,
+            "matter-private",
+            "none",
+            Some(&first),
+        )
+        .expect("the prior synthetic receipt is retained");
+        assert!(second.meeting_derived);
+        assert_eq!(second.row_count, 0);
+
+        let _ = std::fs::remove_file(path);
     }
 
     // ── Root-cause regression: the cross-slash-form Windows token bug ───────
