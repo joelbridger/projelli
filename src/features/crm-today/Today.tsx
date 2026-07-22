@@ -4,11 +4,16 @@ import { Bell, ClipboardList, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { buildCapacityTriage, dailyWorkReason } from '@/platform/crm/tasks';
 import { AskBar, FreshnessBanner, Screen, mutedStyle, panelStyle } from '@/features/crm-home/shared/ui';
+import { TodaysMeetingsStrip } from '@/features/meetings/TodaysMeetingsStrip';
 import type { CrmHomeRoute } from '@/features/crm-home/routes';
 import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHomeAdapter, CrmTask } from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import { dailyWorkItems, workHousehold, workLabel, type CrmDailyWorkItem } from '@/features/crm-home/shared/workItems';
 import { BRAND } from '@/config/brand';
+import {
+  issueMatterScopeSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -54,6 +59,12 @@ export function Today({
   const recentActivity = [...activity]
     .sort((left, right) => right.at.localeCompare(left.at))
     .slice(0, 6);
+  const openMatchedClient = (matterId: string) => {
+    const request = issueMatterScopeSelection(matterId);
+    void requestMatterScopeSelection(request).catch((error: unknown) => {
+      console.error('[CRM Today] Matched client selection failed.', error);
+    });
+  };
   return (
     <Screen
       title="Today"
@@ -99,6 +110,7 @@ export function Today({
             : freshness}
         />
       </div>
+      <TodaysMeetingsStrip onOpenClient={openMatchedClient} />
       {open.length === 0 ? (
         <section data-testid="crm-today-first-use" style={panelStyle}>
           <strong>Your firm is ready to set up Today.</strong>

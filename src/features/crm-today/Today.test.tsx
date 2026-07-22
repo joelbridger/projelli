@@ -5,6 +5,31 @@ import { CrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import type { CrmHomeAdapter } from '@/features/crm-home/types';
 import { Today, TodaySurface } from './Today';
 
+const meetingStrip = vi.hoisted(() => ({ state: 'visible' as 'visible' | 'empty' | 'error' }));
+const selection = vi.hoisted(() => ({
+  issue: vi.fn((matterId: string) => ({ matterId })),
+  request: vi.fn(() => Promise.resolve({ kind: 'selected' })),
+}));
+
+vi.mock('@/features/meetings/TodaysMeetingsStrip', () => ({
+  TodaysMeetingsStrip: ({ onOpenClient }: { onOpenClient: (matterId: string) => void }) => {
+    if (meetingStrip.state === 'empty') return null;
+    if (meetingStrip.state === 'error') {
+      return <div data-testid="todays-meetings-strip-error">Couldn&apos;t check today&apos;s calendar.</div>;
+    }
+    return (
+      <button data-testid="todays-meetings-strip" onClick={() => onOpenClient('river-household')}>
+        River household meeting
+      </button>
+    );
+  },
+}));
+
+vi.mock('@/platform/client-context', () => ({
+  issueMatterScopeSelection: selection.issue,
+  requestMatterScopeSelection: selection.request,
+}));
+
 const baseProps = {
   approvals: [],
   activity: [],
@@ -15,6 +40,44 @@ const baseProps = {
 };
 
 describe('Today', () => {
+  it('shows the existing meeting preparation strip before the task plan', () => {
+    meetingStrip.state = 'visible';
+    render(<Today {...baseProps} firmMembers={[]} workItems={[]} />);
+
+    const meetings = screen.getByTestId('todays-meetings-strip');
+    const firstUse = screen.getByTestId('crm-today-first-use');
+    expect(meetings.compareDocumentPosition(firstUse)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('keeps Today clear when the existing meeting strip has no meetings', () => {
+    meetingStrip.state = 'empty';
+    render(<Today {...baseProps} firmMembers={[]} workItems={[]} />);
+
+    expect(screen.queryByTestId('todays-meetings-strip')).not.toBeInTheDocument();
+    expect(screen.getByTestId('crm-today-first-use')).toBeInTheDocument();
+  });
+
+  it('keeps the existing calendar failure message visible', () => {
+    meetingStrip.state = 'error';
+    render(<Today {...baseProps} firmMembers={[]} workItems={[]} />);
+
+    expect(screen.getByTestId('todays-meetings-strip-error')).toHaveTextContent(/couldn't check today/i);
+  });
+
+  it('hands a matched meeting client to the shared selection authority', async () => {
+    meetingStrip.state = 'visible';
+    selection.issue.mockClear();
+    selection.request.mockClear();
+    render(<Today {...baseProps} firmMembers={[]} workItems={[]} />);
+
+    fireEvent.click(screen.getByTestId('todays-meetings-strip'));
+
+    await waitFor(() => {
+      expect(selection.issue).toHaveBeenCalledWith('river-household');
+      expect(selection.request).toHaveBeenCalledWith({ matterId: 'river-household' });
+    });
+  });
+
   it('renders safely when an adapter omits its optional work lists at runtime', () => {
     const adapter = {
       freshness: { kind: 'live' },
