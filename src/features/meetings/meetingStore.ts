@@ -50,6 +50,16 @@ import type { NoticeLocale } from './noticeMatcher';
 import i18n from '@/i18n';
 import type { MeetingDeliveryPlan } from './meetingRecipientPlan';
 import type { MeetingDeliveryStatus } from './meetingArtifactDelivery';
+import {
+  addMeetingFileVisibilityEntries,
+  createMeetingFileVisibilityManifest,
+  meetingFileVisibilityManifestFromMeta,
+  readCurrentMeetingFileVisibilityContext,
+  readCurrentMeetingViewerId,
+  resolveMeetingFilePathsVisibility,
+  withMeetingFileVisibility,
+  type MeetingFileVisibilityManifest,
+} from './meetingFileVisibility';
 
 export interface StartOpts {
   consentMode: 'one-party' | 'two-party';
@@ -83,6 +93,8 @@ export interface StartOpts {
     /** The advisor attested they will also use Zoom's native Record. */
     zoomNativeRecordAttested?: boolean;
   };
+  /** Exact file-backed visibility identity created before capture starts. */
+  meetingFileVisibility?: MeetingFileVisibilityManifest;
 }
 
 export interface MeetingCalendarAttendeeMeta {
@@ -148,6 +160,8 @@ export interface MeetingMeta {
    *  and auditable later instead of just a toast that vanished. Never
    *  cleared automatically — a truncated recording stays truncated. */
   recordingError?: MeetingRecordingError;
+  /** Stable meeting + file identities. Missing/malformed values fail closed. */
+  meetingFileVisibility?: MeetingFileVisibilityManifest;
 }
 
 export interface MeetingRecordingError {
@@ -285,6 +299,35 @@ export function setMeetingsWorkspaceService(
   service: WorkspaceService | null
 ): void {
   activeWorkspaceService = service;
+  // Some narrow meeting-store test doubles predate the visibility seam. The
+  // production MemoryService always supplies both methods.
+  const visibilityMemory = MemoryService as Partial<
+    Pick<
+      typeof MemoryService,
+      | 'resetMeetingFileVisibilityResolver'
+      | 'setMeetingFileVisibilityResolver'
+    >
+  >;
+  if (!service) {
+    visibilityMemory.resetMeetingFileVisibilityResolver?.();
+    return;
+  }
+  visibilityMemory.setMeetingFileVisibilityResolver?.(async (sourceIds) => {
+    const context = await readCurrentMeetingFileVisibilityContext(
+      resolveWorkspaceRoot()
+    );
+    const decisions = await resolveMeetingFilePathsVisibility({
+      paths: sourceIds,
+      workspace: service,
+      context,
+    });
+    return new Map(
+      [...decisions].map(([sourceId, decision]) => [
+        sourceId,
+        decision.kind,
+      ])
+    );
+  });
 }
 
 export function resolveMatterFolder(matterId: string): string {
@@ -543,6 +586,34 @@ async function indexMeetingFile(
   }
 }
 
+async function ensureMeetingFileEntries(
+  meetingDir: string,
+  fileNames: readonly string[],
+  fallbackManifest?: MeetingFileVisibilityManifest
+): Promise<MeetingFileVisibilityManifest | null> {
+  const ws = activeWorkspaceService;
+  if (!ws) return null;
+  try {
+    const current = JSON.parse(
+      await ws.readFile(`${meetingDir}/meeting.json`)
+    ) as MeetingMeta;
+    const existing = meetingFileVisibilityManifestFromMeta(current);
+    const manifest = addMeetingFileVisibilityEntries(
+      existing ?? fallbackManifest ?? (() => {
+        throw new Error('Meeting visibility identity is missing.');
+      })(),
+      fileNames
+    );
+    await writeMeetingJson(
+      meetingDir,
+      withMeetingFileVisibility(current, manifest)
+    );
+    return manifest;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Reads the transcript, generates notes.docx via the Task 10 template, and
  * writes it into the meeting folder. Never throws (capture/transcription
@@ -790,6 +861,19 @@ export async function fileDictationAsMeeting(
     matterFolder,
     recordedAt
   );
+  const ownerRef = readCurrentMeetingViewerId();
+  if (!ownerRef) return null;
+  const manifest = createMeetingFileVisibilityManifest({
+    ownerRef,
+    fileNames: ['meeting.json', 'transcript.json', 'notes.docx'],
+  });
+  await ensureMeetingFileEntries(
+    meetingDir,
+    ['meeting.json', 'transcript.json', 'notes.docx'],
+    manifest
+  );
+  await indexMeetingFile(meetingDir, 'transcript.json', matterId);
+  await indexMeetingFile(meetingDir, 'notes.docx', matterId);
   void audit.logDurable(
     'meeting_recorded',
     'Dictated note filed as a meeting note',
@@ -873,12 +957,17 @@ async function runPostStopPipeline(
             return undefined;
           }
         })();
-        await writeMeetingJson(meetingDir, {
+        const meta = {
           ...base,
           ...(durationMs && durationMs > 0 ? { durationMs } : {}),
           ...(typeId ? { typeId } : {}),
           ...meetingStartCalendarFields(activeConsent),
-        }).catch(() => {});
+        };
+        const manifest = activeConsent.meetingFileVisibility;
+        await writeMeetingJson(
+          meetingDir,
+          manifest ? withMeetingFileVisibility(meta, manifest) : meta
+        ).catch(() => {});
       }
     }
 
@@ -951,6 +1040,21 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
 
   async startRecording(matterId, opts) {
     if (get().status.recording) throw new Error('already recording');
+    const ownerRef = readCurrentMeetingViewerId();
+    if (!ownerRef)
+      throw new Error('The current meeting owner could not be resolved.');
+    const meetingFileVisibility =
+      opts.meetingFileVisibility ??
+      createMeetingFileVisibilityManifest({
+        ownerRef,
+        fileNames: [
+          'meeting.json',
+          'audio.wav',
+          'transcript.json',
+          'notes.docx',
+        ],
+      });
+    const captureOpts: StartOpts = { ...opts, meetingFileVisibility };
     const matterFolder = resolveMatterFolder(matterId);
     const workspace = resolveWorkspaceRoot();
     const r = await invoke<{ meetingDir: string; startedAt: string }>(
@@ -971,11 +1075,11 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         writeError: null,
       },
       activeMatterId: matterId,
-      activeConsent: opts,
+      activeConsent: captureOpts,
       // A prior recording's disk-full pill must never bleed into this new one.
       lastWriteFailure: null,
     });
-    await recordStartCalendarMetadata(r.meetingDir, opts);
+    await recordStartCalendarMetadata(r.meetingDir, captureOpts);
     // No TS-side audit.logDurable('meeting_capture_started', ...) here: the
     // Rust capture_start command already appends this exact audit action
     // (append_capture_audit_best_effort in src-tauri/src/commands/capture/
@@ -987,11 +1091,11 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       const ledger = makeConsentLedger(ws, () => matterFolder);
       void ledger
         .recordConsent(matterId, {
-          mode: opts.consentMode,
+          mode: captureOpts.consentMode,
           scope: 'per-meeting',
           confirmedAt: new Date().toISOString(),
           meetingDir: r.meetingDir,
-          ...(opts.consentNote ? { note: opts.consentNote } : {}),
+          ...(captureOpts.consentNote ? { note: captureOpts.consentNote } : {}),
         })
         .catch(() => {});
       // Recording Notice Kit — capture the script/locale shown for THIS
@@ -1001,15 +1105,15 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
           kind: 'notice-context',
           meetingDir: r.meetingDir,
           at: new Date().toISOString(),
-          customScript: opts.noticeCustomScript ?? '',
-          locale: noticeLocaleFromLanguage(opts.noticeLanguage ?? i18n.language),
+          customScript: captureOpts.noticeCustomScript ?? '',
+          locale: noticeLocaleFromLanguage(captureOpts.noticeLanguage ?? i18n.language),
         })
         .catch(() => {});
       // Notice Card — join the online meeting as the local notice participant.
       // Desktop-only; NEVER gates the recording (already running above). All
       // transitions are ledgered by the supervisor via this same ledger.
-      if (opts.noticeCard && isTauri()) {
-        const nc = opts.noticeCard;
+      if (captureOpts.noticeCard && isTauri()) {
+        const nc = captureOpts.noticeCard;
         const cameraVisual: NoticeCardVisual = {
           title: i18n.t('meetings.notice-card.card-title', { name: nc.advisorName }),
           lines: [

@@ -128,6 +128,21 @@ import {
   readActiveMeetingClientBoundary,
   type SealedMeetingClientBoundary,
 } from '@/features/meetings';
+import { createLegacyUnrestrictedMeetingFileVisibilityManifest } from '@/features/meetings';
+
+function legacyMeta(
+  id: string,
+  value: Record<string, unknown>
+): string {
+  return JSON.stringify({
+    ...value,
+    meetingFileVisibility:
+      createLegacyUnrestrictedMeetingFileVisibilityManifest({
+        meetingSubjectId: `legacy-restart:${id}`,
+        fileNames: ['meeting.json'],
+      }),
+  });
+}
 
 const meetingBoundaryMint = vi.hoisted(() => ({
   selection: null as null | { householdRef: string; matterId: string },
@@ -231,7 +246,7 @@ describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidat
     const svc1 = await openWorkspace(rootRaw);
     await svc1.writeFile(
       `${matterFolder}/Meetings/2026-07-04-matter_nc_caldwell_jennifer/meeting.json`,
-      JSON.stringify({
+      legacyMeta('caldwell', {
         matterId: 'matter_nc_caldwell_jennifer',
         startedAt: '2026-07-04T10:47:38.422Z',
         consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:47:38.422Z' },
@@ -258,18 +273,18 @@ describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidat
     const svcA = await openWorkspace(rootRaw);
     await svcA.writeFile(
       `${matterFolder}/Meetings/2026-06-01-old-one/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-06-01T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-06-01T00:00:00Z' } }),
+      legacyMeta('old-one', { matterId: 'm1', startedAt: '2026-06-01T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-06-01T00:00:00Z' } }),
     );
     await svcA.writeFile(
       `${matterFolder}/Meetings/2026-06-15-old-two/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-06-15T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-06-15T00:00:00Z' } }),
+      legacyMeta('old-two', { matterId: 'm1', startedAt: '2026-06-15T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-06-15T00:00:00Z' } }),
     );
 
     // Restart, record a THIRD meeting this session, then restart again.
     const svcB = await openWorkspace(rootRaw);
     await svcB.writeFile(
       `${matterFolder}/Meetings/2026-07-04-new-one/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
+      legacyMeta('new-one', { matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
     );
     const svcC = await openWorkspace(rootRaw);
     const result = await scanAuthorizedClientMeetings(matterFolder, svcC);
@@ -289,7 +304,7 @@ describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidat
     const svc1 = await openWorkspace(rootRaw);
     await svc1.writeFile(
       `${meetingDirMixed}/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
+      legacyMeta('mixed-sep', { matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'two-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
     );
 
     const svc2 = await openWorkspace(rootRaw);
@@ -335,7 +350,7 @@ describe('listClientMeetings — scan-failure vs genuine-empty distinction', () 
     const svc = await openWorkspace(rootRaw);
     await svc.writeFile(
       `${matterFolder}/Meetings/2026-07-04-abc/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
+      legacyMeta('transient', { matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
     );
 
     // Fake a backend hiccup: fail list() on the Meetings folder exactly twice,
@@ -360,7 +375,7 @@ describe('listClientMeetings — scan-failure vs genuine-empty distinction', () 
     const svc = await openWorkspace(rootRaw);
     await svc.writeFile(
       `${matterFolder}/Meetings/2026-07-04-abc/meeting.json`,
-      JSON.stringify({ matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
+      legacyMeta('broken', { matterId: 'm1', startedAt: '2026-07-04T00:00:00Z', consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T00:00:00Z' } }),
     );
     svc.list = (async () => { throw new Error('permanently broken'); }) as typeof svc.list;
 

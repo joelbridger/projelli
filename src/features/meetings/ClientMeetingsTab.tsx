@@ -28,6 +28,7 @@ import { useNoticeSettings } from './noticeSettings';
 import { calendarListEvents } from '@/platform/utils/calendar-commands';
 import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
 import { useProfileStore } from '@/platform/profile/profileStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useActiveMatters, useMatterStore } from '@/platform/matter/matterStore';
 import { buildCalendarMatterMap, matterLabel, resolveMattersForCalendarEvent } from '@/platform/rag/matterResolver';
@@ -46,7 +47,15 @@ import {
   type DirectClientMeetingTarget,
   type DirectClientMeetingsReadResult,
   type SealedMeetingClientBoundary,
+  useMeetingFoundationPreferencesStore,
 } from './foundation/contract';
+import {
+  FILE_MEETING_OWNER_PRIVATE_POLICY,
+  decideMeetingFileVisibility,
+  meetingFileVisibilityManifestFromMeta,
+  readCurrentMeetingFileVisibilityContext,
+  type MeetingFileVisibilityContext,
+} from './meetingFileVisibility';
 
 export interface MeetingSummary {
   dir: string;
@@ -129,7 +138,10 @@ function delay(ms: number): Promise<void> {
 async function scanClientMeetingsFolder(
   matterFolder: string,
   ws: ListableWorkspace,
-  opts?: { retryDelayMs?: number },
+  opts?: {
+    retryDelayMs?: number;
+    visibilityContext?: MeetingFileVisibilityContext;
+  },
 ): Promise<MeetingsScanResult> {
   // A client with no linked folder (CRM/email-only, or a pre-QA-5 matter
   // created before every client got a scoped folder) legitimately has no
@@ -162,9 +174,13 @@ async function scanClientMeetingsFolder(
   }
   if (entries === null) return { meetings: [], scanFailed: true };
 
+  const visibilityContext =
+    opts?.visibilityContext ??
+    (await readCurrentMeetingFileVisibilityContext(null));
+
   const folders = entries.filter((e) => e.type === 'folder');
   const summaries = await Promise.all(
-    folders.map(async (f): Promise<MeetingSummary> => {
+    folders.map(async (f): Promise<MeetingSummary | null> => {
       const children = await ws.list(f.path).catch(() => []);
       const names = new Set(children.map((c) => c.name));
       let meta: MeetingMeta | null = null;
@@ -173,18 +189,38 @@ async function scanClientMeetingsFolder(
       } catch {
         meta = null;
       }
+      const manifest = meetingFileVisibilityManifestFromMeta(meta);
+      if (
+        !manifest ||
+        !decideMeetingFileVisibility({
+          manifest,
+          fileName: 'meeting.json',
+          context: visibilityContext,
+        })
+      ) {
+        return null;
+      }
+      const canSee = (fileName: string): boolean =>
+        decideMeetingFileVisibility({
+          manifest,
+          fileName,
+          context: visibilityContext,
+        });
       return {
         dir: f.path,
         folderName: f.name,
         meta,
-        hasNotes: names.has('notes.docx'),
-        hasAudio: names.has('audio.wav'),
-        hasTranscript: names.has('transcript.json'),
+        hasNotes: names.has('notes.docx') && canSee('notes.docx'),
+        hasAudio: names.has('audio.wav') && canSee('audio.wav'),
+        hasTranscript:
+          names.has('transcript.json') && canSee('transcript.json'),
       };
     }),
   );
   return {
-    meetings: summaries.sort((a, b) => (b.meta?.startedAt ?? b.folderName).localeCompare(a.meta?.startedAt ?? a.folderName)),
+    meetings: summaries
+      .filter((summary): summary is MeetingSummary => summary !== null)
+      .sort((a, b) => (b.meta?.startedAt ?? b.folderName).localeCompare(a.meta?.startedAt ?? a.folderName)),
     scanFailed: false,
   };
 }
@@ -198,6 +234,7 @@ export function listClientMeetings(input: {
   readonly matterFolder: string;
   readonly workspaceService: ListableWorkspace;
   readonly retryDelayMs?: number;
+  readonly visibilityContext?: MeetingFileVisibilityContext;
 }): Promise<DirectClientMeetingsReadResult<MeetingSummary>> {
   return createDirectClientMeetingsAdapter<MeetingSummary>({
     client: input.clientBoundary,
@@ -207,6 +244,9 @@ export function listClientMeetings(input: {
       scanClientMeetingsFolder(authorizedMatterFolder, input.workspaceService, {
         ...(input.retryDelayMs !== undefined
           ? { retryDelayMs: input.retryDelayMs }
+          : {}),
+        ...(input.visibilityContext
+          ? { visibilityContext: input.visibilityContext }
           : {}),
       }),
   }).list();
@@ -234,6 +274,20 @@ export interface ClientMeetingsTabProps {
 export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, matterFolder, workspaceService, initialSelectedMeeting, crmNavigation }: ClientMeetingsTabProps) {
   const { t, i18n } = useTranslation();
   const matterId = clientBoundary.matterId;
+  const currentViewerId = useFirmStore(
+    (state) => state.session?.userId ?? 'advisor'
+  );
+  const visibilityPreferences = useMeetingFoundationPreferencesStore();
+  const visibilityContext = useMemo<MeetingFileVisibilityContext>(
+    () => ({
+      viewerId: currentViewerId,
+      policies: [
+        FILE_MEETING_OWNER_PRIVATE_POLICY,
+        ...visibilityPreferences.preferences.visibilityPolicies,
+      ],
+    }),
+    [currentViewerId, visibilityPreferences.preferences.visibilityPolicies]
+  );
   useActiveMeetingClientBoundary();
   const activeClientBoundary = getActiveClientBoundary();
   const hasLiveClientBoundary =
@@ -298,10 +352,12 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
         matterFolder,
         scan: (authorizedMatterFolder) =>
           workspaceService
-            ? scanClientMeetingsFolder(authorizedMatterFolder, workspaceService)
+            ? scanClientMeetingsFolder(authorizedMatterFolder, workspaceService, {
+                visibilityContext,
+              })
             : Promise.resolve({ meetings: [], scanFailed: false }),
       }),
-    [clientBoundary, getActiveClientBoundary, matterFolder, workspaceService]
+    [clientBoundary, getActiveClientBoundary, matterFolder, workspaceService, visibilityContext]
   );
 
   const refresh = useCallback(async () => {

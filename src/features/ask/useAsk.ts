@@ -195,6 +195,40 @@ export function askChatId(
   return rootPath ? `${base}::${rootPath}` : base;
 }
 
+type AskVisibilityHitFilter = (hits: readonly RagHit[]) => Promise<RagHit[]>;
+
+export function filterAskMeetingVisibilityHits(
+  hits: readonly RagHit[],
+  filterHits: AskVisibilityHitFilter = (candidates) =>
+    MemoryService.filterMeetingFileVisibilityHits(candidates)
+): Promise<RagHit[]> {
+  return filterHits(hits);
+}
+
+/**
+ * A saved grounded answer can itself contain meeting text. Hide the entire
+ * turn if any saved source is no longer visible; trimming only its citation
+ * would leave the private prose on screen. Definite file-free answers remain.
+ */
+export async function filterPersistedAskTurnsForMeetingVisibility(
+  turns: readonly AskTurn[],
+  filterHits: AskVisibilityHitFilter = (hits) =>
+    filterAskMeetingVisibilityHits(hits)
+): Promise<AskTurn[]> {
+  const kept: AskTurn[] = [];
+  for (const turn of turns) {
+    if (turn.groundedFromFiles === false) {
+      kept.push(turn);
+      continue;
+    }
+    if (turn.sources.length === 0) continue;
+    const visible = await filterHits(turn.sources as RagHit[]);
+    if (visible.length !== turn.sources.length) continue;
+    kept.push(turn);
+  }
+  return kept;
+}
+
 /** Join tool labels for prose: ["RightCapital"] -> "RightCapital";
  *  ["RightCapital","Jump"] -> "RightCapital and Jump". */
 function formatToolList(items: string[]): string {
@@ -489,13 +523,22 @@ export function useAsk({
   // A3: for the sample matter, always start with the empty chip state (never restore a
   // prior demo answer) so the "click a question" aha moment shows on every fresh visit.
   useEffect(() => {
+    let acceptReconstructedTurns = true;
     initSession(chatId, []);
     setSessionWorkspaceRoot(chatId, rootPath ?? null);
     const isSampleChat = activeMatter?.id === SAMPLE_MATTER_ID;
     const freshSession = useAIChatStore.getState().sessions[chatId];
     if (!isSampleChat && freshSession && freshSession.messages.length > 0) {
       const reconstructed = reconstructTurns(freshSession.messages);
-      setTurns(reconstructed);
+      setTurns([]);
+      void filterPersistedAskTurnsForMeetingVisibility(reconstructed).then(
+        (visibleTurns) => {
+          if (acceptReconstructedTurns) setTurns(visibleTurns);
+        },
+        () => {
+          if (acceptReconstructedTurns) setTurns([]);
+        }
+      );
     } else {
       setTurns([]);
     }
@@ -521,6 +564,7 @@ export function useAsk({
     // own history — never silent loss, and never a leak into whatever chat
     // becomes current next.
     return () => {
+      acceptReconstructedTurns = false;
       if (
         statusRef.current !== 'retrieving' &&
         statusRef.current !== 'answering'
@@ -995,6 +1039,11 @@ export function useAsk({
           setCrmUnavailableNotice
         );
         hits = [...hits, ...crmHits];
+        // Meeting visibility is checked again after every retrieval source is
+        // combined. This covers file hits even if a stale index row survived a
+        // policy change, and it makes a resolver failure remove evidence rather
+        // than pass private text onward.
+        hits = await filterAskMeetingVisibilityHits(hits);
 
         if (abort.signal.aborted) return;
 
@@ -1178,6 +1227,15 @@ export function useAsk({
           // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
           if (abort.signal.aborted) return;
         }
+        // Provider resolution can wait on keychain/sidecar work. Re-read the
+        // current viewer and policy after those awaits, before any prompt is
+        // constructed. A coworker switch or newly narrowed policy therefore
+        // removes the meeting text from both the prompt and future citations.
+        hits = await filterAskMeetingVisibilityHits(hits);
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal can flip while the visibility check awaits current policy.
+        if (abort.signal.aborted) return;
+        if (useWorkspaceStore.getState().rootGeneration !== sendRootGeneration)
+          return;
         // Airtight backstop: there is NO await between this assertion and the send
         // below (only synchronous setup + flushSync), so the mode cannot change in
         // between. If we somehow still hold a cloud provider in Local-only mode,
@@ -1730,6 +1788,19 @@ export function useAsk({
 
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (abort.signal.aborted) return;
+
+        const finalVisibleGroundingHits =
+          await filterAskMeetingVisibilityHits(groundingHits);
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal can flip while the visibility check awaits current policy.
+        if (abort.signal.aborted) return;
+        if (finalVisibleGroundingHits.length !== groundingHits.length) {
+          // The answer may already contain prose learned from a source that was
+          // just hidden. Never display a partially-redacted answer: discard the
+          // whole result and its citations.
+          emitDecline(NO_EVIDENCE_DECLINE);
+          return;
+        }
+        groundingHits = finalVisibleGroundingHits;
 
         /* Step 3: parse and attach citations.
          * A citation is kept only when it points at a real retrieved chunk. Newer

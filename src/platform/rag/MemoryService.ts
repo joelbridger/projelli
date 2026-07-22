@@ -284,6 +284,80 @@ export function resetRetrievalHitExclusion(): void {
 }
 
 /**
+ * Meeting files carry a manifest in their sibling meeting.json.  The meetings
+ * feature installs this batch resolver because the platform memory layer must
+ * not import a feature. `not-meeting` is the only allow result for an ordinary
+ * file; `hidden` is removed from both indexing and retrieval.
+ */
+export type MeetingFileVisibilityResolution =
+  | 'not-meeting'
+  | 'visible'
+  | 'hidden';
+export type MeetingFileVisibilityResolver = (
+  sourceIds: readonly string[]
+) => Promise<ReadonlyMap<string, MeetingFileVisibilityResolution>>;
+
+const NO_MEETING_FILE_RESOLVER: MeetingFileVisibilityResolver = (sourceIds) =>
+  Promise.resolve(
+    new Map(sourceIds.map((sourceId) => [sourceId, 'not-meeting'] as const))
+  );
+
+let resolveMeetingFileVisibility: MeetingFileVisibilityResolver =
+  NO_MEETING_FILE_RESOLVER;
+
+export function setMeetingFileVisibilityResolver(
+  resolver: MeetingFileVisibilityResolver
+): void {
+  resolveMeetingFileVisibility = resolver;
+}
+
+export function resetMeetingFileVisibilityResolver(): void {
+  resolveMeetingFileVisibility = NO_MEETING_FILE_RESOLVER;
+}
+
+async function removeHiddenMeetingSources(sourceIds: readonly string[]): Promise<void> {
+  await Promise.all(
+    [...new Set(sourceIds)].map(async (sourceId) => {
+      try {
+        await ragDeletePath(sourceId);
+      } catch (err) {
+        // Retrieval remains fail-closed even if stale-row cleanup needs a
+        // later retry. Never put a hidden hit back because deletion failed.
+        console.warn(`[memory] could not remove hidden meeting source ${sourceId}:`, err);
+      }
+    })
+  );
+}
+
+/**
+ * Fresh meeting visibility check used by retrieve and again by Ask immediately
+ * before prompt/citation construction. A resolver failure hides the whole
+ * candidate set: inability to prove current meeting visibility is not consent.
+ */
+export async function filterMeetingFileVisibilityHits(
+  hits: readonly RagHit[]
+): Promise<RagHit[]> {
+  if (hits.length === 0) return [];
+  const sourceIds = hits.map((hit) => hit.sourceId ?? hit.path);
+  let decisions: ReadonlyMap<string, MeetingFileVisibilityResolution>;
+  try {
+    decisions = await resolveMeetingFileVisibility(sourceIds);
+  } catch {
+    await removeHiddenMeetingSources(sourceIds);
+    return [];
+  }
+  const hidden = sourceIds.filter((sourceId) => {
+    const decision = decisions.get(sourceId);
+    return decision !== 'not-meeting' && decision !== 'visible';
+  });
+  if (hidden.length > 0) await removeHiddenMeetingSources(hidden);
+  return hits.filter((hit) => {
+    const decision = decisions.get(hit.sourceId ?? hit.path);
+    return decision === 'not-meeting' || decision === 'visible';
+  });
+}
+
+/**
  * QA-44 — apply both fail-closed filters to a raw hit list, in the SAFE
  * direction only (drop suspect hits; never add any):
  *
@@ -353,6 +427,9 @@ function normalizeWorkspaceKey(path: string): string {
 }
 
 export const MemoryService = {
+  filterMeetingFileVisibilityHits,
+  setMeetingFileVisibilityResolver,
+  resetMeetingFileVisibilityResolver,
   /** Point the indexer at a workspace. Always runs even if disabled — the
    *  workspace handle is metadata, not user data. */
   async setWorkspace(path: string): Promise<void> {
@@ -366,6 +443,16 @@ export const MemoryService = {
 
   async indexFile(path: string, matterId?: string): Promise<void> {
     if (!isMemoryEnabled()) return;
+    let decision: MeetingFileVisibilityResolution | undefined;
+    try {
+      decision = (await resolveMeetingFileVisibility([path])).get(path);
+    } catch {
+      decision = 'hidden';
+    }
+    if (decision !== 'not-meeting' && decision !== 'visible') {
+      await removeHiddenMeetingSources([path]);
+      return;
+    }
     // WS-B/C: tag the chunk with the matter this file belongs to so retrieval
     // can prefilter by matter. Resolves to "unassigned" when the file is not
     // under any matter's mapped folders. Callers that already know the matter
@@ -580,7 +667,9 @@ export const MemoryService = {
     // QA-44: fail closed on privilege and wrong-client exposure regardless of
     // whether a prior re-tag ever landed (a swallowed/failed re-tag left stale
     // tags in the index).
-    return applyFailClosedExclusions(hits, includePrivileged);
+    return filterMeetingFileVisibilityHits(
+      applyFailClosedExclusions(hits, includePrivileged)
+    );
   },
 
   /** Index a single PDF file into the RAG store. Reads bytes via the
