@@ -5,7 +5,8 @@ import { importMatterKey } from '@/platform/firm/matterCrypto';
 import { getMatterKey } from '@/platform/firm/matterKeyService';
 import { getOrCreateDeviceKeypair } from '@/platform/firm/deviceKeys';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import { loadLiveCrmRecords, saveLiveCrmRecord, type LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { saveLiveCrmRecord, type LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { loadVisibleCrmRecordsForViewer } from '@/platform/crm/useLiveCrmRecords';
 
 type StoredOutbox = LiveCrmRecord & { row: NotificationOutboxRow };
 type StoredInbox = LiveCrmRecord & { row: NotificationInboxRow };
@@ -13,7 +14,12 @@ type StoredInbox = LiveCrmRecord & { row: NotificationInboxRow };
 /** SQLCipher-backed through the live-record boundary. The records contain only sealed envelopes and relay metadata. */
 class LiveRecordNotifyStore implements CrmNotifyStore {
   constructor(private readonly workspaceRoot: string) {}
-  private async all() { return loadLiveCrmRecords(this.workspaceRoot); }
+  private async all() {
+    return loadVisibleCrmRecordsForViewer(
+      this.workspaceRoot,
+      useFirmStore.getState().session?.userId ?? null
+    );
+  }
   private async outbox(orgId: string, envelopeId: string) { return (await this.all()).find((record): record is StoredOutbox => record.kind === 'crmNotifyOutbox' && record['orgId'] === orgId && record['envelopeId'] === envelopeId); }
   private async inbox(orgId: string, envelopeId: string) { return (await this.all()).find((record): record is StoredInbox => record.kind === 'crmNotifyInbox' && record['orgId'] === orgId && record['envelopeId'] === envelopeId); }
   private save(record: LiveCrmRecord) { return saveLiveCrmRecord(this.workspaceRoot, record); }
@@ -60,7 +66,9 @@ export async function pullFirmInbox(workspaceRoot: string): Promise<boolean> {
   const client = firm.client();
   const device = await getOrCreateDeviceKeypair();
   const store = new LiveRecordNotifyStore(workspaceRoot);
-  const cursorRecord = (await loadLiveCrmRecords(workspaceRoot)).find((record) => record.kind === 'crmNotifyCursor' && record['orgId'] === orgId && record['deviceId'] === device.deviceId);
+  const cursorRecord = (
+    await loadVisibleCrmRecordsForViewer(workspaceRoot, firm.session.userId)
+  ).find((record) => record.kind === 'crmNotifyCursor' && record['orgId'] === orgId && record['deviceId'] === device.deviceId);
   const since = typeof cursorRecord?.['cursor'] === 'number' ? cursorRecord['cursor'] : 0;
   const notify = new NotificationClient({ store, deviceId: device.deviceId, keys: { resolve: async (_org, hint) => { const opened = await openRecipientKeyHint(hint); if (!opened) return null; const raw = await getMatterKey(opened.matterId); return raw ? { scope: 'firm_home', firmHomeMatterId: opened.matterId, keyEpoch: opened.keyEpoch, key: await importMatterKey(raw), keyHint: hint } : null; } }, referencedState: { hasDurablyApplied: async () => true }, relay: { send: async () => undefined, ack: async (ack) => { await client.notifyAck(ack.orgId, ack.deviceId, ack.upToCursor, firm.seatToken!); } } });
   const inbox = await client.notifyInbox(orgId, since, firm.seatToken);

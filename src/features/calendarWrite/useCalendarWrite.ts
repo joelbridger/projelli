@@ -19,7 +19,7 @@ import {
   useCalendarCapabilityStore,
   useCalendarEventStore,
 } from '@/features/calendar';
-import { loadLiveCrmRecords, type LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import {
   createCalendarWriteOrchestrator,
@@ -60,7 +60,7 @@ export function useCalendarWrite(): CalendarWriteQueue {
   const orchestrator = useMemo(() => {
     const io = {
       save: (record: LiveRecordLike) => latest.current.live.save(record as LiveCrmRecord),
-      load: () => loadLiveCrmRecords(latest.current.live.workspaceRoot),
+      load: () => latest.current.live.reloadRecords().then((records) => records ?? []),
     };
     const store = createLiveRecordProposalStore(io);
     const deps: CalendarWriteDeps = {

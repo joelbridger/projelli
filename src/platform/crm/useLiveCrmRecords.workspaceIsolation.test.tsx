@@ -168,8 +168,13 @@ describe('live CRM shared snapshot and workspace isolation', () => {
     const first = renderHook(() => useLiveCrmRecords());
     const staleSecond = renderHook(() => useLiveCrmRecords());
     await waitFor(() => {
-      expect(first.result.current.records).toHaveLength(1);
-      expect(staleSecond.result.current.records).toHaveLength(1);
+      expect(
+        first.result.current.unfilteredRecordsForInternalMeetingPreferences
+      ).toHaveLength(1);
+      expect(
+        staleSecond.result.current
+          .unfilteredRecordsForInternalMeetingPreferences
+      ).toHaveLength(1);
     });
 
     const revoked = {
@@ -198,7 +203,7 @@ describe('live CRM shared snapshot and workspace isolation', () => {
 
     expect(
       first.result.current
-        .getCurrentRecords()
+        .unfilteredRecordsForInternalMeetingPreferences
         .find((record) => record.id === oldPreferences.id)
     ).toMatchObject({
       visibilityPolicies: [
@@ -275,10 +280,20 @@ describe('live CRM shared snapshot and workspace isolation', () => {
 
   it('a held A reader and writer fail closed after A-to-B with the same client ids', async () => {
     backend.recordsByRoot.set('/workspace-a', [
-      { ...oldPreferences, workspaceMarker: 'A private value' },
+      oldPreferences,
+      {
+        id: 'visible-a',
+        kind: 'meeting_keyword_catalogue',
+        workspaceMarker: 'A private value',
+      },
     ]);
     backend.recordsByRoot.set('/workspace-b', [
-      { ...oldPreferences, workspaceMarker: 'B private value' },
+      oldPreferences,
+      {
+        id: 'visible-b',
+        kind: 'meeting_keyword_catalogue',
+        workspaceMarker: 'B private value',
+      },
     ]);
     workspace.state = { rootPath: '/workspace-a', rootGeneration: 10 };
     const hook = renderHook(() => useLiveCrmRecords());
@@ -325,10 +340,20 @@ describe('live CRM shared snapshot and workspace isolation', () => {
     '%s during a held crm_live_upsert never publishes into the current screen',
     async (_label, returnToA) => {
       backend.recordsByRoot.set('/workspace-a-held', [
-        { ...oldPreferences, workspaceMarker: 'A before held save' },
+        oldPreferences,
+        {
+          id: 'visible-a-held',
+          kind: 'meeting_keyword_catalogue',
+          workspaceMarker: 'A before held save',
+        },
       ]);
       backend.recordsByRoot.set('/workspace-b-held', [
-        { ...oldPreferences, workspaceMarker: 'B must stay current' },
+        oldPreferences,
+        {
+          id: 'visible-b-held',
+          kind: 'meeting_keyword_catalogue',
+          workspaceMarker: 'B must stay current',
+        },
       ]);
       workspace.state = { rootPath: '/workspace-a-held', rootGeneration: 20 };
       const hook = renderHook(() => useLiveCrmRecords());
@@ -358,6 +383,9 @@ describe('live CRM shared snapshot and workspace isolation', () => {
       }
       const heldUpsert = backend.pendingUpserts.shift();
       if (!heldUpsert) throw new Error('Expected a held upsert.');
+      // Release the simulated backend before the new workspace performs its
+      // one-time visibility migration; this test holds only the stale A write.
+      backend.holdUpserts = false;
       heldUpsert.resolve(heldUpsert.saved);
       await rejected;
       expect(heldA.getCurrentRecords()).toEqual([]);

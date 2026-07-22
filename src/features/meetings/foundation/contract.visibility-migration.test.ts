@@ -171,7 +171,7 @@ describe('legacy meeting artifact visibility migration', () => {
     });
   });
 
-  it('repairs only one exact parent, keeps ambiguity hidden, and marks completion last', async () => {
+  it('repairs only one exact parent, keeps ambiguity hidden, and does not rewrite completed repairs', async () => {
     const exact = artifact(
       'artifact-exact',
       'meeting-exact',
@@ -215,14 +215,14 @@ describe('legacy meeting artifact visibility migration', () => {
         'advisor-owner'
       )
     ).toBe(false);
-    expect(fixture.savedIds.at(-1)).toBe('meeting-artifact-visibility-v1');
+    expect(fixture.savedIds).toEqual([exact.id]);
 
     const saveCount = fixture.savedIds.length;
     await migrateLegacyMeetingArtifactVisibility(fixture.port);
     expect(fixture.savedIds).toHaveLength(saveCount);
   });
 
-  it('does not mark a partial run and safely resumes without rewriting completed repairs', async () => {
+  it('safely resumes a partial run without rewriting completed repairs', async () => {
     const first = artifact(
       'artifact-one',
       'meeting-one',
@@ -247,18 +247,11 @@ describe('legacy meeting artifact visibility migration', () => {
     await expect(
       migrateLegacyMeetingArtifactVisibility(fixture.port)
     ).rejects.toThrow('simulated interrupted migration');
-    expect(
-      fixture
-        .records()
-        .some(
-          (record) => record.kind === 'meeting_artifact_visibility_migration'
-        )
-    ).toBe(false);
     expect(fixture.savedIds.filter((id) => id === first.id)).toHaveLength(1);
 
     await migrateLegacyMeetingArtifactVisibility(fixture.port);
     expect(fixture.savedIds.filter((id) => id === first.id)).toHaveLength(1);
     expect(fixture.savedIds.filter((id) => id === second.id)).toHaveLength(1);
-    expect(fixture.savedIds.at(-1)).toBe('meeting-artifact-visibility-v1');
+    expect(fixture.savedIds.at(-1)).toBe(second.id);
   });
 });

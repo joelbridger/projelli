@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
-import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import {
+  loadVisibleCrmRecordsForViewer,
+  useLiveCrmRecords,
+} from '@/platform/crm/useLiveCrmRecords';
 import { getMatters } from '@/platform/matter/matterStore';
 import {
   issueSharedClientSelection,
@@ -9,10 +12,12 @@ import {
   type SealedClientBoundary,
 } from '@/platform/client-context';
 import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import {
-  loadLiveCrmRecords,
-  type LiveCrmRecord,
-} from '@/platform/crm/liveRecords';
+  MEETING_VISIBILITY_LEGACY_VALUE,
+  MEETING_VISIBILITY_LINEAGE_FIELD,
+} from '@/platform/crm/meetingVisibilityMigration';
 import type { Matter } from '@/platform/types/matter';
 import {
   canReadMeetingDerivedRecord,
@@ -23,7 +28,6 @@ import {
   type MeetingVisibilityPolicy,
   type MeetingVisibilitySubject,
 } from '@/platform/meeting-visibility';
-import { useFirmStore } from '@/platform/firm/firmStore';
 
 export { validateMeetingVisibilityPolicy };
 export type { MeetingVisibilityPolicy };
@@ -1033,7 +1037,10 @@ export async function resolveMeetingNavigation(
 
   let records: readonly LiveCrmRecord[];
   try {
-    records = await loadLiveCrmRecords(workspaceRoot);
+    const viewerAtStart = useFirmStore.getState().session?.userId ?? null;
+    records = await loadVisibleCrmRecordsForViewer(workspaceRoot, viewerAtStart);
+    const viewerAfterLoad = useFirmStore.getState().session?.userId ?? null;
+    if (viewerAfterLoad !== viewerAtStart) return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
   } catch {
     return UNAVAILABLE_MEETING_NAVIGATION;
   }
@@ -1266,6 +1273,14 @@ export function validateMeetingDraft(
     references: input.references
       ? strings(input.references, 'Meeting references')
       : [],
+    ...(input.visibilityPolicyId !== undefined
+      ? {
+          visibilityPolicyId: nonEmpty(
+            input.visibilityPolicyId,
+            'Meeting visibility policy'
+          ),
+        }
+      : {}),
   };
 }
 
@@ -1541,6 +1556,40 @@ function recordClientBoundary(record: LiveCrmRecord): ClientBoundary {
   };
 }
 
+function canonicalMeetingVisibilityRecord(
+  record: LiveCrmRecord
+): LiveCrmRecord {
+  const policyId =
+    typeof record['visibilityPolicyId'] === 'string' &&
+    record['visibilityPolicyId'].trim() === record['visibilityPolicyId'] &&
+    record['visibilityPolicyId'].length > 0
+      ? record['visibilityPolicyId']
+      : null;
+  if (policyId) {
+    const {
+      [MEETING_VISIBILITY_LINEAGE_FIELD]: _oldLineage,
+      ...withoutLineage
+    } = record;
+    return { ...withoutLineage, visibilityPolicyId: policyId };
+  }
+  const { visibilityPolicyId: _oldPolicy, ...withoutPolicy } = record;
+  return {
+    ...withoutPolicy,
+    [MEETING_VISIBILITY_LINEAGE_FIELD]: MEETING_VISIBILITY_LEGACY_VALUE,
+  };
+}
+
+function hasCanonicalMeetingVisibility(record: LiveCrmRecord): boolean {
+  const hasPolicy =
+    typeof record['visibilityPolicyId'] === 'string' &&
+    record['visibilityPolicyId'].trim() === record['visibilityPolicyId'] &&
+    record['visibilityPolicyId'].length > 0;
+  const hasLegacy =
+    record[MEETING_VISIBILITY_LINEAGE_FIELD] ===
+    MEETING_VISIBILITY_LEGACY_VALUE;
+  return hasPolicy !== hasLegacy;
+}
+
 export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
   const scope = clientScope(port);
   let raw = port.records.filter((record) => record.kind === 'meeting');
@@ -1557,19 +1606,25 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
     record: LiveCrmRecord,
     expected: SealedMeetingClientBoundary
   ) => {
+    const canonical = canonicalMeetingVisibilityRecord(record);
     scope.assertStable(expected, 'Meeting');
-    scope.assertOwns(recordClientBoundary(record), 'Meeting');
-    await port.save(record);
+    scope.assertOwns(recordClientBoundary(canonical), 'Meeting');
+    await port.save(canonical);
     scope.assertStable(expected, 'Meeting');
     const fresh = await port.reloadRecords();
     scope.assertStable(expected, 'Meeting');
     raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
-    const saved = getRaw(record.id);
+    const saved = getRaw(canonical.id);
     if (!saved)
       throw new Error(
         'The saved meeting was missing after its canonical reload.'
       );
     scope.assertOwns(recordClientBoundary(saved), 'Meeting');
+    if (!hasCanonicalMeetingVisibility(saved)) {
+      throw new Error(
+        'The saved meeting did not preserve one canonical visibility state.'
+      );
+    }
     return saved;
   };
   const store: LinkableMeetingStore = {
@@ -1620,7 +1675,10 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
         references: draft.references,
         ...(draft.visibilityPolicyId
           ? { visibilityPolicyId: draft.visibilityPolicyId }
-          : {}),
+          : {
+              [MEETING_VISIBILITY_LINEAGE_FIELD]:
+                MEETING_VISIBILITY_LEGACY_VALUE,
+            }),
       };
       return projectMeetingRecord(await persist(record, expected));
     },
@@ -1634,7 +1692,7 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
       if (!rawRecord) throw new Error('That meeting no longer exists.');
       scope.assertOwns(recordClientBoundary(rawRecord), 'Meeting');
       const current = projectMeetingRecord(rawRecord);
-      const draft = validateMeetingDraft({
+      const draftInput = {
         ...current,
         ...patch,
         workspaceId: current.workspaceId,
@@ -1651,14 +1709,15 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
               'Meeting references'
             )
           : current.references,
-        ...(patch.visibilityPolicyId === null
-          ? {}
-          : {
-              visibilityPolicyId:
-                patch.visibilityPolicyId ?? current.visibilityPolicyId,
-            }),
-      } as CreateMeetingDraft);
-      const next: LiveCrmRecord = {
+        visibilityPolicyId:
+          patch.visibilityPolicyId ?? current.visibilityPolicyId,
+      } as CreateMeetingDraft;
+      if (patch.visibilityPolicyId === null) {
+        delete (draftInput as { visibilityPolicyId?: string | null })
+          .visibilityPolicyId;
+      }
+      const draft = validateMeetingDraft(draftInput);
+      let next: LiveCrmRecord = {
         ...rawRecord,
         updatedAt: now(),
         typeId: draft.typeId,
@@ -1668,9 +1727,23 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
         timezone: draft.timezone,
         references: draft.references,
       };
-      if (patch.visibilityPolicyId === null) delete next['visibilityPolicyId'];
-      else if (draft.visibilityPolicyId)
-        next['visibilityPolicyId'] = draft.visibilityPolicyId;
+      if (patch.visibilityPolicyId === null) {
+        const { visibilityPolicyId: _oldPolicy, ...withoutPolicy } = next;
+        next = {
+          ...withoutPolicy,
+          [MEETING_VISIBILITY_LINEAGE_FIELD]:
+            MEETING_VISIBILITY_LEGACY_VALUE,
+        };
+      } else if (draft.visibilityPolicyId) {
+        const {
+          [MEETING_VISIBILITY_LINEAGE_FIELD]: _oldLineage,
+          ...withoutLineage
+        } = next;
+        next = {
+          ...withoutLineage,
+          visibilityPolicyId: draft.visibilityPolicyId,
+        };
+      }
       return projectMeetingRecord(await persist(next, expected));
     },
     transition: async (id, transition) => {
@@ -2092,24 +2165,11 @@ function projectReviewNeededArtifact(
   };
 }
 
-const MEETING_ARTIFACT_VISIBILITY_MIGRATION_ID =
-  'meeting-artifact-visibility-v1';
-const MEETING_ARTIFACT_VISIBILITY_MIGRATION_KIND =
-  'meeting_artifact_visibility_migration';
-
 /** Repair old artifact rows only when one exact meeting parent and client pair match. */
 export async function migrateLegacyMeetingArtifactVisibility(
   port: ClientScopedLivePort
 ): Promise<readonly LiveCrmRecord[]> {
   let records = (await port.reloadRecords()) ?? [];
-  const markers = records.filter((record) =>
-    record.kind === MEETING_ARTIFACT_VISIBILITY_MIGRATION_KIND &&
-    record.id === MEETING_ARTIFACT_VISIBILITY_MIGRATION_ID
-  );
-  if (markers.length === 1) return records;
-  if (markers.length > 1)
-    throw new Error('Meeting artifact visibility migration is ambiguous.');
-
   const targets = records.filter((record) =>
     record.kind === 'meeting_artifact' &&
     record['meetingVisibility'] === undefined
@@ -2145,22 +2205,6 @@ export async function migrateLegacyMeetingArtifactVisibility(
     );
     return matches.length === 1 && matches[0]?.['meetingVisibility'] !== undefined;
   })) throw new Error('Meeting artifact visibility migration did not persist.');
-
-  // The marker is deliberately last: interrupted runs retry only unfinished rows.
-  const completedAt = now();
-  await port.save({
-    id: MEETING_ARTIFACT_VISIBILITY_MIGRATION_ID,
-    kind: MEETING_ARTIFACT_VISIBILITY_MIGRATION_KIND,
-    createdAt: completedAt,
-    updatedAt: completedAt,
-  });
-  records = (await port.reloadRecords()) ?? [];
-  const savedMarkers = records.filter((record) =>
-    record.kind === MEETING_ARTIFACT_VISIBILITY_MIGRATION_KIND &&
-    record.id === MEETING_ARTIFACT_VISIBILITY_MIGRATION_ID
-  );
-  if (savedMarkers.length !== 1)
-    throw new Error('Meeting artifact visibility migration did not complete.');
   return records;
 }
 
@@ -3681,6 +3725,10 @@ export function createMeetingFoundationPreferencesStore(
     },
     save: async (value) => {
       const validated = validateMeetingFoundationPreferences(value);
+      // This controller alone uses the raw reload doorway. Refresh before the
+      // first save so a just-created migration sentinel cannot race this mount
+      // into creating a second preferences singleton.
+      await record.reload();
       preferences = project(
         await record.save({
           visibilityPolicies: validated.visibilityPolicies,
@@ -3712,7 +3760,7 @@ export function useMeetingFoundationStore(): MeetingStore {
     sharedLocalMatterId: live.sharedLocalMatterId,
     getActiveClientBoundary: readActiveMeetingClientBoundary,
     getSelectionError: readAuthoritativeMeetingSelectionError,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+    reloadRecords: live.reloadRecords,
   });
 }
 export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
@@ -3727,7 +3775,7 @@ export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
     getActiveClientBoundary: readActiveMeetingClientBoundary,
     getSelectionError: readAuthoritativeMeetingSelectionError,
     getFirmSelectionError: readAuthoritativeFirmMeetingSelectionError,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+    reloadRecords: live.reloadRecords,
   };
   useEffect(() => {
     if (!live.workspaceRoot || live.error) return;
@@ -3749,7 +3797,7 @@ export function useMeetingTypeStore(): MeetingTypeStore {
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+    reloadRecords: live.reloadRecords,
   });
 }
 export function useMeetingTemplateStore(): MeetingTemplateStore {
@@ -3759,7 +3807,7 @@ export function useMeetingTemplateStore(): MeetingTemplateStore {
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+    reloadRecords: live.reloadRecords,
   });
 }
 export function useMeetingKeywordCatalogueStore(): MeetingKeywordCatalogueStore {
@@ -3777,7 +3825,7 @@ export function useMeetingKeywordCatalogueStore(): MeetingKeywordCatalogueStore 
     workspaceRoot: live.workspaceRoot,
     error: selectionError ?? live.error,
     save: live.save,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+    reloadRecords: live.reloadRecords,
   });
 }
 export function useMeetingIntelligenceSettingsStore(): MeetingIntelligenceSettingsStore {
@@ -3787,16 +3835,17 @@ export function useMeetingIntelligenceSettingsStore(): MeetingIntelligenceSettin
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+    reloadRecords: live.reloadRecords,
   });
 }
 export function useMeetingFoundationPreferencesStore(): MeetingFoundationPreferencesStore {
   const live = useLiveCrmRecords();
   return createMeetingFoundationPreferencesStore({
-    records: live.records,
+    records: live.unfilteredRecordsForInternalMeetingPreferences,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
-    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+    reloadRecords:
+      live.reloadUnfilteredRecordsForInternalMeetingPreferences,
   });
 }

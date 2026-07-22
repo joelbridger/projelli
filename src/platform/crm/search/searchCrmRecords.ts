@@ -10,11 +10,17 @@ export async function searchCrmRecords(
   workspaceRoot: string | null | undefined,
   query: string,
   matterId?: string,
+  allowedRecordIds: readonly string[] = [],
 ): Promise<readonly CrmSearchHit[]> {
-  if (!isTauri() || !workspaceRoot || !query.trim()) return [];
+  if (!isTauri() || !workspaceRoot || !query.trim() || allowedRecordIds.length === 0) return [];
+  const allowed = [...new Set(allowedRecordIds.filter(
+    (id) => typeof id === 'string' && id.length > 0 && id === id.trim(),
+  ))];
+  if (allowed.length === 0) return [];
   await crmSetWorkspace(workspaceRoot);
   return invoke<CrmSearchHit[]>('crm_search', {
     query,
     ...(matterId ? { matterId } : {}),
+    allowedRecordIds: allowed,
   });
 }
