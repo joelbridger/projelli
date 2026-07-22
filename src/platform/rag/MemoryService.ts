@@ -294,25 +294,37 @@ export type MeetingFileVisibilityResolution =
   | 'visible'
   | 'hidden';
 export type MeetingFileVisibilityResolver = (
-  sourceIds: readonly string[]
+  sourceIds: readonly string[],
+  meetingDerivedSourceIds: ReadonlySet<string>
 ) => Promise<ReadonlyMap<string, MeetingFileVisibilityResolution>>;
 
-const NO_MEETING_FILE_RESOLVER: MeetingFileVisibilityResolver = (sourceIds) =>
+const NO_MEETING_FILE_RESOLVER: MeetingFileVisibilityResolver = (
+  sourceIds,
+  meetingDerivedSourceIds
+) =>
   Promise.resolve(
-    new Map(sourceIds.map((sourceId) => [sourceId, 'not-meeting'] as const))
+    new Map(
+      sourceIds.map((sourceId) => [
+        sourceId,
+        meetingDerivedSourceIds.has(sourceId) ? 'hidden' : 'not-meeting',
+      ] as const)
+    )
   );
 
 let resolveMeetingFileVisibility: MeetingFileVisibilityResolver =
   NO_MEETING_FILE_RESOLVER;
+let meetingFileVisibilityResolverInstalled = false;
 
 export function setMeetingFileVisibilityResolver(
   resolver: MeetingFileVisibilityResolver
 ): void {
   resolveMeetingFileVisibility = resolver;
+  meetingFileVisibilityResolverInstalled = true;
 }
 
 export function resetMeetingFileVisibilityResolver(): void {
   resolveMeetingFileVisibility = NO_MEETING_FILE_RESOLVER;
+  meetingFileVisibilityResolverInstalled = false;
 }
 
 async function removeHiddenMeetingSources(sourceIds: readonly string[]): Promise<void> {
@@ -339,9 +351,17 @@ export async function filterMeetingFileVisibilityHits(
 ): Promise<RagHit[]> {
   if (hits.length === 0) return [];
   const sourceIds = hits.map((hit) => hit.sourceId ?? hit.path);
+  const meetingDerivedSourceIds = new Set(
+    hits
+      .filter((hit) => hit.sourceType === 'meeting')
+      .map((hit) => hit.sourceId ?? hit.path)
+  );
   let decisions: ReadonlyMap<string, MeetingFileVisibilityResolution>;
   try {
-    decisions = await resolveMeetingFileVisibility(sourceIds);
+    decisions = await resolveMeetingFileVisibility(
+      sourceIds,
+      meetingDerivedSourceIds
+    );
   } catch {
     await removeHiddenMeetingSources(sourceIds);
     return [];
@@ -445,7 +465,9 @@ export const MemoryService = {
     if (!isMemoryEnabled()) return;
     let decision: MeetingFileVisibilityResolution | undefined;
     try {
-      decision = (await resolveMeetingFileVisibility([path])).get(path);
+      decision = (
+        await resolveMeetingFileVisibility([path], new Set<string>())
+      ).get(path);
     } catch {
       decision = 'hidden';
     }
@@ -460,7 +482,41 @@ export const MemoryService = {
     // does not depend on folder-watcher timing or folder inference.
     // WS-PRIV: also tag with the source's privilege so privileged content is
     // excluded from default retrieval. Resolves to "none" when not tagged.
-    await ragIndexFile(path, matterId ?? resolveMatterForPath(path), resolvePrivilegeForPath(path));
+    await ragIndexFile(
+      path,
+      matterId ?? resolveMatterForPath(path),
+      resolvePrivilegeForPath(path),
+      decision === 'visible' ? 'meeting' : undefined
+    );
+  },
+
+  /** Meeting writers use this doorway so the native row carries durable
+   * `source_type=meeting` provenance. Missing/reset visibility wiring refuses
+   * the index operation instead of treating the file as ordinary. */
+  async indexMeetingFile(path: string, matterId: string): Promise<void> {
+    if (!isMemoryEnabled()) return;
+    if (!meetingFileVisibilityResolverInstalled) {
+      await removeHiddenMeetingSources([path]);
+      return;
+    }
+    let decision: MeetingFileVisibilityResolution | undefined;
+    try {
+      decision = (
+        await resolveMeetingFileVisibility([path], new Set([path]))
+      ).get(path);
+    } catch {
+      decision = 'hidden';
+    }
+    if (decision !== 'visible') {
+      await removeHiddenMeetingSources([path]);
+      return;
+    }
+    await ragIndexFile(
+      path,
+      matterId,
+      resolvePrivilegeForPath(path),
+      'meeting'
+    );
   },
 
   /**
@@ -559,9 +615,25 @@ export const MemoryService = {
     let failed = 0;
     for (const path of paths) {
       try {
+        let decision: MeetingFileVisibilityResolution | undefined;
+        try {
+          decision = (await resolveMeetingFileVisibility([path], new Set())).get(path);
+        } catch {
+          decision = 'hidden';
+        }
+        if (decision !== 'not-meeting' && decision !== 'visible') {
+          await removeHiddenMeetingSources([path]);
+          failed += 1;
+          continue;
+        }
         // WS-PRIV: preserve each file's privilege across a matter re-index so a
         // matter remap never silently un-privileges a source.
-        await ragIndexFile(path, matterId, resolvePrivilegeForPath(path));
+        await ragIndexFile(
+          path,
+          matterId,
+          resolvePrivilegeForPath(path),
+          decision === 'visible' ? 'meeting' : undefined
+        );
       } catch {
         // Skip this file and continue the batch, but remember it failed.
         failed += 1;

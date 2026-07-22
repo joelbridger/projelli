@@ -158,6 +158,18 @@ describe('meeting visibility viewer decisions', () => {
     });
   });
 
+  it('keeps an explicitly accountless solo record usable without inventing a viewer', () => {
+    const solo: MeetingVisibilitySubject = {
+      id: 'solo-meeting-note',
+      kind: 'meeting-note',
+      lineage: 'accountless-unrestricted',
+    };
+    expect(decide(solo, null, [], [])).toEqual({
+      visible: true,
+      reason: 'accountless-unrestricted',
+    });
+  });
+
   it('hides a non-legacy root that is missing its required policy', () => {
     const missingPolicyRoot: RootMeetingVisibilitySubject = {
       id: 'legacy-meeting-note',

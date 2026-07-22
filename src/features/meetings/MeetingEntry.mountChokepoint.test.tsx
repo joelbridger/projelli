@@ -51,6 +51,7 @@ import {
   type SealedMeetingClientBoundary,
 } from './foundation/contract';
 import { MeetingEntry } from './MeetingEntry';
+import { createAccountlessUnrestrictedMeetingFileVisibilityManifest } from './meetingFileVisibility';
 
 function mintedBoundary(
   householdRef: string,
@@ -128,13 +129,26 @@ describe('MeetingEntry synchronous pair-change unmount', () => {
       target,
       clientName: 'Alpha Household',
       workspaceRoot: '/workspace',
-      workspaceService: null,
+      workspaceService: {
+        readFile: vi.fn(async (path: string) => {
+          if (!path.endsWith('meeting.json')) throw new Error('ENOENT');
+          return JSON.stringify({
+            matterId: clientA.matterId,
+            meetingFileVisibility:
+              createAccountlessUnrestrictedMeetingFileVisibilityManifest({
+                meetingSubjectId: 'meeting-file:boundary-test',
+                fileNames: ['meeting.json'],
+              }),
+          });
+        }),
+        exists: vi.fn(async (path: string) => path.endsWith('meeting.json')),
+      } as unknown as WorkspaceService,
       onBack: () => undefined,
     } as const;
     const { rerender } = render(
       <MeetingEntry {...props} activeClientBoundary={clientA} />
     );
-    expect(screen.getByTestId('meeting-entry')).toBeInTheDocument();
+    expect(await screen.findByTestId('meeting-entry')).toBeInTheDocument();
 
     rerender(<MeetingEntry {...props} activeClientBoundary={clientB} />);
 
@@ -186,11 +200,20 @@ describe('MeetingEntry synchronous pair-change unmount', () => {
     const workspace = {
       readFile: vi.fn((path: string) =>
         path.endsWith('meeting.json')
-          ? Promise.resolve(JSON.stringify({ matterId: clientA.matterId }))
+          ? Promise.resolve(JSON.stringify({
+              matterId: clientA.matterId,
+              meetingFileVisibility:
+                createAccountlessUnrestrictedMeetingFileVisibilityManifest({
+                  meetingSubjectId: 'meeting-file:stored-notes',
+                  fileNames: ['meeting.json', 'notes.docx'],
+                }),
+            }))
           : Promise.reject(new Error('not found'))
       ),
       exists: vi.fn((path: string) =>
-        Promise.resolve(path.endsWith('notes.docx'))
+        Promise.resolve(
+          path.endsWith('meeting.json') || path.endsWith('notes.docx')
+        )
       ),
       readFileBinary: vi.fn((path: string) =>
         path.endsWith('notes.docx')
@@ -221,5 +244,67 @@ describe('MeetingEntry synchronous pair-change unmount', () => {
       'Annual review recap.'
     );
     expect(extractStoredNotes).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not read a child file unless that exact file is present in the meeting manifest', async () => {
+    useMatterStore.setState({
+      matters: [
+        {
+          id: clientA.matterId,
+          name: 'Shared matter',
+          client: 'Alpha Household',
+          folderPaths: [clientFolder],
+          crmHouseholdKeys: [clientA.householdRef],
+          createdAt: '2026-07-01T00:00:00.000Z',
+        } as Matter,
+      ],
+    });
+    const adapter = createDirectClientMeetingsAdapter({
+      client: clientA,
+      getActiveClientBoundary: () => clientA,
+      matterFolder: clientFolder,
+      scan: () =>
+        Promise.resolve({
+          meetings: [{
+            dir: `${clientFolder}/Meetings/meeting-a`,
+            folderName: 'meeting-a',
+          }],
+          scanFailed: false,
+        }),
+    });
+    const listed = await adapter.list();
+    if (listed.kind !== 'ready') throw new Error('expected listed meeting');
+    const target = adapter.resolveTarget(listed, listed.meetings[0]?.meeting);
+    if (!target) throw new Error('expected target');
+    const manifest = createAccountlessUnrestrictedMeetingFileVisibilityManifest({
+      meetingSubjectId: 'meeting-file:missing-child',
+      fileNames: ['meeting.json'],
+    });
+    const workspace = {
+      readFile: vi.fn(async (path: string) => {
+        if (path.endsWith('meeting.json'))
+          return JSON.stringify({ matterId: clientA.matterId, meetingFileVisibility: manifest });
+        throw new Error('private child must not be read');
+      }),
+      exists: vi.fn(async () => true),
+      readFileBinary: vi.fn(async () => {
+        throw new Error('private child must not be read');
+      }),
+    };
+
+    render(
+      <MeetingEntry
+        activeClientBoundary={clientA}
+        target={target}
+        clientName="Alpha Household"
+        workspaceRoot="/workspace"
+        workspaceService={workspace as unknown as WorkspaceService}
+        onBack={() => undefined}
+      />
+    );
+
+    expect(await screen.findByTestId('meeting-entry')).toBeInTheDocument();
+    expect(workspace.readFileBinary).not.toHaveBeenCalled();
+    expect(extractStoredNotes).not.toHaveBeenCalled();
   });
 });

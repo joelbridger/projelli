@@ -27,6 +27,10 @@ export interface MeetingFileVisibilityContext {
 
 export interface MeetingVisibilityWorkspace {
   readFile(path: string): Promise<string>;
+  writeFile?(path: string, content: string): Promise<void>;
+  list?(path: string): Promise<
+    readonly { name: string; path: string; type: 'file' | 'folder' }[]
+  >;
   exists?(path: string): Promise<boolean>;
 }
 
@@ -46,7 +50,8 @@ export const FILE_MEETING_OWNER_PRIVATE_POLICY: MeetingVisibilityPolicy = {
 };
 
 const FILE_VISIBILITY_FIELD = 'meetingFileVisibility';
-const LOCAL_ADVISOR_ID = 'advisor';
+const MEETING_VISIBILITY_MIGRATION_PATH =
+  '.lantern/migrations/meeting-file-visibility-v1.json';
 
 function exactText(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 && value === value.trim()
@@ -112,6 +117,9 @@ export async function resolveMeetingFilePathVisibility(input: {
   readonly path: string;
   readonly workspace: MeetingVisibilityWorkspace;
   readonly context: MeetingFileVisibilityContext;
+  /** Durable index provenance. A source once stamped as meeting-derived stays
+   * protected even after its manifest is deleted or moved. */
+  readonly knownMeetingDerived?: boolean;
 }): Promise<MeetingFileVisibilityResult> {
   const split = splitFilePath(input.path);
   if (!split) return { kind: 'not-meeting' };
@@ -127,7 +135,10 @@ export async function resolveMeetingFilePathVisibility(input: {
     } catch {
       return { kind: 'hidden' };
     }
-    if (!exists) return { kind: 'not-meeting' };
+    if (!exists)
+      return input.knownMeetingDerived
+        ? { kind: 'hidden' }
+        : { kind: 'not-meeting' };
   }
 
   let meta: unknown;
@@ -154,6 +165,7 @@ export async function resolveMeetingFilePathsVisibility(input: {
   readonly paths: readonly string[];
   readonly workspace: MeetingVisibilityWorkspace;
   readonly context: MeetingFileVisibilityContext;
+  readonly meetingDerivedPaths?: ReadonlySet<string>;
 }): Promise<ReadonlyMap<string, MeetingFileVisibilityResult>> {
   const results = await Promise.all(
     [...new Set(input.paths)].map(async (path) => [
@@ -162,6 +174,7 @@ export async function resolveMeetingFilePathsVisibility(input: {
         path,
         workspace: input.workspace,
         context: input.context,
+        knownMeetingDerived: input.meetingDerivedPaths?.has(path) ?? false,
       }),
     ] as const)
   );
@@ -170,11 +183,7 @@ export async function resolveMeetingFilePathsVisibility(input: {
 
 export function readCurrentMeetingViewerId(): string | null {
   const session = useFirmStore.getState().session;
-  if (session) return exactText(session.userId);
-  // Solo mode has no firm account.  Its long-standing canonical local owner is
-  // `advisor` (also used by MatterHub), so the same person remains the owner on
-  // their own synced devices without pretending a missing firm session exists.
-  return LOCAL_ADVISOR_ID;
+  return session ? exactText(session.userId) : null;
 }
 
 /** Read current viewer + persisted policies. Malformed policy data is retained
@@ -271,23 +280,65 @@ export function createLegacyUnrestrictedMeetingFileVisibilityManifest(input: {
   return { version: 1, meetingSubject, files };
 }
 
+/** New meeting material created while the product is in accountless solo mode.
+ * It is explicit and unrestricted because no coworker identity system exists;
+ * it must never be represented by a made-up user ID. */
+export function createAccountlessUnrestrictedMeetingFileVisibilityManifest(input: {
+  readonly meetingSubjectId?: string;
+  readonly fileNames: readonly string[];
+}): MeetingFileVisibilityManifest {
+  const meetingSubjectId = exactText(
+    input.meetingSubjectId ?? randomMeetingSubjectId()
+  );
+  if (!meetingSubjectId)
+    throw new Error('Accountless meeting visibility requires an exact meeting ID.');
+  const meetingSubject: MeetingVisibilitySubject = {
+    id: meetingSubjectId,
+    kind: 'meeting-note',
+    lineage: 'accountless-unrestricted',
+  };
+  const files: Record<string, MeetingVisibilitySubject> = {};
+  for (const rawName of input.fileNames) {
+    const fileName = exactText(rawName);
+    if (!fileName || fileName.includes('/') || fileName.includes('\\'))
+      throw new Error('Accountless meeting visibility requires exact direct-child file names.');
+    files[fileName] = {
+      id: `${meetingSubjectId}:file:${encodeURIComponent(fileName)}`,
+      kind: 'file-reference',
+      lineage: 'accountless-unrestricted',
+    };
+  }
+  return { version: 1, meetingSubject, files };
+}
+
 export function addMeetingFileVisibilityEntries(
   manifest: MeetingFileVisibilityManifest,
   fileNames: readonly string[]
 ): MeetingFileVisibilityManifest {
   const root = manifest.meetingSubject;
-  if (root.kind !== 'meeting-note' || root.lineage !== 'root') return manifest;
+  if (
+    root.kind !== 'meeting-note' ||
+    (root.lineage !== 'root' && root.lineage !== 'accountless-unrestricted')
+  )
+    return manifest;
   const files = { ...manifest.files };
   for (const rawName of fileNames) {
     const fileName = exactText(rawName);
     if (!fileName || fileName.includes('/') || fileName.includes('\\'))
       throw new Error('Meeting file visibility requires exact direct-child file names.');
-    files[fileName] ??= {
-      id: `${root.id}:file:${encodeURIComponent(fileName)}`,
-      kind: 'file-reference',
-      lineage: 'derived',
-      parentRef: { id: root.id, kind: root.kind },
-    };
+    files[fileName] ??=
+      root.lineage === 'root'
+        ? {
+            id: `${root.id}:file:${encodeURIComponent(fileName)}`,
+            kind: 'file-reference',
+            lineage: 'derived',
+            parentRef: { id: root.id, kind: root.kind },
+          }
+        : {
+            id: `${root.id}:file:${encodeURIComponent(fileName)}`,
+            kind: 'file-reference',
+            lineage: 'accountless-unrestricted',
+          };
   }
   return { ...manifest, files };
 }
@@ -303,4 +354,175 @@ export function meetingFileVisibilityManifestFromMeta(
   meta: unknown
 ): MeetingFileVisibilityManifest | null {
   return manifestFromMeta(meta);
+}
+
+interface MeetingFileVisibilityMigrationState {
+  readonly version: 1;
+  readonly completedMatterIds: readonly string[];
+  readonly ambiguousMeetingDirs: readonly string[];
+}
+
+export interface MeetingFileVisibilityMigrationResult {
+  readonly kind: 'already-complete' | 'completed';
+  readonly migrated: number;
+  readonly ambiguousMeetingDirs: readonly string[];
+}
+
+let migrationQueue: Promise<void> = Promise.resolve();
+
+async function readMigrationState(
+  workspace: MeetingVisibilityWorkspace
+): Promise<MeetingFileVisibilityMigrationState> {
+  try {
+    const parsed: unknown = JSON.parse(
+      await workspace.readFile(MEETING_VISIBILITY_MIGRATION_PATH)
+    );
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      throw new Error('invalid migration state');
+    const record = parsed as Record<string, unknown>;
+    if (
+      record['version'] !== 1 ||
+      !Array.isArray(record['completedMatterIds']) ||
+      !Array.isArray(record['ambiguousMeetingDirs'])
+    )
+      throw new Error('invalid migration state');
+    const completedMatterIds = record['completedMatterIds'].filter(
+      (value): value is string => exactText(value) !== null
+    );
+    const ambiguousMeetingDirs = record['ambiguousMeetingDirs'].filter(
+      (value): value is string => exactText(value) !== null
+    );
+    return { version: 1, completedMatterIds, ambiguousMeetingDirs };
+  } catch {
+    return { version: 1, completedMatterIds: [], ambiguousMeetingDirs: [] };
+  }
+}
+
+/**
+ * Versioned, crash-safe migration for one exact client parent. The sealed
+ * client boundary supplies both identities: `matterId` and its mapped folder.
+ * A child is migrated only when its own meeting.json repeats that exact matter
+ * ID. Malformed/mismatched children remain hidden and are recorded as residuals.
+ * The matter completion sentinel is written only after every eligible manifest
+ * write succeeds; a crash therefore retries safely and never blesses a partial
+ * migration.
+ */
+export async function migrateLegacyMeetingFileVisibility(input: {
+  readonly matterId: string;
+  readonly matterFolder: string;
+  readonly workspace: MeetingVisibilityWorkspace;
+}): Promise<MeetingFileVisibilityMigrationResult> {
+  const matterId = exactText(input.matterId);
+  const matterFolder = exactText(input.matterFolder);
+  if (!matterId || !matterFolder || !input.workspace.list || !input.workspace.writeFile)
+    throw new Error('Meeting visibility migration requires an exact client parent and writable workspace.');
+
+  let release: (() => void) | undefined;
+  const prior = migrationQueue;
+  migrationQueue = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await prior.catch(() => undefined);
+  try {
+    const state = await readMigrationState(input.workspace);
+    if (state.completedMatterIds.includes(matterId)) {
+      return {
+        kind: 'already-complete',
+        migrated: 0,
+        ambiguousMeetingDirs: state.ambiguousMeetingDirs,
+      };
+    }
+
+    const meetingsPath = `${matterFolder}/Meetings`;
+    let entries: readonly {
+      name: string;
+      path: string;
+      type: 'file' | 'folder';
+    }[] = [];
+    try {
+      if (input.workspace.exists && !(await input.workspace.exists(meetingsPath))) {
+        entries = [];
+      } else {
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            entries = await input.workspace.list(meetingsPath);
+            lastError = undefined;
+            break;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        if (lastError) throw lastError;
+      }
+    } catch {
+      // A transient scan failure cannot be committed as a completed migration.
+      throw new Error('Meeting visibility migration could not scan the client meetings folder.');
+    }
+
+    let migrated = 0;
+    const ambiguous = new Set(state.ambiguousMeetingDirs);
+    for (const entry of entries) {
+      if (entry.type !== 'folder') continue;
+      const metaPath = `${entry.path}/meeting.json`;
+      let raw: string;
+      let meta: Record<string, unknown>;
+      try {
+        raw = await input.workspace.readFile(metaPath);
+        const parsed: unknown = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+          throw new Error('invalid meeting metadata');
+        meta = parsed as Record<string, unknown>;
+      } catch {
+        ambiguous.add(entry.path);
+        continue;
+      }
+      if (manifestFromMeta(meta)) continue;
+      if (exactText(meta['matterId']) !== matterId) {
+        ambiguous.add(entry.path);
+        continue;
+      }
+      let children: readonly {
+        name: string;
+        path: string;
+        type: 'file' | 'folder';
+      }[];
+      try {
+        children = await input.workspace.list(entry.path);
+      } catch {
+        ambiguous.add(entry.path);
+        continue;
+      }
+      const fileNames = children
+        .filter((child) => child.type === 'file')
+        .map((child) => child.name);
+      if (!fileNames.includes('meeting.json')) fileNames.push('meeting.json');
+      const manifest = createLegacyUnrestrictedMeetingFileVisibilityManifest({
+        meetingSubjectId: randomMeetingSubjectId(),
+        fileNames,
+      });
+      await input.workspace.writeFile(
+        metaPath,
+        JSON.stringify(withMeetingFileVisibility(meta, manifest), null, 2)
+      );
+      migrated += 1;
+    }
+
+    const next: MeetingFileVisibilityMigrationState = {
+      version: 1,
+      completedMatterIds: [...new Set([...state.completedMatterIds, matterId])],
+      ambiguousMeetingDirs: [...ambiguous],
+    };
+    await input.workspace.writeFile(
+      MEETING_VISIBILITY_MIGRATION_PATH,
+      JSON.stringify(next, null, 2)
+    );
+    return {
+      kind: 'completed',
+      migrated,
+      ambiguousMeetingDirs: [...ambiguous],
+    };
+  } finally {
+    release?.();
+  }
 }

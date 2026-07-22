@@ -21,7 +21,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock, isTauri: () => false }));
 
-import { useMeetingStore, checkLowDiskSpaceWarning } from './meetingStore';
+import {
+  useMeetingStore,
+  checkLowDiskSpaceWarning,
+  setMeetingsWorkspaceService,
+} from './meetingStore';
 import { needsReview } from './insights/review/meetingReviewArtifactStore';
 import type { MeetingSummary } from './ClientMeetingsTab';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
@@ -37,6 +41,45 @@ const RECORDING_STATUS = {
 beforeEach(() => {
   invokeMock.mockReset();
   useMeetingStore.setState(RECORDING_STATUS);
+  let meetingJson = JSON.stringify({
+    matterId: 'm1',
+    startedAt: '2026-07-04T10:00:00Z',
+    consent: {
+      mode: 'two-party',
+      confirmedBy: 'user',
+      confirmedAt: '2026-07-04T10:00:00Z',
+    },
+    meetingFileVisibility: {
+      version: 1,
+      meetingSubject: {
+        id: 'qa35-legacy-meeting',
+        kind: 'meeting-note',
+        lineage: 'legacy-unrestricted',
+      },
+      files: Object.fromEntries(
+        ['meeting.json', 'audio.wav', 'transcript.json', 'notes.docx'].map(
+          (fileName) => [
+            fileName,
+            {
+              id: `qa35-legacy-meeting:${fileName}`,
+              kind: 'file-reference',
+              lineage: 'legacy-unrestricted',
+            },
+          ]
+        )
+      ),
+    },
+  });
+  setMeetingsWorkspaceService({
+    readFile: vi.fn(async (path: string) => {
+      if (!path.endsWith('/meeting.json')) throw new Error('ENOENT');
+      return meetingJson;
+    }),
+    writeFile: vi.fn(async (path: string, content: string) => {
+      if (path.endsWith('/meeting.json')) meetingJson = content;
+    }),
+    exists: vi.fn(async (path: string) => path.endsWith('/meeting.json')),
+  } as never);
 });
 
 describe('useMeetingStore.tick — QA-35', () => {

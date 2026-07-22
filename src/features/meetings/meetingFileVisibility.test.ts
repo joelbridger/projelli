@@ -4,11 +4,15 @@ import type {
   MeetingVisibilitySubject,
 } from '@/platform/meeting-visibility';
 import {
+  createAccountlessUnrestrictedMeetingFileVisibilityManifest,
   createMeetingFileVisibilityManifest,
   decideMeetingFileVisibility,
+  migrateLegacyMeetingFileVisibility,
+  readCurrentMeetingViewerId,
   resolveMeetingFilePathVisibility,
   type MeetingFileVisibilityManifest,
 } from './meetingFileVisibility';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 const policy: MeetingVisibilityPolicy = {
   id: 'policy-one-meeting',
@@ -135,5 +139,155 @@ describe('file-backed meeting visibility', () => {
         context: { viewerId: null, policies: [] },
       })
     ).toBe(false);
+  });
+
+  it('keeps accountless solo files usable without assigning a fake person id', () => {
+    const solo = createAccountlessUnrestrictedMeetingFileVisibilityManifest({
+      meetingSubjectId: 'meeting-file:solo-1',
+      fileNames: ['meeting.json', 'notes.docx'],
+    });
+    expect(solo.meetingSubject).not.toHaveProperty('ownerRef');
+    expect(
+      decideMeetingFileVisibility({
+        manifest: solo,
+        fileName: 'notes.docx',
+        context: { viewerId: null, policies: [] },
+      })
+    ).toBe(true);
+  });
+
+  it('uses only a signed-in firm member as the current viewer', () => {
+    useFirmStore.setState({ session: null });
+    expect(readCurrentMeetingViewerId()).toBeNull();
+    useFirmStore.setState({
+      session: {
+        userId: 'firm-member-1',
+        email: 'member@example.com',
+        role: 'member',
+        org: null,
+        seatId: null,
+        tier: null,
+        packs: [],
+        seats: 0,
+        lastValidatedAt: null,
+        activated: false,
+      },
+    });
+    expect(readCurrentMeetingViewerId()).toBe('firm-member-1');
+    useFirmStore.setState({ session: null });
+  });
+
+  it('migrates only exact children, records mismatches, and then keeps missing manifests hidden', async () => {
+    const goodDir = '/ws/client/Meetings/good';
+    const wrongDir = '/ws/client/Meetings/wrong';
+    const files = new Map<string, string>([
+      [`${goodDir}/meeting.json`, JSON.stringify({ matterId: 'matter-1' })],
+      [`${wrongDir}/meeting.json`, JSON.stringify({ matterId: 'matter-2' })],
+    ]);
+    const workspace = {
+      readFile: vi.fn(async (path: string) => {
+        const value = files.get(path);
+        if (value === undefined) throw new Error('ENOENT');
+        return value;
+      }),
+      writeFile: vi.fn(async (path: string, content: string) => {
+        files.set(path, content);
+      }),
+      exists: vi.fn(async (path: string) =>
+        path === '/ws/client/Meetings' || files.has(path)
+      ),
+      list: vi.fn(async (path: string) => {
+        if (path === '/ws/client/Meetings')
+          return [
+            { name: 'good', path: goodDir, type: 'folder' as const },
+            { name: 'wrong', path: wrongDir, type: 'folder' as const },
+          ];
+        if (path === goodDir || path === wrongDir)
+          return [
+            {
+              name: 'meeting.json',
+              path: `${path}/meeting.json`,
+              type: 'file' as const,
+            },
+          ];
+        return [];
+      }),
+    };
+
+    const result = await migrateLegacyMeetingFileVisibility({
+      matterId: 'matter-1',
+      matterFolder: '/ws/client',
+      workspace,
+    });
+    expect(result).toMatchObject({ kind: 'completed', migrated: 1 });
+    expect(result.ambiguousMeetingDirs).toContain(wrongDir);
+    expect(JSON.parse(files.get(`${goodDir}/meeting.json`) as string)).toHaveProperty(
+      'meetingFileVisibility'
+    );
+    expect(JSON.parse(files.get(`${wrongDir}/meeting.json`) as string)).not.toHaveProperty(
+      'meetingFileVisibility'
+    );
+
+    files.set(`${goodDir}/meeting.json`, JSON.stringify({ matterId: 'matter-1' }));
+    await expect(
+      resolveMeetingFilePathVisibility({
+        path: `${goodDir}/notes.docx`,
+        workspace,
+        context: { viewerId: null, policies: [] },
+      })
+    ).resolves.toEqual({ kind: 'hidden' });
+  });
+
+  it('does not write the completion receipt after a partial migration crash and safely resumes', async () => {
+    const dirs = ['/ws/client/Meetings/one', '/ws/client/Meetings/two'];
+    const sentinel = '.lantern/migrations/meeting-file-visibility-v1.json';
+    const files = new Map<string, string>(
+      dirs.map((dir) => [`${dir}/meeting.json`, JSON.stringify({ matterId: 'matter-1' })])
+    );
+    let failSecond = true;
+    const workspace = {
+      readFile: vi.fn(async (path: string) => {
+        const value = files.get(path);
+        if (value === undefined) throw new Error('ENOENT');
+        return value;
+      }),
+      writeFile: vi.fn(async (path: string, content: string) => {
+        if (failSecond && path === `${dirs[1]}/meeting.json`) throw new Error('disk full');
+        files.set(path, content);
+      }),
+      exists: vi.fn(async (path: string) =>
+        path === '/ws/client/Meetings' || files.has(path)
+      ),
+      list: vi.fn(async (path: string) => {
+        if (path === '/ws/client/Meetings')
+          return dirs.map((dir) => ({
+            name: dir.split('/').at(-1) as string,
+            path: dir,
+            type: 'folder' as const,
+          }));
+        if (dirs.includes(path))
+          return [{ name: 'meeting.json', path: `${path}/meeting.json`, type: 'file' as const }];
+        return [];
+      }),
+    };
+
+    await expect(
+      migrateLegacyMeetingFileVisibility({
+        matterId: 'matter-1',
+        matterFolder: '/ws/client',
+        workspace,
+      })
+    ).rejects.toThrow('disk full');
+    expect(files.has(sentinel)).toBe(false);
+
+    failSecond = false;
+    await expect(
+      migrateLegacyMeetingFileVisibility({
+        matterId: 'matter-1',
+        matterFolder: '/ws/client',
+        workspace,
+      })
+    ).resolves.toMatchObject({ kind: 'completed', migrated: 1 });
+    expect(JSON.parse(files.get(sentinel) as string).completedMatterIds).toContain('matter-1');
   });
 });

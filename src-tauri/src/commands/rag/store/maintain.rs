@@ -275,6 +275,29 @@ pub async fn retag_privilege_for_path(
     Ok(result.rows_updated)
 }
 
+/// Stamp durable meeting provenance on every indexed row for one exact source.
+/// This survives deletion/movement of the sibling meeting manifest, allowing
+/// renderer-side policy checks to keep stale rows fail-closed and purge them.
+pub async fn retag_meeting_source_type_for_path(
+    table: &Table,
+    path: &str,
+    key: &[u8; 32],
+) -> Result<u64> {
+    let _write = acquire_write_access(table).await?;
+    let predicate = format!(
+        "path = '{}'",
+        sql_escape(&super::super::crypto::path_token(key, path))
+    );
+    let result = table
+        .update()
+        .only_if(predicate)
+        .column("source_type", "'meeting'")
+        .execute()
+        .await
+        .with_context(|| format!("retag meeting provenance failed for {}", path))?;
+    Ok(result.rows_updated)
+}
+
 /// WS-B/C — re-tag the matter of every already-indexed chunk for `path` IN
 /// PLACE, without re-embedding. The mirror of `retag_privilege_for_path` for the
 /// matter scope: used when a source's matter assignment changes (e.g. a mail

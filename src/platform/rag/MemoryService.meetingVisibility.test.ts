@@ -24,7 +24,7 @@ import {
 } from './MemoryService';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 
-function hit(path: string, text: string): RagHit {
+function hit(path: string, text: string, sourceType?: 'meeting'): RagHit {
   return {
     path,
     sourceId: path,
@@ -32,6 +32,7 @@ function hit(path: string, text: string): RagHit {
     score: 1,
     paragraphIndex: 0,
     matterId: 'matter-1',
+    ...(sourceType ? { sourceType } : {}),
   };
 }
 
@@ -110,7 +111,37 @@ describe('meeting visibility at the memory boundary', () => {
 
     visible = true;
     await MemoryService.indexFile(notes, 'matter-1');
-    expect(indexFile).toHaveBeenCalledWith(notes, 'matter-1', 'none');
+    expect(indexFile).toHaveBeenCalledWith(
+      notes,
+      'matter-1',
+      'none',
+      'meeting'
+    );
+  });
+
+  it('treats durable meeting provenance as hidden when wiring is missing, but leaves ordinary rows alone', async () => {
+    const notes = '/ws/client/Meetings/m1/notes.docx';
+    const ordinary = '/ws/client/tax.pdf';
+    resetMeetingFileVisibilityResolver();
+    setRetrievalBackend(async () => [
+      hit(notes, 'stale private notes', 'meeting'),
+      hit(ordinary, 'ordinary client text'),
+    ]);
+
+    await expect(
+      MemoryService.retrieve('q', 5, { kind: 'allMatters' })
+    ).resolves.toEqual([hit(ordinary, 'ordinary client text')]);
+    expect(deletePath).toHaveBeenCalledWith(notes);
+  });
+
+  it('refuses the dedicated meeting index doorway when visibility wiring is missing', async () => {
+    const notes = '/ws/client/Meetings/m1/notes.docx';
+    resetMeetingFileVisibilityResolver();
+
+    await MemoryService.indexMeetingFile(notes, 'matter-1');
+
+    expect(indexFile).not.toHaveBeenCalled();
+    expect(deletePath).toHaveBeenCalledWith(notes);
   });
 
   it('fails closed when the meeting resolver is unavailable', async () => {

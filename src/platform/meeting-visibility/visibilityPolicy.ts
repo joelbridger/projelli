@@ -48,6 +48,13 @@ export interface LegacyUnrestrictedMeetingVisibilitySubject extends MeetingVisib
   readonly lineage: 'legacy-unrestricted';
 }
 
+/** A meeting created in accountless solo mode. Solo mode has no person ID, so
+ * it cannot participate in coworker restrictions. The record is deliberately
+ * unrestricted and carries no invented owner, policy, or parent identity. */
+export interface AccountlessUnrestrictedMeetingVisibilitySubject extends MeetingVisibilitySubjectBase {
+  readonly lineage: 'accountless-unrestricted';
+}
+
 /** A canonical meeting note, which is the root of an inheritance chain. */
 export interface RootMeetingVisibilitySubject extends MeetingVisibilitySubjectBase {
   readonly kind: 'meeting-note';
@@ -67,6 +74,7 @@ export interface DerivedMeetingVisibilitySubject extends MeetingVisibilitySubjec
 
 export type MeetingVisibilitySubject =
   | LegacyUnrestrictedMeetingVisibilitySubject
+  | AccountlessUnrestrictedMeetingVisibilitySubject
   | RootMeetingVisibilitySubject
   | DerivedMeetingVisibilitySubject;
 
@@ -75,6 +83,7 @@ export type MeetingVisibilityDecision =
       readonly visible: true;
       readonly reason:
         | 'legacy-unrestricted'
+        | 'accountless-unrestricted'
         | 'household-inherited'
         | 'owner'
         | 'included';
@@ -265,6 +274,18 @@ function parseSubject(value: unknown): ParsedSubject {
     return { ...base, lineage: 'legacy-unrestricted' };
   }
 
+  if (record['lineage'] === 'accountless-unrestricted') {
+    if (
+      owns(record, 'ownerRef') ||
+      owns(record, 'visibilityPolicyId') ||
+      owns(record, 'parentRef')
+    )
+      throw new Error(
+        'Accountless unrestricted visibility cannot claim an owner, policy, or parent.'
+      );
+    return { ...base, lineage: 'accountless-unrestricted' };
+  }
+
   if (record['lineage'] === 'root') {
     if (kind !== 'meeting-note' || owns(record, 'parentRef') || !base.ownerRef)
       throw new Error('Meeting visibility root is invalid.');
@@ -345,6 +366,8 @@ export function resolveMeetingVisibility(
     return hidden('malformed-subject');
   }
   const requestedLegacyUnrestricted = current.lineage === 'legacy-unrestricted';
+  const requestedAccountlessUnrestricted =
+    current.lineage === 'accountless-unrestricted';
 
   let ownerRef: string | undefined;
   let policyId: string | undefined;
@@ -402,6 +425,9 @@ export function resolveMeetingVisibility(
       reason: 'legacy-unrestricted',
       ...(ownerRef ? { ownerRef } : {}),
     };
+  }
+  if (!policyId && requestedAccountlessUnrestricted) {
+    return { visible: true, reason: 'accountless-unrestricted' };
   }
   if (!policyId) return hidden('missing-policy', undefined, ownerRef);
   if (policies.malformedIds.has(policyId))

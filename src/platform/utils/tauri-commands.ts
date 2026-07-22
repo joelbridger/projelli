@@ -357,6 +357,7 @@ export async function ragIndexFile(
   path: string,
   matterId?: string,
   privilege?: string,
+  sourceType?: 'meeting',
 ): Promise<void> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
@@ -365,7 +366,7 @@ export async function ragIndexFile(
   // null). The matter-assignment UI passes a real id here.
   // WS-PRIV: omitting privilege indexes as "none" (not privileged); the privilege
   // store passes the source's real status so privileged content is excluded by default.
-  return invoke<void>('rag_index_file', { path, matterId, privilege });
+  return invoke<void>('rag_index_file', { path, matterId, privilege, sourceType });
 }
 
 /** Index the entire active workspace. Walks every supported file under the

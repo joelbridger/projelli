@@ -4,7 +4,7 @@
  * not a detail tab. Opened from both the client's Meetings tab and its Activity
  * timeline entry.
  */
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, Check, Pencil, Volume2 } from 'lucide-react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
@@ -59,6 +59,7 @@ import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
 import { meetingNoteOutboundGate } from './outboundNoteGate';
 import { deriveNoticeState } from './noticeLedger';
 import { useFirm } from '@/platform/hooks/useFirm';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   getMeetingPanelComposition,
   type MeetingPanelId,
@@ -78,6 +79,12 @@ import {
 } from './meetingDetailHeaderProjection';
 import { useMeetingAgendaCompatibility } from './agenda/meetingAgendaCompatibility';
 import { useMeetingFollowUpCompatibility } from './followUp/meetingFollowUpCompatibility';
+import { useMeetingFoundationPreferencesStore } from './foundation/contract';
+import {
+  FILE_MEETING_OWNER_PRIVATE_POLICY,
+  resolveMeetingFilePathVisibility,
+  type MeetingFileVisibilityContext,
+} from './meetingFileVisibility';
 
 export interface MeetingEntryProps {
   /** The live, complete household + matter pair. */
@@ -214,6 +221,24 @@ function MeetingEntryHost({
   useMeetingFollowUpCompatibility();
   const { t } = useTranslation();
   const firm = useFirm();
+  const currentViewerId = useFirmStore(
+    (state) => state.session?.userId ?? null
+  );
+  const visibilityPreferences = useMeetingFoundationPreferencesStore();
+  const visibilityContext = useMemo<MeetingFileVisibilityContext>(
+    () => ({
+      viewerId: currentViewerId,
+      policies: [
+        FILE_MEETING_OWNER_PRIVATE_POLICY,
+        ...visibilityPreferences.preferences.visibilityPolicies,
+      ],
+    }),
+    [currentViewerId, visibilityPreferences.preferences.visibilityPolicies]
+  );
+  const visibilityIdentity = useMemo(
+    () => JSON.stringify([currentViewerId, visibilityContext.policies]),
+    [currentViewerId, visibilityContext.policies]
+  );
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
   const [hasNotes, setHasNotes] = useState(false);
@@ -235,6 +260,8 @@ function MeetingEntryHost({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [retryingNotes, setRetryingNotes] = useState(false);
   const [retryingTranscript, setRetryingTranscript] = useState(false);
+  const [authorizedVisibilityIdentity, setAuthorizedVisibilityIdentity] =
+    useState<string | null>(null);
   const [notices, setNotices] = useState<NoticeEntry[]>([]);
   const audioRef = useRef<AudioPlayerHandle>(null);
   const didInitialSeek = useRef(false);
@@ -262,6 +289,21 @@ function MeetingEntryHost({
     t,
   });
 
+  const canAccessMeetingFile = useCallback(
+    async (fileName: string): Promise<boolean> => {
+      const ws = workspaceService;
+      if (!ws) return false;
+      const decision = await resolveMeetingFilePathVisibility({
+        path: `${meetingDir}/${fileName}`,
+        workspace: ws,
+        context: visibilityContext,
+        knownMeetingDerived: true,
+      });
+      return decision.kind === 'visible';
+    },
+    [meetingDir, visibilityContext, workspaceService]
+  );
+
   useEffect(() => {
     const token = ++meetingLoadToken.current;
     const isCurrentLoad = () => token === meetingLoadToken.current;
@@ -277,24 +319,29 @@ function MeetingEntryHost({
     setNotices([]);
     setRetryingNotes(false);
     setRetryingTranscript(false);
+    setAuthorizedVisibilityIdentity(null);
     didInitialSeek.current = false;
     // eslint-disable-next-line lantern-async/no-silent-failure -- each meeting-file read below renders a safe empty/pending state on failure
     void (async () => {
       const ws = workspaceService;
       if (!ws) return;
+      if (!(await canAccessMeetingFile('meeting.json'))) return;
       try {
         const raw = await ws.readFile(`${meetingDir}/meeting.json`);
-        if (isCurrentLoad()) setMeta(JSON.parse(raw) as MeetingMeta);
+        if (isCurrentLoad()) {
+          setMeta(JSON.parse(raw) as MeetingMeta);
+          setAuthorizedVisibilityIdentity(visibilityIdentity);
+        }
       } catch {
         if (isCurrentLoad()) setMeta(null);
       }
-      try {
+      if (await canAccessMeetingFile('transcript.json')) try {
         const raw = await ws.readFile(`${meetingDir}/transcript.json`);
         if (isCurrentLoad()) setTranscript(JSON.parse(raw) as TranscriptFile);
       } catch {
         if (isCurrentLoad()) setTranscript(null);
       }
-      try {
+      if (await canAccessMeetingFile('notes.docx')) try {
         // codex-review (coordinator P2): notes.docx is binary — readFile is
         // the TEXT reader (readTextFile on Tauri) and can throw decoding real
         // docx bytes even though the file exists. exists() is the correct,
@@ -325,7 +372,7 @@ function MeetingEntryHost({
           setSummaryExtraction(null);
         }
       }
-      try {
+      if (await canAccessMeetingFile('audio.wav')) try {
         const buffer = await ws.readFileBinary(`${meetingDir}/audio.wav`);
         if (isCurrentLoad()) {
           setAudioSrc(arrayBufferToDataUrl(buffer, 'audio/wav'));
@@ -341,7 +388,7 @@ function MeetingEntryHost({
     return () => {
       meetingLoadToken.current += 1;
     };
-  }, [meetingDir, workspaceService, initialSeekMs]);
+  }, [meetingDir, workspaceService, initialSeekMs, canAccessMeetingFile, visibilityIdentity]);
 
   // Recording Notice Kit — the per-client ledger for this meeting's notices.
   // matterFolder is derived from matterId (falls back to stripping the meeting
@@ -433,6 +480,7 @@ function MeetingEntryHost({
   const handleDeleteAudio = useCallback(async () => {
     const ws = workspaceService;
     if (!ws) return;
+    if (!(await canAccessMeetingFile('audio.wav'))) return;
     await ws.delete(`${meetingDir}/audio.wav`);
     setAudioSrc(null);
     setHasAudio(false);
@@ -448,14 +496,15 @@ function MeetingEntryHost({
       .catch((err: unknown) => {
         setExportNotice(err instanceof Error ? err.message : String(err));
       });
-  }, [matterId, meetingDir, workspaceService, onChanged]);
+  }, [matterId, meetingDir, workspaceService, onChanged, canAccessMeetingFile]);
 
   const handleMarkReviewed = useCallback(async () => {
     if (!meta) return;
+    if (!(await canAccessMeetingFile('meeting.json'))) return;
     const updated = await markMeetingReviewed(meetingDir);
     if (updated) setMeta(updated);
     onChanged?.();
-  }, [meetingDir, meta, onChanged]);
+  }, [meetingDir, meta, onChanged, canAccessMeetingFile]);
 
   // QA-31 — "Retry" once notesError is set: re-runs generation, then
   // re-reads meeting.json (for the cleared/updated notesError) and notes.docx
@@ -465,6 +514,12 @@ function MeetingEntryHost({
     const ws = workspaceService;
     const token = meetingLoadToken.current;
     const isCurrentLoad = () => token === meetingLoadToken.current;
+    if (
+      !(await canAccessMeetingFile('meeting.json')) ||
+      !(await canAccessMeetingFile('transcript.json')) ||
+      !(await canAccessMeetingFile('notes.docx'))
+    )
+      return;
     setRetryingNotes(true);
     try {
       await retryMeetingNotes(meetingDir, matterId);
@@ -511,7 +566,7 @@ function MeetingEntryHost({
       }
     }
     onChanged?.();
-  }, [meetingDir, matterId, workspaceService, onChanged]);
+  }, [meetingDir, matterId, workspaceService, onChanged, canAccessMeetingFile]);
 
   // QA-40 — "Retry" once transcriptError is set: re-runs transcription (Rust
   // resumes from .transcribe-progress.json), then re-reads meeting.json and
@@ -520,6 +575,13 @@ function MeetingEntryHost({
     const ws = workspaceService;
     const token = meetingLoadToken.current;
     const isCurrentLoad = () => token === meetingLoadToken.current;
+    if (
+      !(await canAccessMeetingFile('meeting.json')) ||
+      !(await canAccessMeetingFile('audio.wav')) ||
+      !(await canAccessMeetingFile('transcript.json')) ||
+      !(await canAccessMeetingFile('notes.docx'))
+    )
+      return;
     setRetryingTranscript(true);
     try {
       await retryMeetingTranscript(meetingDir, workspaceRoot, matterId);
@@ -546,7 +608,7 @@ function MeetingEntryHost({
       if (isCurrentLoad()) setHasNotes(false);
     }
     onChanged?.();
-  }, [meetingDir, matterId, workspaceRoot, workspaceService, onChanged]);
+  }, [meetingDir, matterId, workspaceRoot, workspaceService, onChanged, canAccessMeetingFile]);
 
   const handleSaveType = useCallback(async () => {
     const entered = typeInput.trim();
@@ -554,6 +616,7 @@ function MeetingEntryHost({
       setEditingType(false);
       return;
     }
+    if (!(await canAccessMeetingFile('meeting.json'))) return;
     // The input shows the human label, never the internal id — map a label
     // back to its built-in type id; anything else is saved as a custom type.
     const typeId =
@@ -571,13 +634,14 @@ function MeetingEntryHost({
     if (updated) setMeta(updated);
     setEditingType(false);
     onChanged?.();
-  }, [typeInput, meta, meetingDir, folderName, workspaceService, t, onChanged]);
+  }, [typeInput, meta, meetingDir, folderName, workspaceService, t, onChanged, canAccessMeetingFile]);
 
   const handleSaveTitle = useCallback(async () => {
     if (!meta || !workspaceService) {
       setRenaming(false);
       return;
     }
+    if (!(await canAccessMeetingFile('meeting.json'))) return;
     const entered = titleInput.trim();
     const updated = await updateMeetingJson(meetingDir, (current) => {
       if (entered) return { ...current, customTitle: entered };
@@ -587,7 +651,7 @@ function MeetingEntryHost({
     if (updated) setMeta(updated);
     setRenaming(false);
     onChanged?.();
-  }, [meta, titleInput, meetingDir, workspaceService, onChanged]);
+  }, [meta, titleInput, meetingDir, workspaceService, onChanged, canAccessMeetingFile]);
 
   const copyText = useCallback(async (text: string, notice: string) => {
     await navigator.clipboard.writeText(text);
@@ -618,6 +682,7 @@ function MeetingEntryHost({
   const exportSummaryDocx = useCallback(async (): Promise<string | null> => {
     const ws = workspaceService;
     if (!ws) return null;
+    if (!(await canAccessMeetingFile('notes.docx'))) return null;
     if (!summaryReady) throw new Error(t('meetings.entry.summary-not-ready'));
     const stem = sanitizeFileStem(`${meetingDisplayTitle(meta, t)} summary`);
     const path = await uniqueExportPath(stem, 'docx');
@@ -632,6 +697,7 @@ function MeetingEntryHost({
     t,
     uniqueExportPath,
     summaryMarkdown,
+    canAccessMeetingFile,
   ]);
 
   const buildSummaryDocxBytes = useCallback(async (): Promise<Uint8Array> => {
@@ -667,6 +733,7 @@ function MeetingEntryHost({
     void runExport('summary-pdf', async () => {
       const ws = workspaceService;
       if (!ws) return null;
+      if (!(await canAccessMeetingFile('notes.docx'))) return null;
       const tempStem = sanitizeFileStem(
         `${meetingDisplayTitle(meta, t)} summary`
       );
@@ -694,27 +761,32 @@ function MeetingEntryHost({
     meetingDir,
     buildSummaryDocxBytes,
     uniqueExportPath,
+    canAccessMeetingFile,
   ]);
 
   const handleExportTranscript = useCallback(() => {
     void runExport('transcript', async () => {
       const ws = workspaceService;
       if (!ws || !transcript) return null;
+      if (!(await canAccessMeetingFile('transcript.json'))) return null;
       const path = `${meetingDir}/transcript.txt`;
       await ws.writeFile(path, transcriptToText(transcript));
       return path;
     }).catch((err: unknown) => {
       setExportNotice(err instanceof Error ? err.message : String(err));
     });
-  }, [workspaceService, transcript, meetingDir, runExport]);
+  }, [workspaceService, transcript, meetingDir, runExport, canAccessMeetingFile]);
 
   const handleDownloadAudio = useCallback(() => {
     if (!audioSrc) return;
-    const a = document.createElement('a');
-    a.href = audioSrc;
-    a.download = `${sanitizeFileStem(meetingDisplayTitle(meta, t))}.wav`;
-    a.click();
-  }, [audioSrc, meta, t]);
+    void canAccessMeetingFile('audio.wav').then((visible) => {
+      if (!visible) return;
+      const a = document.createElement('a');
+      a.href = audioSrc;
+      a.download = `${sanitizeFileStem(meetingDisplayTitle(meta, t))}.wav`;
+      a.click();
+    });
+  }, [audioSrc, meta, t, canAccessMeetingFile]);
 
   const handleSendChanged = useCallback(
     (updated: MeetingMeta) => {
@@ -794,20 +866,30 @@ function MeetingEntryHost({
     summaryReady,
     exporting,
     onOpenSend: () => {
-      setSendOpen(true);
+      void Promise.all([
+        canAccessMeetingFile('meeting.json'),
+        canAccessMeetingFile('transcript.json'),
+        canAccessMeetingFile('notes.docx'),
+      ]).then((allowed) => {
+        if (allowed.every(Boolean)) setSendOpen(true);
+      });
     },
     onMarkReviewed: handleMarkReviewed,
     onDownloadAudio: handleDownloadAudio,
     onCopyTranscript: () => {
-      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
-      void copyText(
-        transcriptToText(transcript),
-        t('meetings.entry.transcript-copied')
-      );
+      void canAccessMeetingFile('transcript.json').then((visible) => {
+        if (!visible) return;
+        return copyText(
+          transcriptToText(transcript),
+          t('meetings.entry.transcript-copied')
+        );
+      });
     },
     onCopySummary: () => {
-      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
-      void copyText(summaryText.trim(), t('meetings.entry.summary-copied'));
+      void canAccessMeetingFile('notes.docx').then((visible) => {
+        if (!visible) return;
+        return copyText(summaryText.trim(), t('meetings.entry.summary-copied'));
+      });
     },
     onExportTranscript: handleExportTranscript,
     onExportSummaryDocx: handleExportSummaryDocx,
@@ -817,6 +899,8 @@ function MeetingEntryHost({
     },
     onActionError: handleActionError,
   };
+
+  if (authorizedVisibilityIdentity !== visibilityIdentity) return null;
 
   return (
     <div

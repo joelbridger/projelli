@@ -3,6 +3,7 @@ import type { RagHit } from '@/platform/utils/tauri-commands';
 import type { AskTurn } from './askHelpers';
 import {
   filterAskMeetingVisibilityHits,
+  filterPersistedAskMessagesForMeetingVisibility,
   filterPersistedAskTurnsForMeetingVisibility,
 } from './useAsk';
 
@@ -80,6 +81,33 @@ describe('Ask meeting visibility backstop', () => {
     };
     await expect(
       filterPersistedAskTurnsForMeetingVisibility([legacy], async () => [])
+    ).resolves.toEqual([]);
+  });
+
+  it('removes saved prose when only its complete read receipt reveals a hidden meeting source', async () => {
+    const hiddenPath = '/ws/client/Meetings/private/notes.docx';
+    const messages = [
+      { role: 'user' as const, content: 'What changed?', timestamp: 't1' },
+      {
+        role: 'assistant' as const,
+        content: 'A private change happened.',
+        timestamp: 't2',
+        askGroundedFromFiles: true,
+        askSources: [],
+        askReadSources: [
+          {
+            id: hiddenPath,
+            label: 'Private meeting notes',
+            sourceType: 'meeting',
+            path: hiddenPath,
+            matterId: 'matter-1',
+            chunkCount: 1,
+          },
+        ],
+      },
+    ];
+    await expect(
+      filterPersistedAskMessagesForMeetingVisibility(messages, async () => [])
     ).resolves.toEqual([]);
   });
 });

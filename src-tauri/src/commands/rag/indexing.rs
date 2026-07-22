@@ -125,9 +125,15 @@ pub async fn rag_index_file(
     path: String,
     matter_id: Option<String>,
     privilege: Option<String>,
+    source_type: Option<String>,
 ) -> Result<(), String> {
     let matter = resolve_matter(matter_id.as_deref())?;
     let privilege = resolve_privilege(privilege.as_deref())?;
+    let meeting_derived = match source_type.as_deref() {
+        None | Some("") => false,
+        Some("meeting") => true,
+        Some(other) => return Err(format!("invalid file source_type: {other}")),
+    };
     let workspace = require_workspace(&state).await?;
     let file_path = PathBuf::from(&path);
     // fix/ask-list-hang — NEVER index our own internal plumbing. The full walk
@@ -190,6 +196,15 @@ pub async fn rag_index_file(
     .await
     .map_err(|e| format!("check indexed rows: {e}"))?
     {
+        if meeting_derived {
+            store::retag_meeting_source_type_for_path(
+                &table,
+                &file_path.to_string_lossy(),
+                &key,
+            )
+            .await
+            .map_err(|e| format!("stamp meeting provenance: {e:#}"))?;
+        }
         return Ok(());
     }
 
@@ -207,6 +222,15 @@ pub async fn rag_index_file(
     // would silently skip every watcher-triggered single-file index.
     match index_one_file(&table, &file_path, &matter, &privilege, &key, None, vault_vmk).await {
         Ok(indexed) => {
+            if indexed && meeting_derived {
+                store::retag_meeting_source_type_for_path(
+                    &table,
+                    &file_path.to_string_lossy(),
+                    &key,
+                )
+                .await
+                .map_err(|e| format!("stamp meeting provenance: {e:#}"))?;
+            }
             // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) at fn exit.
             // BUG-099 tombstone self-heal: the file watcher's per-file re-index
             // CLEARS this path's tombstone (in memory AND on disk). Without this,
@@ -1026,7 +1050,29 @@ pub(crate) async fn process_one_workspace_file(
             // changes, silently dropping a temporarily-unreadable file from search.
             // Re-attempting the (cheap) read next boot is the fail-safe choice.
             let delete_only = matches!(data, ExtractedFileData::ShouldDelete);
-            match write_extracted_file(table, &path_str, data, matter, privilege, key).await {
+            let meeting_derived = file
+                .parent()
+                .and_then(|parent| std::fs::read(parent.join("meeting.json")).ok())
+                .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+                .and_then(|value| value.get("meetingFileVisibility").cloned())
+                .and_then(|manifest| manifest.get("files").cloned())
+                .and_then(|files| files.as_object().cloned())
+                .is_some_and(|files| {
+                    file.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| files.contains_key(name))
+                });
+            let write_result =
+                write_extracted_file(table, &path_str, data, matter, privilege, key).await;
+            let write_result = match write_result {
+                Ok(skipped) if !skipped && !delete_only && meeting_derived => {
+                    store::retag_meeting_source_type_for_path(table, &path_str, key)
+                        .await
+                        .map(|_| skipped)
+                }
+                other => other,
+            };
+            match write_result {
                 Ok(true) => {
                     // SkippedUnreadable: extraction failed on a readable file. Stale
                     // rows WERE deleted, so the path is safe — clear any tombstone,

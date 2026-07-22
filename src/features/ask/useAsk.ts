@@ -16,6 +16,8 @@ import {
   useSelectionOperationDecision,
 } from '@/platform/client-context';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import {
   getDemoAnswerForWorkspace,
@@ -197,6 +199,30 @@ export function askChatId(
 
 type AskVisibilityHitFilter = (hits: readonly RagHit[]) => Promise<RagHit[]>;
 
+function visibilityHit(path: string, sourceType?: string): RagHit {
+  return {
+    path,
+    sourceId: path,
+    chunkText: '',
+    score: 0,
+    paragraphIndex: 0,
+    ...(sourceType === 'meeting' ? { sourceType: 'meeting' as const } : {}),
+  };
+}
+
+function turnVisibilityHits(turn: AskTurn): RagHit[] {
+  const byPath = new Map<string, RagHit>();
+  for (const source of turn.sources) {
+    const path = source.path;
+    if (path) byPath.set(path, visibilityHit(path, source.sourceType));
+  }
+  for (const source of turn.readSources ?? []) {
+    if (source.path)
+      byPath.set(source.path, visibilityHit(source.path, source.sourceType));
+  }
+  return [...byPath.values()];
+}
+
 export function filterAskMeetingVisibilityHits(
   hits: readonly RagHit[],
   filterHits: AskVisibilityHitFilter = (candidates) =>
@@ -221,10 +247,51 @@ export async function filterPersistedAskTurnsForMeetingVisibility(
       kept.push(turn);
       continue;
     }
-    if (turn.sources.length === 0) continue;
-    const visible = await filterHits(turn.sources as RagHit[]);
-    if (visible.length !== turn.sources.length) continue;
+    const candidates = turnVisibilityHits(turn);
+    if (candidates.length === 0) continue;
+    const visible = await filterHits(candidates);
+    if (visible.length !== candidates.length) continue;
     kept.push(turn);
+  }
+  return kept;
+}
+
+/** Remove the persisted user+assistant pair when the answer's complete source
+ * receipt (readSources, not merely rendered citations) is no longer visible. */
+export async function filterPersistedAskMessagesForMeetingVisibility(
+  messages: readonly ChatMessage[],
+  filterHits: AskVisibilityHitFilter = (hits) =>
+    filterAskMeetingVisibilityHits(hits)
+): Promise<ChatMessage[]> {
+  const kept: ChatMessage[] = [];
+  for (let index = 0; index < messages.length; ) {
+    const user = messages[index];
+    const assistant = messages[index + 1];
+    if (user?.role !== 'user' || assistant?.role !== 'assistant') {
+      if (user) kept.push(user);
+      index += 1;
+      continue;
+    }
+    if (assistant.askGroundedFromFiles === false) {
+      kept.push(user, assistant);
+      index += 2;
+      continue;
+    }
+    const byPath = new Map<string, RagHit>();
+    for (const source of assistant.askSources ?? []) {
+      if (source.path)
+        byPath.set(source.path, visibilityHit(source.path, source.sourceType));
+    }
+    for (const source of assistant.askReadSources ?? []) {
+      if (source.path)
+        byPath.set(source.path, visibilityHit(source.path, source.sourceType));
+    }
+    const candidates = [...byPath.values()];
+    if (candidates.length > 0) {
+      const visible = await filterHits(candidates);
+      if (visible.length === candidates.length) kept.push(user, assistant);
+    }
+    index += 2;
   }
   return kept;
 }
@@ -274,6 +341,16 @@ export function useAsk({
   const activeMatter = selection.kind === 'matter' ? selection.matter : null;
   const hasActiveMatter = Boolean(activeMatter);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
+  const currentMeetingViewerId = useFirmStore(
+    (state) => state.session?.userId ?? null
+  );
+  const liveCrm = useLiveCrmRecords();
+  const meetingVisibilityIdentity = JSON.stringify([
+    currentMeetingViewerId,
+    liveCrm.records
+      .filter((record) => record.kind === 'meeting_foundation_preferences')
+      .map((record) => record['visibilityPolicies']),
+  ]);
   const profession = useProfessionStore((s) => s.profession);
   // B-PRIV-1: subscribe to the confidentiality mode so the egress banner is
   // reactive. The Search/Ask banner must recompute the moment the user switches
@@ -351,6 +428,7 @@ export function useAsk({
     (s) => s.setSessionWorkspaceRoot
   );
   const addMessage = useAIChatStore((s) => s.addMessage);
+  const updateMessages = useAIChatStore((s) => s.updateMessages);
   const renameSession = useAIChatStore((s) => s.renameSession);
   const sessions = useAIChatStore((s) => s.sessions);
   // F2.5 — per-conversation file-access consent for the PRIMARY Ask surface.
@@ -418,6 +496,7 @@ export function useAsk({
   // when a send starts, cleared when it reaches a terminal state (done/error)
   // or gets consumed by a cancellation.
   const pendingQuestionRef = useRef<string | null>(null);
+  const meetingVisibilityGenerationRef = useRef(0);
   // Fix #8 / B-PRIV-1: the provider the egress banner names, TAGGED with the
   // confidentiality mode it was resolved UNDER. `null` means "destination not
   // yet known". We tag the mode so the displayed value (derived synchronously in
@@ -523,25 +602,12 @@ export function useAsk({
   // A3: for the sample matter, always start with the empty chip state (never restore a
   // prior demo answer) so the "click a question" aha moment shows on every fresh visit.
   useEffect(() => {
-    let acceptReconstructedTurns = true;
     initSession(chatId, []);
     setSessionWorkspaceRoot(chatId, rootPath ?? null);
-    const isSampleChat = activeMatter?.id === SAMPLE_MATTER_ID;
-    const freshSession = useAIChatStore.getState().sessions[chatId];
-    if (!isSampleChat && freshSession && freshSession.messages.length > 0) {
-      const reconstructed = reconstructTurns(freshSession.messages);
-      setTurns([]);
-      void filterPersistedAskTurnsForMeetingVisibility(reconstructed).then(
-        (visibleTurns) => {
-          if (acceptReconstructedTurns) setTurns(visibleTurns);
-        },
-        () => {
-          if (acceptReconstructedTurns) setTurns([]);
-        }
-      );
-    } else {
-      setTurns([]);
-    }
+    // The live-visibility effect below is the sole history loader. Keeping the
+    // async reconstruction in one generation-guarded place prevents an older
+    // load from putting private prose back after the viewer or policy changes.
+    setTurns([]);
     setSelected(null);
     setSelectedTurnIdx(null);
     setStreamingTurn(null);
@@ -564,7 +630,6 @@ export function useAsk({
     // own history — never silent loss, and never a leak into whatever chat
     // becomes current next.
     return () => {
-      acceptReconstructedTurns = false;
       if (
         statusRef.current !== 'retrieving' &&
         statusRef.current !== 'answering'
@@ -588,6 +653,44 @@ export function useAsk({
       });
     };
   }, [chatId, rootPath]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Meeting visibility is live authority, not a load-time decoration. A firm
+  // member switch or policy change immediately invalidates the rendered turns,
+  // persisted history, and any in-flight answer that could still contain the
+  // old member's meeting text.
+  useEffect(() => {
+    const generation = ++meetingVisibilityGenerationRef.current;
+    abortRef.current?.abort();
+    setStreamingTurn(null);
+    if (statusRef.current === 'retrieving' || statusRef.current === 'answering') {
+      pendingQuestionRef.current = null;
+      setStatus('idle');
+    }
+    setTurns([]);
+    setSelected(null);
+    setSelectedTurnIdx(null);
+    const messages =
+      useAIChatStore.getState().sessions[chatId]?.messages ?? [];
+    void filterPersistedAskMessagesForMeetingVisibility(messages).then(
+      async (visibleMessages) => {
+        if (generation !== meetingVisibilityGenerationRef.current) return;
+        if (visibleMessages.length !== messages.length)
+          updateMessages(chatId, visibleMessages);
+        const reconstructed = reconstructTurns(visibleMessages);
+        const visibleTurns =
+          await filterPersistedAskTurnsForMeetingVisibility(reconstructed);
+        if (generation === meetingVisibilityGenerationRef.current)
+          setTurns(visibleTurns);
+      },
+      () => {
+        if (generation === meetingVisibilityGenerationRef.current) setTurns([]);
+      }
+    );
+    return () => {
+      if (generation === meetingVisibilityGenerationRef.current)
+        meetingVisibilityGenerationRef.current += 1;
+    };
+  }, [chatId, meetingVisibilityIdentity, updateMessages]);
 
   // Auto-scroll to bottom when turns change or streaming turn updates
   useEffect(() => {
@@ -774,6 +877,8 @@ export function useAsk({
       // is caught (the counter is monotonic), preventing a newly-active workspace's
       // retrieved content from being sent under this send's (old) workspace consent.
       const sendRootGeneration = useWorkspaceStore.getState().rootGeneration;
+      const sendMeetingVisibilityGeneration =
+        meetingVisibilityGenerationRef.current;
 
       setErrorMsg(null);
       setCrmUnavailableNotice(null);
@@ -810,8 +915,26 @@ export function useAsk({
       // client file content was part of a send that may already have reached the
       // provider before it errored. Set once the consent gate resolves.
       let fileToolsEnabledForAudit = false;
+      let safeTurnsForSend: AskTurn[] = [];
 
       try {
+        safeTurnsForSend =
+          await filterPersistedAskTurnsForMeetingVisibility(turns);
+        const currentMessages =
+          useAIChatStore.getState().sessions[chatId]?.messages ?? [];
+        const visibleMessages =
+          await filterPersistedAskMessagesForMeetingVisibility(currentMessages);
+        if (
+          abort.signal.aborted ||
+          sendMeetingVisibilityGeneration !==
+            meetingVisibilityGenerationRef.current
+        )
+          return;
+        if (safeTurnsForSend.length !== turns.length)
+          setTurns(safeTurnsForSend);
+        if (visibleMessages.length !== currentMessages.length)
+          updateMessages(chatId, visibleMessages);
+
         /* Demo branch: sample matter + no cloud key + matching question */
         const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
         if (isSampleMatter && rootPath) {
@@ -1342,7 +1465,7 @@ export function useAsk({
         // other-scope — prior answer, even one grounded on an earlier LOCAL turn,
         // into the cloud prompt). selectHistoryTurns is a pure, unit-tested seam.
         const historyTurnsForSend = selectHistoryTurns(
-          turns,
+          safeTurnsForSend,
           currentConsent,
           providerIsCloud,
           turnConsentScope
@@ -1432,7 +1555,10 @@ export function useAsk({
         });
         const fileToolsEnabled = grounding.usedFileContent;
         fileToolsEnabledForAudit = fileToolsEnabled;
-        const readSourcesForPrompt = sourceIdentitiesFromSources(groundingHits);
+        const readSourcesForPrompt = sourceIdentitiesFromSources([
+          ...groundingHits,
+          ...historyInPrompt.flatMap((turn) => turn.readSources ?? []),
+        ]);
         // BUG-016: the answer prompt is hardened to refuse fabrication. The model
         // must answer ONLY from the retrieved context, decline with the exact
         // NO_EVIDENCE_DECLINE wording when the context doesn't contain the answer,
@@ -1801,6 +1927,19 @@ export function useAsk({
           return;
         }
         groundingHits = finalVisibleGroundingHits;
+        const finalVisibleHistory =
+          await filterPersistedAskTurnsForMeetingVisibility(historyInPrompt);
+        if (
+          abort.signal.aborted ||
+          sendMeetingVisibilityGeneration !==
+            meetingVisibilityGenerationRef.current
+        )
+          return;
+        if (finalVisibleHistory.length !== historyInPrompt.length) {
+          emitDecline(NO_EVIDENCE_DECLINE);
+          return;
+        }
+        historyInPrompt = finalVisibleHistory;
 
         /* Step 3: parse and attach citations.
          * A citation is kept only when it points at a real retrieved chunk. Newer
