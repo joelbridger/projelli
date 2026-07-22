@@ -75,6 +75,15 @@ function adapter(overrides: Partial<CrmHomeAdapter> = {}): CrmHomeAdapter {
 }
 
 describe('CrmHome', () => {
+  it('can mount Today without the broad CRM rail', () => {
+    render(<CrmHome showRail={false} />);
+
+    expect(screen.getByTestId('crm-screen-today')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('complementary', { name: 'Home sections' })
+    ).not.toBeInTheDocument();
+  });
+
   it('shows one Activity destination instead of a duplicate Timeline destination', () => {
     render(<CrmHome />);
     expect(screen.getByTestId('crm-home-nav-activity')).toBeInTheDocument();

@@ -16,7 +16,7 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 export interface LiveCrmHomeRuntime
   extends Pick<
     CrmHomeProps,
-    'initialRoute' | 'addRequest' | 'onAddRequestConsumed'
+    'initialRoute' | 'showRail' | 'addRequest' | 'onAddRequestConsumed'
   > {
   adapter: CrmHomeAdapter;
   workflowData?: ReturnType<typeof workflowRecords>;
@@ -221,6 +221,7 @@ export function LiveCrmHome({
   adapter,
   preview = false,
   initialRoute,
+  showRail,
   addRequest,
   onAddRequestConsumed,
   render,
@@ -827,6 +828,7 @@ export function LiveCrmHome({
     adapterProvided: Boolean(adapter || preview),
     ...liveWorkflowProps,
     ...(initialRoute ? { initialRoute } : {}),
+    ...(showRail === undefined ? {} : { showRail }),
     ...(addRequest ? { addRequest } : {}),
     ...(onAddRequestConsumed ? { onAddRequestConsumed } : {}),
   };
@@ -838,6 +840,7 @@ export function LiveCrmHome({
       adapterProvided={Boolean(adapter || preview)}
       {...liveWorkflowProps}
       {...(initialRoute ? { initialRoute } : {})}
+      {...(showRail === undefined ? {} : { showRail })}
       {...(addRequest ? { addRequest } : {})}
       {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}
     />

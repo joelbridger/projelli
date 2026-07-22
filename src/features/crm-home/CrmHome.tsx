@@ -118,6 +118,7 @@ function HomeRail({
 export function CrmHomeShell({
   adapter,
   initialRoute = 'today',
+  showRail = true,
   preview = false,
   workflowData,
   workflowHouseholds,
@@ -254,7 +255,7 @@ export function CrmHomeShell({
           Preview mode. Not connected to CRM data.
         </div>
       )}
-      <HomeRail route={activeRoute} onNavigate={jump} />
+      {showRail ? <HomeRail route={activeRoute} onNavigate={jump} /> : null}
       <div
         style={{
           flex: 1,
