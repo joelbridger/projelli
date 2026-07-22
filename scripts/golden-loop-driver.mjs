@@ -4,19 +4,25 @@
  * exact file is still visible after restarting the native app.
  */
 import { readdir } from 'node:fs/promises';
-import { writeDiagnosticArtifact } from './golden-loop-diagnostics.mjs';
+import { pathToFileURL } from 'node:url';
+import { createProgressReporter, writeDiagnosticArtifact } from './golden-loop-diagnostics.mjs';
 
 const [phase, bridgePort, workspace, documentName] = process.argv.slice(2);
-if (!['write', 'assert'].includes(phase) || !bridgePort || !workspace || !documentName) {
-  throw new Error('usage: golden-loop-driver.mjs <write|assert> <bridge-port> <workspace> <document-name>');
-}
-
 const base = `http://127.0.0.1:${bridgePort}`;
 const documentFile = `${documentName}.docx`;
 const expectedDevUrl = process.env.GOLDEN_LOOP_DEV_URL || 'the configured desktop dev URL';
 const timeoutMs = Number(process.env.GOLDEN_LOOP_DRIVER_TIMEOUT_MS || 30_000);
-const HEALTH_REQUEST_TIMEOUT_MS = 2_000;
+const positiveBound = (name, fallback) => {
+  const value = Number(process.env[name] || fallback);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
+export const HEALTH_REQUEST_TIMEOUT_MS = positiveBound('GOLDEN_LOOP_HEALTH_BOUND_MS', 2_000);
+export const READINESS_TIMEOUT_MS = positiveBound('GOLDEN_LOOP_READINESS_BOUND_MS', 8_000);
+export const SNAPSHOT_TIMEOUT_MS = positiveBound('GOLDEN_LOOP_SNAPSHOT_BOUND_MS', 3_000);
+export const ARTIFACT_TIMEOUT_MS = positiveBound('GOLDEN_LOOP_ARTIFACT_BOUND_MS', 2_000);
 const BRIDGE_TRANSPORT_ALLOWANCE_MS = 1_000;
+const reportProgress = createProgressReporter();
+let activeBridgeDeadlineMs;
 
 function fail(message) {
   throw new Error(`GOLDEN LOOP FAILED: ${message}`);
@@ -25,13 +31,28 @@ function fail(message) {
 class RendererCallbackError extends Error {}
 class BridgeRequestTimeoutError extends Error {}
 
-async function request(endpoint, query = {}, { signal, timeoutMs: requestedTimeoutMs } = {}) {
-  const url = new URL(endpoint, base);
-  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, String(value));
+async function request(endpoint, query = {}, { signal, timeoutMs: requestedTimeoutMs, deadlineMs } = {}) {
   const operationTimeoutMs = Number(query.timeout_ms ?? requestedTimeoutMs);
-  const requestTimeoutMs = endpoint === '/health'
+  const normalRequestTimeoutMs = endpoint === '/health'
     ? HEALTH_REQUEST_TIMEOUT_MS
     : (Number.isFinite(operationTimeoutMs) && operationTimeoutMs > 0 ? operationTimeoutMs : 20_000) + BRIDGE_TRANSPORT_ALLOWANCE_MS;
+  const absoluteDeadlineMs = deadlineMs ?? activeBridgeDeadlineMs ?? (Date.now() + normalRequestTimeoutMs);
+  const remainingMs = Math.floor(absoluteDeadlineMs - Date.now());
+  if (remainingMs <= (endpoint === '/health' ? 0 : BRIDGE_TRANSPORT_ALLOWANCE_MS + 100)) {
+    const url = new URL(endpoint, base);
+    throw new BridgeRequestTimeoutError(`golden loop bridge request timed out: endpoint=${url.pathname} bound=0ms`);
+  }
+  const boundedQuery = { ...query };
+  if (endpoint !== '/health' && Number.isFinite(operationTimeoutMs) && operationTimeoutMs > 0) {
+    boundedQuery.timeout_ms = Math.max(100, Math.min(operationTimeoutMs, remainingMs - BRIDGE_TRANSPORT_ALLOWANCE_MS));
+  }
+  const url = new URL(endpoint, base);
+  for (const [key, value] of Object.entries(boundedQuery)) url.searchParams.set(key, String(value));
+  const effectiveOperationMs = Number(boundedQuery.timeout_ms ?? requestedTimeoutMs);
+  const effectiveRequestBoundMs = endpoint === '/health'
+    ? HEALTH_REQUEST_TIMEOUT_MS
+    : (Number.isFinite(effectiveOperationMs) && effectiveOperationMs > 0 ? effectiveOperationMs : 20_000) + BRIDGE_TRANSPORT_ALLOWANCE_MS;
+  const requestTimeoutMs = Math.max(1, Math.min(effectiveRequestBoundMs, remainingMs));
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -62,8 +83,8 @@ async function request(endpoint, query = {}, { signal, timeoutMs: requestedTimeo
   }
 }
 
-const rawEvaluate = (source, operationTimeoutMs = 20_000) =>
-  request('/eval', { js: source, timeout_ms: operationTimeoutMs });
+const rawEvaluate = (source, operationTimeoutMs = 20_000, options = {}) =>
+  request('/eval', { js: source, timeout_ms: operationTimeoutMs }, options);
 
 async function evaluate(source) {
   try {
@@ -112,6 +133,7 @@ const pointerClick = (testid) => evaluate(`(() => {
 })()`);
 
 async function rendererSnapshot() {
+  const deadlineMs = Date.now() + SNAPSHOT_TIMEOUT_MS;
   try {
     const snapshot = await rawEvaluate(`({
       url: location.href,
@@ -126,7 +148,7 @@ async function rendererSnapshot() {
       rootPresent: Boolean(document.getElementById('root')),
       rootHasChildren: Boolean(document.getElementById('root')?.childElementCount),
       events: window.__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__ || {}
-    })`, 2_000);
+    })`, Math.min(2_000, SNAPSHOT_TIMEOUT_MS), { deadlineMs });
     return { ...snapshot, pageUrl: expectedDevUrl };
   } catch (error) {
     return { snapshotError: error instanceof Error ? error.message : String(error) };
@@ -138,7 +160,13 @@ async function waitFor(label, predicate, waitTimeoutMs = timeoutMs) {
   let lastError;
   while (Date.now() < deadline) {
     try {
-      if (await predicate()) return;
+      const previousDeadline = activeBridgeDeadlineMs;
+      activeBridgeDeadlineMs = deadline;
+      try {
+        if (await predicate()) return;
+      } finally {
+        activeBridgeDeadlineMs = previousDeadline;
+      }
     } catch (error) {
       if (error instanceof RendererCallbackError) throw error;
       lastError = error;
@@ -149,30 +177,53 @@ async function waitFor(label, predicate, waitTimeoutMs = timeoutMs) {
   fail(`timed out waiting for ${label}${lastError ? ` (${lastError.message})` : ''}; renderer=${JSON.stringify(snapshot)}`);
 }
 
-async function waitForRendererCallback() {
-  await request('/health');
-  const deadline = Date.now() + 20_000;
-  let lastError;
-  while (Date.now() < deadline) {
-    try {
-      const state = await rawEvaluate(`({
-        href: location.href,
-        readyState: document.readyState,
-        hasTauriInvoke: typeof window.__TAURI_INTERNALS__?.invoke === 'function'
-      })`, 2_000);
-      if (state?.hasTauriInvoke && state.readyState !== 'loading') return;
-      lastError = new Error(`page state was ${JSON.stringify(state)}`);
-    } catch (error) {
-      if (error instanceof BridgeRequestTimeoutError) throw error;
-      lastError = error;
+export function createRendererReadiness({
+  healthRequest,
+  readinessEvaluate,
+  publishProgress = async () => {},
+  readinessTimeoutMs = READINESS_TIMEOUT_MS,
+  now = Date.now,
+  pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+}) {
+  let rendererReady = false;
+  return async function waitForRendererCallback() {
+    if (rendererReady) return;
+    const deadlineMs = now() + readinessTimeoutMs;
+    await healthRequest(deadlineMs);
+    await publishProgress('bridge-healthy');
+    let lastError;
+    while (now() < deadlineMs) {
+      try {
+        const remainingMs = Math.max(1, deadlineMs - now());
+        const state = await readinessEvaluate(deadlineMs, Math.min(2_000, remainingMs));
+        if (state?.hasTauriInvoke && state.readyState !== 'loading') {
+          rendererReady = true;
+          await publishProgress('renderer-ready');
+          return;
+        }
+        lastError = new Error('renderer state was not ready');
+      } catch (error) {
+        if (error instanceof BridgeRequestTimeoutError) throw error;
+        lastError = error;
+      }
+      await pause(Math.min(100, Math.max(0, deadlineMs - now())));
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  fail(
-    `native bridge became healthy, but the renderer never returned a callback within 20000ms; ` +
-    `expected page=${expectedDevUrl}; last diagnostic=${lastError instanceof Error ? lastError.message : String(lastError)}`
-  );
+    fail(
+      `native bridge became healthy, but the renderer never returned a callback within ${readinessTimeoutMs}ms; ` +
+      `expected page=${expectedDevUrl}; last diagnostic=${lastError instanceof Error ? lastError.message : String(lastError)}`
+    );
+  };
 }
+
+const waitForRendererCallback = createRendererReadiness({
+  healthRequest: (deadlineMs) => request('/health', {}, { deadlineMs }),
+  readinessEvaluate: (deadlineMs, operationTimeoutMs) => rawEvaluate(`({
+    href: location.href,
+    readyState: document.readyState,
+    hasTauriInvoke: typeof window.__TAURI_INTERNALS__?.invoke === 'function'
+  })`, operationTimeoutMs, { deadlineMs }),
+  publishProgress: reportProgress,
+});
 
 const has = (testid) =>
   evaluate(`Boolean(document.querySelector('[data-testid=${JSON.stringify(testid)}]'))`);
@@ -313,32 +364,61 @@ async function assertPresent(where) {
   await assertCrmDocumentVisibleAndOpens(where);
 }
 
-try {
-  if (phase === 'write') {
-    await prepareExplicitWorkspaceForGoldenLoop();
-    await click('documents-create-document');
-    await fillPromptAndConfirm();
-    await assertPresent('immediately after saving');
-    console.log(`PASS write: created and displayed ${documentFile}`);
-  } else {
-    // The restart half only verifies the saved row. Opening the modal Create
-    // menu here would intentionally make the rest of the page non-hit-testable
-    // while that menu is open, producing a false "leftover tour overlay" failure.
-    await waitForVisibleApp();
-    await assertPresent('after app restart');
-    console.log(`PASS persistence: ${documentFile} survived restart and is visible`);
-  }
-} catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  if (/^golden loop bridge request timed out: endpoint=\/[a-z-]+ bound=\d+ms$/.test(message)) {
-    console.error(`GOLDEN LOOP FAILURE: ${message}`);
-  }
-  const renderer = await rendererSnapshot();
+async function withBound(promise, milliseconds) {
+  let timer;
   try {
-    const diagnostic = await writeDiagnosticArtifact({ phase, renderer, events: renderer.events });
-    console.error(`GOLDEN LOOP DIAGNOSTIC: path=${diagnostic.path} sha256=${diagnostic.sha256} classification=${diagnostic.artifact.classification}`);
-  } catch (diagnosticError) {
-    console.error('GOLDEN LOOP DIAGNOSTIC FAILED');
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('bounded operation expired')), milliseconds);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
-  process.exitCode = 1;
+}
+
+export async function runGoldenLoopDriver() {
+  if (!['write', 'assert'].includes(phase) || !bridgePort || !workspace || !documentName) {
+    throw new Error('usage: golden-loop-driver.mjs <write|assert> <bridge-port> <workspace> <document-name>');
+  }
+  try {
+    // Establish and publish readiness once. All later calls use the independent
+    // in-memory latch and return immediately, even without a progress file.
+    await waitForRendererCallback();
+    await reportProgress('later-driver');
+    if (phase === 'write') {
+      await prepareExplicitWorkspaceForGoldenLoop();
+      await click('documents-create-document');
+      await fillPromptAndConfirm();
+      await assertPresent('immediately after saving');
+      console.log(`PASS write: created and displayed ${documentFile}`);
+    } else {
+      // The restart half only verifies the saved row. Opening the modal Create
+      // menu here would intentionally make the rest of the page non-hit-testable.
+      await waitForVisibleApp();
+      await assertPresent('after app restart');
+      console.log(`PASS persistence: ${documentFile} survived restart and is visible`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/^golden loop bridge request timed out: endpoint=\/[a-z-]+ bound=\d+ms$/.test(message)) {
+      console.error(`GOLDEN LOOP FAILURE: ${message}`);
+    }
+    const renderer = await rendererSnapshot();
+    try {
+      const diagnostic = await withBound(
+        writeDiagnosticArtifact({ phase, renderer, events: renderer.events }),
+        ARTIFACT_TIMEOUT_MS,
+      );
+      console.error(`GOLDEN LOOP DIAGNOSTIC: path=${diagnostic.path} sha256=${diagnostic.sha256} classification=${diagnostic.artifact.classification}`);
+    } catch {
+      console.error('GOLDEN LOOP DIAGNOSTIC FAILED');
+    }
+    process.exitCode = 1;
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await runGoldenLoopDriver();
 }

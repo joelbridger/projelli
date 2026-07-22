@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, State};
 use tokio::sync::oneshot;
@@ -24,15 +24,153 @@ const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 
 pub struct DevBridgeState {
     next_id: AtomicU64,
-    pending: Mutex<HashMap<String, oneshot::Sender<EvalResult>>>,
+    dispatch: Mutex<DispatchMachine>,
 }
 
 impl Default for DevBridgeState {
     fn default() -> Self {
         Self {
             next_id: AtomicU64::new(1),
-            pending: Mutex::new(HashMap::new()),
+            dispatch: Mutex::new(DispatchMachine::default()),
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DispatchPhase {
+    Queued,
+    Executing,
+    Completed,
+    Cancelled,
+    Expired,
+}
+
+struct ActiveDispatch {
+    id: u64,
+    phase: DispatchPhase,
+    sender: oneshot::Sender<EvalResult>,
+}
+
+#[derive(Default)]
+struct DispatchMachine {
+    active: Option<ActiveDispatch>,
+    last_terminal: Option<(u64, DispatchPhase)>,
+    fail_closed: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BeginDecision {
+    Execute,
+    Skip,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TimeoutDecision {
+    ReleasedQueued,
+    RetainedExecuting,
+    AlreadyFinished,
+}
+
+impl DispatchMachine {
+    fn queue(&mut self, id: u64, sender: oneshot::Sender<EvalResult>) -> Result<(), String> {
+        if self.fail_closed {
+            return Err("dev bridge dispatch is fail-closed".to_string());
+        }
+        if self.active.is_some() {
+            return Err("dev bridge already has an evaluation in flight".to_string());
+        }
+        self.active = Some(ActiveDispatch {
+            id,
+            phase: DispatchPhase::Queued,
+            sender,
+        });
+        Ok(())
+    }
+
+    /// This transition is the only point at which source gains permission to
+    /// begin. It shares one mutex with timeout, so an expired queued request
+    /// can never pass this gate later.
+    fn begin(&mut self, id: u64) -> BeginDecision {
+        if self.fail_closed {
+            return BeginDecision::Skip;
+        }
+        match self.active.as_mut() {
+            Some(active) if active.id == id && active.phase == DispatchPhase::Queued => {
+                active.phase = DispatchPhase::Executing;
+                BeginDecision::Execute
+            }
+            _ => BeginDecision::Skip,
+        }
+    }
+
+    fn timeout(&mut self, id: u64) -> TimeoutDecision {
+        let Some(active) = self.active.as_mut() else {
+            return TimeoutDecision::AlreadyFinished;
+        };
+        if active.id != id {
+            return TimeoutDecision::AlreadyFinished;
+        }
+        match active.phase {
+            DispatchPhase::Queued => {
+                let expired = self.active.take().expect("matched active dispatch");
+                self.last_terminal = Some((expired.id, DispatchPhase::Expired));
+                TimeoutDecision::ReleasedQueued
+            }
+            DispatchPhase::Executing | DispatchPhase::Expired => {
+                // Keep exact ownership. The caller may stop waiting, but no
+                // later request can overlap source that may still be running.
+                active.phase = DispatchPhase::Expired;
+                TimeoutDecision::RetainedExecuting
+            }
+            DispatchPhase::Completed | DispatchPhase::Cancelled => TimeoutDecision::AlreadyFinished,
+        }
+    }
+
+    fn finish(&mut self, id: u64, terminal: DispatchPhase) -> Option<oneshot::Sender<EvalResult>> {
+        debug_assert!(matches!(
+            terminal,
+            DispatchPhase::Completed | DispatchPhase::Cancelled
+        ));
+        let active = self.active.as_ref()?;
+        if active.id != id
+            || !matches!(
+                active.phase,
+                DispatchPhase::Executing | DispatchPhase::Expired
+            )
+        {
+            return None;
+        }
+        let finished = self.active.take().expect("matched active dispatch");
+        self.last_terminal = Some((id, terminal));
+        Some(finished.sender)
+    }
+
+    fn cancel_queued(&mut self, id: u64) -> Option<oneshot::Sender<EvalResult>> {
+        let active = self.active.as_ref()?;
+        if active.id != id || active.phase != DispatchPhase::Queued {
+            return None;
+        }
+        let cancelled = self.active.take().expect("matched queued dispatch");
+        self.last_terminal = Some((id, DispatchPhase::Cancelled));
+        Some(cancelled.sender)
+    }
+
+    fn channel_closed(&mut self, id: u64) {
+        if self.active.as_ref().is_some_and(|active| active.id == id) {
+            if let Some(active) = self.active.as_mut() {
+                active.phase = DispatchPhase::Cancelled;
+            }
+        }
+        // Losing the exact completion signal means we cannot prove that the
+        // source stopped. Preserve ownership and refuse all future work.
+        self.fail_closed = true;
+    }
+
+    fn poison_fail_closed(&mut self) {
+        if let Some(active) = self.active.as_mut() {
+            active.phase = DispatchPhase::Cancelled;
+        }
+        self.fail_closed = true;
     }
 }
 
@@ -141,23 +279,40 @@ pub fn dev_bridge_result(
     error: Option<String>,
     state: State<'_, DevBridgeState>,
 ) -> Result<(), String> {
-    let sender = state
-        .pending
-        .lock()
-        .map_err(|_| "dev bridge state lock poisoned".to_string())?
-        .remove(&id);
+    let request_id = id
+        .parse::<u64>()
+        .map_err(|_| "invalid dev bridge request identity".to_string())?;
+    let sender = lock_dispatch(&state)?.finish(request_id, DispatchPhase::Completed);
+    let Some(sender) = sender else {
+        return Err("no matching active dev bridge evaluation".to_string());
+    };
+    // A receiver that already timed out is expected. The exact callback still
+    // completed the exact owner, so it is safe for a later request to proceed.
+    let _ = sender.send(EvalResult {
+        ok,
+        result_json: result,
+        error,
+    });
+    Ok(())
+}
 
-    match sender {
-        Some(sender) => {
-            let _ = sender.send(EvalResult {
-                ok,
-                result_json: result,
-                error,
-            });
-            Ok(())
+fn lock_dispatch(state: &DevBridgeState) -> Result<MutexGuard<'_, DispatchMachine>, String> {
+    match state.dispatch.lock() {
+        Ok(guard) => Ok(guard),
+        Err(poisoned) => {
+            let mut guard = poisoned.into_inner();
+            guard.poison_fail_closed();
+            Err("dev bridge dispatch lock poisoned; bridge is fail-closed".to_string())
         }
-        None => Err(format!("no pending dev bridge eval for id {id}")),
     }
+}
+
+fn deliver_dispatch_error(sender: oneshot::Sender<EvalResult>, message: &'static str) {
+    let _ = sender.send(EvalResult {
+        ok: false,
+        result_json: None,
+        error: Some(message.to_string()),
+    });
 }
 
 fn handle_stream(mut stream: TcpStream, app: AppHandle, port: u16) {
@@ -323,47 +478,61 @@ async fn eval_in_main_webview(
     js: String,
     timeout_ms: u64,
 ) -> Result<Value, String> {
-    let webview = app
-        .get_webview_window("main")
-        .or_else(|| app.webview_windows().into_values().next())
-        .ok_or_else(|| "main webview is not available".to_string())?;
-
     let state = app.state::<DevBridgeState>();
-    // Do not hold a global lock while the page awaits an async Tauri command.
-    // The previous lock made a slow store open block every later probe/click;
-    // then an innocent readiness check hit the five-second default and hid the
-    // actual source of the wait.  The pending-result map already keys every
-    // request by id, and callers that need ordering await each response.
-    let id = state.next_id.fetch_add(1, Ordering::Relaxed).to_string();
+    let id = state.next_id.fetch_add(1, Ordering::Relaxed);
     let (sender, receiver) = oneshot::channel();
+    lock_dispatch(&state)?.queue(id, sender)?;
 
-    state
-        .pending
-        .lock()
-        .map_err(|_| "dev bridge state lock poisoned".to_string())?
-        .insert(id.clone(), sender);
+    let wrapper = eval_wrapper_js(&id.to_string(), &js);
+    let dispatch_app = app.clone();
+    if app
+        .run_on_main_thread(move || {
+            let state = dispatch_app.state::<DevBridgeState>();
+            let may_execute = match lock_dispatch(&state) {
+                Ok(mut machine) => machine.begin(id) == BeginDecision::Execute,
+                Err(_) => false,
+            };
+            if !may_execute {
+                return;
+            }
 
-    let wrapper = eval_wrapper_js(&id, &js);
-    if let Err(error) = webview.eval(wrapper) {
-        let _ = state
-            .pending
-            .lock()
-            .map_err(|_| "dev bridge state lock poisoned".to_string())?
-            .remove(&id);
-        return Err(format!("webview eval failed: {error}"));
+            let webview = dispatch_app
+                .get_webview_window("main")
+                .or_else(|| dispatch_app.webview_windows().into_values().next());
+            let dispatch_failed = match webview {
+                Some(webview) => webview.eval(wrapper).is_err(),
+                None => true,
+            };
+            if dispatch_failed {
+                let sender = match lock_dispatch(&state) {
+                    Ok(mut machine) => machine.finish(id, DispatchPhase::Cancelled),
+                    Err(_) => None,
+                };
+                if let Some(sender) = sender {
+                    // Persisted diagnostics classify the phase only; never put
+                    // platform errors, paths, URLs, or source in this message.
+                    deliver_dispatch_error(sender, "native webview dispatch failed");
+                }
+            }
+        })
+        .is_err()
+    {
+        let sender = lock_dispatch(&state)?.cancel_queued(id);
+        if let Some(sender) = sender {
+            deliver_dispatch_error(sender, "native main-thread dispatch failed");
+        }
     }
 
     let started = Instant::now();
     let timeout = Duration::from_millis(timeout_ms.max(MIN_TIMEOUT_MS));
     let result = match tokio::time::timeout(timeout, receiver).await {
         Ok(Ok(result)) => result,
-        Ok(Err(_)) => return Err("dev bridge result channel closed".to_string()),
+        Ok(Err(_)) => {
+            lock_dispatch(&state)?.channel_closed(id);
+            return Err("dev bridge result channel closed; bridge is fail-closed".to_string());
+        }
         Err(_) => {
-            let _ = state
-                .pending
-                .lock()
-                .map_err(|_| "dev bridge state lock poisoned".to_string())?
-                .remove(&id);
+            let _ = lock_dispatch(&state)?.timeout(id);
             return Err(format!("eval timed out after {timeout_ms}ms"));
         }
     };
@@ -625,7 +794,19 @@ impl HttpError {
 }
 #[cfg(test)]
 mod tests {
-    use super::{bridge_port_from_env, DEFAULT_PORT};
+    use super::{
+        bridge_port_from_env, lock_dispatch, BeginDecision, DevBridgeState, DispatchMachine,
+        DispatchPhase, TimeoutDecision, DEFAULT_PORT,
+    };
+    use std::sync::{Arc, Barrier, Mutex};
+    use std::thread;
+    use tokio::sync::oneshot;
+
+    fn queue(machine: &mut DispatchMachine, id: u64) -> oneshot::Receiver<super::EvalResult> {
+        let (sender, receiver) = oneshot::channel();
+        machine.queue(id, sender).expect("request should queue");
+        receiver
+    }
 
     #[test]
     fn bridge_port_uses_default_when_unset() {
@@ -641,5 +822,172 @@ mod tests {
     #[test]
     fn bridge_port_uses_valid_environment_value() {
         assert_eq!(bridge_port_from_env(Some("9251")), 9251);
+    }
+
+    #[test]
+    fn queued_timeout_before_main_dispatch_prevents_source_start_and_releases_capacity() {
+        let mut machine = DispatchMachine::default();
+        let _receiver = queue(&mut machine, 1);
+        assert_eq!(machine.timeout(1), TimeoutDecision::ReleasedQueued);
+        assert_eq!(machine.begin(1), BeginDecision::Skip);
+        assert_eq!(machine.last_terminal, Some((1, DispatchPhase::Expired)));
+        let _next_receiver = queue(&mut machine, 2);
+    }
+
+    #[test]
+    fn timeout_and_main_dispatch_make_one_atomic_start_decision() {
+        for id in 1..=200 {
+            let machine = Arc::new(Mutex::new(DispatchMachine::default()));
+            let _receiver = {
+                let mut guard = machine.lock().unwrap();
+                queue(&mut guard, id)
+            };
+            let barrier = Arc::new(Barrier::new(3));
+            let begin_machine = Arc::clone(&machine);
+            let begin_barrier = Arc::clone(&barrier);
+            let begin = thread::spawn(move || {
+                begin_barrier.wait();
+                begin_machine.lock().unwrap().begin(id)
+            });
+            let timeout_machine = Arc::clone(&machine);
+            let timeout_barrier = Arc::clone(&barrier);
+            let timeout = thread::spawn(move || {
+                timeout_barrier.wait();
+                timeout_machine.lock().unwrap().timeout(id)
+            });
+            barrier.wait();
+            let begin = begin.join().unwrap();
+            let timeout = timeout.join().unwrap();
+            let mut guard = machine.lock().unwrap();
+            match (begin, timeout) {
+                (BeginDecision::Execute, TimeoutDecision::RetainedExecuting) => {
+                    assert_eq!(guard.active.as_ref().unwrap().phase, DispatchPhase::Expired);
+                    let (sender, _receiver) = oneshot::channel();
+                    assert!(guard.queue(id + 1_000, sender).is_err());
+                }
+                (BeginDecision::Skip, TimeoutDecision::ReleasedQueued) => {
+                    assert!(guard.active.is_none());
+                    let _next_receiver = queue(&mut guard, id + 1_000);
+                }
+                other => panic!("non-atomic transition result: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn executing_timeout_keeps_exact_single_flight_owner_until_callback() {
+        let mut machine = DispatchMachine::default();
+        let _receiver = queue(&mut machine, 10);
+        assert_eq!(machine.begin(10), BeginDecision::Execute);
+        assert_eq!(machine.timeout(10), TimeoutDecision::RetainedExecuting);
+        assert_eq!(
+            machine.active.as_ref().unwrap().phase,
+            DispatchPhase::Expired
+        );
+        let (sender, _receiver) = oneshot::channel();
+        assert!(machine.queue(11, sender).is_err());
+        assert!(machine.finish(10, DispatchPhase::Completed).is_some());
+        let _next_receiver = queue(&mut machine, 11);
+    }
+
+    #[test]
+    fn late_callback_finishes_only_its_exact_owner_and_cannot_free_a_newer_request() {
+        let mut machine = DispatchMachine::default();
+        let _receiver = queue(&mut machine, 20);
+        assert_eq!(machine.begin(20), BeginDecision::Execute);
+        assert_eq!(machine.timeout(20), TimeoutDecision::RetainedExecuting);
+        assert!(machine.finish(20, DispatchPhase::Completed).is_some());
+        let _new_receiver = queue(&mut machine, 21);
+        assert!(machine.finish(20, DispatchPhase::Completed).is_none());
+        assert_eq!(machine.active.as_ref().map(|active| active.id), Some(21));
+    }
+
+    #[test]
+    fn late_dispatch_error_cannot_cancel_or_free_a_newer_request() {
+        let mut machine = DispatchMachine::default();
+        let _receiver = queue(&mut machine, 30);
+        assert_eq!(machine.begin(30), BeginDecision::Execute);
+        assert!(machine.finish(30, DispatchPhase::Cancelled).is_some());
+        let _new_receiver = queue(&mut machine, 31);
+        assert!(machine.finish(30, DispatchPhase::Cancelled).is_none());
+        assert_eq!(machine.active.as_ref().map(|active| active.id), Some(31));
+    }
+
+    #[test]
+    fn second_request_is_refused_while_first_is_queued_executing_or_expired() {
+        for phase in [
+            DispatchPhase::Queued,
+            DispatchPhase::Executing,
+            DispatchPhase::Expired,
+        ] {
+            let mut machine = DispatchMachine::default();
+            let _receiver = queue(&mut machine, 40);
+            if phase != DispatchPhase::Queued {
+                assert_eq!(machine.begin(40), BeginDecision::Execute);
+            }
+            if phase == DispatchPhase::Expired {
+                assert_eq!(machine.timeout(40), TimeoutDecision::RetainedExecuting);
+            }
+            let (sender, _receiver) = oneshot::channel();
+            assert!(machine.queue(41, sender).is_err(), "phase={phase:?}");
+        }
+    }
+
+    #[test]
+    fn poisoned_dispatch_lock_recovers_state_only_to_fail_closed() {
+        let state = Arc::new(DevBridgeState::default());
+        let poison_state = Arc::clone(&state);
+        let _ = thread::spawn(move || {
+            let _guard = poison_state.dispatch.lock().unwrap();
+            panic!("intentional poison");
+        })
+        .join();
+        assert!(lock_dispatch(&state).is_err());
+        let guard = match state.dispatch.lock() {
+            Ok(_) => panic!("dispatch mutex unexpectedly recovered poison"),
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        assert!(guard.fail_closed);
+    }
+
+    #[test]
+    fn result_channel_close_retains_owner_and_fails_closed() {
+        let mut machine = DispatchMachine::default();
+        let _receiver = queue(&mut machine, 50);
+        assert_eq!(machine.begin(50), BeginDecision::Execute);
+        machine.channel_closed(50);
+        assert!(machine.fail_closed);
+        assert_eq!(machine.active.as_ref().map(|active| active.id), Some(50));
+        assert_eq!(
+            machine.active.as_ref().unwrap().phase,
+            DispatchPhase::Cancelled
+        );
+        let (sender, _receiver) = oneshot::channel();
+        assert!(machine.queue(51, sender).is_err());
+    }
+
+    #[test]
+    fn success_and_dispatch_error_clean_up_only_the_exact_owner() {
+        let mut machine = DispatchMachine::default();
+        let _success_receiver = queue(&mut machine, 60);
+        assert_eq!(machine.begin(60), BeginDecision::Execute);
+        assert!(machine.finish(60, DispatchPhase::Completed).is_some());
+        assert_eq!(machine.last_terminal, Some((60, DispatchPhase::Completed)));
+        let _error_receiver = queue(&mut machine, 61);
+        assert_eq!(machine.begin(61), BeginDecision::Execute);
+        assert!(machine.finish(61, DispatchPhase::Cancelled).is_some());
+        assert_eq!(machine.last_terminal, Some((61, DispatchPhase::Cancelled)));
+        assert!(machine.active.is_none());
+    }
+
+    #[test]
+    fn main_thread_dispatch_failure_cancels_only_the_exact_queued_owner() {
+        let mut machine = DispatchMachine::default();
+        let _receiver = queue(&mut machine, 70);
+        assert!(machine.cancel_queued(71).is_none());
+        assert_eq!(machine.active.as_ref().map(|active| active.id), Some(70));
+        assert!(machine.cancel_queued(70).is_some());
+        assert_eq!(machine.last_terminal, Some((70, DispatchPhase::Cancelled)));
+        assert!(machine.active.is_none());
     }
 }

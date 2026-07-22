@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, open, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -7,8 +7,10 @@ const MAX_ITEMS = 20;
 const SAFE_PHASES = new Set([
   'preflight', 'product-gate-build', 'product-gate-provenance',
   'diagnostic-writer-validation', 'directory-creation', 'port-selection', 'pid-read',
-  'vite-startup', 'launcher', 'bridge-health', 'app-exit', 'driver-startup', 'write', 'restart', 'assert',
+  'vite-startup', 'launcher', 'bridge-health', 'app-exit', 'driver-startup', 'renderer-dispatch',
+  'later-driver', 'write', 'restart', 'assert',
 ]);
+export const PROGRESS_PHASES = Object.freeze(['bridge-healthy', 'renderer-ready', 'later-driver']);
 const SAFE_TAGS = new Set(['a', 'button', 'div', 'form', 'input', 'main', 'nav', 'section']);
 const SAFE_LOCATION_CLASSES = new Set(['root', 'app-module', 'vite-runtime', 'other', 'unavailable']);
 const EVENT_CATEGORIES = {
@@ -63,6 +65,8 @@ export function classifyDiagnostic(events = {}, renderer = {}, phase = 'prefligh
   if (safePhase(phase) === 'bridge-health') return 'bridge-health-failure';
   if (safePhase(phase) === 'app-exit') return 'app-exit-failure';
   if (safePhase(phase) === 'driver-startup') return 'driver-startup-failure';
+  if (safePhase(phase) === 'renderer-dispatch') return 'renderer-dispatch-timeout';
+  if (safePhase(phase) === 'later-driver') return 'later-driver-failure';
   if (safePhase(phase) === 'restart') return 'restart-failure';
   if (boundedList(events.pageErrors, (entry) => entry).some((entry) => entry?.category === 'module-import')) return 'javascript-module-import-error';
   if (Array.isArray(events.pageErrors) && events.pageErrors.length) return 'javascript-error';
@@ -122,6 +126,90 @@ export async function writeDiagnosticArtifact(input, directory = process.env.GOL
   const encoded = `${JSON.stringify(artifact, null, 2)}\n`;
   await writeFile(target, encoded, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
   return { path: target, sha256: createHash('sha256').update(encoded).digest('hex'), artifact };
+}
+
+/**
+ * Publish only a fixed, ordered readiness grammar. The caller's in-memory
+ * state advances even when publication is disabled, so readiness never
+ * depends on a diagnostic side channel.
+ */
+export function createProgressReporter(
+  progressPath = process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE,
+  { installNoReplace = link } = {},
+) {
+  let progressIndex = -1;
+
+  const sameIdentity = (entry, identity) => entry.isFile() && !entry.isSymbolicLink()
+    && entry.dev === identity.dev && entry.ino === identity.ino;
+  const unlinkOwned = async (ownedPath, identity) => {
+    const current = await lstat(ownedPath);
+    if (!sameIdentity(current, identity)) throw new Error('progress ownership changed');
+    await unlink(ownedPath);
+  };
+
+  return async function reportProgress(phase) {
+    const nextIndex = PROGRESS_PHASES.indexOf(phase);
+    if (nextIndex < 0) throw new Error('progress publication refused');
+    if (nextIndex < progressIndex) throw new Error('progress publication refused');
+    if (nextIndex === progressIndex) return;
+    if (!progressPath) {
+      progressIndex = nextIndex;
+      return;
+    }
+
+    // Every phase has an immutable final name. That lets the Linux hard-link
+    // installation be atomic and no-replace for every update, rather than
+    // unlinking or overwriting a previously published path.
+    const finalPath = nextIndex === 0 ? progressPath : `${progressPath}.${nextIndex}`;
+    const temporaryPath = `${finalPath}.tmp`;
+    let handle;
+    let createdTemporary = false;
+    let temporaryIdentity;
+    let installedFinal = false;
+    try {
+      handle = await open(temporaryPath, 'wx', 0o600);
+      createdTemporary = true;
+      const temporaryStat = await handle.stat();
+      temporaryIdentity = { dev: temporaryStat.dev, ino: temporaryStat.ino };
+      await handle.writeFile(`${phase}\n`, 'utf8');
+      await handle.sync();
+      await handle.close();
+      handle = undefined;
+
+      try {
+        await lstat(finalPath);
+        throw new Error('unowned progress target');
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+      }
+
+      // link(2) fails with EEXIST for every kind of planted destination entry.
+      // Unlike rename(), it can never replace that entry in the check/install gap.
+      await installNoReplace(temporaryPath, finalPath);
+      installedFinal = true;
+      const installed = await lstat(finalPath);
+      if (!sameIdentity(installed, temporaryIdentity)) throw new Error('unsafe progress target');
+      const directory = await open(path.dirname(finalPath), 'r');
+      try {
+        await directory.sync();
+        await unlinkOwned(temporaryPath, temporaryIdentity);
+        createdTemporary = false;
+        await directory.sync();
+      } finally {
+        await directory.close();
+      }
+      progressIndex = nextIndex;
+    } catch {
+      try { await handle?.close(); } catch {}
+      if (installedFinal && temporaryIdentity) {
+        try { await unlinkOwned(finalPath, temporaryIdentity); } catch {}
+      }
+      if (createdTemporary && temporaryIdentity) {
+        try { await unlinkOwned(temporaryPath, temporaryIdentity); } catch {}
+      }
+      throw new Error('progress publication refused');
+    }
+  };
 }
 
 export const EARLY_CAPTURE_MARKER = '__LANTERN_GOLDEN_LOOP_DIAGNOSTICS__';

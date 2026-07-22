@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
 import { promisify } from 'node:util';
-import { classifyDiagnostic, safeArtifact, writeDiagnosticArtifact } from '../golden-loop-diagnostics.mjs';
+import { createProgressReporter, classifyDiagnostic, safeArtifact, writeDiagnosticArtifact } from '../golden-loop-diagnostics.mjs';
+import { createRendererReadiness } from '../golden-loop-driver.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -124,7 +125,8 @@ test('every non-renderer failure class writes a bounded surviving artifact', asy
       'diagnostic-writer-validation': 'diagnostic-writer-validation-failure', 'directory-creation': 'directory-creation-failure',
       'port-selection': 'port-selection-failure', 'pid-read': 'pid-read-failure', 'driver-startup': 'driver-startup-failure',
       'vite-startup': 'vite-startup-failure', launcher: 'launcher-failure', 'bridge-health': 'bridge-health-failure',
-      'app-exit': 'app-exit-failure', restart: 'restart-failure',
+      'app-exit': 'app-exit-failure', 'renderer-dispatch': 'renderer-dispatch-timeout',
+      'later-driver': 'later-driver-failure', restart: 'restart-failure',
     })) {
       const result = await writeDiagnosticArtifact({ phase }, directory);
       const encoded = await readFile(result.path, 'utf8');
@@ -135,6 +137,135 @@ test('every non-renderer failure class writes a bounded surviving artifact', asy
       assert.equal(result.sha256, createHash('sha256').update(encoded).digest('hex'));
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('progress reporter writes only monotonic fixed phases and keeps private file permissions', async () => {
+  const root = testDirectory();
+  const target = path.join(root, 'progress');
+  await mkdir(root, { mode: 0o700 });
+  try {
+    const report = createProgressReporter(target);
+    await report('bridge-healthy');
+    assert.equal(await readFile(target, 'utf8'), 'bridge-healthy\n');
+    await report('renderer-ready');
+    assert.equal(await readFile(`${target}.1`, 'utf8'), 'renderer-ready\n');
+    await report('renderer-ready');
+    await report('later-driver');
+    assert.equal(await readFile(`${target}.2`, 'utf8'), 'later-driver\n');
+    assert.equal((await stat(`${target}.2`)).mode & 0o777, 0o600);
+    await assert.rejects(report('renderer-ready'), /progress publication refused/);
+    await assert.rejects(report('client-name-or-path'), /progress publication refused/);
+    assert.equal(await readFile(`${target}.2`, 'utf8'), 'later-driver\n');
+    assert.deepEqual((await readdir(root)).sort(), ['progress', 'progress.1', 'progress.2']);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('progress reporter atomically refuses regular files and symlinks planted during installation', async () => {
+  for (const planted of ['regular-file', 'symlink']) {
+    const root = `${testDirectory()}-install-race-${planted}`;
+    const target = path.join(root, 'private-client-secret-progress');
+    const victim = path.join(root, 'private-client-secret-victim');
+    let reporterTemporary;
+    await mkdir(root, { mode: 0o700 });
+    await writeFile(victim, 'original-link-target-bytes');
+    const installNoReplace = async (temporaryPath, finalPath) => {
+      reporterTemporary = temporaryPath;
+      if (planted === 'symlink') await symlink(victim, finalPath);
+      else await writeFile(finalPath, 'original-planted-bytes');
+      await link(temporaryPath, finalPath);
+    };
+    try {
+      let refusal;
+      await assert.rejects(
+        createProgressReporter(target, { installNoReplace })('bridge-healthy'),
+        (error) => {
+          refusal = error;
+          assert.equal(error.message, 'progress publication refused');
+          assert.equal(error.message.includes(root), false);
+          assert.equal(error.message.includes('original-planted-bytes'), false);
+          assert.equal(error.message.includes(victim), false);
+          return true;
+        },
+      );
+      assert.equal(await readFile(victim, 'utf8'), 'original-link-target-bytes');
+      if (planted === 'symlink') {
+        assert.equal((await lstat(target)).isSymbolicLink(), true);
+        assert.equal(await readlink(target), victim);
+      } else {
+        assert.equal(await readFile(target, 'utf8'), 'original-planted-bytes');
+      }
+      await assert.rejects(lstat(reporterTemporary), { code: 'ENOENT' });
+      assert.deepEqual((await readdir(root)).sort(),
+        ['private-client-secret-progress', 'private-client-secret-victim']);
+      const diagnostic = JSON.stringify(safeArtifact({
+        phase: 'write',
+        renderer: { snapshotError: refusal.message },
+      }));
+      for (const privateValue of [root, target, victim, 'original-planted-bytes', 'original-link-target-bytes']) {
+        assert.equal(diagnostic.includes(privateValue), false);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('progress reporter refuses planted targets and temporary files without changing their bytes or links', async () => {
+  for (const planted of ['target-file', 'target-symlink', 'temporary-file', 'temporary-symlink']) {
+    const root = `${testDirectory()}-${planted}`;
+    const target = path.join(root, 'progress');
+    const temporary = `${target}.tmp`;
+    const victim = path.join(root, 'victim');
+    await mkdir(root, { mode: 0o700 });
+    await writeFile(victim, 'victim-secret-bytes');
+    const plantedPath = planted.startsWith('target') ? target : temporary;
+    if (planted.endsWith('symlink')) await symlink(victim, plantedPath);
+    else await writeFile(plantedPath, 'planted-secret-bytes');
+    try {
+      const plantedBefore = planted.endsWith('symlink') ? await lstat(plantedPath) : undefined;
+      await assert.rejects(createProgressReporter(target)('bridge-healthy'), /progress publication refused/);
+      assert.equal(await readFile(victim, 'utf8'), 'victim-secret-bytes', planted);
+      if (planted.endsWith('symlink')) {
+        assert.equal((await lstat(plantedPath)).isSymbolicLink(), true, planted);
+        assert.equal((await lstat(plantedPath)).ino, plantedBefore.ino, planted);
+      } else {
+        assert.equal(await readFile(plantedPath, 'utf8'), 'planted-secret-bytes', planted);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('renderer readiness is sticky across repeated calls with and without progress output', async () => {
+  for (const withProgress of [false, true]) {
+    const root = `${testDirectory()}-readiness-${withProgress}`;
+    await mkdir(root, { mode: 0o700 });
+    try {
+      let healthCalls = 0;
+      let evalCalls = 0;
+      const report = createProgressReporter(withProgress ? path.join(root, 'progress') : undefined);
+      const waitForRenderer = createRendererReadiness({
+        healthRequest: async () => { healthCalls += 1; },
+        readinessEvaluate: async () => {
+          evalCalls += 1;
+          return { hasTauriInvoke: true, readyState: 'complete' };
+        },
+        publishProgress: report,
+        readinessTimeoutMs: 1_000,
+      });
+      await waitForRenderer();
+      await waitForRenderer();
+      assert.equal(healthCalls, 1, `progress=${withProgress}`);
+      assert.equal(evalCalls, 1, `progress=${withProgress}`);
+      if (withProgress) assert.equal(await readFile(path.join(root, 'progress.1'), 'utf8'), 'renderer-ready\n');
+      else assert.deepEqual(await readdir(root), []);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
 });
 
 async function writeExecutable(target, source) {
@@ -202,6 +333,61 @@ test('bridge fetch timeouts are bounded, diagnostic, and query-safe during healt
   await runStalledBridgeDriver('/eval', { stallBody: true });
 });
 
+test('readiness uses one absolute deadline so its final bridge poll cannot extend the window', async () => {
+  const root = testDirectory();
+  const workspace = path.join(root, 'workspace');
+  const diagnostics = path.join(root, 'diagnostics');
+  const sockets = new Set();
+  let evalRequests = 0;
+  const server = createServer((request, response) => {
+    if (request.url?.startsWith('/health')) {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ ok: true }));
+      return;
+    }
+    evalRequests += 1;
+    setTimeout(() => {
+      if (response.destroyed) return;
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ ok: true, result: { hasTauriInvoke: true, readyState: 'loading' } }));
+    }, 700);
+  });
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
+  await mkdir(workspace, { recursive: true });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const startedAt = Date.now();
+  try {
+    let failure;
+    try {
+      await execFileAsync(process.execPath, [
+        new URL('../golden-loop-driver.mjs', import.meta.url).pathname,
+        'assert', String(server.address().port), workspace, 'Private Client Query',
+      ], {
+        env: {
+          ...process.env,
+          GOLDEN_LOOP_DIAGNOSTIC_DIR: diagnostics,
+          GOLDEN_LOOP_HEALTH_BOUND_MS: '100',
+          GOLDEN_LOOP_READINESS_BOUND_MS: '1800',
+          GOLDEN_LOOP_SNAPSHOT_BOUND_MS: '100',
+          GOLDEN_LOOP_ARTIFACT_BOUND_MS: '300',
+        },
+        timeout: 5_000,
+      });
+    } catch (error) { failure = error; }
+    assert.ok(failure);
+    assert.ok(Date.now() - startedAt < 3_000, 'last readiness poll extended beyond the absolute deadline');
+    assert.ok(evalRequests <= 2, `unexpected readiness retry after deadline: ${evalRequests}`);
+    assert.equal(String(failure.stderr).includes('Private Client Query'), false);
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('post-KILL cleanup stays red and retains ownership when a descendant remains', async () => {
   const root = testDirectory();
   const prefix = path.join(root, 'golden-loop-functions.sh');
@@ -260,7 +446,7 @@ kill() {
   builtin kill "$@"
 }
 set +e
-run_driver unused
+run_driver write
 status=$?
 printf 'status=%s pid=%s pgid=%s start=%s\\n' \
   "$status" "$DRIVER_PID" "$DRIVER_PGID" "$DRIVER_GROUP_START_TIME"
@@ -281,7 +467,7 @@ printf 'status=%s pid=%s pgid=%s start=%s\\n' \
   }
 });
 
-async function runShellFailure(mode) {
+async function runShellFailure(mode, { expectSuccess = false, timingOverrides = {} } = {}) {
   const root = testDirectory();
   const bin = path.join(root, 'bin');
   const repo = path.join(root, 'repo');
@@ -348,10 +534,37 @@ setsid sleep 30 >/dev/null 2>&1 &
 echo $! >"$LANTERN_APP_PID_FILE"
 `);
   await writeExecutable(driver, `#!/usr/bin/env node
+const { appendFileSync, writeFileSync } = await import('node:fs');
+const mode = process.env.GOLDEN_LOOP_TEST_MODE;
+const progress = process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE;
+const phases = ['bridge-healthy', 'renderer-ready', 'later-driver'];
+const publish = (value) => {
+  const index = phases.indexOf(value);
+  const target = index === 0 ? progress : progress + '.' + index;
+  writeFileSync(target, value + '\\n', { mode: 0o600, flag: 'wx' });
+};
+if (mode === 'controller-success') {
+  appendFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_CALLS, process.argv[2] + '\\n');
+  publish('bridge-healthy'); publish('renderer-ready'); publish('later-driver');
+  process.exit(0);
+}
+if (mode === 'driver-no-progress') setInterval(() => {}, 1_000);
+if (mode === 'driver-bridge-stall') { publish('bridge-healthy'); setInterval(() => {}, 1_000); }
+if (mode === 'driver-renderer-stall') { publish('renderer-ready'); setInterval(() => {}, 1_000); }
+if (mode === 'driver-later-stall') { publish('later-driver'); setInterval(() => {}, 1_000); }
+if (mode === 'driver-fast-after-ready') { publish('renderer-ready'); process.exit(7); }
+if (mode === 'driver-artifact-hang') {
+  setTimeout(() => writeFileSync(process.env.GOLDEN_LOOP_TEST_ARTIFACT_READY, 'ready'), 900);
+  setInterval(() => {}, 1_000);
+}
+if (mode === 'driver-slow-ready-failure') {
+  setTimeout(() => { publish('renderer-ready'); process.exit(7); }, 900);
+  setInterval(() => {}, 1_000);
+}
 if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-startup') process.exit(1);
 if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
   const { spawn } = await import('node:child_process');
-  const { readFileSync, writeFileSync } = await import('node:fs');
+  const { readFileSync } = await import('node:fs');
   const processIdentity = () => {
     const stat = readFileSync(\`/proc/\${process.pid}/stat\`, 'utf8');
     const fields = stat.slice(stat.lastIndexOf(') ') + 2).trim().split(/\\s+/);
@@ -389,24 +602,39 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     GOLDEN_LOOP_TEST_DRIVER_LEADER_BEFORE: path.join(root, 'driver-leader-before.json'),
     GOLDEN_LOOP_TEST_DRIVER_LEADER_AT_TERM: path.join(root, 'driver-leader-at-term.json'),
     GOLDEN_LOOP_TEST_DRIVER_LEADER_LATE: path.join(root, 'driver-leader-late.json'),
+    GOLDEN_LOOP_TEST_DRIVER_CALLS: path.join(root, 'driver-calls'),
+    GOLDEN_LOOP_TEST_ARTIFACT_READY: path.join(root, 'artifact-ready'),
     GOLDEN_LOOP_DIAGNOSTIC_DIR: diagnostics,
     GOLDEN_LOOP_LAUNCHER: launcher,
     GOLDEN_LOOP_DRIVER: driver,
     GOLDEN_LOOP_TIMEOUT_SECONDS: '1',
+    GOLDEN_LOOP_HEALTH_BOUND_MS: '50',
+    GOLDEN_LOOP_READINESS_BOUND_MS: '200',
+    GOLDEN_LOOP_SNAPSHOT_BOUND_MS: '100',
+    GOLDEN_LOOP_ARTIFACT_BOUND_MS: '100',
+    GOLDEN_LOOP_DRIVER_CLEANUP_BOUND_MS: '100',
+    GOLDEN_LOOP_DEADLINE_MARGIN_MS: '100',
     GOLDEN_LOOP_TERM_GRACE_SECONDS: '3',
     TMPDIR: temporaryDirectory,
     ...(mode === 'diagnostic-writer-validation' ? { GOLDEN_LOOP_DIAGNOSTIC_WRITER: invalidWriter } : {}),
     ...(mode === 'diagnostic-write-failure' ? { GOLDEN_LOOP_DIAGNOSTIC_WRITER: failingWriter } : {}),
+    ...timingOverrides,
   };
   try {
     let failure;
+    let success;
     try {
-      await execFileAsync('bash', [new URL('../golden-loop.sh', import.meta.url).pathname, repo, app], {
+      success = await execFileAsync('bash', [new URL('../golden-loop.sh', import.meta.url).pathname, repo, app], {
         env,
         timeout: mode === 'driver-timeout' ? 20_000 : 10_000,
       });
     } catch (error) {
       failure = error;
+    }
+    if (expectSuccess) {
+      assert.equal(failure, undefined, failure?.stderr);
+      assert.match(success.stdout, /GOLDEN LOOP PASS/);
+      return (await readFile(env.GOLDEN_LOOP_TEST_DRIVER_CALLS, 'utf8')).trim().split('\n');
     }
     assert.ok(failure, `${mode} unexpectedly turned green`);
     assert.notEqual(failure.code, 0);
@@ -414,6 +642,9 @@ if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     assert.ok(names.length >= 1, `${mode} left no artifact`);
     const artifact = JSON.parse(await readFile(path.join(diagnostics, names.at(-1)), 'utf8'));
     assert.match(failure.stderr, /GOLDEN LOOP DIAGNOSTIC: path=.* sha256=[a-f0-9]{64} classification=/);
+    if (mode === 'driver-artifact-hang') {
+      assert.equal(await readFile(env.GOLDEN_LOOP_TEST_ARTIFACT_READY, 'utf8'), 'ready');
+    }
     if (mode === 'driver-timeout') {
       const driverPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_PID, 'utf8'));
       const childPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_CHILD_PID, 'utf8'));
@@ -462,6 +693,56 @@ test('real shell routes every injected early failure to a red, bounded artifact'
     assert.equal(artifact.renderer.locationClass, 'unavailable', mode);
     assert.equal(JSON.stringify(artifact).includes('client'), false, mode);
   }
+});
+
+test('shell boundary classifies no progress, native-dispatch stall, and every post-readiness failure phase', async () => {
+  const expected = {
+    'driver-no-progress': 'driver-startup-failure',
+    'driver-bridge-stall': 'renderer-dispatch-timeout',
+    'driver-renderer-stall': 'later-driver-failure',
+    'driver-later-stall': 'later-driver-failure',
+    'driver-fast-after-ready': 'later-driver-failure',
+  };
+  for (const [mode, classification] of Object.entries(expected)) {
+    const artifact = await runShellFailure(mode);
+    assert.equal(artifact.classification, classification, mode);
+  }
+});
+
+test('derived startup guard gives snapshot and artifact bounds time before killing a no-progress hang', async () => {
+  const startedAt = Date.now();
+  const artifact = await runShellFailure('driver-artifact-hang', {
+    timingOverrides: {
+      GOLDEN_LOOP_HEALTH_BOUND_MS: '200',
+      GOLDEN_LOOP_READINESS_BOUND_MS: '500',
+      GOLDEN_LOOP_SNAPSHOT_BOUND_MS: '400',
+      GOLDEN_LOOP_ARTIFACT_BOUND_MS: '400',
+      GOLDEN_LOOP_DRIVER_CLEANUP_BOUND_MS: '200',
+      GOLDEN_LOOP_DEADLINE_MARGIN_MS: '200',
+    },
+  });
+  assert.equal(artifact.classification, 'driver-startup-failure');
+  assert.ok(Date.now() - startedAt >= 900, 'outer guard killed the driver before its artifact allowance');
+});
+
+test('derived startup guard accepts the allowed slow readiness path and latches final progress before status', async () => {
+  const startedAt = Date.now();
+  const artifact = await runShellFailure('driver-slow-ready-failure', {
+    timingOverrides: {
+      GOLDEN_LOOP_HEALTH_BOUND_MS: '200',
+      GOLDEN_LOOP_READINESS_BOUND_MS: '500',
+      GOLDEN_LOOP_SNAPSHOT_BOUND_MS: '400',
+      GOLDEN_LOOP_ARTIFACT_BOUND_MS: '400',
+      GOLDEN_LOOP_DRIVER_CLEANUP_BOUND_MS: '200',
+      GOLDEN_LOOP_DEADLINE_MARGIN_MS: '200',
+    },
+  });
+  assert.equal(artifact.classification, 'later-driver-failure');
+  assert.ok(Date.now() - startedAt >= 900, 'slow readiness fixture did not execute its allowed path');
+});
+
+test('shell controller executes both write and restart driver paths with sticky later-driver progress', async () => {
+  assert.deepEqual(await runShellFailure('controller-success', { expectSuccess: true }), ['write', 'assert']);
 });
 
 test('the owned group leader survives TERM grace before escalation removes every descendant', async () => {
