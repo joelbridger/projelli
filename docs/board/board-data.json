@@ -9,6 +9,125 @@
   },
   "sections": [
     {
+      "id": "lantern",
+      "type": "lantern",
+      "icon": "🏮",
+      "title": "Lantern",
+      "status": "Foundation strong · proof in progress",
+      "phase": "Control day in progress",
+      "updated": "July 22, 2026",
+      "headline": "The foundation is built. We are proving it before the next product push.",
+      "lead": "Lantern is no longer a blank idea or a small prototype. A large CRM, meeting, search, document, email, workflow, and trust foundation already exists. The job now is to prove that foundation, organize it around one clear advisor experience, and finish the parts that let a firm replace Wealthbox and Jump.",
+      "proof": {
+        "percent": "67%",
+        "label": "of the mapped foundation is proven working",
+        "accessible": "54 of 81 mapped foundation items are proven working",
+        "working": "54 proven working",
+        "partial": "11 partly working",
+        "failed": "10 failed a real check",
+        "unproven": "6 not yet proven",
+        "caveat": "This number measures proof coverage, not time or launch readiness. The remaining 27 items are not all the same size. A product can contain many working parts and still need a reliable installer, safe team permissions, and one complete end-to-end journey."
+      },
+      "glance": [
+        {
+          "label": "Where we are",
+          "title": "A strong but uneven foundation",
+          "text": "Most of the important engines exist. Some are polished, some are partial, and a smaller group still needs proof or repair."
+        },
+        {
+          "label": "Where we are going",
+          "title": "One calm advisor workspace",
+          "text": "Today, CRM, Meetings, and Ask should work together well enough that an advisor can replace Wealthbox and Jump."
+        },
+        {
+          "label": "How much is left",
+          "title": "One proof stage, then three product moves",
+          "text": "Finish the current control day, fix team access, connect the four main areas, and prove one complete advisor journey before final release checks."
+        }
+      ],
+      "pathTitle": "The path from here",
+      "pathIntro": "This is the honest progress picture. It shows completed stages and remaining work without inventing a fake overall percentage.",
+      "stages": [
+        {
+          "marker": "Mostly done",
+          "name": "1. Foundation assembled",
+          "text": "CRM, meetings, cited search, email, documents, tasks, workflows, intake, history, and trust systems exist.",
+          "state": "done"
+        },
+        {
+          "marker": "Now",
+          "name": "2. Control day",
+          "text": "Prove that one exact Windows installer can install, visibly open, close, and reopen on all three Windows computers.",
+          "state": "now"
+        },
+        {
+          "marker": "Next",
+          "name": "3. Product focus",
+          "text": "Add firm-safe permissions, make the four main areas feel like one product, and preserve the client as the advisor moves through the day.",
+          "state": "next"
+        },
+        {
+          "marker": "Then",
+          "name": "4. Advisor-ready v1",
+          "text": "Prove one complete Wealthbox-plus-Jump replacement journey, finish release checks, and put it in front of real advisors.",
+          "state": ""
+        }
+      ],
+      "doorsTitle": "The product we are organizing around",
+      "doorsIntro": "Lantern keeps four main areas. Everything else belongs inside them or in Settings.",
+      "doors": [
+        {
+          "icon": "☀️",
+          "name": "Today",
+          "text": "A clear plan for the advisor's day: meetings, priorities, follow-ups, and work that needs attention."
+        },
+        {
+          "icon": "👥",
+          "name": "CRM",
+          "text": "Clients, work, calendar, mail, reports, intake, and activity all live here."
+        },
+        {
+          "icon": "🎙️",
+          "name": "Meetings",
+          "text": "Prepare, capture, summarize, review, approve, and create the right follow-up work."
+        },
+        {
+          "icon": "✨",
+          "name": "Ask",
+          "text": "Search across the firm, get short answers with sources, and safely propose useful actions."
+        }
+      ],
+      "builtTitle": "What we already have",
+      "built": [
+        "A deep CRM base: clients, tasks, workflows, pipelines, email, intake, documents, reports, activity, and audit history.",
+        "A meeting system with preparation, notes, transcripts, summaries, action review, and follow-up foundations.",
+        "A cited Ask experience and the local search, privacy, proposal, and receipt systems behind it.",
+        "One reviewed save, close, reopen, and verify journey has passed. We are making that proof repeatable rather than trusting a one-time success."
+      ],
+      "nextTitle": "The next three product moves",
+      "next": [
+        "Build the staff-level permission wall so firm-wide meetings, actions, and Ask never show the wrong person's information.",
+        "Repair the four main entry points and keep the same client in view as the advisor moves between CRM, Meetings, and Ask.",
+        "Prove one deep replacement journey: start the day, open a client, run a meeting, approve the CRM and task changes, send the human-reviewed outcome, and ask a cited follow-up question."
+      ],
+      "decisionsTitle": "What we have decided",
+      "decisions": [
+        "Keep Lantern's current foundation. Restarting on an open-source CRM would throw away too much working, specialized value.",
+        "Reuse and repair existing Lantern systems before building new ones. Many missing-looking features are already partly or fully present.",
+        "Use open-source products as parts and proven patterns where they truly save time, not as a forced replacement for Lantern.",
+        "Study Wealthbox and Jump closely. Borrow their useful workflows and system ideas, then make Lantern's version simpler, more connected, and more trustworthy."
+      ],
+      "holdTitle": "What we are deliberately not doing yet",
+      "hold": [
+        "We are not restarting the whole product from scratch.",
+        "We are not adding firm-wide views before staff permissions are safe.",
+        "We are not rebuilding engines that already exist just because the front end does not expose them clearly.",
+        "We are not calling the app ready until the same installer and core journey pass on real Windows computers."
+      ],
+      "bottomTitle": "The simple answer",
+      "bottomText": "Much of Lantern's foundation is already built, but the remaining work is the work that turns a large collection of features into a dependable product. The smartest move is to finish proof, connect what already exists, and build one excellent advisor journey that can honestly replace Wealthbox and Jump."
+    },
+    {
       "id": "memo",
       "type": "memo",
       "icon": "📝",
@@ -710,6 +829,11 @@
           "file": "client-map-v6.mp4",
           "title": "The Client Map",
           "description": "See a household picture built from its files, with every fact linked to its source."
+        },
+        {
+          "file": "new-client-5s-v6.mp4",
+          "title": "Add a new client in five seconds",
+          "description": "Create a household with one name, then see it ready in your Clients list."
         }
       ]
     },

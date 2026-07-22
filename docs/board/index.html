@@ -64,6 +64,58 @@
   .chip.info{color:var(--info); background:var(--info-bg)}
   .ov-note{margin:18px 0 0; color:var(--muted); font-size:13px}
 
+  /* Lantern project status */
+  .lantern-shell{display:flex;flex-direction:column;gap:16px}
+  .lantern-hero{background:linear-gradient(145deg,#fffaf0 0%,#ffffff 52%,#f0f6ff 100%);border:1px solid #e7dfcf;border-radius:20px;padding:26px;box-shadow:var(--shadow)}
+  .lantern-kicker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+  .lantern-kicker .chip{margin:0}
+  .lantern-date{font-size:12px;font-weight:700;color:var(--muted)}
+  .lantern-title{font-family:"Fraunces",Georgia,serif;font-size:clamp(26px,4vw,38px);line-height:1.12;letter-spacing:-.02em;margin:0;max-width:760px}
+  .lantern-lead{font-size:16px;color:var(--ink-soft);max-width:760px;margin:12px 0 22px}
+  .lantern-proof{display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:22px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px}
+  .lantern-proof-number{font-family:"Fraunces",Georgia,serif;font-size:44px;line-height:1;color:var(--navy);font-weight:600;letter-spacing:-.03em}
+  .lantern-proof-label{font-size:13px;font-weight:700;color:var(--ink-soft);margin-top:6px}
+  .lantern-bar{height:12px;border-radius:999px;background:#e8edf5;overflow:hidden}
+  .lantern-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#2f6df0,#5e8df3)}
+  .lantern-bar-key{display:flex;flex-wrap:wrap;gap:7px 14px;margin-top:10px;font-size:12px;font-weight:600;color:var(--ink-soft)}
+  .lantern-bar-key span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:#2f6df0}
+  .lantern-bar-key span:nth-child(2)::before{background:#e3a234}
+  .lantern-bar-key span:nth-child(3)::before{background:#d05a4e}
+  .lantern-bar-key span:nth-child(4)::before{background:#d7dde7}
+  .lantern-caveat{font-size:12px;color:var(--muted);margin:8px 0 0}
+  .lantern-glance{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .lantern-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+  .lantern-card-label{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:800;margin:0 0 7px}
+  .lantern-card-title{font-family:"Fraunces",Georgia,serif;font-size:20px;line-height:1.2;margin:0 0 7px}
+  .lantern-card-text{font-size:13.5px;color:var(--ink-soft);margin:0}
+  .lantern-section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:var(--shadow)}
+  .lantern-section h3{font-family:"Fraunces",Georgia,serif;font-size:22px;margin:0 0 5px}
+  .lantern-section-intro{font-size:13.5px;color:var(--muted);margin:0 0 17px}
+  .lantern-path{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;position:relative}
+  .lantern-step{border-radius:12px;padding:15px;border:1px solid var(--line);background:var(--bg);min-height:134px}
+  .lantern-step.done{background:var(--good-bg);border-color:#bfe7cc}
+  .lantern-step.now{background:var(--info-bg);border-color:#bfd1fb;box-shadow:inset 0 0 0 1px #d2def8}
+  .lantern-step.next{background:var(--warn-bg);border-color:#f0d4ac}
+  .lantern-step-num{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .lantern-step-name{font-weight:800;font-size:14px;margin:6px 0 5px;color:var(--ink)}
+  .lantern-step-text{font-size:12.5px;color:var(--ink-soft);margin:0;line-height:1.45}
+  .lantern-doors{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+  .lantern-door{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:15px}
+  .lantern-door-icon{font-size:20px;line-height:1}
+  .lantern-door-name{font-weight:800;margin:8px 0 3px;font-size:14px}
+  .lantern-door-text{font-size:12.5px;color:var(--ink-soft);margin:0}
+  .lantern-two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .lantern-list{list-style:none;margin:12px 0 0;padding:0}
+  .lantern-list li{position:relative;padding:0 0 0 22px;margin:0 0 11px;font-size:13.5px;color:var(--ink-soft)}
+  .lantern-list li:last-child{margin-bottom:0}
+  .lantern-list li::before{content:"✓";position:absolute;left:0;top:0;color:var(--good);font-weight:900}
+  .lantern-list.next li::before{content:"→";color:var(--accent)}
+  .lantern-list.hold li::before{content:"—";color:var(--warn)}
+  .lantern-bottom{background:var(--navy);color:#fff;border-radius:16px;padding:22px;box-shadow:var(--shadow)}
+  .lantern-bottom h3{font-family:"Fraunces",Georgia,serif;font-size:22px;margin:0 0 6px}
+  .lantern-bottom p{margin:0;color:#d7e0f2;font-size:14px;max-width:800px}
+  body.lantern-active > header.hero{display:none}
+
   /* Section cards (collapsible) */
   section.area{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); margin:0 0 14px; overflow:hidden}
   .area-head{display:flex; align-items:center; gap:12px; width:100%; padding:18px 24px; background:transparent; border:0; cursor:pointer; font-family:inherit; text-align:left; color:inherit}
@@ -189,6 +241,10 @@
     .area-head{padding:16px 16px}
     .area-body{padding:0 16px 18px}
     .area-title{font-size:19px}
+    .lantern-hero{padding:20px}
+    .lantern-proof{grid-template-columns:1fr;gap:14px}
+    .lantern-glance,.lantern-path,.lantern-doors,.lantern-two{grid-template-columns:1fr}
+    .lantern-step{min-height:0}
   }
 </style>
 </head>
@@ -217,10 +273,11 @@
     strategy:"good", roadmap:"good", marketing:"warn", sales:"gap", growth:"gap",
     competitive:"good", engineering:"gap", ux:"warn", ui:"good",
     testing:"warn", finance:"warn", questions:"info", demo:"good", persondev:"good",
-    memo:"info"
+    memo:"info", lantern:"good"
   };
   // Tab grouping (Overview is special; others list their section ids)
   var TABS = [
+    { id:"lantern",   label:"Lantern",       sections:["lantern"] },
     { id:"overview",  label:"Overview" },
     { id:"memo",      label:"Strategic Memo", sections:["memo"] },
     { id:"persondev", label:"Personal Development", sections:["persondev"] },
@@ -333,7 +390,33 @@
     var linkBlock = links ? '<div class="reslinks"><h3><span class="mark res"></span>Full memo &amp; companion docs</h3><div class="reslist">'+links+'</div></div>' : '';
     return '<p class="now">'+esc(s.now)+'</p>'+intro+toc+blocks+linkBlock;
   }
+  function renderLantern(s){
+    function list(items, cls){
+      return '<ul class="lantern-list '+(cls||'')+'">'+(items||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>';
+    }
+    var glance=(s.glance||[]).map(function(x){
+      return '<div class="lantern-card"><p class="lantern-card-label">'+esc(x.label)+'</p><h3 class="lantern-card-title">'+esc(x.title)+'</h3><p class="lantern-card-text">'+esc(x.text)+'</p></div>';
+    }).join('');
+    var stages=(s.stages||[]).map(function(x,i){
+      return '<div class="lantern-step '+esc(x.state||'')+'"><div class="lantern-step-num">'+esc(x.marker||('Stage '+(i+1)))+'</div><div class="lantern-step-name">'+esc(x.name)+'</div><p class="lantern-step-text">'+esc(x.text)+'</p></div>';
+    }).join('');
+    var doors=(s.doors||[]).map(function(x){
+      return '<div class="lantern-door"><div class="lantern-door-icon">'+esc(x.icon)+'</div><div class="lantern-door-name">'+esc(x.name)+'</div><p class="lantern-door-text">'+esc(x.text)+'</p></div>';
+    }).join('');
+    var proofWidth=Math.max(0,Math.min(100,parseFloat(s.proof.percent)||0));
+    return '<div class="lantern-shell">'
+      +'<div class="lantern-hero"><div class="lantern-kicker">'+chip('info',s.phase)+'<span class="lantern-date">Updated '+esc(s.updated)+'</span></div><h2 class="lantern-title">'+esc(s.headline)+'</h2><p class="lantern-lead">'+esc(s.lead)+'</p>'
+      +'<div class="lantern-proof"><div><div class="lantern-proof-number">'+esc(s.proof.percent)+'</div><div class="lantern-proof-label">'+esc(s.proof.label)+'</div></div><div><div class="lantern-bar" role="img" aria-label="'+esc(s.proof.accessible)+'"><div class="lantern-bar-fill" style="width:'+proofWidth+'%"></div></div><div class="lantern-bar-key"><span>'+esc(s.proof.working)+'</span><span>'+esc(s.proof.partial)+'</span><span>'+esc(s.proof.failed)+'</span><span>'+esc(s.proof.unproven)+'</span></div><p class="lantern-caveat">'+esc(s.proof.caveat)+'</p></div></div></div>'
+      +'<div class="lantern-glance">'+glance+'</div>'
+      +'<div class="lantern-section"><h3>'+esc(s.pathTitle)+'</h3><p class="lantern-section-intro">'+esc(s.pathIntro)+'</p><div class="lantern-path">'+stages+'</div></div>'
+      +'<div class="lantern-section"><h3>'+esc(s.doorsTitle)+'</h3><p class="lantern-section-intro">'+esc(s.doorsIntro)+'</p><div class="lantern-doors">'+doors+'</div></div>'
+      +'<div class="lantern-two"><div class="lantern-section"><h3>'+esc(s.builtTitle)+'</h3>'+list(s.built,'')+'</div><div class="lantern-section"><h3>'+esc(s.nextTitle)+'</h3>'+list(s.next,'next')+'</div></div>'
+      +'<div class="lantern-two"><div class="lantern-section"><h3>'+esc(s.decisionsTitle)+'</h3>'+list(s.decisions,'')+'</div><div class="lantern-section"><h3>'+esc(s.holdTitle)+'</h3>'+list(s.hold,'hold')+'</div></div>'
+      +'<div class="lantern-bottom"><h3>'+esc(s.bottomTitle)+'</h3><p>'+esc(s.bottomText)+'</p></div>'
+      +'</div>';
+  }
   function renderSection(s, collapsed){
+    if(s.type==='lantern') return renderLantern(s);
     var body = s.type==='testing' ? renderTesting(s) : s.type==='questions' ? renderQuestions(s) : s.type==='roadmap' ? renderRoadmap(s) : s.type==='demo' ? renderDemo(s) : s.type==='persondev' ? renderPersonalDev(s) : s.type==='memo' ? renderMemo(s) : renderStandard(s);
     return '<section class="area'+(collapsed?' collapsed':'')+'" id="sec-'+s.id+'">'
       +'<button class="area-head" type="button" aria-expanded="'+(collapsed?'false':'true')+'">'
@@ -348,6 +431,7 @@
     var found=false;
     document.querySelectorAll('.panel').forEach(function(p){ var on=p.dataset.tab===id; p.classList.toggle('active',on); if(on) found=true; });
     document.querySelectorAll('#tabbar button').forEach(function(b){ b.classList.toggle('active', b.dataset.tab===id); });
+    document.body.classList.toggle('lantern-active', id==='lantern');
     if(found && location.hash!=='#'+id){ history.replaceState(null,'','#'+id); }
     window.scrollTo({top:0,behavior:'smooth'});
   }
@@ -436,7 +520,7 @@
 
     // initial tab from hash
     var start = (location.hash||'').replace('#','');
-    activateTab(TABS.some(function(t){return t.id===start;}) ? start : 'overview');
+    activateTab(TABS.some(function(t){return t.id===start;}) ? start : 'lantern');
   }).catch(function(e){
     document.getElementById('panels').innerHTML='<div class="error">Could not load the board content ('+esc(e.message)+').<br>Check that <code>board-data.json</code> sits next to this page.</div>';
   });

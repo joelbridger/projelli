@@ -17,7 +17,11 @@ Each area has: **Where we are now** (the current position), **Recent key decisio
 and **Insights & open ideas**.
 
 ## Other tabs
-Beyond the strategy areas, the board has a **Demo** walkthrough, **Roadmap**, **Testing**,
+The first tab is now **Lantern**, a current, plain-language view of product progress,
+the four-part product direction, and the remaining path to an advisor-ready release.
+It intentionally separates proven foundation coverage from launch readiness.
+
+Beyond that, the board has a **Demo** walkthrough, **Roadmap**, **Testing**,
 **Questions**, and a **Personal Development** tab — an interactive checklist of Jameson's
 founder-development plan (section `type:"persondev"`; checkmarks persist in browser
 localStorage under `keepance-board-persondev-v1`). The full source plan for that tab lives
