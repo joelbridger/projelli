@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown } from 'lucide-react';
 import {
@@ -11,7 +11,6 @@ import {
 import type { SharedClientIdentity } from '@/platform/client-context';
 import { ClientPickerModal } from './ClientPickerModal';
 import type { ClientPickerHousehold } from './clientPickerHouseholds';
-import { fetchClientPickerHouseholds } from './fetchClientPickerHouseholds';
 import { type ClientBarQuickAction } from './quickActions';
 
 export interface ClientBarV1Props {
@@ -23,67 +22,22 @@ export interface ClientBarV1Props {
 }
 
 export function ClientBarV1({
-  households,
+  households = [],
   quickActions = [],
   onChooseClient,
   onNavigate,
 }: ClientBarV1Props) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [loadedHouseholds, setLoadedHouseholds] = useState<
-    readonly ClientPickerHousehold[]
-  >([]);
-  const [householdsLoading, setHouseholdsLoading] = useState(false);
-  const [householdsLoadFailed, setHouseholdsLoadFailed] = useState(false);
-  const householdRequestId = useRef(0);
   const client = useClientContextStore((state) => state.client);
-  const pickerHouseholds = households ?? loadedHouseholds;
 
   useEffect(() => {
-    replaceCanonicalHouseholdDirectory('wealthbox', pickerHouseholds);
-  }, [pickerHouseholds]);
-
-  const loadHouseholds = useCallback(async () => {
-    if (households) return;
-
-    const requestId = householdRequestId.current + 1;
-    householdRequestId.current = requestId;
-    setHouseholdsLoading(true);
-    setHouseholdsLoadFailed(false);
-    try {
-      const nextHouseholds = await fetchClientPickerHouseholds();
-      if (householdRequestId.current !== requestId) return;
-      setLoadedHouseholds(nextHouseholds);
-    } catch {
-      if (householdRequestId.current !== requestId) return;
-      setLoadedHouseholds([]);
-      setHouseholdsLoadFailed(true);
-    } finally {
-      if (householdRequestId.current === requestId) {
-        setHouseholdsLoading(false);
-      }
-    }
+    replaceCanonicalHouseholdDirectory('wealthbox', households);
   }, [households]);
-
-  const requestHouseholds = useCallback(() => {
-    loadHouseholds().catch(() => {
-      setLoadedHouseholds([]);
-      setHouseholdsLoadFailed(true);
-      setHouseholdsLoading(false);
-    });
-  }, [loadHouseholds]);
-
-  useEffect(
-    () => () => {
-      householdRequestId.current += 1;
-    },
-    []
-  );
 
   const openPicker = () => {
     onChooseClient?.();
     setPickerOpen(true);
-    requestHouseholds();
   };
 
   const selectClient = (nextClient: SharedClientIdentity) => {
@@ -161,12 +115,9 @@ export function ClientBarV1({
         </div>
       </section>
       <ClientPickerModal
-        loadFailed={householdsLoadFailed}
-        loading={householdsLoading}
-        households={pickerHouseholds}
+        households={households}
         onClear={clearSelectedClient}
         onOpenChange={setPickerOpen}
-        onRetry={requestHouseholds}
         onSelect={selectClient}
         open={pickerOpen}
         selectedHouseholdId={client?.householdId ?? null}
