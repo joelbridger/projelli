@@ -15,20 +15,51 @@ const base = `http://127.0.0.1:${bridgePort}`;
 const documentFile = `${documentName}.docx`;
 const expectedDevUrl = process.env.GOLDEN_LOOP_DEV_URL || 'the configured desktop dev URL';
 const timeoutMs = Number(process.env.GOLDEN_LOOP_DRIVER_TIMEOUT_MS || 30_000);
+const HEALTH_REQUEST_TIMEOUT_MS = 2_000;
+const BRIDGE_TRANSPORT_ALLOWANCE_MS = 1_000;
 
 function fail(message) {
   throw new Error(`GOLDEN LOOP FAILED: ${message}`);
 }
 
 class RendererCallbackError extends Error {}
+class BridgeRequestTimeoutError extends Error {}
 
-async function request(endpoint, query = {}) {
+async function request(endpoint, query = {}, { signal, timeoutMs: requestedTimeoutMs } = {}) {
   const url = new URL(endpoint, base);
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, String(value));
-  const response = await fetch(url);
-  const body = await response.json().catch(() => ({ ok: false, error: `non-JSON response (${response.status})` }));
-  if (!response.ok || !body.ok) fail(body.error || `${endpoint} returned HTTP ${response.status}`);
-  return body.result;
+  const operationTimeoutMs = Number(query.timeout_ms ?? requestedTimeoutMs);
+  const requestTimeoutMs = endpoint === '/health'
+    ? HEALTH_REQUEST_TIMEOUT_MS
+    : (Number.isFinite(operationTimeoutMs) && operationTimeoutMs > 0 ? operationTimeoutMs : 20_000) + BRIDGE_TRANSPORT_ALLOWANCE_MS;
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, requestTimeoutMs);
+  const abortFromCaller = () => controller.abort(signal?.reason);
+  if (signal) {
+    if (signal.aborted) abortFromCaller();
+    else signal.addEventListener('abort', abortFromCaller, { once: true });
+  }
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    const body = await response.json().catch((error) => {
+      if (timedOut) throw error;
+      return { ok: false, error: `non-JSON response (${response.status})` };
+    });
+    if (!response.ok || !body.ok) fail(body.error || `${endpoint} returned HTTP ${response.status}`);
+    return body.result;
+  } catch (error) {
+    if (timedOut) {
+      throw new BridgeRequestTimeoutError(`golden loop bridge request timed out: endpoint=${url.pathname} bound=${requestTimeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abortFromCaller);
+  }
 }
 
 const rawEvaluate = (source, operationTimeoutMs = 20_000) =>
@@ -132,6 +163,7 @@ async function waitForRendererCallback() {
       if (state?.hasTauriInvoke && state.readyState !== 'loading') return;
       lastError = new Error(`page state was ${JSON.stringify(state)}`);
     } catch (error) {
+      if (error instanceof BridgeRequestTimeoutError) throw error;
       lastError = error;
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -297,6 +329,10 @@ try {
     console.log(`PASS persistence: ${documentFile} survived restart and is visible`);
   }
 } catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/^golden loop bridge request timed out: endpoint=\/[a-z-]+ bound=\d+ms$/.test(message)) {
+    console.error(`GOLDEN LOOP FAILURE: ${message}`);
+  }
   const renderer = await rendererSnapshot();
   try {
     const diagnostic = await writeDiagnosticArtifact({ phase, renderer, events: renderer.events });

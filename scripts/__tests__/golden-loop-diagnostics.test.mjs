@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmod, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -145,6 +146,54 @@ async function shellFunctionPrefix() {
   const source = await readFile(new URL('../golden-loop.sh', import.meta.url), 'utf8');
   return source.slice(0, source.indexOf('\ncleanup() {'));
 }
+
+async function runStalledBridgeDriver(stallPath) {
+  const root = testDirectory();
+  const workspace = path.join(root, 'workspace');
+  const diagnostics = path.join(root, 'diagnostics');
+  const sockets = new Set();
+  const server = createServer((request, response) => {
+    if (request.url?.startsWith(stallPath)) return;
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ ok: true, result: { hasTauriInvoke: true, readyState: 'complete' } }));
+  });
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
+  await mkdir(workspace, { recursive: true });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  const startedAt = Date.now();
+  try {
+    let failure;
+    try {
+      await execFileAsync(process.execPath, [new URL('../golden-loop-driver.mjs', import.meta.url).pathname, 'write', String(port), workspace, 'Client Query Secret'], {
+        env: { ...process.env, GOLDEN_LOOP_DIAGNOSTIC_DIR: diagnostics },
+        timeout: 10_000,
+      });
+    } catch (error) { failure = error; }
+    assert.ok(failure, `${stallPath} stall unexpectedly passed`);
+    const stderr = String(failure.stderr);
+    assert.match(stderr, /GOLDEN LOOP DIAGNOSTIC: path=.* sha256=[a-f0-9]{64}/);
+    assert.match(stderr, new RegExp(`endpoint=${stallPath} bound=${stallPath === '/health' ? 2000 : 3000}ms`));
+    assert.equal(stderr.includes('Client Query Secret'), false, 'diagnostic leaked query-derived content');
+    assert.ok(Date.now() - startedAt < 8_000, `${stallPath} stall waited for the outer controller`);
+    const names = await (await import('node:fs/promises')).readdir(diagnostics);
+    assert.equal(names.length, 1, 'driver did not write its own diagnostic');
+    const artifact = await readFile(path.join(diagnostics, names[0]), 'utf8');
+    assert.equal(artifact.includes('Client Query Secret'), false, 'artifact leaked query-derived content');
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+test('bridge fetch timeouts are bounded, diagnostic, and query-safe during health and eval stalls', async () => {
+  await runStalledBridgeDriver('/health');
+  await runStalledBridgeDriver('/eval');
+});
 
 test('post-KILL cleanup stays red and retains ownership when a descendant remains', async () => {
   const root = testDirectory();
