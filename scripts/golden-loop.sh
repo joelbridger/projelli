@@ -392,13 +392,15 @@ wait_for_http() {
 }
 
 wait_for_entry_module() {
-  local url="$1" end=$((SECONDS + TIMEOUT_SECONDS))
+  local url="$1" status end=$((SECONDS + TIMEOUT_SECONDS))
   while [ "$SECONDS" -lt "$end" ]; do
     # This check intentionally permits only the fixed local HTTP module URL
-    # derived below. A redirect is not readiness: follow mode with a zero
-    # redirect budget makes curl reject a 3xx before it can contact Location.
-    if curl --silent --show-error --fail --location --max-redirs 0 \
-      --connect-timeout 1 --max-time 1 --proto '=http' "$url" >/dev/null 2>&1; then
+    # derived below. Readiness means an explicit three-digit 2xx response from
+    # that loopback server; proxy settings and every other response refuse it.
+    if status="$(curl --silent --show-error --noproxy '*' \
+      --connect-timeout 1 --max-time 1 --proto '=http' \
+      --output /dev/null --write-out '%{http_code}' "$url" 2>/dev/null)" \
+      && [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
       return 0
     fi
     if [ -n "$VITE_PID" ] && ! kill -0 "$VITE_PID" 2>/dev/null; then

@@ -2,7 +2,9 @@
 /** Focused contract coverage for the real golden-loop entry readiness gate. */
 import assert from 'node:assert/strict';
 import { execFile as execFileCallback } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer as createHttpServer } from 'node:http';
 import { createServer } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -41,7 +43,7 @@ async function gone(pid) {
   return false;
 }
 
-async function runFixture(mode) {
+async function runFixture(mode, { proxy = false } = {}) {
   const fixture = await mkdtemp(path.join(os.tmpdir(), 'golden-loop-entry-readiness-'));
   const bin = path.join(fixture, 'bin');
   const repo = path.join(fixture, 'repo');
@@ -53,7 +55,10 @@ async function runFixture(mode) {
   const requests = path.join(fixture, 'requests.jsonl');
   const serverPid = path.join(fixture, 'screen-server.pid');
   const launches = path.join(fixture, 'launches');
+  const proxyRequests = path.join(fixture, 'proxy-requests.jsonl');
   const port = await freePort();
+  const lowerProxyPort = await freePort();
+  const upperProxyPort = await freePort();
 
   await mkdir(path.join(repo, 'src-tauri'), { recursive: true });
   await mkdir(path.join(repo, 'node_modules'));
@@ -72,11 +77,36 @@ http.createServer((request, response) => {
   if (request.url === '/src/main.tsx') {
     if (mode === 'hang') return;
     if (mode === 'redirect') { response.writeHead(302, { location: 'http://outside.invalid/not-allowed.tsx' }); response.end(); return; }
+    if (['300', '302', '304'].includes(mode)) { response.writeHead(Number(mode)); response.end(); return; }
     response.writeHead(200, { 'content-type': 'application/javascript' }); response.end('export {};'); return;
   }
   response.writeHead(200, { 'content-type': 'text/html' }); response.end('<div id="root"></div>');
 }).listen(Number(port), '127.0.0.1');
 `);
+  const proxyServer = async (proxyPort) => {
+    let requestCount = 0;
+    const proxy = createHttpServer((request, response) => {
+      requestCount += 1;
+      appendFileSync(proxyRequests, JSON.stringify({ port: proxyPort, url: request.url }) + '\n');
+      setTimeout(() => {
+        if (requestCount === 1) {
+          response.writeHead(503);
+          response.end();
+        } else {
+          response.writeHead(200, { 'content-type': 'application/javascript' });
+          response.end('export {};');
+        }
+      }, 250);
+    });
+    await new Promise((resolve, reject) => proxy.once('error', reject).listen(proxyPort, '127.0.0.1', resolve));
+    return proxy;
+  };
+  let lowerProxy;
+  let upperProxy;
+  if (proxy) {
+    lowerProxy = await proxyServer(lowerProxyPort);
+    upperProxy = await proxyServer(upperProxyPort);
+  }
   await executable(path.join(bin, 'git'), `#!/usr/bin/env bash
 case " $* " in
   *" rev-parse HEAD "*) echo 0123456789012345678901234567890123456789 ;;
@@ -118,6 +148,14 @@ writeFileSync(progress + '.2', 'later-driver\\n');
         GOLDEN_LOOP_TEST_REQUESTS: requests,
         GOLDEN_LOOP_TEST_SERVER_PID: serverPid,
         GOLDEN_LOOP_TEST_LAUNCHES: launches,
+        ...(proxy ? {
+          http_proxy: `http://127.0.0.1:${lowerProxyPort}`,
+          HTTP_PROXY: `http://127.0.0.1:${upperProxyPort}`,
+          https_proxy: `http://127.0.0.1:${lowerProxyPort}`,
+          HTTPS_PROXY: `http://127.0.0.1:${upperProxyPort}`,
+          no_proxy: '',
+          NO_PROXY: '',
+        } : {}),
       },
       timeout: 12_000,
     });
@@ -126,10 +164,12 @@ writeFileSync(progress + '.2', 'later-driver\\n');
   }
   const requestLog = (await readFile(requests, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(JSON.parse);
   const launchLog = await readFile(launches, 'utf8').catch(() => '');
-  const vitePid = Number(await readFile(serverPid, 'utf8'));
-  const viteStopped = await gone(vitePid);
+  const proxyLog = (await readFile(proxyRequests, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(JSON.parse);
+  const vitePid = Number(await readFile(serverPid, 'utf8').catch(() => ''));
+  const viteStopped = Number.isSafeInteger(vitePid) && vitePid > 0 ? await gone(vitePid) : false;
+  await Promise.all([lowerProxy?.close(), upperProxy?.close()].filter(Boolean).map((server) => new Promise((resolve) => server.close(resolve))));
   await rm(fixture, { recursive: true, force: true });
-  return { outcome, requestLog, launchLog, port, viteStopped };
+  return { outcome, requestLog, launchLog, proxyLog, port, viteStopped };
 }
 
 test('index and its fixed entry module both being 2xx reaches the real launcher seam', async () => {
@@ -156,6 +196,25 @@ test('a redirected entry fails before launch without following the redirect', as
   assert.equal(result.launchLog, '');
   assert.equal(result.viteStopped, true);
   assert.equal(result.requestLog.some(({ url }) => url.includes('not-allowed')), false);
+});
+
+for (const status of ['300', '302', '304']) {
+  test(`an entry response of ${status} without Location fails before launch`, async () => {
+    const result = await runFixture(status);
+    assert.notEqual(result.outcome.code, 0);
+    assert.match(String(result.outcome.stderr), /timed out waiting for the matching app entry module/);
+    assert.equal(result.launchLog, '');
+    assert.equal(result.viteStopped, true);
+  });
+}
+
+test('hostile proxy variables cannot answer readiness; only the actual loopback 2xx launches', async () => {
+  const result = await runFixture('ready', { proxy: true });
+  assert.equal(result.outcome.code ?? 0, 0, String(result.outcome.stderr));
+  assert.match(result.launchLog, /launch/);
+  assert.equal(result.proxyLog.some(({ url }) => url.includes('/src/main.tsx')), false);
+  assert.ok(result.requestLog.some(({ url }) => url === '/src/main.tsx'));
+  assert.equal(result.viteStopped, true);
 });
 
 test('entry readiness requests only /src/main.tsx on the validated loopback origin', async () => {
