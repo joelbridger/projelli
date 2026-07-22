@@ -138,6 +138,26 @@ for (const vector of vectors.invalid_numeric_vectors) {
 }
 assert.equal(renderer.canonicalizePayload(renderer.parseStrictJson('{"2":"two","10":"ten","01":"leading"}')), '{"01":"leading","10":"ten","2":"two"}', 'numeric-looking keys use scalar order, not JavaScript property order');
 assert.throws(() => renderer.parseStrictJson('{"nested":{"id":1,"id":2}}'), /duplicate JSON object key/, 'duplicate keys are rejected before JSON.parse could erase them');
+
+// These are JSON bytes with one backslash before each "u", not JavaScript strings
+// containing two literal backslashes. Keep the byte proof beside the parser proof.
+const pairedSurrogate = '{"text":"\\ud83d\\ude00"}';
+const unpairedHighSurrogate = '{"text":"\\ud800"}';
+const unpairedLowSurrogate = '{"text":"\\udc00"}';
+assert.equal(Buffer.from(pairedSurrogate, 'utf8').toString('hex'), '7b2274657874223a225c75643833645c7564653030227d', 'paired-surrogate input supplies real JSON Unicode escapes');
+assert.equal(Buffer.from(unpairedHighSurrogate, 'utf8').toString('hex'), '7b2274657874223a225c7564383030227d', 'unpaired-high input supplies a real JSON Unicode escape');
+assert.equal(Buffer.from(unpairedLowSurrogate, 'utf8').toString('hex'), '7b2274657874223a225c7564633030227d', 'unpaired-low input supplies a real JSON Unicode escape');
+const intendedScalar = String.fromCodePoint(0x1f600);
+assert.equal(renderer.parseStrictJson(pairedSurrogate).text, intendedScalar, 'inline parser accepts a paired surrogate escape as its scalar value');
+assert.equal(reference.parseStrictJson(pairedSurrogate).text, intendedScalar, 'reference parser accepts a paired surrogate escape as its scalar value');
+for (const [name, rawSurrogate] of [
+  ['unpaired high surrogate', unpairedHighSurrogate],
+  ['unpaired low surrogate', unpairedLowSurrogate],
+]) {
+  assert.throws(() => renderer.parseStrictJson(rawSurrogate), /unpaired surrogate/, `inline parser rejects ${name} for the surrogate reason`);
+  assert.throws(() => reference.parseStrictJson(rawSurrogate), /unpaired surrogate/, `reference parser rejects ${name} for the surrogate reason`);
+}
+
 const acceptedVerdict = renderer.validateMapData(validControlData);
 assert.equal(acceptedVerdict.ok, true, acceptedVerdict.error || 'the accepted control contract is valid');
 assert.equal(document.querySelectorAll('.stagecard').length, 7, 'all journey stories render');
@@ -202,9 +222,6 @@ const failureCases = [
   ['duplicate array-object key', '[{"x":1,"x":2}]', {}],
   ['even escape parity', '{"text":"\\\\\\\\","payload_sha256":"x"}', {}],
   ['odd escape parity', '{"text":"\\\\\\"}', {}],
-  ['paired surrogate', '{"text":"\\\\ud83d\\\\ude00"}', {}],
-  ['unpaired high surrogate', '{"text":"\\\\ud800"}', {}],
-  ['unpaired low surrogate', '{"text":"\\\\udc00"}', {}],
   ['prefix bytes', 'prefix'+acceptedRaw, {}],
   ['trailing bytes', acceptedRaw+' trailing', {}],
   ['two JSON values', acceptedRaw+' {}', {}],

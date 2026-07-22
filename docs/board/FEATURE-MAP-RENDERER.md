@@ -42,3 +42,10 @@ environment variable, LANTERN_COORDINATION_ROOT. It defaults to
 vectors, JavaScript reference, and publisher from that root. It stops with a
 clear missing-file error if that checkout is incomplete; it never depends on a
 temporary worktree.
+
+The same offline proof checks the actual UTF-8 bytes passed to both strict JSON
+readers for Unicode escapes. A paired `\\ud83d\\ude00` JSON escape must become
+the 😀 scalar value; standalone `\\ud800` and `\\udc00` escapes must both fail
+for the unpaired-surrogate reason. These parser checks are separate from map
+contract failures, so required feature-map fields cannot hide a Unicode-parser
+regression.
