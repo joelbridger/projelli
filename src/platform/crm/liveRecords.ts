@@ -99,6 +99,12 @@ function inCrmWorkspace<T>(
   return task;
 }
 
+/**
+ * Lowest-level encrypted collection read. Visibility migration consumes it
+ * internally; only the meeting-preferences controller receives a raw snapshot.
+ * User-facing stores, lists, search, Ask, and citations use the filtered CRM
+ * boundary and must never expose this result directly.
+ */
 export async function loadLiveCrmRecords(
   workspaceRoot: string | null | undefined
 ): Promise<readonly LiveCrmRecord[]> {

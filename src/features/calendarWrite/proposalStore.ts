@@ -246,7 +246,7 @@ export interface LiveRecordLike {
 
 /**
  * The lower-level durable IO the CRM live-record route provides. The React layer
- * wires `useLiveCrmRecords().save` and `loadLiveCrmRecords(workspaceRoot)` to it.
+ * wires `useLiveCrmRecords().save` and its visibility-filtered reload to it.
  */
 export interface LiveRecordIo {
   save(record: LiveRecordLike): Promise<unknown>;

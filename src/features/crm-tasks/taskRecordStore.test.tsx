@@ -13,6 +13,9 @@ const canonical = vi.hoisted(() => ({
     matterId: string;
     actorId: string;
   }) => Promise<unknown>>(),
+  canReadMeetingVisibilitySubject: undefined as
+    | ((subject: unknown) => boolean)
+    | undefined,
 }));
 
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
@@ -22,6 +25,7 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
     reload: canonical.reload,
     workspaceRoot: '/workspace',
     error: null,
+    canReadMeetingVisibilitySubject: canonical.canReadMeetingVisibilitySubject,
   }),
 }));
 vi.mock('@/features/crm-trash', () => ({
@@ -53,6 +57,7 @@ describe('public task record store', () => {
     canonical.save.mockReset();
     canonical.reload.mockReset();
     canonical.softDelete.mockReset();
+    canonical.canReadMeetingVisibilitySubject = undefined;
     canonical.save.mockImplementation((record) => {
       canonical.records = [...canonical.records, structuredClone(record)];
       return Promise.resolve(structuredClone(record));
@@ -194,6 +199,30 @@ describe('public task record store', () => {
       visibilityPolicyId: 'private-policy',
       parentRef: { kind: 'meeting-artifact', id: 'artifact-secret' },
     });
+  });
+
+  it('uses the hidden live authority when the public snapshot has no policy rows', async () => {
+    const parent = {
+      kind: 'meeting-artifact' as const,
+      id: 'artifact-secret',
+      lineage: 'derived' as const,
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: { kind: 'meeting-note' as const, id: 'meeting-secret' },
+    };
+    canonical.records = [{
+      id: 'artifact-secret',
+      kind: 'meeting_artifact',
+      meetingVisibility: parent,
+    }];
+    canonical.canReadMeetingVisibilitySubject = vi.fn(() => true);
+    const { result } = renderHook(() => useTaskRecordStore());
+
+    await expect(result.current.create({
+      title: 'Allowed derived follow-up',
+      meetingVisibilityParent: parent,
+    })).resolves.toMatchObject({ title: 'Allowed derived follow-up' });
+    expect(canonical.canReadMeetingVisibilitySubject).toHaveBeenCalledWith(parent);
   });
 
   it('merges an update into the current canonical task and retains unrelated fields and relations', async () => {

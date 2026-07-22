@@ -356,7 +356,10 @@ function isValidPersistedItem(raw: unknown): raw is ProposedCrmWrite {
 export function canReadQueueItem(
   item: ProposedCrmWrite,
   records: readonly LiveCrmRecord[],
-  viewerId: string | null | undefined
+  viewerId: string | null | undefined,
+  decide?: ReturnType<
+    typeof useLiveCrmRecords
+  >['canReadMeetingDerivedRecord']
 ): boolean {
   if (!item.meetingVisibility) return true;
   if (
@@ -364,35 +367,44 @@ export function canReadQueueItem(
     item.meetingVisibility.id !== item.id
   )
     return false;
-  return canReadMeetingDerivedRecord(
-    {
-      id: item.id,
-      kind: 'proposalRecord',
-      source: { origin: 'meeting', sources: [] },
-      meetingVisibility: item.meetingVisibility,
-    },
-    'proposal',
-    records,
-    viewerId
-  );
+  const record: LiveCrmRecord = {
+    id: item.id,
+    kind: 'proposalRecord',
+    source: { origin: 'meeting', sources: [] },
+    meetingVisibility: item.meetingVisibility,
+  };
+  return decide
+    ? decide(record, 'proposal')
+    : canReadMeetingDerivedRecord(record, 'proposal', records, viewerId);
 }
 
 export function projectVisibleCrmWriteQueueItems(
   items: readonly ProposedCrmWrite[],
   records: readonly LiveCrmRecord[],
-  viewerId: string | null | undefined
+  viewerId: string | null | undefined,
+  decide?: ReturnType<
+    typeof useLiveCrmRecords
+  >['canReadMeetingDerivedRecord']
 ): readonly ProposedCrmWrite[] {
-  return items.filter((item) => canReadQueueItem(item, records, viewerId));
+  return items.filter((item) =>
+    canReadQueueItem(item, records, viewerId, decide)
+  );
 }
 
 /** Re-project whenever the canonical policies, lineage, or firm viewer changes. */
 export function useVisibleCrmWriteQueueItems(): readonly ProposedCrmWrite[] {
   const items = useCrmWriteQueueStore((state) => state.items);
-  const records = useLiveCrmRecords().records;
+  const live = useLiveCrmRecords();
   const viewerId = useFirmStore((state) => state.session?.userId ?? null);
   return useMemo(
-    () => projectVisibleCrmWriteQueueItems(items, records, viewerId),
-    [items, records, viewerId]
+    () =>
+      projectVisibleCrmWriteQueueItems(
+        items,
+        live.records,
+        viewerId,
+        live.canReadMeetingDerivedRecord
+      ),
+    [items, live, viewerId]
   );
 }
 

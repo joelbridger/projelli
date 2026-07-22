@@ -88,7 +88,13 @@ export interface TaskRecordStore {
 
 type LiveTaskPort = Pick<
   ReturnType<typeof useLiveCrmRecords>,
-  'records' | 'workspaceRoot' | 'error' | 'save' | 'reload'
+  | 'records'
+  | 'workspaceRoot'
+  | 'error'
+  | 'save'
+  | 'reload'
+  | 'canReadMeetingDerivedRecord'
+  | 'canReadMeetingVisibilitySubject'
 >;
 
 const TASK_STATUSES: readonly TaskStatus[] = [
@@ -613,7 +619,10 @@ function createTaskRecordStore(
   const currentActor = actor(viewerId);
   const tasks = port.records.filter(
     (record) =>
-      record.kind === 'task' && canReadTask(record, port.records, viewerId)
+      record.kind === 'task' &&
+      (port.canReadMeetingDerivedRecord
+        ? port.canReadMeetingDerivedRecord(record, 'task')
+        : canReadTask(record, port.records, viewerId))
   );
   const saveAndReload = async (record: LiveCrmRecord): Promise<TaskRecord> => {
     try {
@@ -635,11 +644,13 @@ function createTaskRecordStore(
       requireAvailable(port);
       if (
         input.meetingVisibilityParent &&
-        !canReadVisibilitySubject(
-          input.meetingVisibilityParent,
-          port.records,
-          viewerId
-        )
+        !(port.canReadMeetingVisibilitySubject
+          ? port.canReadMeetingVisibilitySubject(input.meetingVisibilityParent)
+          : canReadVisibilitySubject(
+              input.meetingVisibilityParent,
+              port.records,
+              viewerId
+            ))
       )
         throw new Error('This private meeting task is not available.');
       return saveAndReload(canonicalTask(input, currentActor));

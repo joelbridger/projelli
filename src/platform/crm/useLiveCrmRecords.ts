@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   readSelectionOperationDecision,
   useSelectionOperationDecision,
@@ -21,6 +22,14 @@ import {
   removeLiveRecordRelayWriter,
   publishLiveRecord,
 } from './liveRecordRelay';
+import { filterLiveCrmRecordsByMeetingVisibility } from './meetingVisibility';
+import { migrateCanonicalMeetingVisibility } from './meetingVisibilityMigration';
+import {
+  canReadMeetingDerivedRecord as canReadMeetingDerivedRecordFromSnapshot,
+  canReadMeetingVisibilitySubject as canReadMeetingVisibilitySubjectFromSnapshot,
+  type MeetingVisibilitySubject,
+  type MeetingVisibilitySubjectKind,
+} from '@/platform/meeting-visibility';
 
 // Several CRM surfaces can be mounted at once inside the Home shell. A write
 // from one surface must refresh the others too; otherwise a migration-created
@@ -30,7 +39,12 @@ export const LIVE_CRM_RECORDS_CHANGED = 'lantern:crm-live-records-changed';
 // One synchronous canonical snapshot per workspace. Every mounted hook writes
 // through this shared map, so a held reader in one surface sees a policy save
 // from another surface before React has time to re-render either one.
-const currentRecordsByWorkspace = new Map<string, readonly LiveCrmRecord[]>();
+type CurrentWorkspaceRecords = {
+  readonly generation: number;
+  readonly records: readonly LiveCrmRecord[];
+};
+
+const currentRecordsByWorkspace = new Map<string, CurrentWorkspaceRecords>();
 
 type CapturedWorkspace = {
   readonly rootPath: string | null;
@@ -72,12 +86,49 @@ const CRM_CLIENT_SELECTION_REQUEST = {
   requireFollowerAgreement: true,
 } as const;
 
+const visibilityMigrations = new Map<
+  string,
+  Promise<readonly LiveCrmRecord[]>
+>();
+
+/** Load one visibility-ready raw snapshot, serializing concurrent mounts. */
+async function loadVisibilityReadyCrmRecords(
+  workspaceRoot: string
+): Promise<readonly LiveCrmRecord[]> {
+  const active = visibilityMigrations.get(workspaceRoot);
+  if (active) return active;
+  const migration = Promise.resolve().then(async () => {
+    const loaded = await loadLiveCrmRecords(workspaceRoot);
+    return migrateCanonicalMeetingVisibility(loaded, (record) =>
+      saveLiveCrmRecord(workspaceRoot, record)
+    );
+  });
+  visibilityMigrations.set(workspaceRoot, migration);
+  try {
+    return await migration;
+  } finally {
+    if (visibilityMigrations.get(workspaceRoot) === migration) {
+      visibilityMigrations.delete(workspaceRoot);
+    }
+  }
+}
+
+/** One-shot visibility-filtered read for non-React feature consumers. */
+export async function loadVisibleCrmRecordsForViewer(
+  workspaceRoot: string,
+  viewerId: string | null | undefined
+): Promise<readonly LiveCrmRecord[]> {
+  const records = await loadVisibilityReadyCrmRecords(workspaceRoot);
+  return filterLiveCrmRecordsByMeetingVisibility(records, viewerId);
+}
+
 /** Keeps a mounted CRM screen in step with the encrypted record store. */
 export function useLiveCrmRecords() {
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
   const rootGeneration = workspaceGeneration(
     useWorkspaceStore((state) => state.rootGeneration)
   );
+  const viewerId = useFirmStore((state) => state.session?.userId ?? null);
   const clientSelection = useSelectionOperationDecision(
     CRM_CLIENT_SELECTION_REQUEST
   );
@@ -96,8 +147,9 @@ export function useLiveCrmRecords() {
   const [records, setRecords] = useState<readonly LiveCrmRecord[]>([]);
   const currentRecordsRef = useRef<{
     workspaceRoot: typeof workspaceRoot;
+    generation: number;
     records: readonly LiveCrmRecord[];
-  }>({ workspaceRoot, records: [] });
+  }>({ workspaceRoot, generation: rootGeneration, records: [] });
   const [recordsWorkspaceRoot, setRecordsWorkspaceRoot] =
     useState(workspaceRoot);
   const [error, setError] = useState<string | null>(null);
@@ -106,20 +158,28 @@ export function useLiveCrmRecords() {
     getCrmEngineFreshness
   );
   useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
-  const reloadRecords = useCallback(async () => {
+  const reloadUnfilteredRecordsForInternalMeetingPreferences = useCallback(async () => {
     const rootAtStart = workspaceRoot;
     const capturedAtStart: CapturedWorkspace = {
       rootPath: rootAtStart,
       generation: rootGeneration,
     };
     try {
-      const loaded = await loadLiveCrmRecords(rootAtStart);
+      const loaded = rootAtStart
+        ? await loadVisibilityReadyCrmRecords(rootAtStart)
+        : [];
       if (!capturedWorkspaceIsActive(capturedAtStart)) return;
       currentRecordsRef.current = {
         workspaceRoot: rootAtStart,
+        generation: rootGeneration,
         records: loaded,
       };
-      if (rootAtStart) currentRecordsByWorkspace.set(rootAtStart, loaded);
+      if (rootAtStart) {
+        currentRecordsByWorkspace.set(rootAtStart, {
+          generation: rootGeneration,
+          records: loaded,
+        });
+      }
       setRecordsWorkspaceRoot(rootAtStart);
       setRecords(loaded);
       setErrorWorkspaceRoot(rootAtStart);
@@ -132,6 +192,15 @@ export function useLiveCrmRecords() {
       return undefined;
     }
   }, [rootGeneration, workspaceRoot]);
+  const reloadRecords = useCallback(async () => {
+    const loaded = await reloadUnfilteredRecordsForInternalMeetingPreferences();
+    return loaded
+      ? filterLiveCrmRecordsByMeetingVisibility(
+          loaded,
+          useFirmStore.getState().session?.userId ?? null
+        )
+      : undefined;
+  }, [reloadUnfilteredRecordsForInternalMeetingPreferences]);
   const reload = useCallback(async (): Promise<void> => {
     await reloadRecords();
   }, [reloadRecords]);
@@ -184,17 +253,32 @@ export function useLiveCrmRecords() {
       // this hook re-rendered. Always merge into the shared per-workspace truth;
       // a hook-local ref is only a boot fallback before that shared snapshot
       // exists. Otherwise stale screen B can resurrect policy revoked by A.
+      const shared = rootAtStart
+        ? currentRecordsByWorkspace.get(rootAtStart)
+        : undefined;
       const current = rootAtStart
-        ? (currentRecordsByWorkspace.get(rootAtStart) ??
+        ? (shared?.generation === rootGeneration
+          ? shared.records
+          : undefined) ??
           (currentRecordsRef.current.workspaceRoot === rootAtStart
+            && currentRecordsRef.current.generation === rootGeneration
             ? currentRecordsRef.current.records
-            : []))
+            : [])
         : [];
       const next = current.some((item) => item.id === saved.id)
         ? current.map((item) => (item.id === saved.id ? saved : item))
         : [...current, saved];
-      currentRecordsRef.current = { workspaceRoot: rootAtStart, records: next };
-      if (rootAtStart) currentRecordsByWorkspace.set(rootAtStart, next);
+      currentRecordsRef.current = {
+        workspaceRoot: rootAtStart,
+        generation: rootGeneration,
+        records: next,
+      };
+      if (rootAtStart) {
+        currentRecordsByWorkspace.set(rootAtStart, {
+          generation: rootGeneration,
+          records: next,
+        });
+      }
       setRecordsWorkspaceRoot(rootAtStart);
       setRecords(next);
       publishLiveRecord(saved);
@@ -264,7 +348,8 @@ export function useLiveCrmRecords() {
       // so it never takes this fallback and keeps its older edit baseline.
       const base =
         renderedBase ??
-        (currentRecordsRef.current.workspaceRoot === rootAtStart
+        (currentRecordsRef.current.workspaceRoot === rootAtStart &&
+        currentRecordsRef.current.generation === rootGeneration
           ? currentRecordsRef.current.records.find(
               (candidate) => candidate.id === scoped.id
             )
@@ -293,25 +378,66 @@ export function useLiveCrmRecords() {
   // switching from a firm matter to a solo workspace.
   const effectiveFreshness: CrmEngineFreshness =
     sharedMatterId && workspaceRoot ? freshness : { kind: 'idle' };
+  const currentRecords = recordsWorkspaceRoot === workspaceRoot
+    ? filterLiveCrmRecordsByMeetingVisibility(records, viewerId)
+    : [];
+  const unfilteredRecordsForInternalMeetingPreferences =
+    recordsWorkspaceRoot === workspaceRoot ? records : [];
+  const currentRawRecords = (): readonly LiveCrmRecord[] => {
+    if (
+      !capturedWorkspaceIsActive({
+        rootPath: workspaceRoot,
+        generation: rootGeneration,
+      })
+    )
+      return [];
+    const shared = workspaceRoot
+      ? currentRecordsByWorkspace.get(workspaceRoot)
+      : undefined;
+    return (
+      (shared?.generation === rootGeneration ? shared.records : undefined) ??
+      (currentRecordsRef.current.workspaceRoot === workspaceRoot &&
+      currentRecordsRef.current.generation === rootGeneration
+        ? currentRecordsRef.current.records
+        : [])
+    );
+  };
   return {
-    records: recordsWorkspaceRoot === workspaceRoot ? records : [],
+    records: currentRecords,
     getCurrentRecords: () => {
-      if (
-        !capturedWorkspaceIsActive({
-          rootPath: workspaceRoot,
-          generation: rootGeneration,
-        })
-      )
-        return [];
-      return (
-        (workspaceRoot
-          ? currentRecordsByWorkspace.get(workspaceRoot)
-          : undefined) ??
-        (currentRecordsRef.current.workspaceRoot === workspaceRoot
-          ? currentRecordsRef.current.records
-          : [])
+      const current = currentRawRecords();
+      return filterLiveCrmRecordsByMeetingVisibility(
+        current,
+        useFirmStore.getState().session?.userId ?? null
       );
     },
+    /**
+     * Rechecks a derived row against the hidden raw policy snapshot. It returns
+     * only a decision, never the preferences row or its member lists.
+     */
+    canReadMeetingDerivedRecord: (
+      record: LiveCrmRecord,
+      kind: Exclude<MeetingVisibilitySubjectKind, 'meeting-note'>
+    ) =>
+      canReadMeetingDerivedRecordFromSnapshot(
+        record,
+        kind,
+        currentRawRecords(),
+        useFirmStore.getState().session?.userId ?? null
+      ),
+    /** Rechecks a proposed parent before a derived record is created. */
+    canReadMeetingVisibilitySubject: (subject: MeetingVisibilitySubject) =>
+      canReadMeetingVisibilitySubjectFromSnapshot(
+        subject,
+        currentRawRecords(),
+        useFirmStore.getState().session?.userId ?? null
+      ),
+    /**
+     * Raw encrypted snapshot for the internal meeting-preferences controller.
+     * Never use this in any other store, user surface, search, Ask, or citation.
+     */
+    unfilteredRecordsForInternalMeetingPreferences,
+    reloadUnfilteredRecordsForInternalMeetingPreferences,
     save,
     publishSavedRecord,
     reload,

@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { EV_MATTER_LAUNCH } from '@/config/identity';
 import { ClientsSurface } from '@/features/crm-clients';
 import { CrmSearchSurface } from './CrmSearchSurface';
 
-const { searchCrmRecords } = vi.hoisted(() => ({
+const { searchCrmRecords, useLiveCrmRecords } = vi.hoisted(() => ({
   searchCrmRecords: vi.fn(),
+  useLiveCrmRecords: vi.fn(),
 }));
 
 const householdRecord = {
@@ -36,19 +37,24 @@ const householdRecord = {
 
 vi.mock('@/platform/crm/search', () => ({ searchCrmRecords }));
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
-  useLiveCrmRecords: () => ({
-    records: [householdRecord],
+  useLiveCrmRecords,
+}));
+
+function liveRecords(records: readonly { id: string; kind: string; [key: string]: unknown }[] = [householdRecord]) {
+  return {
+    records,
     save: vi.fn(),
     reload: vi.fn(),
     error: null,
     workspaceRoot: '/workspace/exam',
     sharedMatterId: 'firm_home',
     freshness: { kind: 'live' },
-  }),
-}));
+  };
+}
 
 beforeEach(() => {
   localStorage.clear();
+  useLiveCrmRecords.mockReturnValue(liveRecords());
   searchCrmRecords.mockResolvedValue([{
     entityId: householdRecord.id,
     entityKind: householdRecord.kind,
@@ -102,20 +108,18 @@ describe('CRM saved-record search', () => {
   });
 
   it('formats a cited note in the detail panel without exposing its stored JSON', async () => {
+    const noteRecord = {
+      audience: 'internal', body: 'Parity note', createdAt: '2026-07-13T02:45:38.386Z',
+      id: 'note:internal-id', kind: 'note', matterId: 'matter:exam',
+    };
+    useLiveCrmRecords.mockReturnValue(liveRecords([householdRecord, noteRecord]));
     searchCrmRecords.mockResolvedValue([{
       entityId: 'note:internal-id',
       entityKind: 'note',
       matterId: 'matter:exam',
       title: 'Parity note',
       snippet: '{"audience":"internal","body":"Parity note","createdAt":"2026-07-13T02:45:38.386Z","id":"note:internal-id"}',
-      content: JSON.stringify({
-        audience: 'internal',
-        body: 'Parity note',
-        createdAt: '2026-07-13T02:45:38.386Z',
-        id: 'note:internal-id',
-        kind: 'note',
-        matterId: 'matter:exam',
-      }),
+      content: JSON.stringify(noteRecord),
     }]);
 
     render(<CrmSearchSurface />);
@@ -139,5 +143,64 @@ describe('CRM saved-record search', () => {
     expect(detail).toHaveTextContent('Saved Jul 13, 2026');
     expect(detail).not.toHaveTextContent('note:internal-id');
     expect(detail).not.toHaveTextContent('"createdAt"');
+  });
+
+  it('passes only visible IDs to native search and rejects a stale result after visibility changes', async () => {
+    let finishSearch: ((hits: readonly object[]) => void) | null = null;
+    searchCrmRecords.mockReturnValueOnce(new Promise((resolve) => { finishSearch = resolve; }));
+    const view = render(<CrmSearchSurface />);
+    fireEvent.change(screen.getByPlaceholderText('Ask about a client, note, fact, or task'), {
+      target: { value: 'private meeting' },
+    });
+    fireEvent.click(screen.getByTestId('crm-search-submit'));
+    expect(searchCrmRecords).toHaveBeenCalledWith(
+      '/workspace/exam', 'private meeting', undefined, [householdRecord.id],
+    );
+
+    useLiveCrmRecords.mockReturnValue(liveRecords([]));
+    view.rerender(<CrmSearchSurface />);
+    await act(async () => {
+      finishSearch?.([{
+        entityId: householdRecord.id, entityKind: householdRecord.kind,
+        matterId: householdRecord.matterId, title: householdRecord.name,
+        snippet: 'private meeting', content: JSON.stringify(householdRecord),
+      }]);
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId(`crm-search-hit-${householdRecord.id}`)).not.toBeInTheDocument();
+  });
+
+  it('never sends or displays the internal visibility preferences record', async () => {
+    const controlRecord = {
+      id: 'meeting-preferences',
+      kind: 'meeting_foundation_preferences',
+      visibilityPolicies: [{
+        id: 'private', mode: 'explicit-review',
+        includedMemberIds: ['secret-included-member'],
+        excludedMemberIds: ['secret-excluded-member'],
+      }],
+    };
+    useLiveCrmRecords.mockReturnValue(liveRecords([householdRecord, controlRecord]));
+    searchCrmRecords.mockResolvedValueOnce([{
+      entityId: controlRecord.id,
+      entityKind: controlRecord.kind,
+      matterId: 'firm',
+      title: 'Preferences',
+      snippet: 'secret-included-member',
+      content: JSON.stringify(controlRecord),
+    }]);
+
+    render(<CrmSearchSurface />);
+    fireEvent.change(screen.getByPlaceholderText('Ask about a client, note, fact, or task'), {
+      target: { value: 'secret member' },
+    });
+    fireEvent.click(screen.getByTestId('crm-search-submit'));
+
+    await act(async () => { await Promise.resolve(); });
+    expect(searchCrmRecords).toHaveBeenCalledWith(
+      '/workspace/exam', 'secret member', undefined, [householdRecord.id],
+    );
+    expect(screen.queryByText(/secret-included-member/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(`crm-search-hit-${controlRecord.id}`)).not.toBeInTheDocument();
   });
 });

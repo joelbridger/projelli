@@ -1,19 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { searchCrmRecords } = vi.hoisted(() => ({
+const { searchCrmRecords, loadVisibleCrmRecordsForViewer, firmState } = vi.hoisted(() => ({
   searchCrmRecords: vi.fn(),
+  loadVisibleCrmRecordsForViewer: vi.fn(),
+  firmState: { viewerId: 'advisor-owner' as string | null },
 }));
 vi.mock('@/platform/crm/search', () => ({ searchCrmRecords }));
+vi.mock('@/platform/crm/useLiveCrmRecords', () => ({ loadVisibleCrmRecordsForViewer }));
+vi.mock('@/platform/firm/firmStore', () => ({
+  useFirmStore: { getState: () => ({ session: firmState.viewerId ? { userId: firmState.viewerId } : null }) },
+}));
 
 import {
   crmCitationPath,
   parseCrmCitationPath,
   retrieveCrmAskHits,
 } from './retrieval';
+import { filterLiveCrmRecordsByMeetingVisibility } from '@/platform/crm/meetingVisibility';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 describe('CRM Ask retrieval', () => {
   beforeEach(() => {
     searchCrmRecords.mockReset();
+    loadVisibleCrmRecordsForViewer.mockReset().mockResolvedValue([]);
+    firmState.viewerId = 'advisor-owner';
   });
 
   it('makes one stable, clickable citation location per CRM record', () => {
@@ -26,6 +36,10 @@ describe('CRM Ask retrieval', () => {
   });
 
   it('keeps a walled household out even if a backend result is accidentally mixed in', async () => {
+    loadVisibleCrmRecordsForViewer.mockResolvedValue([
+      { id: 'note-a', kind: 'note', matterId: 'household-a' },
+      { id: 'note-b', kind: 'note', matterId: 'household-b' },
+    ]);
     searchCrmRecords.mockResolvedValue([
       {
         entityId: 'note-a',
@@ -55,6 +69,7 @@ describe('CRM Ask retrieval', () => {
       '/tmp/lantern',
       'retirement',
       'household-a',
+      ['note-a', 'note-b'],
     );
     expect(hits).toHaveLength(1);
     expect(hits[0]).toMatchObject({
@@ -63,6 +78,88 @@ describe('CRM Ask retrieval', () => {
       sourceType: 'crm',
     });
     expect(hits[0]?.chunkText).not.toContain('Never expose');
+  });
+
+  it('drops an in-flight meeting-derived answer when the viewer loses access', async () => {
+    const records = [
+      { id: 'meeting-preferences', kind: 'meeting_foundation_preferences', visibilityPolicies: [{
+        id: 'private-policy', mode: 'explicit-review', includedMemberIds: [],
+        excludedMemberIds: ['advisor-excluded'],
+      }] },
+      { id: 'meeting-private', kind: 'meeting', matterId: 'household-a', ownerRef: 'advisor-owner', visibilityPolicyId: 'private-policy' },
+      { id: 'private-note', kind: 'note', matterId: 'household-a', meetingId: 'meeting-private' },
+    ];
+    loadVisibleCrmRecordsForViewer.mockImplementation(
+      (_workspaceRoot, viewerId) => Promise.resolve(
+        viewerId === 'advisor-excluded'
+          ? []
+          : records.filter((record) => record.kind !== 'meeting_foundation_preferences')
+      )
+    );
+    searchCrmRecords.mockImplementationOnce(() => {
+      firmState.viewerId = 'advisor-excluded';
+      return Promise.resolve([
+        { entityId: 'private-note', entityKind: 'note', matterId: 'household-a', title: 'Private note', snippet: 'Do not expose', content: '{"body":"Do not expose"}' },
+        { entityId: 'meeting-preferences', entityKind: 'meeting_foundation_preferences', matterId: 'firm', title: 'Preferences', snippet: 'advisor-excluded', content: '{"excludedMemberIds":["advisor-excluded"]}' },
+      ]);
+    });
+
+    const hits = await retrieveCrmAskHits('/tmp/lantern', 'private', 'household-a');
+    expect(hits).toEqual([]);
+    expect(JSON.stringify(hits)).not.toContain('advisor-excluded');
+    expect(searchCrmRecords).toHaveBeenCalledWith(
+      '/tmp/lantern', 'private', 'household-a',
+      ['meeting-private', 'private-note'],
+    );
+  });
+
+  it('keeps nested private CRM rows out of Ask allowed IDs and returned citations', async () => {
+    const records: readonly LiveCrmRecord[] = [
+      {
+        id: 'preferences', kind: 'meeting_foundation_preferences',
+        visibilityPolicies: [{
+          id: 'private-policy', mode: 'explicit-review', includedMemberIds: [],
+          excludedMemberIds: ['advisor-excluded'],
+        }],
+      },
+      {
+        id: 'meeting-private', kind: 'meeting', matterId: 'household-a',
+        ownerRef: 'advisor-owner', visibilityPolicyId: 'private-policy',
+      },
+      {
+        id: 'workflow-private', kind: 'crm_workflow_instance', matterId: 'household-a',
+        meetingVisibility: {
+          kind: 'workflow', id: 'workflow-private', lineage: 'derived',
+          parentRef: { kind: 'meeting-note', id: 'meeting-private' },
+        },
+      },
+      { id: 'task-public', kind: 'task', matterId: 'household-a', title: 'Public task' },
+    ];
+    firmState.viewerId = 'advisor-excluded';
+    loadVisibleCrmRecordsForViewer.mockImplementation((_root, viewerId) =>
+      Promise.resolve(filterLiveCrmRecordsByMeetingVisibility(records, viewerId))
+    );
+    searchCrmRecords.mockResolvedValue([
+      {
+        entityId: 'workflow-private', entityKind: 'workflowInstance',
+        matterId: 'household-a', title: 'Private workflow', snippet: 'Secret',
+        content: '{"name":"Secret workflow"}',
+      },
+      {
+        entityId: 'task-public', entityKind: 'task', matterId: 'household-a',
+        title: 'Public task', snippet: 'Public', content: '{"title":"Public task"}',
+      },
+    ]);
+
+    const hits = await retrieveCrmAskHits(
+      '/tmp/lantern', 'workflow', 'household-a'
+    );
+
+    expect(searchCrmRecords).toHaveBeenCalledWith(
+      '/tmp/lantern', 'workflow', 'household-a', ['task-public']
+    );
+    expect(hits.map((hit) => hit.path)).toEqual(['crm:task:task-public']);
+    expect(JSON.stringify(hits)).not.toContain('Secret workflow');
   });
 
   it('fails soft when the encrypted CRM store cannot be opened', async () => {

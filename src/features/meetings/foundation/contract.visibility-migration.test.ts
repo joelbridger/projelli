@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
+  MEETING_VISIBILITY_LEGACY_VALUE,
+  MEETING_VISIBILITY_LINEAGE_FIELD,
+} from '@/platform/crm/meetingVisibilityMigration';
+import {
   canReadMeetingDerivedRecord,
   explicitLegacyMeetingVisibility,
   meetingVisibilityRoot,
@@ -157,6 +161,8 @@ describe('legacy meeting artifact visibility migration', () => {
   it('writes the explicit public marker when an exact legacy parent has no policy', async () => {
     const publicMeeting = meeting('meeting-public', 'matter-1', 'household-1');
     delete publicMeeting['visibilityPolicyId'];
+    publicMeeting[MEETING_VISIBILITY_LINEAGE_FIELD] =
+      MEETING_VISIBILITY_LEGACY_VALUE;
     const publicArtifact = artifact(
       'artifact-public', publicMeeting.id, 'matter-1', 'household-1'
     );
@@ -171,7 +177,63 @@ describe('legacy meeting artifact visibility migration', () => {
     });
   });
 
-  it('repairs only one exact parent, keeps ambiguity hidden, and marks completion last', async () => {
+  it('does not promote artifacts from missing, conflicting, or malformed root states', async () => {
+    const missing = meeting('meeting-missing', 'matter-1', 'household-1');
+    delete missing['visibilityPolicyId'];
+    const conflicting = {
+      ...meeting('meeting-conflicting', 'matter-2', 'household-2'),
+      [MEETING_VISIBILITY_LINEAGE_FIELD]: MEETING_VISIBILITY_LEGACY_VALUE,
+    };
+    const malformedPolicy = {
+      ...meeting('meeting-malformed-policy', 'matter-3', 'household-3'),
+      visibilityPolicyId: ' private-policy ',
+    };
+    const malformedLegacy = meeting(
+      'meeting-malformed-legacy',
+      'matter-4',
+      'household-4'
+    );
+    delete malformedLegacy['visibilityPolicyId'];
+    malformedLegacy[MEETING_VISIBILITY_LINEAGE_FIELD] = 'unknown-lineage';
+    const artifacts = [
+      artifact('artifact-missing', missing.id, 'matter-1', 'household-1'),
+      artifact(
+        'artifact-conflicting',
+        conflicting.id,
+        'matter-2',
+        'household-2'
+      ),
+      artifact(
+        'artifact-malformed-policy',
+        malformedPolicy.id,
+        'matter-3',
+        'household-3'
+      ),
+      artifact(
+        'artifact-malformed-legacy',
+        malformedLegacy.id,
+        'matter-4',
+        'household-4'
+      ),
+    ];
+    const fixture = migrationPort([
+      missing,
+      conflicting,
+      malformedPolicy,
+      malformedLegacy,
+      ...artifacts,
+    ]);
+
+    const migrated = await migrateLegacyMeetingArtifactVisibility(fixture.port);
+    expect(fixture.savedIds).toEqual([]);
+    for (const candidate of artifacts) {
+      expect(
+        migrated.find((record) => record.id === candidate.id)
+      ).not.toHaveProperty('meetingVisibility');
+    }
+  });
+
+  it('repairs only one exact parent, keeps ambiguity hidden, and does not rewrite completed repairs', async () => {
     const exact = artifact(
       'artifact-exact',
       'meeting-exact',
@@ -215,14 +277,14 @@ describe('legacy meeting artifact visibility migration', () => {
         'advisor-owner'
       )
     ).toBe(false);
-    expect(fixture.savedIds.at(-1)).toBe('meeting-artifact-visibility-v1');
+    expect(fixture.savedIds).toEqual([exact.id]);
 
     const saveCount = fixture.savedIds.length;
     await migrateLegacyMeetingArtifactVisibility(fixture.port);
     expect(fixture.savedIds).toHaveLength(saveCount);
   });
 
-  it('does not mark a partial run and safely resumes without rewriting completed repairs', async () => {
+  it('safely resumes a partial run without rewriting completed repairs', async () => {
     const first = artifact(
       'artifact-one',
       'meeting-one',
@@ -247,18 +309,11 @@ describe('legacy meeting artifact visibility migration', () => {
     await expect(
       migrateLegacyMeetingArtifactVisibility(fixture.port)
     ).rejects.toThrow('simulated interrupted migration');
-    expect(
-      fixture
-        .records()
-        .some(
-          (record) => record.kind === 'meeting_artifact_visibility_migration'
-        )
-    ).toBe(false);
     expect(fixture.savedIds.filter((id) => id === first.id)).toHaveLength(1);
 
     await migrateLegacyMeetingArtifactVisibility(fixture.port);
     expect(fixture.savedIds.filter((id) => id === first.id)).toHaveLength(1);
     expect(fixture.savedIds.filter((id) => id === second.id)).toHaveLength(1);
-    expect(fixture.savedIds.at(-1)).toBe('meeting-artifact-visibility-v1');
+    expect(fixture.savedIds.at(-1)).toBe(second.id);
   });
 });
