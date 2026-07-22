@@ -18,6 +18,9 @@ DIAGNOSTIC_WRITER="${GOLDEN_LOOP_DIAGNOSTIC_WRITER:-$DEFAULT_DIAGNOSTIC_WRITER}"
 TIMEOUT_SECONDS="${GOLDEN_LOOP_TIMEOUT_SECONDS:-150}"
 TERM_GRACE_SECONDS="${GOLDEN_LOOP_TERM_GRACE_SECONDS:-10}"
 DRIVER_STARTUP_TIMEOUT_SECONDS="${GOLDEN_LOOP_DRIVER_STARTUP_TIMEOUT_SECONDS:-15}"
+# The driver's readiness window is 8s; its bounded snapshot is 2s. The
+# default 15s startup guard reserves an explicit 5s artifact/cleanup margin.
+DRIVER_READINESS_ARTIFACT_MARGIN_SECONDS="${GOLDEN_LOOP_DRIVER_READINESS_ARTIFACT_MARGIN_SECONDS:-5}"
 TEMP_ROOT=""
 WORKSPACE=""
 APP_PID_FILE=""
@@ -205,7 +208,7 @@ stop_unowned_driver_leader() {
 
 run_driver() {
   local status_file="$TEMP_ROOT/driver.status" hold_file="$TEMP_ROOT/driver.hold" progress_file="$TEMP_ROOT/driver.progress"
-  local deadline startup_deadline status current_start progress
+  local deadline startup_deadline status current_start progress renderer_ready=0
   rm -f "$status_file" "$status_file".* "$hold_file" "$progress_file" "$progress_file".*
   mkfifo "$hold_file" || return 1
   setsid bash -c '
@@ -254,7 +257,11 @@ run_driver() {
       return 124
     fi
     progress="$(cat "$progress_file" 2>/dev/null || true)"
-    if [ "$progress" != "renderer-ready" ] && [ "$SECONDS" -ge "$startup_deadline" ]; then
+    if [ "$progress" = "renderer-ready" ]; then
+      renderer_ready=1
+      DIAGNOSTIC_PHASE="later-driver"
+    fi
+    if [ "$renderer_ready" -eq 0 ] && [ "$SECONDS" -ge "$startup_deadline" ]; then
       if [ "$progress" = "bridge-healthy" ]; then
         DIAGNOSTIC_PHASE="renderer-dispatch"
       else

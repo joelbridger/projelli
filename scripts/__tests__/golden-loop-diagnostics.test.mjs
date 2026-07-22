@@ -349,7 +349,7 @@ echo $! >"$LANTERN_APP_PID_FILE"
 `);
   await writeExecutable(driver, `#!/usr/bin/env node
 if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-startup') process.exit(1);
-if (['driver-timeout', 'driver-no-progress'].includes(process.env.GOLDEN_LOOP_TEST_MODE)) {
+if (['driver-timeout', 'driver-no-progress', 'renderer-ready-timeout', 'restart-renderer-ready-timeout'].includes(process.env.GOLDEN_LOOP_TEST_MODE)) {
   const { spawn } = await import('node:child_process');
   const { readFileSync, writeFileSync } = await import('node:fs');
   const processIdentity = () => {
@@ -361,8 +361,12 @@ if (['driver-timeout', 'driver-no-progress'].includes(process.env.GOLDEN_LOOP_TE
     return { group, leaderStartTime: leaderFields[19] };
   };
   writeFileSync(process.env.GOLDEN_LOOP_TEST_DRIVER_PID, String(process.pid));
+  if (process.env.GOLDEN_LOOP_TEST_MODE === 'restart-renderer-ready-timeout' && process.argv.includes('write')) process.exit(0);
   if (process.env.GOLDEN_LOOP_TEST_MODE === 'driver-timeout') {
     writeFileSync(process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE, 'bridge-healthy\\n', { mode: 0o600 });
+  }
+  if (['renderer-ready-timeout', 'restart-renderer-ready-timeout'].includes(process.env.GOLDEN_LOOP_TEST_MODE)) {
+    writeFileSync(process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE, 'renderer-ready\\n', { mode: 0o600 });
   }
   const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1_000)'], {
     stdio: 'ignore',
@@ -407,7 +411,7 @@ if (['driver-timeout', 'driver-no-progress'].includes(process.env.GOLDEN_LOOP_TE
     try {
       await execFileAsync('bash', [new URL('../golden-loop.sh', import.meta.url).pathname, repo, app], {
         env,
-        timeout: ['driver-timeout', 'driver-no-progress'].includes(mode) ? 20_000 : 10_000,
+        timeout: ['driver-timeout', 'driver-no-progress', 'renderer-ready-timeout', 'restart-renderer-ready-timeout'].includes(mode) ? 20_000 : 10_000,
       });
     } catch (error) {
       failure = error;
@@ -418,7 +422,7 @@ if (['driver-timeout', 'driver-no-progress'].includes(process.env.GOLDEN_LOOP_TE
     assert.ok(names.length >= 1, `${mode} left no artifact`);
     const artifact = JSON.parse(await readFile(path.join(diagnostics, names.at(-1)), 'utf8'));
     assert.match(failure.stderr, /GOLDEN LOOP DIAGNOSTIC: path=.* sha256=[a-f0-9]{64} classification=/);
-    if (['driver-timeout', 'driver-no-progress'].includes(mode)) {
+    if (['driver-timeout', 'driver-no-progress', 'renderer-ready-timeout', 'restart-renderer-ready-timeout'].includes(mode)) {
       const driverPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_PID, 'utf8'));
       const childPid = Number(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_CHILD_PID, 'utf8'));
       const leaderBefore = JSON.parse(await readFile(env.GOLDEN_LOOP_TEST_DRIVER_LEADER_BEFORE, 'utf8'));
@@ -434,7 +438,7 @@ if (['driver-timeout', 'driver-no-progress'].includes(process.env.GOLDEN_LOOP_TE
     }
     return artifact;
   } finally {
-    if (['driver-timeout', 'driver-no-progress'].includes(mode)) {
+    if (['driver-timeout', 'driver-no-progress', 'renderer-ready-timeout', 'restart-renderer-ready-timeout'].includes(mode)) {
       for (const pidFile of [env.GOLDEN_LOOP_TEST_DRIVER_PID, env.GOLDEN_LOOP_TEST_DRIVER_CHILD_PID]) {
         try { process.kill(Number(await readFile(pidFile, 'utf8')), 'SIGKILL'); } catch (error) {
           if (error.code !== 'ESRCH' && error.code !== 'ENOENT') throw error;
@@ -489,6 +493,31 @@ test('a driver with no startup progress marker is stopped early and remains fail
   const encoded = JSON.stringify(artifact);
   assert.equal(encoded.includes('driver.progress'), false, 'artifact exposed controller internals');
   assert.equal(encoded.includes('workspace'), false, 'artifact exposed workspace content');
+});
+
+test('renderer-ready is latched for write and restart stalls, which this fake driver proves only at the shell boundary', async () => {
+  for (const mode of ['renderer-ready-timeout', 'restart-renderer-ready-timeout']) {
+    const artifact = await runShellFailure(mode);
+    assert.equal(artifact.classification, 'later-driver-timeout', mode);
+  }
+});
+
+test('progress reporting has a fixed monotonic grammar and refuses planted temporary paths without persisting private values', async () => {
+  const driver = await readFile(new URL('../golden-loop-driver.mjs', import.meta.url), 'utf8');
+  assert.match(driver, /const PROGRESS_PHASES = \['driver-started', 'bridge-healthy', 'renderer-ready'\]/);
+  assert.match(driver, /if \(nextIndex <= progressIndex\) return/);
+  assert.match(driver, /open\(temporary, 'wx', 0o600\)/);
+  assert.match(driver, /await unlink\(temporary\)\.catch/);
+  assert.doesNotMatch(driver, /writeFile\(temporary/);
+});
+
+test('native bridge source caps queued dispatch and skips stale closures; this is source-level coverage, not native Tauri proof', async () => {
+  const bridge = await readFile(new URL('../../src-tauri/src/dev_bridge.rs', import.meta.url), 'utf8');
+  assert.match(bridge, /dispatch_in_flight: AtomicBool/);
+  assert.match(bridge, /compare_exchange\(false, true/);
+  assert.match(bridge, /pending\.contains_key\(&dispatch_id\)/);
+  assert.match(bridge, /if !still_pending \{\s*return;/);
+  assert.match(bridge, /dispatch_in_flight\.store\(false, Ordering::Release\)/);
 });
 
 test('real product-gate shell routes build and provenance failures to artifacts', async () => {

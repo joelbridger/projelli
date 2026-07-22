@@ -3,7 +3,7 @@
  * Create a Word document through the visible Documents surface, then prove the
  * exact file is still visible after restarting the native app.
  */
-import { readdir, rename, writeFile } from 'node:fs/promises';
+import { open, readdir, rename, unlink } from 'node:fs/promises';
 import { writeDiagnosticArtifact } from './golden-loop-diagnostics.mjs';
 
 const [phase, bridgePort, workspace, documentName] = process.argv.slice(2);
@@ -17,15 +17,35 @@ const expectedDevUrl = process.env.GOLDEN_LOOP_DEV_URL || 'the configured deskto
 const timeoutMs = Number(process.env.GOLDEN_LOOP_DRIVER_TIMEOUT_MS || 30_000);
 const HEALTH_REQUEST_TIMEOUT_MS = 2_000;
 const BRIDGE_TRANSPORT_ALLOWANCE_MS = 1_000;
+// One native readiness callback is terminal at 2s; the whole polling window
+// is 8s, leaving the shell's 15s startup guard 5s for snapshot/artifact work.
+const RENDERER_READINESS_WINDOW_MS = 8_000;
 const progressFile = process.env.GOLDEN_LOOP_DRIVER_PROGRESS_FILE;
+const PROGRESS_PHASES = ['driver-started', 'bridge-healthy', 'renderer-ready'];
+let progressIndex = -1;
 
 async function reportProgress(phase) {
   if (!progressFile) return;
+  const nextIndex = PROGRESS_PHASES.indexOf(phase);
+  if (nextIndex < 0) throw new Error('invalid golden loop progress phase');
+  if (nextIndex <= progressIndex) return;
   // Fixed phase names only: never persist request source, URLs, workspace
-  // names, or user-provided content through this controller channel.
+  // names, or user-provided content through this controller channel. `wx`
+  // refuses a planted/symlinked temporary name; failed writes remove it.
   const temporary = `${progressFile}.${process.pid}`;
-  await writeFile(temporary, `${phase}\n`, { encoding: 'utf8', mode: 0o600 });
-  await rename(temporary, progressFile);
+  let handle;
+  try {
+    handle = await open(temporary, 'wx', 0o600);
+    await handle.writeFile(`${phase}\n`, 'utf8');
+    await handle.close();
+    handle = undefined;
+    await rename(temporary, progressFile);
+    progressIndex = nextIndex;
+  } catch (error) {
+    await handle?.close().catch(() => {});
+    await unlink(temporary).catch(() => {});
+    throw error;
+  }
 }
 
 function fail(message) {
@@ -160,9 +180,10 @@ async function waitFor(label, predicate, waitTimeoutMs = timeoutMs) {
 }
 
 async function waitForRendererCallback() {
+  if (progressIndex >= PROGRESS_PHASES.indexOf('renderer-ready')) return;
   await request('/health');
   await reportProgress('bridge-healthy');
-  const deadline = Date.now() + 20_000;
+  const deadline = Date.now() + RENDERER_READINESS_WINDOW_MS;
   let lastError;
   while (Date.now() < deadline) {
     try {
@@ -178,12 +199,15 @@ async function waitForRendererCallback() {
       lastError = new Error(`page state was ${JSON.stringify(state)}`);
     } catch (error) {
       if (error instanceof BridgeRequestTimeoutError) throw error;
+      if (String(error?.message || error).includes('eval timed out after 2000ms')) {
+        throw new RendererCallbackError('native renderer readiness callback timed out after 2000ms');
+      }
       lastError = error;
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   fail(
-    `native bridge became healthy, but the renderer never returned a callback within 20000ms; ` +
+    `native bridge became healthy, but the renderer never returned a callback within ${RENDERER_READINESS_WINDOW_MS}ms; ` +
     `expected page=${expectedDevUrl}; last diagnostic=${lastError instanceof Error ? lastError.message : String(lastError)}`
   );
 }

@@ -7,7 +7,7 @@ const MAX_ITEMS = 20;
 const SAFE_PHASES = new Set([
   'preflight', 'product-gate-build', 'product-gate-provenance',
   'diagnostic-writer-validation', 'directory-creation', 'port-selection', 'pid-read',
-  'vite-startup', 'launcher', 'bridge-health', 'app-exit', 'driver-startup', 'renderer-dispatch', 'write', 'restart', 'assert',
+  'vite-startup', 'launcher', 'bridge-health', 'app-exit', 'driver-startup', 'renderer-dispatch', 'later-driver', 'write', 'restart', 'assert',
 ]);
 const SAFE_TAGS = new Set(['a', 'button', 'div', 'form', 'input', 'main', 'nav', 'section']);
 const SAFE_LOCATION_CLASSES = new Set(['root', 'app-module', 'vite-runtime', 'other', 'unavailable']);
@@ -64,6 +64,7 @@ export function classifyDiagnostic(events = {}, renderer = {}, phase = 'prefligh
   if (safePhase(phase) === 'app-exit') return 'app-exit-failure';
   if (safePhase(phase) === 'driver-startup') return 'driver-startup-failure';
   if (safePhase(phase) === 'renderer-dispatch') return 'renderer-dispatch-timeout';
+  if (safePhase(phase) === 'later-driver') return 'later-driver-timeout';
   if (safePhase(phase) === 'restart') return 'restart-failure';
   if (boundedList(events.pageErrors, (entry) => entry).some((entry) => entry?.category === 'module-import')) return 'javascript-module-import-error';
   if (Array.isArray(events.pageErrors) && events.pageErrors.length) return 'javascript-error';

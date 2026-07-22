@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, State};
@@ -25,6 +25,7 @@ const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 pub struct DevBridgeState {
     next_id: AtomicU64,
     pending: Mutex<HashMap<String, oneshot::Sender<EvalResult>>>,
+    dispatch_in_flight: AtomicBool,
 }
 
 impl Default for DevBridgeState {
@@ -32,6 +33,7 @@ impl Default for DevBridgeState {
         Self {
             next_id: AtomicU64::new(1),
             pending: Mutex::new(HashMap::new()),
+            dispatch_in_flight: AtomicBool::new(false),
         }
     }
 }
@@ -149,6 +151,7 @@ pub fn dev_bridge_result(
 
     match sender {
         Some(sender) => {
+            state.dispatch_in_flight.store(false, Ordering::Release);
             let _ = sender.send(EvalResult {
                 ok,
                 result_json: result,
@@ -332,11 +335,23 @@ async fn eval_in_main_webview(
     let id = state.next_id.fetch_add(1, Ordering::Relaxed).to_string();
     let (sender, receiver) = oneshot::channel();
 
-    state
+    if state
+        .dispatch_in_flight
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err("dev bridge eval dispatch already in flight".to_string());
+    }
+
+    if let Err(error) = state
         .pending
         .lock()
-        .map_err(|_| "dev bridge state lock poisoned".to_string())?
-        .insert(id.clone(), sender);
+        .map_err(|_| "dev bridge state lock poisoned".to_string())
+        .map(|mut pending| pending.insert(id.clone(), sender))
+    {
+        state.dispatch_in_flight.store(false, Ordering::Release);
+        return Err(error);
+    }
 
     let wrapper = eval_wrapper_js(&id, &js);
     // `Webview::eval` can itself wait for the platform webview thread. Queue
@@ -345,6 +360,14 @@ async fn eval_in_main_webview(
     let dispatch_app = app.clone();
     let dispatch_id = id.clone();
     if let Err(error) = app.run_on_main_thread(move || {
+        // Queued main-thread work is not cancellable. A timed-out request has
+        // removed this exact id, so it must never evaluate stale source later.
+        let still_pending = dispatch_app.state::<DevBridgeState>().pending.lock()
+            .map(|pending| pending.contains_key(&dispatch_id))
+            .unwrap_or(false);
+        if !still_pending {
+            return;
+        }
         let outcome = dispatch_app
             .get_webview_window("main")
             .or_else(|| dispatch_app.webview_windows().into_values().next())
@@ -357,6 +380,7 @@ async fn eval_in_main_webview(
         if let Err(error) = outcome {
             if let Ok(mut pending) = dispatch_app.state::<DevBridgeState>().pending.lock() {
                 if let Some(sender) = pending.remove(&dispatch_id) {
+                    dispatch_app.state::<DevBridgeState>().dispatch_in_flight.store(false, Ordering::Release);
                     let _ = sender.send(EvalResult {
                         ok: false,
                         result_json: None,
@@ -371,6 +395,7 @@ async fn eval_in_main_webview(
             .lock()
             .map_err(|_| "dev bridge state lock poisoned".to_string())?
             .remove(&id);
+        state.dispatch_in_flight.store(false, Ordering::Release);
         return Err(format!("webview eval dispatch failed: {error}"));
     }
 
@@ -385,6 +410,7 @@ async fn eval_in_main_webview(
                 .lock()
                 .map_err(|_| "dev bridge state lock poisoned".to_string())?
                 .remove(&id);
+            state.dispatch_in_flight.store(false, Ordering::Release);
             return Err(format!("eval timed out after {timeout_ms}ms"));
         }
     };
