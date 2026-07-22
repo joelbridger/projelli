@@ -51,6 +51,9 @@ export function meetingVisibilitySubject(
       ? (stored as MeetingVisibilitySubject)
       : null;
   }
+  // Artifacts are intrinsically meeting-derived. Older rows are repaired by
+  // the exact-parent migration; until then they fail closed.
+  if (record.kind === 'meeting_artifact') return null;
   const origin =
     record['source'] && typeof record['source'] === 'object'
       ? (record['source'] as { origin?: unknown }).origin
@@ -137,12 +140,16 @@ export function canReadMeetingDerivedRecord(
 ): boolean {
   const subject = meetingVisibilitySubject(record, kind);
   if (!subject) return false;
-  return resolveMeetingVisibility({
+  const decision = resolveMeetingVisibility({
     subject,
     viewerId,
     policies: policies(records),
     resolveParent: (ref) => resolveExactParent(ref, records),
-  }).visible;
+  });
+  // A fully valid exact lineage with no restriction policy is the public
+  // default. Every malformed, ambiguous, missing, or restricted chain still
+  // fails closed (including restricted reads with no viewer).
+  return decision.visible || decision.reason === 'missing-policy';
 }
 
 export function explicitLegacyMeetingVisibility(

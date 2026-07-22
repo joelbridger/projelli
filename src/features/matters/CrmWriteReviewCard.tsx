@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, ChevronUp, Check, AlertTriangle, CalendarDays, Pencil } from 'lucide-react';
 import { Card, Button } from '@/ui/kp';
-import { useCrmWriteQueueStore, type ProposedCrmWrite } from '@/platform/state/crmWriteQueueStore';
+import { useCrmWriteQueueStore, useVisibleCrmWriteQueueItems, type ProposedCrmWrite } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { buildInverseCrmMap, matterLabel } from '@/platform/rag/matterResolver';
 import { crmIsConnected } from '@/platform/utils/wealthbox-commands';
@@ -45,6 +45,11 @@ function pluralize(n: number, word: string): string {
   return `${String(n)} ${word}${n === 1 ? '' : 's'}`;
 }
 
+function reportQueueActionFailure(action: string, error: unknown): void {
+  const errorName = error instanceof Error ? error.name : 'UnknownError';
+  console.warn(`[crmWriteReviewCard] ${action} failed (${errorName}).`);
+}
+
 /** Mirrors the Rust `crm_key_belongs_to_provider("wealthbox", ...)` rule and
  *  the TS `filterCrmMatterMapForProvider` sibling: Wealthbox keys are bare
  *  ids, other providers prefix theirs (`sfdc:...`, `redtail:...`). This card
@@ -66,13 +71,14 @@ function summaryLabel(items: ProposedCrmWrite[]): string {
 }
 
 export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
-  const allItems = useCrmWriteQueueStore((s) => s.items);
+  const allItems = useVisibleCrmWriteQueueItems();
   const items = useMemo(() => allItems.filter((i) => i.matterId === matterId), [allItems, matterId]);
   const approve = useCrmWriteQueueStore((s) => s.approve);
   const dismiss = useCrmWriteQueueStore((s) => s.dismiss);
   const enqueue = useCrmWriteQueueStore((s) => s.enqueue);
   const updateFinalValue = useCrmWriteQueueStore((s) => s.updateFinalValue);
   const setProvenanceIfUnset = useCrmWriteQueueStore((s) => s.setProvenanceIfUnset);
+  const visibleItemsFresh = useCrmWriteQueueStore((s) => s.visibleItemsFresh);
   const matters = useMatterStore((s) => s.matters);
   const { t, i18n } = useTranslation();
   // R5 (Tier B trust guard): in a firm the compliance note is supervisory and
@@ -190,7 +196,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
                 <span style={{ flex: 1, minWidth: 0, color: 'var(--kp-navy)' }}>{item.title}</span>
                 <button
                   type="button"
-                  onClick={() => { dismiss(item.id); }}
+                  onClick={() => { void dismiss(item.id).catch((error: unknown) => { reportQueueActionFailure('dismiss', error); }); }}
                   style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', background: 'none', border: 'none', cursor: 'pointer', padding: 2, flexShrink: 0 }}
                 >
                   Dismiss
@@ -221,7 +227,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
     });
   }
 
-  function handleApprove() {
+  async function handleApprove() {
     if (effectiveHousehold === null || selectedIds.length === 0) return;
     const household_ = effectiveHousehold;
     // These ids are also the encrypted Rust proposal ids. The queue store sends
@@ -235,19 +241,21 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
     const approvedAtIso = new Date().toISOString();
     const profile = useProfileStore.getState();
     const advisor = isFirmTier ? (profile.firmName || profile.soloName) : profile.soloName;
+    const provenanceWrites: Promise<void>[] = [];
     for (const id of approvedIds) {
       const it = items.find((i) => i.id === id);
       if (it?.kind === 'note' && it.aiSource) {
-        setProvenanceIfUnset(
+        provenanceWrites.push(setProvenanceIfUnset(
           id,
           composeCrmProvenance(
             t,
             { advisor, sourceKind: it.aiSource.kind, sourceDate: it.aiSource.date, approvedIso: approvedAtIso },
             i18n.language,
           ),
-        );
+        ));
       }
     }
+    await Promise.all(provenanceWrites);
     // R5 (coordinator review): re-derive the toggle from the firm-tier /
     // remembered-choice default after an approval rather than hard-resetting
     // to false — otherwise a SECOND update in the same mounted card would
@@ -257,7 +265,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
     // structurally below by excluding compliance items from the summary, not
     // by forcing the toggle off.
     setFileComplianceNote(defaultComplianceNote);
-    void approve(approvedIds, household_).then(() => {
+    await approve(approvedIds, household_);
       if (!shouldFileCompliance) return;
       // Read fresh state after approve() settles — the sent items just
       // landed in the store, and this must never fire for rows that failed
@@ -267,9 +275,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
       // Exclude prior compliance notes (sourceRef `compliance:…`): a compliance
       // note must never be summarized into another one — that's the recursion
       // guard, independent of the toggle state.
-      const sentJustNow = useCrmWriteQueueStore
-        .getState()
-        .items.filter(
+      const sentJustNow = (await visibleItemsFresh()).filter(
           (i) =>
             i.matterId === matterId &&
             approvedIds.includes(i.id) &&
@@ -284,7 +290,6 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
         whenIso: new Date().toISOString(),
       });
       enqueue({ kind: 'note', matterId, title, body, sourceRef: `compliance:${new Date().toISOString()}` });
-    });
   }
 
   function handleRetry(id: string) {
@@ -416,8 +421,8 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
                   checked={!uncheckedIds.has(item.id)}
                   onToggle={() => { toggle(item.id); }}
                   onRetry={() => { handleRetry(item.id); }}
-                  onDismiss={() => { dismiss(item.id); }}
-                  onFinalValueChange={(value) => { updateFinalValue(item.id, value); }}
+                  onDismiss={() => { void dismiss(item.id).catch((error: unknown) => { reportQueueActionFailure('dismiss', error); }); }}
+                  onFinalValueChange={(value) => { void updateFinalValue(item.id, value).catch((error: unknown) => { reportQueueActionFailure('field update', error); }); }}
                 />
               ))}
             </div>
@@ -478,7 +483,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
 
           {householdKeys.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0 var(--kp-card-pad) var(--kp-card-pad)' }}>
-              <Button variant="primary" size="md" disabled={approveDisabled} onClick={handleApprove}>
+              <Button variant="primary" size="md" disabled={approveDisabled} onClick={() => { void handleApprove().catch((error: unknown) => { reportQueueActionFailure('approval', error); }); }}>
                 Approve {pluralize(selectedIds.length, 'change')}
               </Button>
               <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>

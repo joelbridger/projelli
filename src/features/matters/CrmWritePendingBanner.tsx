@@ -13,7 +13,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, ChevronRight } from 'lucide-react';
-import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
+import { useVisibleCrmWriteQueueItems } from '@/platform/state/crmWriteQueueStore';
 
 export interface CrmWritePendingBannerProps {
   matterId: string;
@@ -22,7 +22,7 @@ export interface CrmWritePendingBannerProps {
 
 export function CrmWritePendingBanner({ matterId, onReviewNow }: CrmWritePendingBannerProps) {
   const { t } = useTranslation();
-  const allItems = useCrmWriteQueueStore((s) => s.items);
+  const allItems = useVisibleCrmWriteQueueItems();
   const pendingCount = useMemo(
     () => allItems.filter((i) => i.matterId === matterId && i.status !== 'sent').length,
     [allItems, matterId],

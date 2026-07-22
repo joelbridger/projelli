@@ -12,7 +12,7 @@ import { Badge, Button, Callout, EmptyState, IconButton, RailShell, RailShellAct
 import type { RailShellItem } from '@/ui/kp';
 import { DropdownMenuItem } from '@/ui/dropdown-menu';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
+import { useVisibleCrmWriteQueueItems } from '@/platform/state/crmWriteQueueStore';
 import { useMeetingStore, checkLowDiskSpaceWarning, resolveWorkspaceRoot } from './meetingStore';
 import { needsReview } from './insights/review/meetingReviewArtifactStore';
 import type { MeetingCalendarEventMeta, MeetingMeta } from './meetingStore';
@@ -252,7 +252,7 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
   const recording = useMeetingStore((s) => s.status.recording);
   const processing = useMeetingStore((s) => s.processingCount > 0);
   const startRecording = useMeetingStore((s) => s.startRecording);
-  const crmQueueItems = useCrmWriteQueueStore((s) => s.items);
+  const crmQueueItems = useVisibleCrmWriteQueueItems();
   const [showConsent, setShowConsent] = useState(false);
   const [macPermissionError, setMacPermissionError] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);

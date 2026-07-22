@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { Matter } from '@/platform/types/matter';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import { setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
@@ -187,6 +188,7 @@ const LEGACY_DIR = 'Clients/Household One/Meetings/2026-07-20';
 afterEach(() => {
   setActiveWorkspaceService(null);
   useMatterStore.setState({ matters: [] });
+  useFirmStore.setState({ session: null });
 });
 
 const requirements: readonly MeetingArtifactRequirement[] = [
@@ -195,6 +197,55 @@ const requirements: readonly MeetingArtifactRequirement[] = [
 ];
 
 describe('meetings foundation contract', () => {
+  it('rechecks the live firm viewer and freshly reloaded policy before artifact actions', async () => {
+    const live = canonicalPort();
+    await createMeetingFoundationPreferencesStore(live).save({
+      visibilityPolicies: [{
+        id: 'private-policy', mode: 'explicit-review',
+        includedMemberIds: ['member-2'], excludedMemberIds: [],
+      }],
+      owners: [{ id: 'member-1', label: 'Owner' }],
+      deferredDescriptors: [],
+    });
+    const sessionFor = (userId: string) => ({
+      userId, email: `${userId}@example.com`, role: 'member' as const,
+      org: null, seatId: 'seat-1', tier: 'practice' as const, packs: [],
+      seats: 1, lastValidatedAt: null, activated: true,
+    });
+    useFirmStore.setState({ session: sessionFor('member-2') });
+    const meetings = createMeetingStore({ ...live, records: live.readCanonical() });
+    const created = await meetings.createDraft({ ...draft, visibilityPolicyId: 'private-policy' });
+    const artifacts = createMeetingArtifactStore({ ...live, records: live.readCanonical() });
+    const produced = await artifacts.append({
+      meetingId: created.id, kind: 'summary', schemaVersion: 1,
+      producedAt: '2026-07-20T10:00:00.000Z', sourceRefs: [],
+      provenance: 'local-processing', payload: { summary: 'private summary' },
+    });
+    const reader = artifacts.readerFor(meetings, client, [
+      { kind: 'summary', minimumSchemaVersion: 1 },
+    ]);
+    expect(reader.get(produced.id)?.id).toBe(produced.id);
+
+    useFirmStore.setState({ session: sessionFor('member-3') });
+    expect(reader.get(produced.id)).toBeNull();
+    await expect(artifacts.approve(produced.id, {
+      from: 'produced', to: 'approved', at: '2026-07-20T10:01:00.000Z',
+    })).rejects.toThrow('unavailable');
+
+    useFirmStore.setState({ session: sessionFor('member-2') });
+    live.replaceCanonical(live.readCanonical().map((record) =>
+      record.kind === 'meeting_foundation_preferences'
+        ? { ...record, visibilityPolicies: [{
+            id: 'private-policy', mode: 'explicit-review',
+            includedMemberIds: [], excludedMemberIds: ['member-2'],
+          }] }
+        : record
+    ));
+    await expect(artifacts.approve(produced.id, {
+      from: 'produced', to: 'approved', at: '2026-07-20T10:01:00.000Z',
+    })).rejects.toThrow('unavailable');
+  });
+
   it('preserves unknown fields and merges additive references on update', async () => {
     const live = canonicalPort();
     const store = createMeetingStore({

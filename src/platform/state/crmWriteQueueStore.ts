@@ -10,6 +10,7 @@
 // The ONLY call sites of `approve()` are the review card's Approve button
 // and this file's own tests. Enqueuing never sends anything.
 
+import { useMemo } from 'react';
 import { create } from 'zustand';
 
 import {
@@ -35,6 +36,7 @@ import {
   loadLiveCrmRecords,
   type LiveCrmRecord,
 } from '@/platform/crm/liveRecords';
+import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import { useFirmStore } from '@/platform/firm/firmStore';
 
@@ -99,14 +101,15 @@ interface CrmWriteQueueState {
   enqueue: (item: Omit<ProposedCrmWrite, 'id' | 'status'>) => void;
   hydrateFromBackend: () => Promise<void>;
   approve: (ids: string[], householdKey: string) => Promise<void>;
-  dismiss: (id: string) => void;
+  dismiss: (id: string) => Promise<void>;
   /** Task 9c: the advisor editing a field item's Blended column. `kind:
    *  'field'` items only — a no-op on any other item. */
-  updateFinalValue: (id: string, finalValue: string) => void;
+  updateFinalValue: (id: string, finalValue: string) => Promise<void>;
   /** E3: set the composed provenance line on an AI-drafted note, but only if
    *  not already set — so a retry keeps the exact line from the first approval
    *  (stable content). No-op once present. */
-  setProvenanceIfUnset: (id: string, provenance: string) => void;
+  setProvenanceIfUnset: (id: string, provenance: string) => Promise<void>;
+  visibleItemsFresh: () => Promise<readonly ProposedCrmWrite[]>;
   /**
    * Task 9c: the ONLY way to enqueue a field-level blended update — computes
    * `finalValue` via `composeFieldBlend` (scalar replace / narrative merge /
@@ -350,7 +353,7 @@ function isValidPersistedItem(raw: unknown): raw is ProposedCrmWrite {
   );
 }
 
-function canReadQueueItem(
+export function canReadQueueItem(
   item: ProposedCrmWrite,
   records: readonly LiveCrmRecord[],
   viewerId: string | null | undefined
@@ -371,6 +374,25 @@ function canReadQueueItem(
     'proposal',
     records,
     viewerId
+  );
+}
+
+export function projectVisibleCrmWriteQueueItems(
+  items: readonly ProposedCrmWrite[],
+  records: readonly LiveCrmRecord[],
+  viewerId: string | null | undefined
+): readonly ProposedCrmWrite[] {
+  return items.filter((item) => canReadQueueItem(item, records, viewerId));
+}
+
+/** Re-project whenever the canonical policies, lineage, or firm viewer changes. */
+export function useVisibleCrmWriteQueueItems(): readonly ProposedCrmWrite[] {
+  const items = useCrmWriteQueueStore((state) => state.items);
+  const records = useLiveCrmRecords().records;
+  const viewerId = useFirmStore((state) => state.session?.userId ?? null);
+  return useMemo(
+    () => projectVisibleCrmWriteQueueItems(items, records, viewerId),
+    [items, records, viewerId]
   );
 }
 
@@ -480,10 +502,11 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>()((set, get) => 
   },
 
   approve: async (ids, householdKey) => {
-    const visibility = await refreshVisibilitySnapshot();
     // Sequential: the backend's ~1 rps gate makes parallel sends pointless,
     // and it keeps per-row status updates easy to follow in the UI.
     for (const id of ids) {
+      // Policy can change while an earlier row sends; reload before each row.
+      const visibility = await refreshVisibilitySnapshot();
       const item = get().items.find((i) => i.id === id);
       if (!item) continue;
       if (!canReadQueueItem(item, visibility.records, visibility.viewerId)) {
@@ -496,28 +519,40 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>()((set, get) => 
     }
   },
 
-  dismiss: (id) => {
+  dismiss: async (id) => {
+    const visibility = await refreshVisibilitySnapshot();
     const item = get().items.find((candidate) => candidate.id === id);
-    if (!item || !canUseVisibleQueueItem(item)) return;
+    if (!item || !canReadQueueItem(item, visibility.records, visibility.viewerId)) return;
     set((state) => ({ items: state.items.filter((i) => i.id !== id) }));
     deleteProposalBestEffort(id);
   },
 
-  updateFinalValue: (id, finalValue) => {
+  updateFinalValue: async (id, finalValue) => {
+    const visibility = await refreshVisibilitySnapshot();
     const item = get().items.find((i) => i.id === id);
-    if (!item || !canUseVisibleQueueItem(item)) return;
+    if (!item || !canReadQueueItem(item, visibility.records, visibility.viewerId)) return;
     const updated: ProposedCrmWrite = { ...item, finalValue };
     setItem(id, { finalValue });
     persistProposalItemBestEffort(updated);
   },
 
-  setProvenanceIfUnset: (id, provenance) => {
+  setProvenanceIfUnset: async (id, provenance) => {
+    const visibility = await refreshVisibilitySnapshot();
     const item = get().items.find((i) => i.id === id);
-    if (item && canUseVisibleQueueItem(item) && !item.provenance) {
+    if (item && canReadQueueItem(item, visibility.records, visibility.viewerId) && !item.provenance) {
       const updated: ProposedCrmWrite = { ...item, provenance };
       setItem(id, { provenance });
       persistProposalItemBestEffort(updated);
     }
+  },
+
+  visibleItemsFresh: async () => {
+    const visibility = await refreshVisibilitySnapshot();
+    return projectVisibleCrmWriteQueueItems(
+      get().items,
+      visibility.records,
+      visibility.viewerId
+    );
   },
 
   enqueueFieldUpdate: async (args) => {
