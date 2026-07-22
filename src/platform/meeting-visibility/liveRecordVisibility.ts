@@ -140,16 +140,12 @@ export function canReadMeetingDerivedRecord(
 ): boolean {
   const subject = meetingVisibilitySubject(record, kind);
   if (!subject) return false;
-  const decision = resolveMeetingVisibility({
+  return resolveMeetingVisibility({
     subject,
     viewerId,
     policies: policies(records),
     resolveParent: (ref) => resolveExactParent(ref, records),
-  });
-  // A fully valid exact lineage with no restriction policy is the public
-  // default. Every malformed, ambiguous, missing, or restricted chain still
-  // fails closed (including restricted reads with no viewer).
-  return decision.visible || decision.reason === 'missing-policy';
+  }).visible;
 }
 
 export function explicitLegacyMeetingVisibility(

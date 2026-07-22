@@ -17,6 +17,7 @@ import type { Matter } from '@/platform/types/matter';
 import {
   canReadMeetingDerivedRecord,
   derivedMeetingVisibility,
+  explicitLegacyMeetingVisibility,
   meetingVisibilityRoot,
   validateMeetingVisibilityPolicy,
   type MeetingVisibilityPolicy,
@@ -802,6 +803,8 @@ type LivePort = Pick<
  * field alone is never ownership proof.
  */
 export type ClientScopedLivePort = LivePort & {
+  /** Synchronous canonical snapshot used by held readers after policy updates. */
+  readonly getCurrentRecords?: () => readonly LiveCrmRecord[];
   readonly getActiveClientBoundary: () =>
     | SealedMeetingClientBoundary
     | null;
@@ -2129,7 +2132,9 @@ export async function migrateLegacyMeetingArtifactVisibility(
     if (!parent) continue;
     await port.save({
       ...target,
-      meetingVisibility: derivedMeetingVisibility('meeting-artifact', target.id, parent),
+      meetingVisibility: parent.visibilityPolicyId
+        ? derivedMeetingVisibility('meeting-artifact', target.id, parent)
+        : explicitLegacyMeetingVisibility('meeting-artifact', target.id),
     });
     repairedIds.push(target.id);
     records = (await port.reloadRecords()) ?? [];
@@ -2184,23 +2189,26 @@ export function createMeetingArtifactStore(
 ): FirmReadableMeetingArtifactStore {
   const scope = clientScope(port);
   let raw = port.records;
+  const currentRecords = () => port.getCurrentRecords?.() ?? raw;
   const viewerId = () => useFirmStore.getState().session?.userId ?? null;
   const canReadArtifact = (
     record: LiveCrmRecord,
-    records: readonly LiveCrmRecord[] = raw
+    records: readonly LiveCrmRecord[] = currentRecords()
   ) => record.kind === 'meeting_artifact' && canReadMeetingDerivedRecord(
     record, 'meeting-artifact', records, viewerId()
   );
-  const artifacts = () =>
-    raw
-      .filter((record) => canReadArtifact(record))
+  const artifacts = () => {
+    const records = currentRecords();
+    return records
+      .filter((record) => canReadArtifact(record, records))
       .flatMap((record) => {
         try {
-          return [projectArtifact(record, raw)];
+          return [projectArtifact(record, records)];
         } catch {
           return [];
         }
       });
+  };
   const persist = async (
     record: LiveCrmRecord,
     expected: SealedMeetingClientBoundary
@@ -2577,17 +2585,18 @@ export function createMeetingArtifactStore(
         sourceRefs: strings(input.sourceRefs, 'Artifact source references'),
         provenance: input.provenance,
         payload: input.payload,
-        meetingVisibility: {
-          kind: 'meeting-artifact',
-          id,
-          lineage: 'derived',
-          parentRef: { kind: 'meeting-note', id: parent.id },
-          ownerRef: nonEmpty(parent['ownerRef'], 'Meeting owner'),
-          ...(typeof parent['visibilityPolicyId'] === 'string' &&
+        meetingVisibility:
+          typeof parent['visibilityPolicyId'] === 'string' &&
           parent['visibilityPolicyId'].trim()
-            ? { visibilityPolicyId: parent['visibilityPolicyId'] }
-            : {}),
-        } satisfies MeetingVisibilitySubject,
+            ? ({
+                kind: 'meeting-artifact',
+                id,
+                lineage: 'derived',
+                parentRef: { kind: 'meeting-note', id: parent.id },
+                ownerRef: nonEmpty(parent['ownerRef'], 'Meeting owner'),
+                visibilityPolicyId: parent['visibilityPolicyId'],
+              } satisfies MeetingVisibilitySubject)
+            : explicitLegacyMeetingVisibility('meeting-artifact', id),
       };
       const persisted = await persist(record, expected);
       if (!canReadArtifact(persisted, raw))
@@ -3711,6 +3720,7 @@ export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
   useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
   const port: ClientScopedLivePort = {
     records: live.records,
+    getCurrentRecords: live.getCurrentRecords,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,

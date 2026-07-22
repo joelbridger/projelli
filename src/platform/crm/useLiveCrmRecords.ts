@@ -26,6 +26,14 @@ import {
 // workflow exists in SQLCipher but the Workflows screen still says it is empty.
 export const LIVE_CRM_RECORDS_CHANGED = 'lantern:crm-live-records-changed';
 
+// One synchronous canonical snapshot per workspace. Every mounted hook writes
+// through this shared map, so a held reader in one surface sees a policy save
+// from another surface before React has time to re-render either one.
+const currentRecordsByWorkspace = new Map<
+  string,
+  readonly LiveCrmRecord[]
+>();
+
 const CRM_CLIENT_SELECTION_REQUEST = {
   operationClass: 'client-scoped',
   allowAllMatters: false,
@@ -49,6 +57,10 @@ export function useLiveCrmRecords() {
       ? clientSelection.matter.id
       : null;
   const [records, setRecords] = useState<readonly LiveCrmRecord[]>([]);
+  const currentRecordsRef = useRef<{
+    workspaceRoot: typeof workspaceRoot;
+    records: readonly LiveCrmRecord[];
+  }>({ workspaceRoot, records: [] });
   const [recordsWorkspaceRoot, setRecordsWorkspaceRoot] =
     useState(workspaceRoot);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +78,8 @@ export function useLiveCrmRecords() {
     try {
       const loaded = await loadLiveCrmRecords(rootAtStart);
       if (workspaceRootRef.current !== rootAtStart) return;
+      currentRecordsRef.current = { workspaceRoot: rootAtStart, records: loaded };
+      if (rootAtStart) currentRecordsByWorkspace.set(rootAtStart, loaded);
       setRecordsWorkspaceRoot(rootAtStart);
       setRecords(loaded);
       setErrorWorkspaceRoot(rootAtStart);
@@ -120,13 +134,16 @@ export function useLiveCrmRecords() {
     (saved: LiveCrmRecord) => {
       const rootAtStart = workspaceRoot;
       if (workspaceRootRef.current !== rootAtStart) return saved;
+      const current = currentRecordsRef.current.workspaceRoot === rootAtStart
+        ? currentRecordsRef.current.records
+        : [];
+      const next = current.some((item) => item.id === saved.id)
+        ? current.map((item) => (item.id === saved.id ? saved : item))
+        : [...current, saved];
+      currentRecordsRef.current = { workspaceRoot: rootAtStart, records: next };
+      if (rootAtStart) currentRecordsByWorkspace.set(rootAtStart, next);
       setRecordsWorkspaceRoot(rootAtStart);
-      setRecords((current) => {
-        const exists = current.some((item) => item.id === saved.id);
-        return exists
-          ? current.map((item) => (item.id === saved.id ? saved : item))
-          : [...current, saved];
-      });
+      setRecords(next);
       publishLiveRecord(saved);
       window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
       return saved;
@@ -179,6 +196,11 @@ export function useLiveCrmRecords() {
     sharedMatterId && workspaceRoot ? freshness : { kind: 'idle' };
   return {
     records: recordsWorkspaceRoot === workspaceRoot ? records : [],
+    getCurrentRecords: () =>
+      (workspaceRoot ? currentRecordsByWorkspace.get(workspaceRoot) : undefined) ??
+      (currentRecordsRef.current.workspaceRoot === workspaceRoot
+        ? currentRecordsRef.current.records
+        : []),
     save,
     publishSavedRecord,
     reload,

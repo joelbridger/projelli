@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
-import { canReadMeetingDerivedRecord } from '@/platform/meeting-visibility';
+import {
+  canReadMeetingDerivedRecord,
+  explicitLegacyMeetingVisibility,
+  meetingVisibilityRoot,
+  resolveMeetingVisibility,
+} from '@/platform/meeting-visibility';
 import {
   migrateLegacyMeetingArtifactVisibility,
   type ClientScopedLivePort,
@@ -95,6 +100,77 @@ const preferences: LiveCrmRecord = {
 };
 
 describe('legacy meeting artifact visibility migration', () => {
+  it('keeps missing-policy, malformed, and incomplete lineage hidden unless public is explicit', () => {
+    const rootRecord = { ...meeting('meeting-public', 'matter-1', 'household-1') };
+    delete rootRecord['visibilityPolicyId'];
+    const root = meetingVisibilityRoot(rootRecord);
+    if (!root) throw new Error('missing root fixture');
+    expect(resolveMeetingVisibility({
+      subject: root,
+      viewerId: 'advisor-owner',
+      policies: [],
+      resolveParent: () => null,
+    })).toMatchObject({ visible: false, reason: 'missing-policy' });
+
+    const derived = {
+      ...artifact('artifact-derived', rootRecord.id, 'matter-1', 'household-1'),
+      meetingVisibility: {
+        kind: 'meeting-artifact' as const,
+        id: 'artifact-derived',
+        lineage: 'derived' as const,
+        ownerRef: 'advisor-owner',
+        parentRef: { kind: 'meeting-note' as const, id: rootRecord.id },
+      },
+    };
+    const malformed = {
+      ...artifact('artifact-malformed', rootRecord.id, 'matter-1', 'household-1'),
+      meetingVisibility: {
+        kind: 'task', id: 'artifact-malformed', lineage: 'legacy-unrestricted',
+      },
+    };
+    const incomplete = artifact(
+      'artifact-incomplete', rootRecord.id, 'matter-1', 'household-1'
+    );
+    const explicitPublic = {
+      ...artifact('artifact-public', rootRecord.id, 'matter-1', 'household-1'),
+      meetingVisibility: explicitLegacyMeetingVisibility(
+        'meeting-artifact', 'artifact-public'
+      ),
+    };
+    const records: LiveCrmRecord[] = [
+      rootRecord, derived, malformed, incomplete, explicitPublic,
+    ];
+    expect(canReadMeetingDerivedRecord(
+      derived, 'meeting-artifact', records, 'advisor-owner'
+    )).toBe(false);
+    expect(canReadMeetingDerivedRecord(
+      malformed, 'meeting-artifact', records, 'advisor-owner'
+    )).toBe(false);
+    expect(canReadMeetingDerivedRecord(
+      incomplete, 'meeting-artifact', records, 'advisor-owner'
+    )).toBe(false);
+    expect(canReadMeetingDerivedRecord(
+      explicitPublic, 'meeting-artifact', records, null
+    )).toBe(true);
+  });
+
+  it('writes the explicit public marker when an exact legacy parent has no policy', async () => {
+    const publicMeeting = meeting('meeting-public', 'matter-1', 'household-1');
+    delete publicMeeting['visibilityPolicyId'];
+    const publicArtifact = artifact(
+      'artifact-public', publicMeeting.id, 'matter-1', 'household-1'
+    );
+    const fixture = migrationPort([publicMeeting, publicArtifact]);
+    const migrated = await migrateLegacyMeetingArtifactVisibility(fixture.port);
+    expect(migrated.find((record) => record.id === publicArtifact.id)).toMatchObject({
+      meetingVisibility: {
+        kind: 'meeting-artifact',
+        id: publicArtifact.id,
+        lineage: 'legacy-unrestricted',
+      },
+    });
+  });
+
   it('repairs only one exact parent, keeps ambiguity hidden, and marks completion last', async () => {
     const exact = artifact(
       'artifact-exact',

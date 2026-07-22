@@ -161,6 +161,7 @@ function canonicalPort(initial: readonly LiveCrmRecord[] = []) {
       commands.push('crm_live_list');
       return Promise.resolve(structuredClone(canonical));
     },
+    getCurrentRecords: () => structuredClone(canonical),
     commands,
     readCanonical: () => structuredClone(canonical),
     replaceCanonical(records: readonly LiveCrmRecord[]) {
@@ -241,6 +242,8 @@ describe('meetings foundation contract', () => {
           }] }
         : record
     ));
+    expect(reader.get(produced.id)).toBeNull();
+    expect(reader.listForMeeting(created.id)).toEqual([]);
     await expect(artifacts.approve(produced.id, {
       from: 'produced', to: 'approved', at: '2026-07-20T10:01:00.000Z',
     })).rejects.toThrow('unavailable');

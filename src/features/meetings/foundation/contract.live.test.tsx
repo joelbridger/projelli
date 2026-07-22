@@ -178,9 +178,7 @@ describe('meetings canonical live-record round trip', () => {
         meetingVisibility: {
           kind: 'meeting-artifact',
           id: artifact.id,
-          lineage: 'derived',
-          parentRef: { kind: 'meeting-note', id: created.id },
-          ownerRef: draft.ownerRef,
+          lineage: 'legacy-unrestricted',
         },
       });
     });
