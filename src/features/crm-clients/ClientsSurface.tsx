@@ -8,6 +8,7 @@ import {
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,
   requestMatterScopeSelection,
+  useSelectionPresentation,
 } from '@/platform/client-context';
 import { DirectorySurface } from './DirectorySurface';
 import type { DirectoryComposition, DirectoryRepository } from './directoryRegistry';
@@ -168,6 +169,7 @@ function ClientsSurfaceContent({
   directoryRepository?: DirectoryRepository;
 }) {
   const matters = useActiveMatters();
+  const selectionPresentation = useSelectionPresentation();
   const clientMapHubId = useMatterStore((state) => state.clientMapHubId);
   const selectionWorkspace = live.workspaceRoot ?? null;
   const [selectedId, setSelectedId] = useState<string | null>(() =>
@@ -304,7 +306,15 @@ function ClientsSurfaceContent({
     return [...seen.values()];
   }, [live.records, storedHouseholds]);
   const effectivePeople = people.length ? people : livePeople;
-  const selected = selectedId ? findRecord(selectedId) : undefined;
+  // While the authority gate is active, the sealed shared selection is the
+  // only display authority. A named-but-unpaired, stale, blocked, all-clients,
+  // or unresolvable scope must close the detail rather than leaking the last
+  // locally remembered household into the new client context.
+  const selected = selectionPresentation.authorityEnabled
+    ? selectionPresentation.scope.kind === 'matter' && !selectionPresentation.stale
+      ? findRecord(selectionPresentation.matterId ?? '')
+      : undefined
+    : selectedId ? findRecord(selectedId) : undefined;
 
   const saveHousehold = async (household: HouseholdRecord) => {
     const previous = live.records.find((record) => record.id === household.id);
