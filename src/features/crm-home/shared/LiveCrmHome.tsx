@@ -13,7 +13,6 @@ import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHom
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import {
-  canReadMeetingDerivedRecord,
   derivedMeetingVisibility,
   explicitLegacyMeetingVisibility,
   meetingVisibilityParentForRecord,
@@ -293,7 +292,7 @@ export function LiveCrmHome({
     .filter(
       (record) =>
         record.kind === 'task' &&
-        canReadMeetingDerivedRecord(record, 'task', live.records, viewerId)
+        live.canReadMeetingDerivedRecord(record, 'task')
     )
     .map((record) => {
       const householdId = householdIdFor(record);
@@ -306,7 +305,7 @@ export function LiveCrmHome({
     });
   const allWorkflowData = workflowRecords(live.records);
   const visibleWorkflowInstances = allWorkflowData.instances.filter((record) =>
-    canReadMeetingDerivedRecord(record, 'workflow', live.records, viewerId)
+    live.canReadMeetingDerivedRecord(record, 'workflow')
   );
   const visibleWorkflowIds = new Set(
     visibleWorkflowInstances.map((instance) => instance.id)
@@ -334,7 +333,7 @@ export function LiveCrmHome({
     .filter(
       (record) =>
         record.kind === 'proposalRecord' &&
-        canReadMeetingDerivedRecord(record, 'proposal', live.records, viewerId)
+        live.canReadMeetingDerivedRecord(record, 'proposal')
     )
     .map((record) => {
       const householdId = householdIdFor(record);
@@ -368,7 +367,7 @@ export function LiveCrmHome({
       (record) =>
         record.kind === 'activityEvent' &&
         typeof record['at'] === 'string' &&
-        canReadMeetingDerivedRecord(record, 'activity', live.records, viewerId)
+        live.canReadMeetingDerivedRecord(record, 'activity')
     )
     .map((record) => ({
       id: record.id,
@@ -778,12 +777,7 @@ export function LiveCrmHome({
           (item) =>
             item.id === approval.id &&
             item.kind === 'proposalRecord' &&
-            canReadMeetingDerivedRecord(
-              item,
-              'proposal',
-              live.records,
-              viewerId
-            )
+            live.canReadMeetingDerivedRecord(item, 'proposal')
         );
         if (!record) throw new Error('This approval is no longer available.');
         const decidedAt = new Date().toISOString();

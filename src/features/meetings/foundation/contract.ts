@@ -27,6 +27,7 @@ import {
   validateMeetingVisibilityPolicy,
   type MeetingVisibilityPolicy,
   type MeetingVisibilitySubject,
+  type MeetingVisibilitySubjectKind,
 } from '@/platform/meeting-visibility';
 
 export { validateMeetingVisibilityPolicy };
@@ -809,6 +810,11 @@ type LivePort = Pick<
 export type ClientScopedLivePort = LivePort & {
   /** Synchronous canonical snapshot used by held readers after policy updates. */
   readonly getCurrentRecords?: () => readonly LiveCrmRecord[];
+  /** Non-exposing live policy decision supplied by the CRM boundary. */
+  readonly canReadMeetingDerivedRecord?: (
+    record: LiveCrmRecord,
+    kind: Exclude<MeetingVisibilitySubjectKind, 'meeting-note'>
+  ) => boolean;
   readonly getActiveClientBoundary: () =>
     | SealedMeetingClientBoundary
     | null;
@@ -2188,7 +2194,35 @@ export async function migrateLegacyMeetingArtifactVisibility(
       record.matterId === matterId && record['householdRef'] === householdRef
     );
     if (parents.length !== 1) continue;
-    const parent = meetingVisibilityRoot(parents[0] as LiveCrmRecord);
+    const parentRecord = parents[0] as LiveCrmRecord;
+    const hasPolicy = Object.prototype.hasOwnProperty.call(
+      parentRecord,
+      'visibilityPolicyId'
+    );
+    const hasLegacy = Object.prototype.hasOwnProperty.call(
+      parentRecord,
+      MEETING_VISIBILITY_LINEAGE_FIELD
+    );
+    // Only canonical roots are migration authority: exactly one non-empty
+    // policy OR the exact explicit legacy marker. Missing, malformed, and
+    // conflicting states stay hidden until the canonical migration repairs
+    // the root; this artifact migration must never guess them public.
+    if (hasPolicy === hasLegacy) continue;
+    if (
+      hasPolicy &&
+      (typeof parentRecord['visibilityPolicyId'] !== 'string' ||
+        parentRecord['visibilityPolicyId'].trim() !==
+          parentRecord['visibilityPolicyId'] ||
+        parentRecord['visibilityPolicyId'].length === 0)
+    )
+      continue;
+    if (
+      hasLegacy &&
+      parentRecord[MEETING_VISIBILITY_LINEAGE_FIELD] !==
+        MEETING_VISIBILITY_LEGACY_VALUE
+    )
+      continue;
+    const parent = meetingVisibilityRoot(parentRecord);
     if (!parent) continue;
     await port.save({
       ...target,
@@ -2238,9 +2272,16 @@ export function createMeetingArtifactStore(
   const canReadArtifact = (
     record: LiveCrmRecord,
     records: readonly LiveCrmRecord[] = currentRecords()
-  ) => record.kind === 'meeting_artifact' && canReadMeetingDerivedRecord(
-    record, 'meeting-artifact', records, viewerId()
-  );
+  ) =>
+    record.kind === 'meeting_artifact' &&
+    (port.canReadMeetingDerivedRecord
+      ? port.canReadMeetingDerivedRecord(record, 'meeting-artifact')
+      : canReadMeetingDerivedRecord(
+          record,
+          'meeting-artifact',
+          records,
+          viewerId()
+        ));
   const artifacts = () => {
     const records = currentRecords();
     return records
@@ -3769,6 +3810,7 @@ export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
   const port: ClientScopedLivePort = {
     records: live.records,
     getCurrentRecords: live.getCurrentRecords,
+    canReadMeetingDerivedRecord: live.canReadMeetingDerivedRecord,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,

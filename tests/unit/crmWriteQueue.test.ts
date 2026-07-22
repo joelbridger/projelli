@@ -751,6 +751,33 @@ describe('hydrateFromBackend', () => {
     )).toEqual([]);
   });
 
+  it('uses the hidden live decision after the public snapshot drops policy rows', () => {
+    const item = {
+      id: 'private-proposal',
+      kind: 'note' as const,
+      matterId: 'm1',
+      title: 'Private title',
+      body: 'Private body',
+      sourceRef: 'meeting-private',
+      status: 'proposed' as const,
+      meetingVisibility: {
+        kind: 'proposal' as const,
+        id: 'private-proposal',
+        lineage: 'derived' as const,
+        ownerRef: 'advisor-owner',
+        visibilityPolicyId: 'private-policy',
+        parentRef: { kind: 'meeting-artifact' as const, id: 'artifact-private' },
+      },
+    };
+    const decide = vi.fn(() => true);
+
+    expect(projectVisibleCrmWriteQueueItems([item], [], 'advisor-member', decide))
+      .toEqual([item]);
+    decide.mockReturnValue(false);
+    expect(projectVisibleCrmWriteQueueItems([item], [], 'advisor-member', decide))
+      .toEqual([]);
+  });
+
   it('reloads current policy before a queue mutation', async () => {
     mockMatterState.matters = [{ id: 'm1' }];
     restrictedVisibilityRecords();

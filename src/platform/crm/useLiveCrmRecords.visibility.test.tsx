@@ -93,7 +93,52 @@ const task: LiveCrmRecord = {
   id: 'private-task',
   kind: 'task',
   meetingId: meeting.id,
+  meetingVisibility: {
+    id: 'private-task',
+    kind: 'task',
+    lineage: 'derived',
+    parentRef: { kind: 'meeting-note', id: meeting.id },
+    ownerRef: 'owner-advisor',
+    visibilityPolicyId: 'private-policy',
+  },
 };
+const derivedRecord = (
+  id: string,
+  kind: string,
+  visibilityKind: 'meeting-artifact' | 'workflow' | 'proposal' | 'activity'
+): LiveCrmRecord => ({
+  id,
+  kind,
+  meetingId: meeting.id,
+  meetingVisibility: {
+    id,
+    kind: visibilityKind,
+    lineage: 'derived',
+    parentRef: { kind: 'meeting-note', id: meeting.id },
+    ownerRef: 'owner-advisor',
+    visibilityPolicyId: 'private-policy',
+  },
+});
+const artifact = derivedRecord(
+  'private-artifact',
+  'meeting_artifact',
+  'meeting-artifact'
+);
+const workflow = derivedRecord(
+  'private-workflow',
+  'crm_workflow_instance',
+  'workflow'
+);
+const proposal = derivedRecord(
+  'private-proposal',
+  'proposalRecord',
+  'proposal'
+);
+const activity = derivedRecord(
+  'private-activity',
+  'activityEvent',
+  'activity'
+);
 const preferences = (
   includedMemberIds: readonly string[] = [],
   excludedMemberIds: readonly string[] = []
@@ -116,7 +161,15 @@ describe('useLiveCrmRecords meeting visibility reactivity', () => {
   beforeEach(() => {
     boundary.viewerId = 'owner-advisor';
     boundary.listeners.clear();
-    boundary.records = [preferences(['included-advisor']), meeting, task];
+    boundary.records = [
+      preferences(['included-advisor']),
+      meeting,
+      artifact,
+      task,
+      workflow,
+      proposal,
+      activity,
+    ];
     boundary.invoke.mockReset().mockImplementation((command) => {
       if (command === 'crm_live_list')
         return Promise.resolve(structuredClone(boundary.records));
@@ -196,5 +249,50 @@ describe('useLiveCrmRecords meeting visibility reactivity', () => {
       expect(result.current.records.map((record) => record.id)).toEqual([
       ]);
     });
+  });
+
+  it('keeps allowed derived work visible without exposing policy rows and revokes it immediately', async () => {
+    const { result } = renderHook(() => useLiveCrmRecords());
+    const derived = [
+      [artifact, 'meeting-artifact'],
+      [task, 'task'],
+      [workflow, 'workflow'],
+      [proposal, 'proposal'],
+      [activity, 'activity'],
+    ] as const;
+    await waitFor(() => {
+      expect(result.current.records.map((record) => record.id)).toEqual(
+        expect.arrayContaining(derived.map(([record]) => record.id))
+      );
+    });
+    expect(
+      result.current.records.some(
+        (record) => record.kind === 'meeting_foundation_preferences'
+      )
+    ).toBe(false);
+    const heldAuthority = result.current.canReadMeetingDerivedRecord;
+    for (const [record, kind] of derived) {
+      expect(heldAuthority(record, kind)).toBe(true);
+    }
+
+    act(() => {
+      boundary.setViewer('included-advisor');
+    });
+    expect(result.current.records.map((record) => record.id)).toEqual(
+      expect.arrayContaining(derived.map(([record]) => record.id))
+    );
+    for (const [record, kind] of derived) {
+      expect(result.current.canReadMeetingDerivedRecord(record, kind)).toBe(
+        true
+      );
+    }
+
+    act(() => {
+      boundary.setViewer('excluded-advisor');
+    });
+    expect(result.current.records).toEqual([]);
+    for (const [record, kind] of derived) {
+      expect(heldAuthority(record, kind)).toBe(false);
+    }
   });
 });

@@ -15,6 +15,7 @@ export {
 export {
   MEETING_VISIBILITY_FIELD,
   canReadMeetingDerivedRecord,
+  canReadMeetingVisibilitySubject,
   derivedMeetingVisibility,
   explicitLegacyMeetingVisibility,
   meetingVisibilityParentForRecord,

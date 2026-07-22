@@ -140,6 +140,15 @@ export function canReadMeetingDerivedRecord(
 ): boolean {
   const subject = meetingVisibilitySubject(record, kind);
   if (!subject) return false;
+  return canReadMeetingVisibilitySubject(subject, records, viewerId);
+}
+
+/** Resolve a known root or derived subject against the exact hidden snapshot. */
+export function canReadMeetingVisibilitySubject(
+  subject: MeetingVisibilitySubject,
+  records: readonly LiveCrmRecord[],
+  viewerId: string | null | undefined
+): boolean {
   return resolveMeetingVisibility({
     subject,
     viewerId,

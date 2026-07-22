@@ -24,6 +24,7 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
     reload: live.reload,
     workspaceRoot: '/test-workspace',
     freshness: { kind: 'live' as const },
+    canReadMeetingDerivedRecord: () => true,
   }),
 }));
 
