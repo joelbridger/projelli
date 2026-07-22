@@ -11,6 +11,12 @@ import { projectCrmWorkflowWorkItem } from './liveWorkflowWorkItemAdapter';
 import type { CrmHomeProps } from '../routes';
 import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHomeAdapter, CrmTask, CrmTaskSavedView, CrmWorkflowWorkItem, AttachmentAccountingRecord, ExportJobStatus, MigrationFidelityReport, MigrationNoteGap, MigrationWorkflowChecklist, PropagationOffer } from '../types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import {
+  canReadMeetingDerivedRecord,
+  derivedMeetingVisibility,
+  explicitLegacyMeetingVisibility,
+  meetingVisibilityParentForRecord,
+} from './meetingDerivedVisibility';
 
 /** The live CRM state that a host shell passes to a registry destination. */
 export interface LiveCrmHomeRuntime
@@ -282,7 +288,11 @@ export function LiveCrmHome({
       : contextIds(record)[0];
   };
   const liveTasks: readonly CrmTask[] = live.records
-    .filter((record) => record.kind === 'task')
+    .filter(
+      (record) =>
+        record.kind === 'task' &&
+        canReadMeetingDerivedRecord(record, 'task', live.records)
+    )
     .map((record) => {
       const householdId = householdIdFor(record);
       const member = firmMembers.find((candidate) => candidate.userId === record['assigneeUserId']);
@@ -306,7 +316,11 @@ export function LiveCrmHome({
       })
   );
   const liveApprovals: readonly CrmApproval[] = live.records
-    .filter((record) => record.kind === 'proposalRecord')
+    .filter(
+      (record) =>
+        record.kind === 'proposalRecord' &&
+        canReadMeetingDerivedRecord(record, 'proposal', live.records)
+    )
     .map((record) => {
       const householdId = householdIdFor(record);
       const proposalKind =
@@ -337,7 +351,9 @@ export function LiveCrmHome({
   const liveActivity: readonly CrmActivity[] = live.records
     .filter(
       (record) =>
-        record.kind === 'activityEvent' && typeof record['at'] === 'string'
+        record.kind === 'activityEvent' &&
+        typeof record['at'] === 'string' &&
+        canReadMeetingDerivedRecord(record, 'activity', live.records)
     )
     .map((record) => ({
       id: record.id,
@@ -496,11 +512,16 @@ export function LiveCrmHome({
   const recordActivity = async (
     summary: string,
     task?: CrmTask,
-    verb = 'task.updated'
+    verb = 'task.updated',
+    visibilityParent?: LiveCrmRecord
   ) => {
     const now = new Date().toISOString();
+    const id = `activity-${crypto.randomUUID()}`;
+    const parent = visibilityParent
+      ? meetingVisibilityParentForRecord(visibilityParent)
+      : null;
     await live.save({
-      id: `activity-${crypto.randomUUID()}`,
+      id,
       kind: 'activityEvent',
       matterId: 'firm_home',
       at: now,
@@ -517,16 +538,25 @@ export function LiveCrmHome({
       ...(task?.householdId ? { householdId: task.householdId } : {}),
       payload: task ? { taskId: task.id, status: task.status } : {},
       important: false,
+      meetingVisibility: parent
+        ? derivedMeetingVisibility('activity', id, parent)
+        : explicitLegacyMeetingVisibility('activity', id),
     });
   };
-  const saveTask = async (task: CrmTask) => {
+  const saveTask = async (task: CrmTask, visibilityParent?: LiveCrmRecord) => {
     const householdId = task.householdId ?? task.contextRefs?.[0];
     const householdMatterId = households.find(
       (household) => household.id === householdId
     )?.matterId;
     const previous = liveTasks.find((item) => item.id === task.id);
     const current = live.records.find((record) => record.kind === 'task' && record.id === task.id);
-    await live.save(mergeCrmTaskRecord(task, current, householdMatterId));
+    const taskRecord = mergeCrmTaskRecord(
+      task,
+      current,
+      householdMatterId,
+      visibilityParent
+    );
+    await live.save(taskRecord);
     await recordActivity(
       task.status === 'done' && previous?.status !== 'done'
         ? `Completed task: ${task.title}`
@@ -538,7 +568,8 @@ export function LiveCrmHome({
         ? 'task.completed'
         : previous
           ? 'task.updated'
-          : 'task.created'
+          : 'task.created',
+      taskRecord
     );
     if (
       task.status === 'done' &&
@@ -552,10 +583,18 @@ export function LiveCrmHome({
         status: 'open',
         ...(dueAt ? { dueAt, dueLabel: dueAt } : {}),
       };
-      await live.save(mergeCrmTaskRecord(child, undefined, householdMatterId));
+      const childRecord = mergeCrmTaskRecord(
+        child,
+        undefined,
+        householdMatterId,
+        taskRecord
+      );
+      await live.save(childRecord);
       await recordActivity(
         `Created next recurring task: ${child.title}`,
-        child
+        child,
+        'task.created',
+        childRecord
       );
     }
   };
@@ -781,10 +820,13 @@ export function LiveCrmHome({
                   : {}),
               ...(proposalTask.dueAt ? { dueAt: proposalTask.dueAt } : {}),
               contextRefs: proposalTask.contextRefs ?? [],
-            });
+            }, record);
         }
         await recordActivity(
-          `${decision === 'approved' ? 'Approved' : 'Dismissed'} proposal: ${approval.title}`
+          `${decision === 'approved' ? 'Approved' : 'Dismissed'} proposal: ${approval.title}`,
+          undefined,
+          'proposal.decided',
+          record
         );
       },
     },

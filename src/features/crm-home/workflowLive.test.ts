@@ -118,6 +118,55 @@ describe('saved CRM workflow wiring', () => {
     });
   });
 
+  it('keeps a restricted meeting activity as the exact parent of its workflow proposal', () => {
+    const template = createTemplate('Private follow-up', ['Review privately']);
+    const proposal = createMeetingWorkflowProposal(
+      {
+        id: 'meeting-activity-secret',
+        kind: 'activityEvent',
+        matterId: 'matter-1',
+        verb: 'meeting.completed',
+        summary: 'Secret transfer discussion',
+        meetingVisibility: {
+          kind: 'activity',
+          id: 'meeting-activity-secret',
+          lineage: 'derived',
+          ownerRef: 'advisor-owner',
+          visibilityPolicyId: 'private-policy',
+          parentRef: { kind: 'meeting-note', id: 'meeting-secret' },
+        },
+      },
+      template,
+      { id: 'household-1', matterId: 'matter-1', label: 'River household' }
+    );
+
+    expect(proposal['meetingVisibility']).toEqual({
+      kind: 'proposal',
+      id: proposal.id,
+      lineage: 'derived',
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: { kind: 'activity', id: 'meeting-activity-secret' },
+    });
+  });
+
+  it('refuses a meeting-origin workflow proposal when its lineage is missing', () => {
+    const template = createTemplate('Private follow-up', ['Review privately']);
+    expect(() =>
+      createMeetingWorkflowProposal(
+        {
+          id: 'meeting-activity-broken',
+          kind: 'activityEvent',
+          matterId: 'matter-1',
+          verb: 'meeting.completed',
+          summary: 'Secret transfer discussion',
+        },
+        template,
+        { id: 'household-1', matterId: 'matter-1', label: 'River household' }
+      )
+    ).toThrow('missing its private-note lineage');
+  });
+
   it('retains stable step ids and tag ids through template save, reload, and start', () => {
     const template = createTemplate('Annual review', ['Prepare', 'Meet']);
     const originalIds = template.steps.map((step) => step.id);

@@ -77,6 +77,35 @@ describe('legacy live task adapter', () => {
     ]));
   });
 
+  it('makes a recurring copy an exact child of its restricted source task', () => {
+    const source: LiveCrmRecord = {
+      ...canonical,
+      meetingVisibility: {
+        kind: 'task',
+        id: canonical.id,
+        lineage: 'derived',
+        ownerRef: 'advisor-owner',
+        visibilityPolicyId: 'private-policy',
+        parentRef: { kind: 'meeting-artifact', id: 'artifact-secret' },
+      },
+    };
+    const child = mergeCrmTaskRecord(
+      { ...projectCrmTask(source), id: 'task-recurring-child', status: 'open' },
+      undefined,
+      'matter-1',
+      source
+    );
+
+    expect(child['meetingVisibility']).toEqual({
+      kind: 'task',
+      id: 'task-recurring-child',
+      lineage: 'derived',
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: { kind: 'task', id: canonical.id },
+    });
+  });
+
   it('uses the household directory matter for new and legacy client tasks', () => {
     const projected = projectCrmTask(canonical);
     const newTask = mergeCrmTaskRecord(

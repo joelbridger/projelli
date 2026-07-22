@@ -1,6 +1,12 @@
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { EntityRef } from '@/platform/crm/types';
 import type { CrmTask } from '../types';
+import type { MeetingVisibilitySubject } from '@/platform/meeting-visibility';
+import {
+  derivedMeetingVisibility,
+  explicitLegacyMeetingVisibility,
+  meetingVisibilityParentForRecord,
+} from './meetingDerivedVisibility';
 
 const VALID_DUE_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
@@ -131,7 +137,8 @@ function validateDueTime(value: string): string {
 export function mergeCrmTaskRecord(
   task: CrmTask,
   current?: LiveCrmRecord,
-  mappedHouseholdMatterId?: string
+  mappedHouseholdMatterId?: string,
+  visibilityParent?: LiveCrmRecord | MeetingVisibilitySubject
 ): LiveCrmRecord {
   const now = new Date().toISOString();
   const householdId = task.householdId ?? task.contextRefs?.[0];
@@ -189,6 +196,17 @@ export function mergeCrmTaskRecord(
     contextRefs,
     customFields: current?.['customFields'] ?? {},
   };
+  if (!current) {
+    const parent = visibilityParent
+      ? 'id' in visibilityParent && 'kind' in visibilityParent &&
+          !('lineage' in visibilityParent)
+        ? meetingVisibilityParentForRecord(visibilityParent)
+        : (visibilityParent as MeetingVisibilitySubject)
+      : null;
+    next['meetingVisibility'] = parent
+      ? derivedMeetingVisibility('task', task.id, parent)
+      : explicitLegacyMeetingVisibility('task', task.id);
+  }
   if (task.dueAt) next['due'] = task.dueAt;
   else delete next['due'];
   if (task.recurrence) next['recurrence'] = task.recurrence;

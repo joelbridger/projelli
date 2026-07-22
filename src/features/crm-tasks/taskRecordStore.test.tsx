@@ -98,6 +98,76 @@ describe('public task record store', () => {
     expect(canonical.reload).toHaveBeenCalledOnce();
   });
 
+  it('keeps exact meeting lineage on created tasks and hides excluded or broken chains', async () => {
+    const parent = {
+      kind: 'meeting-artifact' as const,
+      id: 'artifact-secret',
+      lineage: 'derived' as const,
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: { kind: 'meeting-note' as const, id: 'meeting-secret' },
+    };
+    canonical.records = [
+      {
+        id: 'meeting-preferences',
+        kind: 'meeting_foundation_preferences',
+        visibilityPolicies: [{
+          id: 'private-policy',
+          mode: 'explicit-review',
+          includedMemberIds: [],
+          excludedMemberIds: ['local-user'],
+        }],
+      },
+      {
+        id: 'meeting-secret',
+        kind: 'meeting',
+        ownerRef: 'advisor-owner',
+        visibilityPolicyId: 'private-policy',
+      },
+      {
+        id: 'artifact-secret',
+        kind: 'meeting_artifact',
+        meetingVisibility: parent,
+      },
+      {
+        id: 'task-secret',
+        kind: 'task',
+        title: 'Secret transfer discussion',
+        body: 'Secret account number',
+        meetingVisibility: {
+          kind: 'task',
+          id: 'task-secret',
+          lineage: 'derived',
+          ownerRef: 'advisor-owner',
+          visibilityPolicyId: 'private-policy',
+          parentRef: { kind: 'meeting-artifact', id: 'artifact-secret' },
+        },
+      },
+      {
+        id: 'task-broken',
+        kind: 'task',
+        title: 'Broken secret',
+        source: { origin: 'meeting', sources: [] },
+      },
+    ];
+    const { result } = renderHook(() => useTaskRecordStore());
+
+    await expect(result.current.get('task-secret')).resolves.toBeUndefined();
+    await expect(result.current.get('task-broken')).resolves.toBeUndefined();
+
+    const created = await result.current.create({
+      title: 'Derived follow-up',
+      meetingVisibilityParent: parent,
+    });
+    expect(created.meetingVisibility).toMatchObject({
+      kind: 'task',
+      lineage: 'derived',
+      ownerRef: 'advisor-owner',
+      visibilityPolicyId: 'private-policy',
+      parentRef: { kind: 'meeting-artifact', id: 'artifact-secret' },
+    });
+  });
+
   it('merges an update into the current canonical task and retains unrelated fields and relations', async () => {
     canonical.records = [{
       id: 'task-1',
