@@ -301,6 +301,112 @@ test('renderer readiness gets its full post-health deadline and never accepts an
   assert.ok(readinessCalls.every(({ operationTimeoutMs }) => operationTimeoutMs >= 100));
 });
 
+test('real driver preserves a native eval budget after slow health and waits for a mounted React root', async () => {
+  const root = `${testDirectory()}-real-readiness-path`;
+  const workspace = path.join(root, 'workspace');
+  const documentName = 'Regression Document';
+  const documentPath = `Golden Loop Client/${documentName}.docx`;
+  const sockets = new Set();
+  const evalQueryStrings = [];
+  let evalRequests = 0;
+  let healthCompletedAt;
+  const server = createServer((request, response) => {
+    const url = new URL(request.url, 'http://127.0.0.1');
+    const send = (result) => {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ ok: true, result }));
+    };
+    if (url.pathname === '/health') {
+      setTimeout(() => {
+        healthCompletedAt = Date.now();
+        send(undefined);
+      }, 500);
+      return;
+    }
+    if (url.pathname === '/click') {
+      send(true);
+      return;
+    }
+    if (url.pathname !== '/eval') {
+      response.writeHead(404).end();
+      return;
+    }
+
+    evalQueryStrings.push(url.search);
+    evalRequests += 1;
+    if (evalRequests === 1) {
+      send({ hasTauriInvoke: true, readyState: 'complete', rootHasChildren: false });
+      return;
+    }
+    if (evalRequests === 2) {
+      send({ hasTauriInvoke: true, readyState: 'complete', rootHasChildren: true });
+      return;
+    }
+
+    const routeResults = new Map([
+      [3, true],
+      [4, false],
+      [5, 'spine-client-row-regression'],
+      [6, false],
+      [7, true],
+      [8, `crm-document-card-${documentPath}`],
+      [9, false],
+      [10, true],
+      [11, true],
+      [12, true],
+    ]);
+    send(routeResults.get(evalRequests) ?? true);
+  });
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
+
+  await mkdir(path.dirname(path.join(workspace, documentPath)), { recursive: true });
+  await writeFile(path.join(workspace, documentPath), 'test document');
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  const startedAt = Date.now();
+  try {
+    let result;
+    try {
+      result = await execFileAsync(
+        process.execPath,
+        [new URL('../golden-loop-driver.mjs', import.meta.url).pathname, 'assert', String(port), workspace, documentName],
+        {
+          env: {
+            ...process.env,
+            GOLDEN_LOOP_HEALTH_BOUND_MS: '800',
+            GOLDEN_LOOP_READINESS_BOUND_MS: '1400',
+            GOLDEN_LOOP_DRIVER_TIMEOUT_MS: '2500',
+            GOLDEN_LOOP_DIAGNOSTIC_DIR: path.join(root, 'diagnostics'),
+          },
+          timeout: 5_000,
+        },
+      );
+    } catch {
+      assert.fail(`the real driver route failed after ${evalRequests} eval requests`);
+    }
+
+    assert.match(result.stdout, /^PASS persistence:/m);
+    assert.doesNotMatch(result.stderr, /bound=0ms/);
+    assert.ok(healthCompletedAt - startedAt >= 450, 'health did not consume the old shared readiness budget');
+    assert.ok(startedAt + 1_400 - healthCompletedAt < 1_100, 'the old shared deadline retained enough transport and native time');
+    assert.ok(evalQueryStrings.length >= 2, 'the empty root was accepted before the mounted-root response');
+    assert.equal(evalRequests, 12, 'the driver did not complete the expected route after readiness');
+    for (const queryString of evalQueryStrings) {
+      const query = new URLSearchParams(queryString);
+      const nativeBudgetMs = Number(query.get('timeout_ms'));
+      assert.ok(query.has('js'), 'an eval request omitted its script');
+      assert.ok(Number.isFinite(nativeBudgetMs) && nativeBudgetMs >= 100, 'an eval request lacked a usable native budget');
+    }
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 async function writeExecutable(target, source) {
   await writeFile(target, source);
   await chmod(target, 0o700);
