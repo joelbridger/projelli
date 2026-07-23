@@ -205,7 +205,7 @@ describe('NotesReviewPanel item approval', () => {
   it('keeps a saved approval visible when later destination delivery fails', async () => {
     const failure = Object.assign(
       new Error('Approval was recorded, but delivery failed.'),
-      { approvalRecorded: true as const }
+      { approvalRecorded: true as const, retryable: true as const }
     );
     render(
       <NotesReviewPanel
@@ -222,6 +222,61 @@ describe('NotesReviewPanel item approval', () => {
       'delivery failed'
     );
     expect(screen.queryByTestId('notes-review-approve-call-cpa')).toBeNull();
+  });
+
+  it('shows pending as outcome unknown and failed as terminal without action buttons', () => {
+    const { rerender } = render(
+      <NotesReviewPanel
+        reviewKind="task"
+        state={{
+          kind: 'populated',
+          items: [
+            {
+              ...task,
+              approvalState: 'approved',
+              delivery: {
+                key: 'meeting-delivery-a',
+                status: 'pending',
+                attempt: 1,
+              },
+            },
+          ],
+        }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByTestId('notes-review-outcome-unknown-call-cpa')
+    ).toHaveTextContent('Do not retry');
+    expect(screen.queryByTestId('notes-review-retry-delivery-call-cpa')).toBeNull();
+    expect(screen.queryByTestId('notes-review-reject-call-cpa')).toBeNull();
+
+    rerender(
+      <NotesReviewPanel
+        reviewKind="task"
+        state={{
+          kind: 'populated',
+          items: [
+            {
+              ...task,
+              approvalState: 'approved',
+              delivery: {
+                key: 'meeting-delivery-a',
+                status: 'failed',
+                attempt: 1,
+              },
+            },
+          ],
+        }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByTestId('notes-review-delivery-failed-call-cpa')
+    ).toHaveTextContent('cannot be retried');
+    expect(screen.queryByTestId('notes-review-retry-delivery-call-cpa')).toBeNull();
   });
 
   it('submits the exact local edit to rejection without approving or delivering it', async () => {

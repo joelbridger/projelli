@@ -70,6 +70,9 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
   const [approvedAfterErrors, setApprovedAfterErrors] = useState<
     Record<string, true>
   >({});
+  const [retryableAfterErrors, setRetryableAfterErrors] = useState<
+    Record<string, true>
+  >({});
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -149,6 +152,11 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
           ...current,
           [source.id]: true,
         }));
+        if ('retryable' in error && error.retryable === true)
+          setRetryableAfterErrors((current) => ({
+            ...current,
+            [source.id]: true,
+          }));
       }
       setErrors((current) => ({
         ...current,
@@ -237,9 +245,12 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
         const rejected = source.approvalState === 'rejected';
         const canRetryDelivery =
           approved &&
-          (source.delivery?.status === 'failed' ||
-            source.delivery?.status === 'retryable' ||
-            approvedAfterErrors[source.id] === true);
+          (source.delivery?.status === 'retryable' ||
+            retryableAfterErrors[source.id] === true);
+        const outcomeUnknown =
+          approved && source.delivery?.status === 'pending';
+        const deliveryFailed =
+          approved && source.delivery?.status === 'failed';
         return (
           <article
             key={source.id}
@@ -416,7 +427,7 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
                 )}
               </div>
             )}
-            {approved && !canRetryDelivery && (
+            {approved && !canRetryDelivery && !outcomeUnknown && !deliveryFailed && (
               <div
                 data-testid={`notes-review-approved-${item.id}`}
                 role="status"
@@ -437,6 +448,26 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
               >
                 Retry delivery
               </Button>
+            )}
+            {outcomeUnknown && (
+              <div
+                data-testid={`notes-review-outcome-unknown-${item.id}`}
+                role="alert"
+              >
+                {/* eslint-disable lantern-i18n/no-hardcoded-string -- fixed trust copy for an ambiguous outside write */}
+                Delivery outcome unknown. Do not retry until it is checked.
+                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+              </div>
+            )}
+            {deliveryFailed && (
+              <div
+                data-testid={`notes-review-delivery-failed-${item.id}`}
+                role="alert"
+              >
+                {/* eslint-disable lantern-i18n/no-hardcoded-string -- fixed trust copy for terminal delivery refusal */}
+                Delivery stopped. This item cannot be retried.
+                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+              </div>
             )}
             {rejected && (
               <div

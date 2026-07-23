@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   makeExactMeetingNotesReviewRepository,
+  AmbiguousMeetingProposalDeliveryError,
+  MeetingProposalEgressAuthorityError,
   readExactMeetingReviewFactsForActions,
   type ExactMeetingReviewArtifact,
   type ExactMeetingReviewArtifactReader,
@@ -97,6 +99,7 @@ function ports(
 ) {
   const events: string[] = [];
   let durableRecords = [...records];
+  let failConfirmation = false;
   const listForMeeting = vi.fn(() => durableRecords);
   const reader: ExactMeetingReviewArtifactReader = {
     listForMeeting,
@@ -160,6 +163,8 @@ function ports(
       (record) => record.id === input.artifactId
     );
     if (!current) return Promise.reject(new Error('missing artifact'));
+    if (input.status === 'confirmed' && failConfirmation)
+      return Promise.reject(new Error('receipt store unavailable'));
     const updated = {
       ...current,
       delivery: {
@@ -176,12 +181,16 @@ function ports(
     );
     return Promise.resolve(updated);
   });
+  const assertEgressAuthority = vi.fn<RepositoryInput['assertEgressAuthority']>(
+    () => Promise.resolve()
+  );
   const repository = makeExactMeetingNotesReviewRepository({
     meetingId: identity.meetingId,
     client: identity.client,
     artifacts: reader,
     decideArtifact,
     recordDelivery,
+    assertEgressAuthority,
     taskDelivery: task,
     crmDelivery: crm,
     canReadArtifact: () => canReadArtifact,
@@ -198,6 +207,10 @@ function ports(
     approveArtifact: decideArtifact,
     decideArtifact,
     recordDelivery,
+    assertEgressAuthority,
+    failNextConfirmation: () => {
+      failConfirmation = true;
+    },
     events,
   };
 }
@@ -550,5 +563,93 @@ describe('exact meeting notes review reader', () => {
     expect(lane.approveArtifact).not.toHaveBeenCalled();
     expect(lane.recordDelivery).not.toHaveBeenCalled();
     expect(lane.taskCreate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'client selection',
+    'workspace',
+    'firm membership',
+    'private-note visibility',
+    'approved revision',
+  ])(
+    'rechecks live authority after staging and blocks a changed %s before task egress',
+    async () => {
+      const lane = ports();
+      lane.assertEgressAuthority
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new MeetingProposalEgressAuthorityError('live authority changed')
+        );
+      const item = (await lane.repository.list('task'))[0];
+      if (!item) throw new Error('expected task');
+
+      await expect(lane.repository.approve(item)).rejects.toMatchObject({
+        approvalRecorded: true,
+        retryable: false,
+      });
+      expect(lane.taskCreate).not.toHaveBeenCalled();
+      expect((await lane.repository.list('task'))[0]).toMatchObject({
+        delivery: { status: 'failed' },
+      });
+    }
+  );
+
+  it('rechecks authority after CRM staging awaits and before the next provider write', async () => {
+    const lane = ports();
+    lane.crmSaveProposal.mockImplementationOnce(() => {
+      lane.assertEgressAuthority.mockRejectedValueOnce(
+        new MeetingProposalEgressAuthorityError('membership revoked')
+      );
+      return Promise.resolve();
+    });
+    const item = (await lane.repository.list('crm-update'))[0];
+    if (!item) throw new Error('expected CRM update');
+
+    await expect(lane.repository.approve(item)).rejects.toMatchObject({
+      approvalRecorded: true,
+      retryable: false,
+    });
+    expect(lane.crmSaveProposal).toHaveBeenCalledOnce();
+    expect(lane.crmPrepareProposal).not.toHaveBeenCalled();
+    expect(lane.crmApproveProposal).not.toHaveBeenCalled();
+  });
+
+  it('keeps a terminal destination refusal failed and unavailable for retry', async () => {
+    const lane = ports();
+    lane.taskCreate.mockRejectedValueOnce(
+      Object.assign(new Error('permanent refusal'), { retryable: false })
+    );
+    const item = (await lane.repository.list('task'))[0];
+    if (!item) throw new Error('expected task');
+
+    await expect(lane.repository.approve(item)).rejects.toMatchObject({
+      approvalRecorded: true,
+      retryable: false,
+    });
+    const failed = (await lane.repository.list('task'))[0];
+    expect(failed).toMatchObject({ delivery: { status: 'failed' } });
+    if (!failed) throw new Error('expected failed item');
+    await expect(lane.repository.approve(failed)).rejects.toThrow(
+      'cannot be retried'
+    );
+    expect(lane.taskCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces durable outcome-unknown when delivery succeeds but confirmation cannot be saved', async () => {
+    const lane = ports();
+    lane.failNextConfirmation();
+    const item = (await lane.repository.list('task'))[0];
+    if (!item) throw new Error('expected task');
+
+    await expect(lane.repository.approve(item)).rejects.toBeInstanceOf(
+      AmbiguousMeetingProposalDeliveryError
+    );
+    const pending = (await lane.repository.list('task'))[0];
+    expect(pending).toMatchObject({ delivery: { status: 'pending' } });
+    if (!pending) throw new Error('expected pending item');
+    await expect(lane.repository.approve(pending)).rejects.toThrow(
+      'outcome is unknown'
+    );
+    expect(lane.taskCreate).toHaveBeenCalledTimes(1);
   });
 });

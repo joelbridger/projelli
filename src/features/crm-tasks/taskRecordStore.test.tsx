@@ -26,6 +26,7 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
     workspaceRoot: '/workspace',
     error: null,
     canReadMeetingVisibilitySubject: canonical.canReadMeetingVisibilitySubject,
+    getCurrentRecords: () => canonical.records,
   }),
 }));
 vi.mock('@/features/crm-trash', () => ({
@@ -119,6 +120,33 @@ describe('public task record store', () => {
       tagIds: ['tag:review'],
     }));
     expect(canonical.reload).toHaveBeenCalledOnce();
+  });
+
+  it('deduplicates a meeting delivery and recovers when the save reply is lost', async () => {
+    const parent = {
+      kind: 'meeting-artifact' as const,
+      id: 'artifact-1',
+      lineage: 'legacy-unrestricted' as const,
+    };
+    canonical.save.mockImplementationOnce((record) => {
+      canonical.records = [structuredClone(record)];
+      return Promise.reject(new Error('reply lost after save'));
+    });
+    const { result } = renderHook(() => useTaskRecordStore());
+    const input = {
+      title: 'Call the CPA',
+      meetingVisibilityParent: parent,
+      meetingDeliveryKey: 'meeting-delivery-abc123',
+    };
+
+    const recovered = await result.current.create(input);
+    const retried = await result.current.create(input);
+
+    expect(recovered.id).toBe('task-meeting-delivery-abc123');
+    expect(retried.id).toBe(recovered.id);
+    expect(retried.meetingDeliveryKey).toBe('meeting-delivery-abc123');
+    expect(canonical.records).toHaveLength(1);
+    expect(canonical.save).toHaveBeenCalledTimes(1);
   });
 
   it('keeps exact meeting lineage on created tasks and hides excluded or broken chains', async () => {

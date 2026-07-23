@@ -626,6 +626,12 @@ export interface MakeExactMeetingNotesReviewRepositoryInput<
     readonly receipt?: Readonly<Record<string, unknown>>;
     readonly message?: string;
   }) => Promise<ExactMeetingReviewArtifact>;
+  /** Trusted composition callback; re-reads live scope and permission truth. */
+  readonly assertEgressAuthority: (expected: {
+    readonly artifactId: string;
+    readonly proposalRevision: string;
+    readonly deliveryKey: string;
+  }) => void | Promise<void>;
   readonly taskDelivery: ExactMeetingTaskDelivery;
   readonly crmDelivery: NotesReviewCrmDelivery;
   /** Result of the shared meeting-visibility resolver for the current viewer. */
@@ -636,6 +642,7 @@ export interface MakeExactMeetingNotesReviewRepositoryInput<
 /** Approval is durable even when the later destination reports a failure. */
 export class ApprovedMeetingProposalDeliveryError extends Error {
   readonly approvalRecorded = true as const;
+  readonly retryable: boolean;
 
   constructor(cause: unknown) {
     super(
@@ -644,6 +651,26 @@ export class ApprovedMeetingProposalDeliveryError extends Error {
         : 'Approval was recorded, but delivery failed.'
     );
     this.name = 'ApprovedMeetingProposalDeliveryError';
+    this.cause = cause;
+    this.retryable = deliveryFailureStatus(cause) === 'retryable';
+  }
+}
+
+export class MeetingProposalEgressAuthorityError extends Error {
+  readonly retryable = false as const;
+}
+
+export class AmbiguousMeetingProposalDeliveryError extends Error {
+  readonly approvalRecorded = true as const;
+  readonly outcomeUnknown = true as const;
+
+  constructor(cause: unknown) {
+    super(
+      cause instanceof Error
+        ? `Delivery may have succeeded, but its receipt could not be saved: ${cause.message}`
+        : 'Delivery may have succeeded, but its receipt could not be saved.'
+    );
+    this.name = 'AmbiguousMeetingProposalDeliveryError';
     this.cause = cause;
   }
 }
@@ -736,6 +763,12 @@ export function makeExactMeetingNotesReviewRepository<
     }
     if (source.approvalState === 'rejected')
       throw new Error('This proposal was rejected and cannot be delivered.');
+    if (source.delivery?.status === 'failed')
+      throw new Error('This delivery failed permanently and cannot be retried.');
+    if (source.delivery?.status === 'pending')
+      throw new Error(
+        'This delivery outcome is unknown. Check the destination before doing anything else.'
+      );
     const validated = validateEditedProposal(source, edited);
     if (edited.proposalRevision !== source.proposalRevision)
       throw new Error(
@@ -798,19 +831,30 @@ export function makeExactMeetingNotesReviewRepository<
       throw new Error(
         'The approved proposal changed before delivery. Nothing was sent.'
       );
+    await assertLiveEgressAuthority(current, deliveryKey);
 
     let receipt: NotesReviewReceipt;
     try {
       assertCompleteIdentity();
       receipt =
         current.kind === 'task'
-          ? await deliverExactTask(current, input.taskDelivery, deliveryKey)
-          : await deliverExactCrm(current, input.crmDelivery, deliveryKey);
+          ? await deliverExactTask(
+              current,
+              input.taskDelivery,
+              deliveryKey,
+              () => assertLiveEgressAuthority(current, deliveryKey)
+            )
+          : await deliverExactCrm(
+              current,
+              input.crmDelivery,
+              deliveryKey,
+              () => assertLiveEgressAuthority(current, deliveryKey)
+            );
     } catch (error) {
       await input.recordDelivery({
         artifactId: source.artifactId,
         key: deliveryKey,
-        status: 'retryable',
+        status: deliveryFailureStatus(error),
         at: now(),
         attempt,
         message: error instanceof Error ? error.message : 'Delivery failed.',
@@ -820,14 +864,18 @@ export function makeExactMeetingNotesReviewRepository<
     // Confirmation is outside the destination-error catch. If the destination
     // succeeded but this local receipt write fails, the pending state remains
     // deliberately non-retryable; repeating an unknown send would be unsafe.
-    await input.recordDelivery({
-      artifactId: source.artifactId,
-      key: deliveryKey,
-      status: 'confirmed',
-      at: now(),
-      attempt,
-      receipt: { ...receipt, deliveryKey },
-    });
+    try {
+      await input.recordDelivery({
+        artifactId: source.artifactId,
+        key: deliveryKey,
+        status: 'confirmed',
+        at: now(),
+        attempt,
+        receipt: { ...receipt, deliveryKey },
+      });
+    } catch (error) {
+      throw new AmbiguousMeetingProposalDeliveryError(error);
+    }
     return { ...receipt, deliveryKey };
   }
 
@@ -869,6 +917,17 @@ export function makeExactMeetingNotesReviewRepository<
         'This proposal is no longer available. Nothing was changed.'
       );
     return current;
+  }
+
+  async function assertLiveEgressAuthority(
+    item: ExactMeetingNotesReviewItem<Client>,
+    deliveryKey: string
+  ): Promise<void> {
+    await input.assertEgressAuthority({
+      artifactId: item.artifactId,
+      proposalRevision: item.proposalRevision,
+      deliveryKey,
+    });
   }
 
   return { readFacts, list, approve, reject };
@@ -1039,9 +1098,13 @@ function validateEditedProposal<Client extends NotesReviewClientPair>(
 async function deliverExactTask<Client extends NotesReviewClientPair>(
   item: ExactMeetingTaskReviewItem<Client>,
   delivery: ExactMeetingTaskDelivery,
-  deliveryKey: string
+  deliveryKey: string,
+  assertEgressAuthority: () => Promise<void>
 ): Promise<NotesReviewReceipt> {
   const parent = artifactMeetingVisibility(itemArtifact(item));
+  // The repository already rechecked after staging; this is the final check
+  // immediately adjacent to the destination write.
+  await assertEgressAuthority();
   const created = await delivery.create({
     deliveryKey,
     title: item.title,
@@ -1068,7 +1131,8 @@ async function deliverExactTask<Client extends NotesReviewClientPair>(
 async function deliverExactCrm<Client extends NotesReviewClientPair>(
   item: ExactMeetingCrmReviewItem<Client>,
   delivery: NotesReviewCrmDelivery,
-  deliveryKey: string
+  deliveryKey: string,
+  assertEgressAuthority: () => Promise<void>
 ): Promise<NotesReviewReceipt> {
   const parent = artifactMeetingVisibility(itemArtifact(item));
   const receipts: string[] = [];
@@ -1077,6 +1141,7 @@ async function deliverExactCrm<Client extends NotesReviewClientPair>(
       `${deliveryKey}\n${field.field}`
     )}`;
     const requestedAt = new Date().toISOString();
+    await assertEgressAuthority();
     await delivery.saveProposal({
       id: proposalId,
       kind: 'field',
@@ -1091,11 +1156,13 @@ async function deliverExactCrm<Client extends NotesReviewClientPair>(
       finalValue: crmValueForTransport(field.proposed),
       meetingVisibility: meetingVisibilityProposal(proposalId, parent),
     });
+    await assertEgressAuthority();
     await delivery.prepareProposal({
       proposalId,
       householdKey: item.client.householdRef,
       requestedAt,
     });
+    await assertEgressAuthority();
     const result = await delivery.approveProposal(proposalId);
     receipts.push(result.remoteId);
   }
@@ -1105,6 +1172,18 @@ async function deliverExactCrm<Client extends NotesReviewClientPair>(
       receipts.length === 1 ? '' : 's'
     }; receipts ${receipts.join(', ')}).`,
   };
+}
+
+function deliveryFailureStatus(
+  error: unknown
+): 'failed' | 'retryable' {
+  return error instanceof MeetingProposalEgressAuthorityError ||
+    (error &&
+      typeof error === 'object' &&
+      'retryable' in error &&
+      error.retryable === false)
+    ? 'failed'
+    : 'retryable';
 }
 
 function itemArtifact(item: ExactMeetingNotesReviewItem): ExactMeetingReviewArtifact {

@@ -2352,6 +2352,26 @@ const meetingArtifactVisibilityMigrations = new Map<
   string,
   Promise<readonly LiveCrmRecord[]>
 >();
+const meetingArtifactDecisionLocks = new Map<string, Promise<void>>();
+
+async function serializeMeetingArtifactDecision<T>(
+  key: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const prior = meetingArtifactDecisionLocks.get(key) ?? Promise.resolve();
+  const turn = prior.then(operation);
+  const settled = turn.then(
+    () => undefined,
+    () => undefined
+  );
+  meetingArtifactDecisionLocks.set(key, settled);
+  try {
+    return await turn;
+  } finally {
+    if (meetingArtifactDecisionLocks.get(key) === settled)
+      meetingArtifactDecisionLocks.delete(key);
+  }
+}
 
 function runMeetingArtifactVisibilityMigration(
   port: ClientScopedLivePort
@@ -2872,6 +2892,16 @@ export function createMeetingArtifactStore(
     id: MeetingArtifactRef,
     transition: MeetingArtifactTransition
   ): Promise<MeetingArtifact> {
+    return serializeMeetingArtifactDecision(
+      `${port.workspaceRoot ?? 'closed'}\u0000${id}`,
+      () => decideUnlocked(id, transition)
+    );
+  }
+
+  async function decideUnlocked(
+    id: MeetingArtifactRef,
+    transition: MeetingArtifactTransition
+  ): Promise<MeetingArtifact> {
     const expected = scope.requireCurrent('Artifact');
     requireAvailable(port);
     await ensureLegacyVisibilityMigrated();
@@ -2906,7 +2936,7 @@ export function createMeetingArtifactStore(
     if (!base) throw new Error('The artifact disappeared before approval.');
     await persist(
       {
-        id: recordId('meeting-artifact-transition'),
+        id: `meeting-artifact-decision-${artifact.id}`,
         kind: 'meeting_artifact_transition',
         matterId: artifact.matterId,
         householdRef: artifact.householdRef,

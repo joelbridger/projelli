@@ -1146,9 +1146,11 @@ describe('meetings foundation contract', () => {
       provenance: 'local-processing',
       payload: { proposal: { id: 'proposal-2', title: 'Second proposal' } },
     });
-    if (!artifacts.decide || !artifacts.recordDelivery)
+    const decideFailed = artifacts.decide;
+    const recordFailedDelivery = artifacts.recordDelivery;
+    if (!decideFailed || !recordFailedDelivery)
       throw new Error('expected decision and delivery ledger');
-    await artifacts.decide(failedArtifact.id, {
+    await decideFailed(failedArtifact.id, {
       from: 'produced',
       to: 'approved',
       at: '2026-07-20T11:01:00.000Z',
@@ -1156,14 +1158,14 @@ describe('meetings foundation contract', () => {
       proposalRevision: 'revision-2',
       exactProposal: { id: 'proposal-2', title: 'Second proposal' },
     });
-    await artifacts.recordDelivery({
+    await recordFailedDelivery({
       artifactId: failedArtifact.id,
       key: 'delivery-2',
       status: 'pending',
       at: '2026-07-20T11:02:00.000Z',
       attempt: 1,
     });
-    await artifacts.recordDelivery({
+    await recordFailedDelivery({
       artifactId: failedArtifact.id,
       key: 'delivery-2',
       status: 'failed',
@@ -1190,6 +1192,68 @@ describe('meetings foundation contract', () => {
         message: 'Permanent destination refusal',
       },
     });
+  });
+
+  it('serializes simultaneous approve and reject decisions into one stable decision record', async () => {
+    const live = canonicalPort();
+    const client = sealedBoundary('household-1', 'matter-1');
+    const meetings = createMeetingStore({
+      ...live,
+      getActiveClientBoundary: () => client,
+    });
+    const meeting = await meetings.createDraft(draft);
+    const artifacts = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveClientBoundary: () => client,
+    });
+    const artifact = await artifacts.append({
+      meetingId: meeting.id,
+      kind: 'action-update-proposal',
+      schemaVersion: 2,
+      producedAt: '2026-07-20T12:00:00.000Z',
+      sourceRefs: ['meeting:source'],
+      provenance: 'local-processing',
+      payload: { proposal: { id: 'proposal-race' } },
+    });
+    if (!artifacts.decide) throw new Error('expected decision ledger');
+
+    const results = await Promise.allSettled([
+      artifacts.decide(artifact.id, {
+        from: 'produced',
+        to: 'approved',
+        at: '2026-07-20T12:01:00.000Z',
+        decisionId: 'decision-approve',
+        proposalRevision: 'revision-approve',
+        exactProposal: { id: 'proposal-race', title: 'Approve' },
+      }),
+      artifacts.decide(artifact.id, {
+        from: 'produced',
+        to: 'rejected',
+        at: '2026-07-20T12:01:00.000Z',
+        decisionId: 'decision-reject',
+        proposalRevision: 'revision-reject',
+        exactProposal: { id: 'proposal-race', title: 'Reject' },
+      }),
+    ]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    const decisions = live
+      .readCanonical()
+      .filter((record) => record.kind === 'meeting_artifact_transition');
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]?.id).toBe(`meeting-artifact-decision-${artifact.id}`);
+    const reconstructed = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveClientBoundary: () => client,
+    })
+      .readerFor(meetings, client, [
+        { kind: 'action-update-proposal', minimumSchemaVersion: 2 },
+      ])
+      .get(artifact.id);
+    expect(reconstructed?.state).toMatch(/approved|rejected/);
   });
 
   it('cannot construct a client-scoped store without a live resolver, and no-active-client fails closed', async () => {
