@@ -2,10 +2,11 @@
 //! collection-document truth; every other CRM entity table is replaceable.
 
 use anyhow::{bail, Context, Result};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use std::{
     path::{Path, PathBuf},
     sync::Mutex,
+    time::Duration,
 };
 
 use super::{
@@ -50,28 +51,52 @@ fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 
-fn core_master_key() -> Result<[u8; KEY_LEN]> {
-    if let Ok(hex) = std::env::var("LANTERN_HEADLESS_TEST_CRM_CORE_MASTER_KEY_HEX") {
-        let bytes = hex::decode(hex.trim()).context("decode CRM core test master key")?;
-        if bytes.len() != KEY_LEN {
-            bail!("CRM core test master key has wrong length")
-        }
-        let mut key = [0u8; KEY_LEN];
-        key.copy_from_slice(&bytes);
+fn decode_core_master_key(hex: &str, context: &str) -> Result<[u8; KEY_LEN]> {
+    let bytes = hex::decode(hex.trim()).with_context(|| context.to_string())?;
+    if bytes.len() != KEY_LEN {
+        bail!("CRM core master key has wrong length")
+    }
+    let mut key = [0u8; KEY_LEN];
+    key.copy_from_slice(&bytes);
+    Ok(key)
+}
+
+fn test_core_master_key() -> Result<Option<[u8; KEY_LEN]>> {
+    std::env::var("LANTERN_HEADLESS_TEST_CRM_CORE_MASTER_KEY_HEX")
+        .ok()
+        .map(|hex| decode_core_master_key(&hex, "decode CRM core test master key"))
+        .transpose()
+}
+
+/// Reads an already-existing production key. This must stay side-effect free:
+/// callers use it before a read-only database open, where creating a key would
+/// be as surprising as creating the database itself.
+fn existing_core_master_key() -> Result<[u8; KEY_LEN]> {
+    if let Some(key) = test_core_master_key()? {
         return Ok(key);
     }
     let entry = keyring::Entry::new(CORE_KEYCHAIN_SERVICE, CORE_KEYCHAIN_KEY)
         .context("CRM core keychain entry")?;
     match entry.get_password() {
-        Ok(hex) => {
-            let bytes = hex::decode(hex.trim()).context("decode CRM core master key")?;
-            if bytes.len() != KEY_LEN {
-                bail!("stored CRM core master key has wrong length")
-            };
-            let mut key = [0u8; KEY_LEN];
-            key.copy_from_slice(&bytes);
-            Ok(key)
+        Ok(hex) => decode_core_master_key(&hex, "decode CRM core master key"),
+        Err(keyring::Error::NoEntry) => {
+            bail!("CRM core master key is missing; read-only CRM access cannot create one")
         }
+        Err(error) => Err(anyhow::anyhow!("CRM core keychain read: {error}")),
+    }
+}
+
+/// Returns the key for the migration-capable write opening. First write keeps
+/// the historic create-on-first-write behavior; read-only callers must use
+/// `existing_core_master_key` instead.
+fn core_master_key_for_write() -> Result<[u8; KEY_LEN]> {
+    if let Some(key) = test_core_master_key()? {
+        return Ok(key);
+    }
+    let entry = keyring::Entry::new(CORE_KEYCHAIN_SERVICE, CORE_KEYCHAIN_KEY)
+        .context("CRM core keychain entry")?;
+    match entry.get_password() {
+        Ok(hex) => decode_core_master_key(&hex, "decode CRM core master key"),
         Err(keyring::Error::NoEntry) => {
             let mut key = [0; KEY_LEN];
             rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut key);
@@ -94,9 +119,14 @@ impl CrmCoreStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
         crate::commands::data_dir::workspace_data_dir(workspace_root).join("crm-core-enc.db")
     }
+
+    /// Opens the CRM's migration-capable write path. It may create its parent
+    /// directory, create a first database/key, and run CRM migrations.
     pub fn open(workspace_root: &Path) -> Result<Self> {
-        Self::open_with_key(workspace_root, &core_master_key()?)
+        Self::open_with_key(workspace_root, &core_master_key_for_write()?)
     }
+
+    /// Test and migration helper for the migration-capable write path.
     pub fn open_with_key(workspace_root: &Path, key: &[u8; KEY_LEN]) -> Result<Self> {
         let path = Self::db_path(workspace_root);
         if let Some(parent) = path.parent() {
@@ -107,6 +137,33 @@ impl CrmCoreStore {
         conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         migrations::migrate(&conn)?;
+        Ok(Self {
+            conn: Mutex::new(conn),
+            workspace_root: workspace_root.to_path_buf(),
+        })
+    }
+
+    /// Opens an existing CRM core database without creating a key, directory,
+    /// database, sidecar, or migration row. SQLite itself receives the
+    /// read-only flag and additionally refuses mutation through `query_only`.
+    pub fn open_read_only(workspace_root: &Path) -> Result<Self> {
+        Self::open_read_only_with_key(workspace_root, &existing_core_master_key()?)
+    }
+
+    /// Test helper for the same strict read-only opening used in production.
+    pub fn open_read_only_with_key(workspace_root: &Path, key: &[u8; KEY_LEN]) -> Result<Self> {
+        let path = Self::db_path(workspace_root);
+        if !path.is_file() {
+            bail!(
+                "CRM core database does not exist for read-only open: {}",
+                path.display()
+            )
+        }
+        let conn = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .with_context(|| format!("open CRM core database read-only {}", path.display()))?;
+        conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))?;
+        conn.busy_timeout(Duration::from_secs(5))?;
+        conn.pragma_update(None, "query_only", "ON")?;
         Ok(Self {
             conn: Mutex::new(conn),
             workspace_root: workspace_root.to_path_buf(),
@@ -612,7 +669,79 @@ mod tests {
     use crate::commands::crm::core_model::ActorRef;
     use anyhow::bail;
     use serde_json::Value;
+    use std::time::SystemTime;
     use tempfile::TempDir;
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct ReadOnlyDiskEvidence {
+        bytes: Vec<u8>,
+        size: u64,
+        modified: SystemTime,
+        directory_entries: Vec<String>,
+        schema: Vec<String>,
+        migrations: Option<Vec<(i64, String, String)>>,
+    }
+
+    fn schema_and_migrations(
+        store: &CrmCoreStore,
+    ) -> (Vec<String>, Option<Vec<(i64, String, String)>>) {
+        let conn = lock_unpoison(&store.conn);
+        let schema = conn
+            .prepare("SELECT type || ':' || name || ':' || COALESCE(sql, '') FROM sqlite_schema ORDER BY type, name")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<String>>>()
+            .unwrap();
+        let has_migrations = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='crm_migrations')",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+            != 0;
+        let migrations = has_migrations.then(|| {
+            conn.prepare("SELECT version, id, applied_at FROM crm_migrations ORDER BY version")
+                .unwrap()
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<(i64, String, String)>>>()
+                .unwrap()
+        });
+        (schema, migrations)
+    }
+
+    fn disk_evidence(
+        directory: &TempDir,
+        schema: Vec<String>,
+        migrations: Option<Vec<(i64, String, String)>>,
+    ) -> ReadOnlyDiskEvidence {
+        let path = CrmCoreStore::db_path(directory.path());
+        let metadata = std::fs::metadata(&path).unwrap();
+        let mut directory_entries = std::fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        directory_entries.sort();
+        ReadOnlyDiskEvidence {
+            bytes: std::fs::read(path).unwrap(),
+            size: metadata.len(),
+            modified: metadata.modified().unwrap(),
+            directory_entries,
+            schema,
+            migrations,
+        }
+    }
+
+    fn read_only_schema_and_migrations(
+        directory: &TempDir,
+        key: &[u8; KEY_LEN],
+    ) -> (Vec<String>, Option<Vec<(i64, String, String)>>) {
+        let store = CrmCoreStore::open_read_only_with_key(directory.path(), key).unwrap();
+        schema_and_migrations(&store)
+    }
+
     fn store() -> (TempDir, CrmCoreStore) {
         let dir = TempDir::new().unwrap();
         let store = CrmCoreStore::open_with_key(dir.path(), &[7; 32]).unwrap();
@@ -691,6 +820,124 @@ mod tests {
 
         let reopened = CrmCoreStore::open_with_key(directory.path(), &[9; 32]).unwrap();
         assert_eq!(reopened.list_live_records().unwrap(), vec![record]);
+    }
+
+    #[test]
+    fn read_only_missing_workspace_or_database_creates_nothing() {
+        let root = TempDir::new().unwrap();
+        let missing_workspace = root.path().join("missing-workspace");
+        assert!(CrmCoreStore::open_read_only_with_key(&missing_workspace, &[3; 32]).is_err());
+        assert!(!missing_workspace.exists());
+
+        let existing_workspace = root.path().join("existing-workspace");
+        std::fs::create_dir(&existing_workspace).unwrap();
+        assert!(CrmCoreStore::open_read_only_with_key(&existing_workspace, &[3; 32]).is_err());
+        assert!(std::fs::read_dir(&existing_workspace)
+            .unwrap()
+            .next()
+            .is_none());
+    }
+
+    #[test]
+    fn read_only_current_store_lists_records_and_preserves_all_disk_evidence() {
+        let directory = TempDir::new().unwrap();
+        let key = [11; 32];
+        let record = serde_json::json!({
+            "id": "readonly-current-record",
+            "kind": "household",
+            "matterId": "readonly-current-client",
+            "name": "Read-only current store",
+            "updatedAt": "2026-07-23T00:00:00Z"
+        });
+        let writer = CrmCoreStore::open_with_key(directory.path(), &key).unwrap();
+        writer.upsert_live_record(&record).unwrap();
+        writer.set_cursor("readonly-current-stream", 17, 4).unwrap();
+        let (schema, migrations) = schema_and_migrations(&writer);
+        drop(writer);
+
+        let before = disk_evidence(&directory, schema, migrations);
+        for _ in 0..3 {
+            let reader = CrmCoreStore::open_read_only_with_key(directory.path(), &key).unwrap();
+            assert_eq!(reader.list_live_records().unwrap(), vec![record.clone()]);
+            assert_eq!(
+                reader.cursor("readonly-current-stream").unwrap(),
+                Some((17, 4))
+            );
+        }
+        let (schema, migrations) = read_only_schema_and_migrations(&directory, &key);
+        let after = disk_evidence(&directory, schema, migrations);
+        assert_eq!(after, before);
+    }
+
+    #[test]
+    fn read_only_old_schema_store_is_never_migrated() {
+        let directory = TempDir::new().unwrap();
+        let key = [12; 32];
+        let path = CrmCoreStore::db_path(directory.path());
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let legacy = Connection::open(&path).unwrap();
+        legacy
+            .execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))
+            .unwrap();
+        crate::commands::crm::core_schema::apply_baseline(&legacy).unwrap();
+        let record = serde_json::json!({
+            "id": "readonly-legacy-record",
+            "kind": "futureFeature",
+            "matterId": "readonly-legacy-client",
+            "label": "Old schema stays old",
+            "updatedAt": "2026-07-23T00:00:00Z"
+        });
+        legacy
+            .execute(
+                "INSERT INTO crm_docs(doc_key,matter_id,doc_id,yjs_state,state_vector,updated_at,deleted) VALUES(?1,?2,?3,?4,?5,?6,0)",
+                (
+                    "readonly-legacy-client/live:readonly-legacy-record",
+                    "readonly-legacy-client",
+                    "live:readonly-legacy-record",
+                    serde_json::to_vec(&record).unwrap(),
+                    Vec::<u8>::new(),
+                    "2026-07-23T00:00:00Z",
+                ),
+            )
+            .unwrap();
+        let legacy_store = CrmCoreStore {
+            conn: Mutex::new(legacy),
+            workspace_root: directory.path().to_path_buf(),
+        };
+        let (schema, migrations) = schema_and_migrations(&legacy_store);
+        assert!(migrations.is_none());
+        drop(legacy_store);
+
+        let before = disk_evidence(&directory, schema, migrations);
+        for _ in 0..3 {
+            let reader = CrmCoreStore::open_read_only_with_key(directory.path(), &key).unwrap();
+            assert_eq!(reader.list_live_records().unwrap(), vec![record.clone()]);
+        }
+        let (schema, migrations) = read_only_schema_and_migrations(&directory, &key);
+        let after = disk_evidence(&directory, schema, migrations);
+        assert_eq!(after, before);
+        assert!(after.migrations.is_none());
+    }
+
+    #[test]
+    fn read_only_handle_refuses_mutation_and_persists_nothing() {
+        let directory = TempDir::new().unwrap();
+        let key = [13; 32];
+        let writer = CrmCoreStore::open_with_key(directory.path(), &key).unwrap();
+        let (schema, migrations) = schema_and_migrations(&writer);
+        drop(writer);
+        let before = disk_evidence(&directory, schema, migrations);
+
+        let reader = CrmCoreStore::open_read_only_with_key(directory.path(), &key).unwrap();
+        assert!(reader.set_cursor("forbidden-write", 1, 0).is_err());
+        drop(reader);
+
+        let reader = CrmCoreStore::open_read_only_with_key(directory.path(), &key).unwrap();
+        assert_eq!(reader.cursor("forbidden-write").unwrap(), None);
+        let (schema, migrations) = schema_and_migrations(&reader);
+        drop(reader);
+        let after = disk_evidence(&directory, schema, migrations);
+        assert_eq!(after, before);
     }
 
     fn validate_projected_record(record: &Value) -> Result<()> {

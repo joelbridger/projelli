@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "lane": "m3-foundation-a-readonly-crm-open-20260723",
+  "contract_sha256": "be1d34ecf4b01775b2570956288300a94e137111faa913293d3801b5fb7bb50b",
+  "base_revision": "443238e6b49b608bef88e2cd51c923b07a5a3a1e",
+  "changed_files": [
+    "bench-evidence/2026-07-23-m3-readonly-crm-open/receipt.json",
+    "scripts/verify-m3-readonly-crm-open.sh",
+    "src-tauri/src/commands/crm/core_commands.rs",
+    "src-tauri/src/commands/crm/core_store.rs"
+  ],
+  "implementation": {
+    "read_only_open": "CrmCoreStore::open_read_only uses SQLite SQLITE_OPEN_READ_ONLY, SQLCipher PRAGMA key, a five-second busy timeout, and PRAGMA query_only=ON. It refuses a missing database and does not create directories, keys, sidecars, or migration rows.",
+    "command_routing": [
+      "crm_core_cursor",
+      "crm_live_list"
+    ],
+    "write_open": "CrmCoreStore::open remains the documented migration-capable write opening."
+  },
+  "focused_verification": {
+    "command": "bash scripts/verify-m3-readonly-crm-open.sh",
+    "output": "4 passed; 0 failed; focused SQLCipher tests completed, followed sequentially by cargo check --lib (finished successfully).",
+    "proved": [
+      "a missing workspace or database remains absent after a read-only attempt",
+      "a current encrypted store lists records and returns its cursor",
+      "an old encrypted baseline store remains old across repeated read-only opens",
+      "after all write handles close, schema, migration rows, database bytes, size, mtime, and directory entries remain unchanged across repeated reads",
+      "a mutation through a read-only handle fails and leaves no persisted cursor"
+    ]
+  },
+  "temporary_helpers": {
+    "sources": {
+      "/home/jameson/lantern/app/integration/src-tauri/binaries/piper-x86_64-unknown-linux-gnu": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b",
+      "/home/jameson/lantern/app/integration/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77"
+    },
+    "targets": [
+      "src-tauri/binaries/piper-x86_64-unknown-linux-gnu",
+      "src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu"
+    ],
+    "removal": "The verification script hashes both sources before linking, installs its EXIT cleanup trap before either link, runs the focused test then compile check sequentially, and removed both targets afterward."
+  },
+  "scope_exclusions": [
+    "No search, feature readers, workspace authority, Tasks, Hendricks, providers, UI, migration redesign, or second database changed.",
+    "Only crm_core_cursor and crm_live_list route through open_read_only; record-applied, propagation, upserts, imports, search/index, merge, activity, teams/roles, trash, and migration commands remain on the migration-capable write path."
+  ],
+  "windows": {
+    "status": "NOT_RUN",
+    "reason": "This native SQLCipher foundation has Linux focused-test and compile proof only; Windows behavior remains unproven."
+  }
+}
