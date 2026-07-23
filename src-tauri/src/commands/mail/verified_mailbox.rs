@@ -59,19 +59,29 @@ impl MailboxState {
 #[derive(Debug)]
 pub(super) struct VerifiedMailboxEvidence {
     canonical_address: String,
-    display_name: String,
+    display_name: Option<String>,
+    user_principal_name: Option<String>,
     verified_at: String,
     verified_source: String,
 }
 
 impl VerifiedMailboxEvidence {
     fn display_label(&self) -> String {
-        format!("{} — {}", self.display_name, self.canonical_address)
+        let label = self
+            .display_name
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| {
+                self.user_principal_name
+                    .as_deref()
+                    .filter(|value| !value.trim().is_empty())
+            })
+            .unwrap_or(&self.canonical_address);
+        format!("{label} — {}", self.canonical_address)
     }
     fn validate(&self) -> Result<()> {
         for value in [
             &self.canonical_address,
-            &self.display_name,
             &self.verified_at,
             &self.verified_source,
         ] {
@@ -413,9 +423,19 @@ pub(super) fn reload_exact_current_mailbox_for_expected(
 
 #[cfg(test)]
 pub(super) fn test_only_evidence(address: &str) -> VerifiedMailboxEvidence {
+    test_only_evidence_with_labels(address, Some("Ada Advisor"), Some("ada-upn"))
+}
+
+#[cfg(test)]
+pub(super) fn test_only_evidence_with_labels(
+    address: &str,
+    display_name: Option<&str>,
+    user_principal_name: Option<&str>,
+) -> VerifiedMailboxEvidence {
     VerifiedMailboxEvidence {
         canonical_address: address.to_string(),
-        display_name: "Ada Advisor".to_string(),
+        display_name: display_name.map(str::to_string),
+        user_principal_name: user_principal_name.map(str::to_string),
         verified_at: "2026-07-23T00:00:00Z".to_string(),
         verified_source: "native-proof".to_string(),
     }
@@ -581,5 +601,68 @@ mod tests {
         assert!(MailboxState::Unverified.can_transition_to(MailboxState::Verified));
         assert!(!MailboxState::Verified.can_transition_to(MailboxState::Verified));
         assert!(!MailboxState::Stale.can_transition_to(MailboxState::Verified));
+    }
+
+    #[test]
+    fn m4_mailbox_identity_uses_only_a_provider_returned_address_and_honest_label_fallbacks() {
+        let (dir, primary_store) = store();
+        let workspace = test_only_current_workspace_authority("native-labels", 1);
+        let credential = test_only_credential(M4CredentialProvider::Microsoft, "subject-labels", 1);
+        let named = register_current_verified_mailbox(
+            &primary_store,
+            &workspace,
+            &credential,
+            &test_only_evidence_with_labels(
+                "returned@example.com",
+                Some("Returned Name"),
+                Some("returned-upn"),
+            ),
+        )
+        .unwrap();
+        assert_eq!(named.0.canonical_address, "returned@example.com");
+        assert_eq!(
+            named.display_label(),
+            "Returned Name — returned@example.com"
+        );
+        drop(primary_store);
+
+        let fallback_store = CrmCoreStore::open_with_key(dir.path(), &[31; 32]).unwrap();
+        assert_eq!(
+            load_current_verified_mailbox(
+                &fallback_store,
+                &workspace,
+                M4CredentialProvider::Microsoft
+            )
+            .unwrap()
+            .unwrap()
+            .0
+            .canonical_address,
+            "returned@example.com"
+        );
+
+        let (other_dir, other_store) = store();
+        let other_workspace = test_only_current_workspace_authority("native-upn", 1);
+        let other_credential =
+            test_only_credential(M4CredentialProvider::Microsoft, "subject-upn", 1);
+        let upn_label = register_current_verified_mailbox(
+            &other_store,
+            &other_workspace,
+            &other_credential,
+            &test_only_evidence_with_labels("real@example.com", None, Some("label-only-upn")),
+        )
+        .unwrap();
+        assert_eq!(
+            upn_label.display_label(),
+            "label-only-upn — real@example.com"
+        );
+        assert!(register_current_verified_mailbox(
+            &other_store,
+            &test_only_current_workspace_authority("native-no-address", 1),
+            &test_only_credential(M4CredentialProvider::Microsoft, "subject-no-address", 1),
+            &test_only_evidence_with_labels("label-only-upn", None, Some("label-only-upn")),
+        )
+        .is_err());
+        drop(other_store);
+        drop(other_dir);
     }
 }
