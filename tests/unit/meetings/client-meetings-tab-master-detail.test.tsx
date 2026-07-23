@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
 import {
@@ -12,6 +12,16 @@ import { createLegacyUnrestrictedMeetingFileVisibilityManifest } from '@/feature
 const meetingBoundaryMint = vi.hoisted(() => ({
   selection: null as null | { householdRef: string; matterId: string },
 }));
+const ensureMeetingNoticeVerifiedMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@/features/meetings/meetingStore', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/features/meetings/meetingStore')>();
+  return {
+    ...actual,
+    ensureMeetingNoticeVerified: ensureMeetingNoticeVerifiedMock,
+  };
+});
 
 vi.mock('@/platform/client-context', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/client-context')>();
@@ -54,6 +64,8 @@ function mintedBoundary(
 const clientBoundary = mintedBoundary('household-acme', 'm1');
 
 beforeEach(() => {
+  ensureMeetingNoticeVerifiedMock.mockReset();
+  ensureMeetingNoticeVerifiedMock.mockResolvedValue(false);
   useMatterStore.setState({
     matters: [{
       id: 'm1',
@@ -146,7 +158,85 @@ function makeWorkspace() {
   };
 }
 
+function meetingsScanCount(workspace: ReturnType<typeof makeWorkspace>): number {
+  return workspace.list.mock.calls.filter(
+    ([path]) => typeof path === 'string' && path.endsWith('/Meetings')
+  ).length;
+}
+
 describe('ClientMeetingsTab — master-detail rail', () => {
+  it('keeps a selected meeting open when mount verification makes no durable change', async () => {
+    const workspace = makeWorkspace();
+    render(
+      <ClientMeetingsTab
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => clientBoundary}
+        matterFolder="C:/WS/Clients/Acme"
+        workspaceService={workspace as never}
+      />
+    );
+
+    await screen.findByTestId('meeting-entry');
+    await waitFor(() =>
+      expect(ensureMeetingNoticeVerifiedMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+    );
+    const scansBeforeSelection = meetingsScanCount(workspace);
+    const rows = await screen.findAllByTestId('meeting-row');
+    fireEvent.click(rows[1]!);
+    await waitFor(() =>
+      expect(rows[1]).toHaveAttribute('aria-selected', 'true')
+    );
+    const selectedDetail = screen.getByTestId('meeting-entry');
+    await waitFor(() =>
+      expect(
+        within(selectedDetail).getByText('Annual review')
+      ).toBeVisible()
+    );
+    expect(screen.getByTestId('meeting-entry')).toBe(selectedDetail);
+    expect(meetingsScanCount(workspace)).toBe(scansBeforeSelection);
+    expect(ensureMeetingNoticeVerifiedMock).toHaveBeenCalled();
+  });
+
+  it('refreshes exactly once after a real notice write and preserves the selected detail host', async () => {
+    let releaseDurableNotice: ((changed: boolean) => void) | undefined;
+    const durableNotice = new Promise<boolean>((resolve) => {
+      releaseDurableNotice = resolve;
+    });
+    ensureMeetingNoticeVerifiedMock
+      .mockReturnValueOnce(durableNotice)
+      .mockResolvedValue(false);
+    const workspace = makeWorkspace();
+    render(
+      <ClientMeetingsTab
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => clientBoundary}
+        matterFolder="C:/WS/Clients/Acme"
+        workspaceService={workspace as never}
+      />
+    );
+
+    const detail = await screen.findByTestId('meeting-entry');
+    await waitFor(() =>
+      expect(ensureMeetingNoticeVerifiedMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+    );
+    const scansBeforeDurableChange = meetingsScanCount(workspace);
+    await act(async () => {
+      releaseDurableNotice?.(true);
+      await durableNotice;
+    });
+    // One adapter refresh reads the Meetings directory twice: once for the
+    // visibility migration check and once for the authorized row scan.
+    await waitFor(() =>
+      expect(meetingsScanCount(workspace)).toBe(scansBeforeDurableChange + 2)
+    );
+    expect(screen.getByTestId('meeting-entry')).toBe(detail);
+    expect(screen.getAllByTestId('meeting-row')[0]).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    expect(ensureMeetingNoticeVerifiedMock).toHaveBeenCalled();
+  });
+
   it('puts meetings in the left rail and shows the selected meeting detail on the right', async () => {
     render(
       <ClientMeetingsTab

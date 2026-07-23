@@ -506,9 +506,12 @@ function MeetingEntryHost({
     const token = ++noticeLoadToken.current;
     setNotices([]);
     void (async () => {
-      await ensureMeetingNoticeVerified(meetingDir, matterId);
+      const noticeChanged = await ensureMeetingNoticeVerified(
+        meetingDir,
+        matterId
+      );
       await loadNotices(token);
-      onChanged?.();
+      if (noticeChanged) onChanged?.();
     })().catch(() => {
       if (token === noticeLoadToken.current) setNotices([]);
     });

@@ -926,15 +926,15 @@ function noticeLocaleFromLanguage(lang: string | undefined): NoticeLocale {
 export async function ensureMeetingNoticeVerified(
   meetingDir: string,
   matterId: string
-): Promise<void> {
+): Promise<boolean> {
   const ws = activeWorkspaceService;
-  if (!ws || !meetingDir || !matterId) return;
-  if (!(await meetingFilesVisible(meetingDir, ['transcript.json']))) return;
+  if (!ws || !meetingDir || !matterId) return false;
+  if (!(await meetingFilesVisible(meetingDir, ['transcript.json']))) return false;
   let matterFolder: string;
   try {
     matterFolder = resolveMatterFolder(matterId);
   } catch {
-    return; // no folder on disk — nothing to verify against.
+    return false; // no folder on disk — nothing to verify against.
   }
   const ledger = makeConsentLedger(ws, () => matterFolder);
   // Prefer the script/locale captured at recording start; fall back to current
@@ -961,9 +961,10 @@ export async function ensureMeetingNoticeVerified(
     ...(custom ? { customPhrases: [custom] } : {}),
   };
   try {
-    await ensureNoticeVerified(meetingDir, deps);
+    return await ensureNoticeVerified(meetingDir, deps);
   } catch {
     // best-effort — verification never blocks capture or notes.
+    return false;
   }
 }
 
