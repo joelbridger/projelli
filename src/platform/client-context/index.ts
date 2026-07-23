@@ -41,6 +41,7 @@ export {
   resolveSelectionOperationDecision,
   useSelectionOperationDecision,
   type ExpectedSelectionScope,
+  type ClientScopedSelectionOperationDecision,
   type SelectionOperationClass,
   type SelectionOperationDecision,
   type SelectionOperationRequest,

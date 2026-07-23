@@ -93,6 +93,32 @@ function samplePopulation(): MeetingPopulationService {
       return next;
     },
     openTarget: async () => { throw new Error('Not needed.'); },
+    captureActiveClientOperation: () => ({
+      assertStable: () => undefined,
+      createForActiveClient: async (draft) => {
+        const meeting = canonical(draft);
+        records.push(meeting);
+        return meeting;
+      },
+      findByReference: async (reference) =>
+        records.find((meeting) => meeting.references.includes(reference)),
+      transition: async (id, transition: MeetingLifecycleTransition) => {
+        const index = records.findIndex((meeting) => meeting.id === id);
+        const current = records[index];
+        if (!current || current.state !== transition.from) throw new Error('Illegal sample transition.');
+        const next = { ...current, state: transition.to, updatedAt: transition.at };
+        records[index] = next;
+        return next;
+      },
+      linkLegacy: async (id, legacy: LegacyMeetingLinkInput) => {
+        const index = records.findIndex((meeting) => meeting.id === id);
+        const current = records[index];
+        if (!current) throw new Error('Missing canonical sample meeting.');
+        const next = { ...current, legacyLink: { ...legacy, linkedAt: current.createdAt } };
+        records[index] = next;
+        return next;
+      },
+    }),
   };
 }
 
@@ -236,9 +262,13 @@ describe('seedSampleGoldenPath', () => {
   it('writes no sample files when canonical creation fails', async () => {
     const workspace = new InMemoryWorkspace();
     const population = samplePopulation();
-    population.createForActiveClient = async () => {
-      throw new Error('canonical create failed');
-    };
+    const operation = population.captureActiveClientOperation();
+    population.captureActiveClientOperation = () => ({
+      ...operation,
+      createForActiveClient: async () => {
+        throw new Error('canonical create failed');
+      },
+    });
 
     await expect(
       seedSampleGoldenPath(
@@ -258,10 +288,16 @@ describe('seedSampleGoldenPath', () => {
   it('keeps a persisted draft and finishes exactly one meeting after a link retry', async () => {
     const workspace = new InMemoryWorkspace();
     const population = samplePopulation();
-    const create = vi.spyOn(population, 'createForActiveClient');
-    const link = vi.spyOn(population, 'linkLegacy');
+    const operation = population.captureActiveClientOperation();
+    const create = vi.fn(operation.createForActiveClient);
+    const link = vi.fn(operation.linkLegacy);
     link.mockImplementationOnce(async () => {
       throw new Error('legacy link failed');
+    });
+    population.captureActiveClientOperation = () => ({
+      ...operation,
+      createForActiveClient: create,
+      linkLegacy: link,
     });
 
     await expect(

@@ -488,6 +488,28 @@ export interface MeetingPopulationService {
     legacy: LegacyMeetingLinkInput
   ): Promise<MeetingRecord>;
   openTarget(meetingId: MeetingRef): Promise<MeetingOpenTarget>;
+  /**
+   * Captures the live, authority-minted client selection once for a multi-step
+   * population flow. Every method verifies that exact generation before and
+   * after its asynchronous work, so an A → B → A change cannot resume writes.
+   */
+  captureActiveClientOperation(): ActiveClientMeetingPopulationOperation;
+}
+
+/** A sealed-in-closure population session; callers never supply a client pair. */
+export interface ActiveClientMeetingPopulationOperation {
+  /** Recheck the captured selection before a non-CRM write in the same flow. */
+  assertStable(): void;
+  createForActiveClient(draft: ActiveClientMeetingDraft): Promise<MeetingRecord>;
+  findByReference(reference: string): Promise<MeetingRecord | undefined>;
+  transition(
+    meetingId: MeetingRef,
+    transition: MeetingLifecycleTransition
+  ): Promise<MeetingRecord>;
+  linkLegacy(
+    meetingId: MeetingRef,
+    legacy: LegacyMeetingLinkInput
+  ): Promise<MeetingRecord>;
 }
 
 /**
@@ -1975,6 +1997,50 @@ export function createMeetingPopulationService(
         meetingId,
         port.getActiveClientBoundary
       ),
+    captureActiveClientOperation: () => {
+      // This is the only capture point. `requireCurrent` reads the same live
+      // selection authority that normal Meetings actions use; the boundary is
+      // held privately and cannot be replaced with a caller-built pair.
+      const expected = scope.requireCurrent('Meeting');
+      const assertStable = () => {
+        scope.assertStable(expected, 'Meeting');
+      };
+      return Object.freeze({
+        assertStable,
+        createForActiveClient: async (draft) => {
+          assertStable();
+          const created = await store.createDraft({
+            ...draft,
+            householdRef: expected.householdRef,
+            matterId: expected.matterId,
+          });
+          assertStable();
+          return created;
+        },
+        findByReference: async (reference) => {
+          assertStable();
+          const exactReference = nonEmpty(reference, 'Meeting reference');
+          requireAvailable(port);
+          const fresh = await port.reloadRecords();
+          assertStable();
+          return meetingRecords(fresh ?? [])
+            .filter((meeting) => scope.owns(meeting))
+            .find((meeting) => meeting.references.includes(exactReference));
+        },
+        transition: async (meetingId, transition) => {
+          assertStable();
+          const transitioned = await store.transition(meetingId, transition);
+          assertStable();
+          return transitioned;
+        },
+        linkLegacy: async (meetingId, legacy) => {
+          assertStable();
+          const linked = await store.linkLegacy(meetingId, legacy);
+          assertStable();
+          return linked;
+        },
+      } satisfies ActiveClientMeetingPopulationOperation);
+    },
   };
 }
 

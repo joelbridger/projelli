@@ -152,9 +152,12 @@ import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMat
 import {
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,
+  issueSharedClientSelection,
   publishLocalSampleHousehold,
+  readSelectionOperationDecision,
   readSelectionPresentation,
   requestMatterScopeSelection,
+  requestSharedClientSelection,
   useSelectionPresentation,
 } from '@/platform/client-context';
 import {
@@ -1558,6 +1561,33 @@ function AppShell() {
             displayName: 'The Hendricks Household',
           });
           await seedSampleClientMap(matter.id);
+          // Publishing a directory does not select it. Ask the existing
+          // authority to resolve this exact household to its one live sample
+          // matter, then wait for the follower that powers CRM/Meetings to
+          // converge before the deferred canonical seed is allowed to start.
+          const selected = await requestSharedClientSelection(
+            issueSharedClientSelection({
+              provider: 'wealthbox',
+              householdId: 'sample-hendricks-household',
+              displayName: 'The Hendricks Household',
+            })
+          );
+          if (selected.kind !== 'selected') {
+            throw new Error('The Hendricks sample client could not be selected safely.');
+          }
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          const readySelection = readSelectionOperationDecision({
+            operationClass: 'client-scoped',
+            allowAllMatters: false,
+            requireFollowerAgreement: true,
+          });
+          if (
+            readySelection.kind !== 'matter' ||
+            readySelection.matter.id !== matter.id ||
+            readySelection.client?.householdId !== 'sample-hendricks-household'
+          ) {
+            throw new Error('The Hendricks sample client is not ready yet. Try again.');
+          }
           setPendingSampleMeetingSeed({ matterId: matter.id, root, service });
           setSidebarActiveTab('matters');
           // NB: the setup-progress Client Map count intentionally EXCLUDES sample

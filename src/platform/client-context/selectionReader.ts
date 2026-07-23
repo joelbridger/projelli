@@ -64,13 +64,26 @@ export type SelectionOperationDecision =
       readonly message: string;
     };
 
+/** A client-scoped action can only proceed with an authority-minted generation. */
+export type ClientScopedSelectionOperationDecision =
+  | {
+      readonly kind: 'matter';
+      readonly sourceKind: 'matter';
+      readonly matter: Matter;
+      readonly client: SharedClientIdentity;
+      /** A matching pair after A → B → A is still a new authority. */
+      readonly selectionGeneration: number;
+    }
+  | Extract<SelectionOperationDecision, { readonly kind: 'refused' }>;
+
 interface SelectionReaderSnapshot {
   readonly client: SharedClientIdentity | null;
   readonly scope: MatterScopeSelection;
   readonly followerStatus: ClientContextState['followerStatus'];
   readonly matters: Matter[];
   readonly activeMatterId: string | null;
-  readonly selectionGeneration?: number;
+  /** Always minted by the existing selection authority with a successful decision. */
+  readonly selectionGeneration: number;
 }
 
 const refusalMessages: Record<SelectionRefusalReason, string> = {
@@ -144,7 +157,7 @@ export function resolveSelectionOperationDecision(
         ? {
             kind: 'all-matters',
             client: snapshot.client,
-            selectionGeneration: snapshot.selectionGeneration ?? 0,
+            selectionGeneration: snapshot.selectionGeneration,
           }
         : refused('all-matters-not-allowed');
     case 'matter-only': {
@@ -156,7 +169,7 @@ export function resolveSelectionOperationDecision(
             sourceKind: 'matter-only',
             matter,
             client: null,
-            selectionGeneration: snapshot.selectionGeneration ?? 0,
+            selectionGeneration: snapshot.selectionGeneration,
           }
         : refused('matter-missing-or-archived');
     }
@@ -171,7 +184,7 @@ export function resolveSelectionOperationDecision(
         sourceKind: 'matter',
         matter,
         client: snapshot.client,
-        selectionGeneration: snapshot.selectionGeneration ?? 0,
+        selectionGeneration: snapshot.selectionGeneration,
       };
     }
   }
@@ -195,12 +208,28 @@ function currentReaderSnapshot(): SelectionReaderSnapshot {
 
 /** Re-read current source + live data immediately before a sensitive operation. */
 export function readSelectionOperationDecision(
+  request: SelectionOperationRequest & {
+    readonly operationClass: 'client-scoped';
+  },
+): ClientScopedSelectionOperationDecision;
+export function readSelectionOperationDecision(
+  request: SelectionOperationRequest,
+): SelectionOperationDecision;
+export function readSelectionOperationDecision(
   request: SelectionOperationRequest,
 ): SelectionOperationDecision {
   return resolveSelectionOperationDecision(currentReaderSnapshot(), request);
 }
 
 /** Reactive T1 reader. It never derives an arm from the legacy follower. */
+export function useSelectionOperationDecision(
+  request: SelectionOperationRequest & {
+    readonly operationClass: 'client-scoped';
+  },
+): ClientScopedSelectionOperationDecision;
+export function useSelectionOperationDecision(
+  request: SelectionOperationRequest,
+): SelectionOperationDecision;
 export function useSelectionOperationDecision(
   request: SelectionOperationRequest,
 ): SelectionOperationDecision {

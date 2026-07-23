@@ -9,6 +9,7 @@ import type { MeetingMeta } from '@/features/meetings/meetingStore';
 import type { MeetingBriefBullet } from '@/features/meetings/generateBrief';
 import {
   createAccountlessUnrestrictedMeetingFileVisibilityManifest,
+  type ActiveClientMeetingPopulationOperation,
   type MeetingPopulationService,
   type SealedMeetingClientBoundary,
 } from '@/features/meetings';
@@ -289,16 +290,16 @@ async function preservedMeetingVisibility(
 }
 
 async function ensureCanonicalSampleMeeting(
-  population: MeetingPopulationService,
+  operation: ActiveClientMeetingPopulationOperation,
   workspaceRoot: string
 ): Promise<Awaited<ReturnType<MeetingPopulationService['findByReference']>>> {
-  let meeting = await population.findByReference(SAMPLE_CRM_SOURCE_REF);
+  let meeting = await operation.findByReference(SAMPLE_CRM_SOURCE_REF);
   if (meeting) {
     return meeting;
   } else {
     // The population service, not this seed, derives the household + matter
     // from the live selected-client boundary immediately before it writes.
-    meeting = await population.createForActiveClient(
+    meeting = await operation.createForActiveClient(
       {
         workspaceId: workspaceRoot,
         typeId: 'annual-review',
@@ -374,11 +375,11 @@ function isPreservableSampleVisibility(value: unknown): value is MeetingFileVisi
 }
 
 async function completeCanonicalSampleMeeting(
-  population: MeetingPopulationService,
+  operation: ActiveClientMeetingPopulationOperation,
   meeting: NonNullable<Awaited<ReturnType<MeetingPopulationService['findByReference']>>>
 ): Promise<void> {
   const meetingDir = `Meetings/${SAMPLE_MEETING_FOLDER}`;
-  meeting = await population.linkLegacy(meeting.id, { meetingDir });
+  meeting = await operation.linkLegacy(meeting.id, { meetingDir });
 
   while (meeting.state !== 'completed') {
     const transition = (() => {
@@ -393,7 +394,7 @@ async function completeCanonicalSampleMeeting(
           throw new Error('The canonical Hendricks meeting is not completable.');
       }
     })();
-    meeting = await population.transition(meeting.id, transition);
+    meeting = await operation.transition(meeting.id, transition);
   }
 }
 
@@ -403,33 +404,43 @@ export async function seedSampleGoldenPath(
   matterId: string,
   population: MeetingPopulationService
 ): Promise<void> {
+  // Capture once from the existing authority. The operation keeps this exact
+  // generation private and rejects a selection change before every later write.
+  const operation = population.captureActiveClientOperation();
   const meetingDir = `${workspaceRoot.replace(/[\\/]+$/, '')}/Meetings/${SAMPLE_MEETING_FOLDER}`;
   const visibility = await preservedMeetingVisibility(
     workspace,
     `${meetingDir}/meeting.json`
   );
+  operation.assertStable();
   // Create the canonical record before any workspace file. A failed create
   // therefore cannot leave sample material in the previously open workspace.
-  const canonical = await ensureCanonicalSampleMeeting(population, workspaceRoot);
+  const canonical = await ensureCanonicalSampleMeeting(operation, workspaceRoot);
   if (!canonical) throw new Error('The canonical Hendricks meeting could not be found.');
+  operation.assertStable();
   await workspace.writeFile(
     `${meetingDir}/meeting.json`,
     JSON.stringify(sampleMeetingMeta(matterId, visibility), null, 2)
   );
+  operation.assertStable();
   await workspace.writeFile(
     `${meetingDir}/transcript.json`,
     JSON.stringify(sampleTranscript(matterId), null, 2)
   );
+  operation.assertStable();
   const notesBytes = await markdownToDocxBytes(
     sampleMeetingNotesMarkdown(),
     'notes.docx'
   );
+  operation.assertStable();
   await workspace.writeFileBinary(
     `${meetingDir}/notes.docx`,
     exactBuffer(notesBytes)
   );
 
-  await completeCanonicalSampleMeeting(population, canonical);
+  operation.assertStable();
+  await completeCanonicalSampleMeeting(operation, canonical);
+  operation.assertStable();
   const sample = sampleBrief(workspaceRoot, matterId);
   useBriefStore.getState().upsert(sample.identity, sample.brief);
   seedSampleCrmApproval(matterId);

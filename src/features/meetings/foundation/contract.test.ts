@@ -248,6 +248,40 @@ describe('meetings foundation contract', () => {
     expect(live.commands).toEqual([]);
   });
 
+  it('refuses an A-to-B-to-A change between population find and link before another write', async () => {
+    const live = canonicalPort();
+    let generation = 1;
+    const activeBoundary = () =>
+      sealedBoundary('household-1', 'matter-1', generation);
+    const created = await createMeetingStore({
+      ...live,
+      getActiveClientBoundary: activeBoundary,
+    }).createDraft(draft);
+    live.commands.length = 0;
+
+    const service = createMeetingPopulationService({
+      ...live,
+      records: live.readCanonical(),
+      getActiveClientBoundary: activeBoundary,
+      reloadRecords: async () => {
+        // The pair returns to A, but a new authority generation proves that
+        // this is not the selection captured by the population session.
+        generation = 2;
+        generation = 3;
+        return live.readCanonical();
+      },
+    });
+    const operation = service.captureActiveClientOperation();
+
+    await expect(operation.findByReference('existing')).rejects.toThrow(
+      'client changed'
+    );
+    await expect(
+      operation.linkLegacy(created.id, { meetingDir: LEGACY_DIR })
+    ).rejects.toThrow('client changed');
+    expect(live.commands).toEqual([]);
+  });
+
   it('rechecks the live firm viewer and freshly reloaded policy before artifact actions', async () => {
     const live = canonicalPort();
     await createMeetingFoundationPreferencesStore(live).save({
