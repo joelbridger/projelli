@@ -24,11 +24,12 @@ vi.mock('@/platform/client-context', async (importOriginal) => {
             kind: 'matter' as const,
             sourceKind: 'matter' as const,
             matter: { id: selection.matterId } as Matter,
-            client: {
-              provider: 'wealthbox' as const,
-              householdId: selection.householdRef,
-              displayName: selection.displayName,
-            },
+              client: {
+                provider: 'wealthbox' as const,
+                householdId: selection.householdRef,
+                displayName: selection.displayName,
+              },
+              selectionGeneration: 1,
           }
         : actual.readSelectionOperationDecision(request);
     },

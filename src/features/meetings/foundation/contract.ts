@@ -109,7 +109,9 @@ export function verifyLiveMeetingClientBoundary(
   return (
     liveMeetingClientBoundaries.has(value) &&
     isCompleteTrimmedString(value.householdRef) &&
-    isCompleteTrimmedString(value.matterId)
+    isCompleteTrimmedString(value.matterId) &&
+    Number.isSafeInteger(value.selectionGeneration) &&
+    value.selectionGeneration >= 0
   );
 }
 
@@ -117,10 +119,17 @@ function boundaryFromSelection(
   selection: ReturnType<typeof readAuthoritativeMeetingSelection>
 ): SealedMeetingClientBoundary | null {
   if (selection.kind !== 'matter' || !selection.client) return null;
+  const selectionGeneration = selection.selectionGeneration;
+  if (
+    typeof selectionGeneration !== 'number' ||
+    !Number.isSafeInteger(selectionGeneration) ||
+    selectionGeneration < 0
+  ) return null;
   const boundary = Object.freeze({
     householdRef: selection.client.householdId,
     matterId: selection.matter.id,
     displayName: selection.client.displayName,
+    selectionGeneration,
   }) as SealedMeetingClientBoundary;
   if (
     !isCompleteTrimmedString(boundary.householdRef) ||
@@ -167,6 +176,8 @@ declare const sealedMeetingClientBoundaryBrand: unique symbol;
 export interface SealedMeetingClientBoundary extends Readonly<ClientBoundary> {
   /** Compile-time seal: ordinary household/matter objects are not store authority. */
   readonly [sealedMeetingClientBoundaryBrand]: true;
+  /** Monotonic capability minted by the selected-client authority. */
+  readonly selectionGeneration: number;
 }
 
 /** Reactive companion to {@link readActiveMeetingClientBoundary}. */
@@ -246,8 +257,8 @@ export interface MeetingProjection {
   readonly householdRef: string;
   readonly matterId: string;
   readonly typeId: string;
-  /** Empty only when the durable record is explicitly accountless/unassigned. */
-  readonly ownerRef: string;
+  /** Explicitly null when the durable record is accountless/unassigned. */
+  readonly ownerRef: string | null;
   readonly scheduledStartUtc: string;
   readonly scheduledEndUtc: string;
   readonly timezone: string;
@@ -463,6 +474,8 @@ export interface MeetingPopulationService {
     draft: ActiveClientMeetingDraft,
     legacy: LegacyMeetingLinkInput
   ): Promise<MeetingRecord>;
+  /** Creates under the active sealed boundary; legacy linking may safely retry later. */
+  createForActiveClient(draft: ActiveClientMeetingDraft): Promise<MeetingRecord>;
   /** Reads one selected-client meeting by a stable caller reference after reload. */
   findByReference(reference: string): Promise<MeetingRecord | undefined>;
   /** Uses the normal lifecycle guard for a population-created meeting. */
@@ -908,6 +921,16 @@ function sameClientBoundary(
   );
 }
 
+function sameClientCapability(
+  left: SealedMeetingClientBoundary | null | undefined,
+  right: SealedMeetingClientBoundary | null | undefined
+): boolean {
+  return (
+    sameClientBoundary(left, right) &&
+    left?.selectionGeneration === right?.selectionGeneration
+  );
+}
+
 function clientScope(port: ClientScopedLivePort): ClientScope {
   const scope: ClientScope = {
     current() {
@@ -946,7 +969,7 @@ function clientScope(port: ClientScopedLivePort): ClientScope {
       const selectionError = port.getSelectionError?.();
       if (selectionError) throw new Error(selectionError);
       const current = scope.current();
-      if (!sameClientBoundary(current, expected))
+      if (!sameClientCapability(current, expected))
         throw new Error(`${subject} client changed while data reloaded.`);
       return current as SealedMeetingClientBoundary;
     },
@@ -1399,7 +1422,7 @@ export function projectMeetingRecord(record: LiveCrmRecord): MeetingRecord {
     id: nonEmpty(record.id, 'Meeting ID'),
     kind: 'meeting',
     ...draft,
-    ownerRef: draft.ownerRef ?? '',
+    ownerRef: draft.ownerRef,
     state: state as MeetingState,
     createdAt: nonEmpty(record.createdAt, 'Created timestamp'),
     updatedAt: nonEmpty(record.updatedAt, 'Updated timestamp'),
@@ -1921,7 +1944,18 @@ export function createMeetingPopulationService(
         householdRef: boundary.householdRef,
         matterId: boundary.matterId,
       });
+      scope.assertStable(boundary, 'Meeting');
       return store.linkLegacy(created.id, legacy);
+    },
+    createForActiveClient: async (draft) => {
+      const boundary = scope.requireCurrent('Meeting');
+      const created = await store.createDraft({
+        ...draft,
+        householdRef: boundary.householdRef,
+        matterId: boundary.matterId,
+      });
+      scope.assertStable(boundary, 'Meeting');
+      return created;
     },
     findByReference: async (reference) => {
       const expected = scope.requireCurrent('Meeting');

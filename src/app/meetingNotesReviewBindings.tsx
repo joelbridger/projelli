@@ -75,14 +75,14 @@ export function canReadExactMeetingReviewArtifact(input: {
   readonly artifact: ExactMeetingReviewArtifact;
   readonly meeting: {
     readonly id: string;
-    readonly ownerRef: string;
+    readonly ownerRef: string | null;
     readonly visibilityPolicyId?: string;
   };
   readonly viewerId: string | null | undefined;
   readonly policies: readonly MeetingVisibilityPolicy[];
 }): boolean {
   const subject = input.artifact.meetingVisibility;
-  if (!subject) return false;
+  if (!subject || !input.meeting.ownerRef) return false;
   const root: MeetingVisibilitySubject = {
     kind: 'meeting-note',
     id: input.meeting.id,

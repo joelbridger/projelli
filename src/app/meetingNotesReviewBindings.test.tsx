@@ -146,6 +146,16 @@ describe('meeting Tasks/CRM compatibility bindings', () => {
     expect(canRead('advisor-included')).toBe(true);
     expect(canRead('advisor-excluded')).toBe(false);
     expect(canRead(null)).toBe(false);
+    // An accountless meeting is explicitly unassigned, never converted into
+    // an empty-string owner or treated as owner-private review material.
+    expect(
+      canReadExactMeetingReviewArtifact({
+        artifact,
+        meeting: { ...meeting, ownerRef: null },
+        policies,
+        viewerId: 'advisor-owner',
+      })
+    ).toBe(false);
     // A viewer switch recomputes from the new firm identity; no old allow leaks.
     expect([canRead('advisor-owner'), canRead('advisor-excluded')]).toEqual([
       true,

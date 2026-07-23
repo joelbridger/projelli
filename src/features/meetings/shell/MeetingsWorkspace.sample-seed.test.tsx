@@ -88,6 +88,14 @@ describe('Hendricks sample meeting in the real Meetings shell', () => {
     setActiveWorkspaceService(workspace as unknown as WorkspaceService);
     ensureSampleHendricksCrmLink('matter-hendricks');
     await requestSharedClientSelection(issueSharedClientSelection(HENDRICKS));
+    await waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe('matter-hendricks');
+    });
+    expect(readActiveMeetingClientBoundary()).toMatchObject({
+      householdRef: HENDRICKS.householdId,
+      matterId: 'matter-hendricks',
+      selectionGeneration: expect.any(Number),
+    });
     const port = {
       get records() { return structuredClone(crm.records); }, workspaceRoot: ROOT, error: null,
       getActiveClientBoundary: readActiveMeetingClientBoundary,
@@ -106,15 +114,19 @@ describe('Hendricks sample meeting in the real Meetings shell', () => {
     const mounted = render(meetingsSurface.render(runtime));
 
     fireEvent.click(await screen.findByTestId('meetings-view-past'));
-    const row = await screen.findByTestId(/meetings-row-/);
-    expect(row).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getAllByTestId(/meetings-row-/)).toHaveLength(1);
+    });
     fireEvent.click(screen.getByTestId(/meetings-open-/));
     expect(await screen.findByTestId('meetings-linked-detail')).toBeTruthy();
+    expect(screen.getByText('Hendricks annual review')).toBeTruthy();
 
     mounted.unmount();
     render(meetingsSurface.render(runtime));
     fireEvent.click(await screen.findByTestId('meetings-view-past'));
-    expect(await screen.findByTestId(/meetings-row-/)).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getAllByTestId(/meetings-row-/)).toHaveLength(1);
+    });
 
     await act(async () => { await requestSharedClientSelection(issueSharedClientSelection(OTHER)); });
     await waitFor(() => expect(screen.queryByTestId(/meetings-row-/)).toBeNull());

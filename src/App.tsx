@@ -314,6 +314,12 @@ function AppShell() {
     readonly root: string;
     readonly service: WorkspaceService;
   } | null>(null);
+  const [sampleMeetingSeedFailure, setSampleMeetingSeedFailure] = useState<{
+    readonly matterId: string;
+    readonly root: string;
+    readonly service: WorkspaceService;
+    readonly message: string;
+  } | null>(null);
   const sampleMeetingSeedInFlight = useRef<string | null>(null);
   const {
     showCommandPalette,
@@ -1327,8 +1333,19 @@ function AppShell() {
       pendingSampleMeetingSeed.matterId,
       sampleMeetingPopulation
     )
+      .then(() => {
+        setSampleMeetingSeedFailure(null);
+      })
       .catch((seedErr: unknown) => {
-        console.warn('[onboarding] sample golden-path seeding failed (continuing):', seedErr);
+        const message =
+          seedErr instanceof Error
+            ? seedErr.message
+            : 'The sample meeting could not be created safely.';
+        console.warn('[onboarding] sample golden-path seeding failed:', seedErr);
+        setSampleMeetingSeedFailure({
+          ...pendingSampleMeetingSeed,
+          message,
+        });
       })
       .finally(() => {
         if (sampleMeetingSeedInFlight.current !== seedKey) return;
@@ -1341,6 +1358,16 @@ function AppShell() {
         );
       });
   }, [pendingSampleMeetingSeed, rootPath, sampleMeetingPopulation]);
+
+  const retrySampleMeetingSeed = useCallback(() => {
+    if (!sampleMeetingSeedFailure) return;
+    setSampleMeetingSeedFailure(null);
+    setPendingSampleMeetingSeed({
+      matterId: sampleMeetingSeedFailure.matterId,
+      root: sampleMeetingSeedFailure.root,
+      service: sampleMeetingSeedFailure.service,
+    });
+  }, [sampleMeetingSeedFailure]);
 
   // Boot: silently reopen the last workspace when "Reopen last workspace" is
   // on, instead of always showing the picker (only Tauri can do this without
@@ -2345,6 +2372,16 @@ function AppShell() {
                 }}
               />
             )}
+            {sampleMeetingSeedFailure && (
+              <div role="alert" data-testid="sample-meeting-seed-error" className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+                <span data-testid="sample-meeting-seed-error-message">
+                  The sample meeting is not ready yet. {sampleMeetingSeedFailure.message}
+                </span>
+                <button type="button" data-testid="sample-meeting-seed-retry" onClick={retrySampleMeetingSeed} className="underline underline-offset-2">
+                  Retry sample setup
+                </button>
+              </div>
+            )}
           </>
         }
         postTopbar={
@@ -2391,6 +2428,16 @@ function AppShell() {
             setCredentialBannerDismissed(true);
           }}
         />
+      )}
+      {sampleMeetingSeedFailure && (
+        <div role="alert" data-testid="sample-meeting-seed-error" className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+          <span data-testid="sample-meeting-seed-error-message">
+            The sample meeting is not ready yet. {sampleMeetingSeedFailure.message}
+          </span>
+          <button type="button" data-testid="sample-meeting-seed-retry" onClick={retrySampleMeetingSeed} className="underline underline-offset-2">
+            Retry sample setup
+          </button>
+        </div>
       )}
       {/* Header bar */}
       <header

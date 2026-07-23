@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type {
   ActiveClientMeetingDraft,
@@ -52,7 +52,7 @@ function samplePopulation(): MeetingPopulationService {
     householdRef: SAMPLE_GOLDEN_PATH.crmHouseholdKey,
     matterId,
     typeId: draft.typeId,
-    ownerRef: draft.ownerRef ?? '',
+    ownerRef: draft.ownerRef,
     scheduledStartUtc: draft.scheduledStartUtc,
     scheduledEndUtc: draft.scheduledEndUtc,
     timezone: draft.timezone,
@@ -66,6 +66,11 @@ function samplePopulation(): MeetingPopulationService {
     createAndLink: async () => { throw new Error('Sample must not supply a client boundary.'); },
     createAndLinkForActiveClient: async (draft, legacy) => {
       const meeting = { ...canonical(draft), legacyLink: { ...legacy, linkedAt: SAMPLE_GOLDEN_PATH.startedAt } };
+      records.push(meeting);
+      return meeting;
+    },
+    createForActiveClient: async (draft) => {
+      const meeting = canonical(draft);
       records.push(meeting);
       return meeting;
     },
@@ -187,7 +192,7 @@ describe('seedSampleGoldenPath', () => {
     ]);
     expect((await population.findByReference(SAMPLE_GOLDEN_PATH.crmSourceRef))).toMatchObject({
       state: 'completed',
-      ownerRef: '',
+      ownerRef: null,
       legacyLink: { meetingDir: `Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}` },
     });
   });
@@ -226,5 +231,87 @@ describe('seedSampleGoldenPath', () => {
       fileName: 'notes.docx',
       context: { viewerId: 'advisor-b', policies: [FILE_MEETING_OWNER_PRIVATE_POLICY] },
     })).toBe(false);
+  });
+
+  it('writes no sample files when canonical creation fails', async () => {
+    const workspace = new InMemoryWorkspace();
+    const population = samplePopulation();
+    population.createForActiveClient = async () => {
+      throw new Error('canonical create failed');
+    };
+
+    await expect(
+      seedSampleGoldenPath(
+        workspace as unknown as WorkspaceService,
+        workspaceRoot,
+        matterId,
+        population
+      )
+    ).rejects.toThrow('canonical create failed');
+
+    expect(workspace.textFiles).toEqual(new Map());
+    expect(workspace.binaryFiles).toEqual(new Map());
+    expect(useBriefStore.getState().briefs).toEqual({});
+    expect(useCrmWriteQueueStore.getState().items).toEqual([]);
+  });
+
+  it('keeps a persisted draft and finishes exactly one meeting after a link retry', async () => {
+    const workspace = new InMemoryWorkspace();
+    const population = samplePopulation();
+    const create = vi.spyOn(population, 'createForActiveClient');
+    const link = vi.spyOn(population, 'linkLegacy');
+    link.mockImplementationOnce(async () => {
+      throw new Error('legacy link failed');
+    });
+
+    await expect(
+      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population)
+    ).rejects.toThrow('legacy link failed');
+    expect(create).toHaveBeenCalledTimes(1);
+
+    await seedSampleGoldenPath(
+      workspace as unknown as WorkspaceService,
+      workspaceRoot,
+      matterId,
+      population
+    );
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(link).toHaveBeenCalledTimes(2);
+    await expect(
+      population.findByReference(SAMPLE_GOLDEN_PATH.crmSourceRef)
+    ).resolves.toMatchObject({
+      ownerRef: null,
+      state: 'completed',
+      legacyLink: {
+        meetingDir: `Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}`,
+      },
+    });
+  });
+
+  it.each([
+    {
+      label: 'malformed',
+      visibility: { version: 1, meetingSubject: 'not-a-subject', files: {} },
+    },
+    {
+      label: 'legacy unrestricted',
+      visibility: {
+        version: 1,
+        meetingSubject: { id: 'legacy', kind: 'meeting-note', lineage: 'legacy-unrestricted' },
+        files: {},
+      },
+    },
+  ])('refuses $label visibility without broadening it', async ({ visibility }) => {
+    const workspace = new InMemoryWorkspace();
+    const population = samplePopulation();
+    const path = `${workspaceRoot}/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}/meeting.json`;
+    const original = JSON.stringify({ meetingFileVisibility: visibility });
+    await workspace.writeFile(path, original);
+
+    await expect(
+      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population)
+    ).rejects.toThrow('could not be recovered safely');
+    expect(await workspace.readFile(path)).toBe(original);
+    expect(await population.findByReference(SAMPLE_GOLDEN_PATH.crmSourceRef)).toBeUndefined();
   });
 });

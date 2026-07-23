@@ -50,10 +50,13 @@ export type SelectionOperationDecision =
       readonly sourceKind: 'matter' | 'matter-only';
       readonly matter: Matter;
       readonly client: SharedClientIdentity | null;
+      /** A matching pair after A → B → A is still a new authority. */
+      readonly selectionGeneration?: number;
     }
   | {
       readonly kind: 'all-matters';
       readonly client: SharedClientIdentity | null;
+      readonly selectionGeneration?: number;
     }
   | {
       readonly kind: 'refused';
@@ -67,6 +70,7 @@ interface SelectionReaderSnapshot {
   readonly followerStatus: ClientContextState['followerStatus'];
   readonly matters: Matter[];
   readonly activeMatterId: string | null;
+  readonly selectionGeneration?: number;
 }
 
 const refusalMessages: Record<SelectionRefusalReason, string> = {
@@ -137,13 +141,23 @@ export function resolveSelectionOperationDecision(
     case 'all-matters':
       if (request.operationClass === 'client-scoped') return refused('client-required');
       return request.allowAllMatters
-        ? { kind: 'all-matters', client: snapshot.client }
+        ? {
+            kind: 'all-matters',
+            client: snapshot.client,
+            selectionGeneration: snapshot.selectionGeneration ?? 0,
+          }
         : refused('all-matters-not-allowed');
     case 'matter-only': {
       if (request.operationClass === 'client-scoped') return refused('client-required');
       const matter = resolveActiveMatter(snapshot.matters, snapshot.scope.matterId);
       return matter
-        ? { kind: 'matter', sourceKind: 'matter-only', matter, client: null }
+        ? {
+            kind: 'matter',
+            sourceKind: 'matter-only',
+            matter,
+            client: null,
+            selectionGeneration: snapshot.selectionGeneration ?? 0,
+          }
         : refused('matter-missing-or-archived');
     }
     case 'matter': {
@@ -157,6 +171,7 @@ export function resolveSelectionOperationDecision(
         sourceKind: 'matter',
         matter,
         client: snapshot.client,
+        selectionGeneration: snapshot.selectionGeneration ?? 0,
       };
     }
   }
@@ -174,6 +189,7 @@ function currentReaderSnapshot(): SelectionReaderSnapshot {
     followerStatus: source.followerStatus,
     matters: matter.matters,
     activeMatterId: matter.activeMatterId,
+    selectionGeneration: source.selectionRevision,
   };
 }
 
@@ -194,6 +210,7 @@ export function useSelectionOperationDecision(
       client: state.client,
       scope: state.scope,
       followerStatus: state.followerStatus,
+      selectionGeneration: state.selectionRevision,
     })),
   );
   const matter = useMatterStore(

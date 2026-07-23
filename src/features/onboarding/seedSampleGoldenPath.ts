@@ -12,6 +12,7 @@ import {
   type MeetingPopulationService,
   type SealedMeetingClientBoundary,
 } from '@/features/meetings';
+import type { MeetingFileVisibilityManifest } from '@/features/meetings/meetingFileVisibility';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -30,6 +31,11 @@ const SAMPLE_MEETING_STARTED_AT = '2026-07-02T14:00:00.000Z';
 const SAMPLE_MEETING_ENDED_AT = '2026-07-02T14:42:00.000Z';
 const SAMPLE_CRM_SOURCE_REF = `meeting:${SAMPLE_MEETING_EVENT_ID}`;
 const SAMPLE_CRM_HOUSEHOLD_KEY = 'sample-hendricks-household';
+const SAMPLE_MEETING_FILE_NAMES = [
+  'meeting.json',
+  'transcript.json',
+  'notes.docx',
+] as const;
 
 function exactBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.buffer.slice(
@@ -74,7 +80,7 @@ function sampleMeetingMeta(
       preservedVisibility ??
       createAccountlessUnrestrictedMeetingFileVisibilityManifest({
         meetingSubjectId: `meeting-file:${SAMPLE_MEETING_EVENT_ID}`,
-        fileNames: ['meeting.json', 'transcript.json', 'notes.docx'],
+        fileNames: SAMPLE_MEETING_FILE_NAMES,
       }),
   };
 }
@@ -258,31 +264,41 @@ async function preservedMeetingVisibility(
   workspace: WorkspaceService,
   meetingJsonPath: string
 ): Promise<MeetingMeta['meetingFileVisibility'] | undefined> {
+  const source = workspace as WorkspaceService & {
+    exists?: (path: string) => Promise<boolean>;
+  };
+  if (typeof source.readFile !== 'function') return undefined;
+  let existing: unknown;
   try {
-    const existing = JSON.parse(await workspace.readFile(meetingJsonPath)) as {
-      readonly meetingFileVisibility?: MeetingMeta['meetingFileVisibility'];
-    };
-    // A valid owner-private decision must survive reseeding. Keeping an
-    // unknown/malformed older value intact is also safer than replacing it
-    // with unrestricted access; the normal reader continues to fail closed.
-    return existing.meetingFileVisibility;
-  } catch {
-    return undefined;
+    existing = JSON.parse(await source.readFile(meetingJsonPath));
+  } catch (error) {
+    if (typeof source.exists === 'function' && !(await source.exists(meetingJsonPath)))
+      return undefined;
+    if (error instanceof Error && /missing|not found|enoent/i.test(error.message))
+      return undefined;
+    throw new Error('The existing sample meeting visibility could not be recovered safely.');
   }
+  if (!existing || typeof existing !== 'object' || Array.isArray(existing))
+    throw new Error('The existing sample meeting visibility could not be recovered safely.');
+  const visibility = (existing as { meetingFileVisibility?: unknown })
+    .meetingFileVisibility;
+  if (!isPreservableSampleVisibility(visibility)) {
+    throw new Error('The existing sample meeting visibility could not be recovered safely.');
+  }
+  return visibility;
 }
 
 async function ensureCanonicalSampleMeeting(
   population: MeetingPopulationService,
   workspaceRoot: string
-): Promise<void> {
-  const meetingDir = `Meetings/${SAMPLE_MEETING_FOLDER}`;
+): Promise<Awaited<ReturnType<MeetingPopulationService['findByReference']>>> {
   let meeting = await population.findByReference(SAMPLE_CRM_SOURCE_REF);
   if (meeting) {
-    meeting = await population.linkLegacy(meeting.id, { meetingDir });
+    return meeting;
   } else {
     // The population service, not this seed, derives the household + matter
     // from the live selected-client boundary immediately before it writes.
-    meeting = await population.createAndLinkForActiveClient(
+    meeting = await population.createForActiveClient(
       {
         workspaceId: workspaceRoot,
         typeId: 'annual-review',
@@ -292,10 +308,77 @@ async function ensureCanonicalSampleMeeting(
         scheduledEndUtc: SAMPLE_MEETING_ENDED_AT,
         timezone: 'UTC',
         references: [SAMPLE_CRM_SOURCE_REF],
-      },
-      { meetingDir }
+      }
     );
   }
+
+  return meeting;
+}
+
+function exactText(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value === value.trim();
+}
+
+function isOwnerPrivateManifest(value: unknown): value is MeetingFileVisibilityManifest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const manifest = value as MeetingFileVisibilityManifest;
+  const root = manifest.meetingSubject;
+  if (
+    manifest.version !== 1 ||
+    !root ||
+    root.kind !== 'meeting-note' ||
+    root.lineage !== 'root' ||
+    !exactText(root.id) ||
+    !exactText(root.ownerRef) ||
+    !exactText(root.visibilityPolicyId) ||
+    !manifest.files ||
+    typeof manifest.files !== 'object' ||
+    Array.isArray(manifest.files)
+  ) return false;
+  return Object.entries(manifest.files).every(([name, subject]) =>
+    exactText(name) &&
+    !name.includes('/') &&
+    subject?.kind === 'file-reference' &&
+    subject.lineage === 'derived' &&
+    subject.parentRef?.kind === 'meeting-note' &&
+    subject.parentRef.id === root.id &&
+    exactText(subject.id)
+  );
+}
+
+function isExactAccountlessSampleManifest(value: unknown): value is MeetingFileVisibilityManifest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const manifest = value as MeetingFileVisibilityManifest;
+  const rootId = `meeting-file:${SAMPLE_MEETING_EVENT_ID}`;
+  if (
+    manifest.version !== 1 ||
+    manifest.meetingSubject?.id !== rootId ||
+    manifest.meetingSubject.kind !== 'meeting-note' ||
+    manifest.meetingSubject.lineage !== 'accountless-unrestricted'
+  ) return false;
+  const names = Object.keys(manifest.files ?? {}).sort();
+  if (names.join('\u0000') !== [...SAMPLE_MEETING_FILE_NAMES].sort().join('\u0000'))
+    return false;
+  return names.every((name) => {
+    const subject = manifest.files[name];
+    return (
+      subject?.kind === 'file-reference' &&
+      subject.lineage === 'accountless-unrestricted' &&
+      subject.id === `${rootId}:file:${encodeURIComponent(name)}`
+    );
+  });
+}
+
+function isPreservableSampleVisibility(value: unknown): value is MeetingFileVisibilityManifest {
+  return isOwnerPrivateManifest(value) || isExactAccountlessSampleManifest(value);
+}
+
+async function completeCanonicalSampleMeeting(
+  population: MeetingPopulationService,
+  meeting: NonNullable<Awaited<ReturnType<MeetingPopulationService['findByReference']>>>
+): Promise<void> {
+  const meetingDir = `Meetings/${SAMPLE_MEETING_FOLDER}`;
+  meeting = await population.linkLegacy(meeting.id, { meetingDir });
 
   while (meeting.state !== 'completed') {
     const transition = (() => {
@@ -325,6 +408,10 @@ export async function seedSampleGoldenPath(
     workspace,
     `${meetingDir}/meeting.json`
   );
+  // Create the canonical record before any workspace file. A failed create
+  // therefore cannot leave sample material in the previously open workspace.
+  const canonical = await ensureCanonicalSampleMeeting(population, workspaceRoot);
+  if (!canonical) throw new Error('The canonical Hendricks meeting could not be found.');
   await workspace.writeFile(
     `${meetingDir}/meeting.json`,
     JSON.stringify(sampleMeetingMeta(matterId, visibility), null, 2)
@@ -342,7 +429,7 @@ export async function seedSampleGoldenPath(
     exactBuffer(notesBytes)
   );
 
-  await ensureCanonicalSampleMeeting(population, workspaceRoot);
+  await completeCanonicalSampleMeeting(population, canonical);
   const sample = sampleBrief(workspaceRoot, matterId);
   useBriefStore.getState().upsert(sample.identity, sample.brief);
   seedSampleCrmApproval(matterId);
