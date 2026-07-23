@@ -1,5 +1,7 @@
 /* Existing Ask behavior, expressed as descriptors for future feature modules. */
 import { filterHitsByScope, type AskScope } from '../askScope';
+import { parseMeetingRef } from '@/features/meetings';
+import { EV_MATTER_LAUNCH, EV_OPEN_MEETING } from '@/config/identity';
 import type {
   AskAnswerActionDescriptor,
   AskModeDescriptor,
@@ -13,6 +15,7 @@ declare module '@/platform/types/ask' {
   interface AskSourceIdMap {
     crm: true;
     mail: true;
+    meeting: true;
     document: true;
   }
   interface AskAnswerActionIdMap {
@@ -53,6 +56,39 @@ const mailSource: AskSourceDescriptor = {
     if (source.path) context.openEmail?.(source);
   },
 };
+const meetingSource: AskSourceDescriptor = {
+  id: 'meeting',
+  // A meeting must win before the broad document fallback, even if its source
+  // path resembles a workspace file.
+  order: 25,
+  matches: (source) =>
+    source.sourceType === 'meeting' ||
+    source.path?.startsWith('meeting:') === true ||
+    source.path?.startsWith('calendar:') === true,
+  canOpen: (source) => Boolean(source.path && source.matterId),
+  open: (source) => {
+    if (typeof window === 'undefined' || !source.path || !source.matterId)
+      return;
+    // Meeting transcript refs carry an exact meeting and timestamp. Route them
+    // through the existing client-safe meeting launch, never the file opener.
+    if (parseMeetingRef(source.path)) {
+      window.dispatchEvent(
+        new CustomEvent(EV_MATTER_LAUNCH, {
+          detail: {
+            matterId: source.matterId,
+            surface: 'meetings',
+            source: { kind: 'meeting', ref: source.path },
+          },
+        }),
+      );
+      return;
+    }
+    // Calendar/provider refs use the existing exact-meeting event route.
+    window.dispatchEvent(
+      new CustomEvent(EV_OPEN_MEETING, { detail: { sourceId: source.path } }),
+    );
+  },
+};
 const documentSource: AskSourceDescriptor = {
   id: 'document',
   order: 30,
@@ -77,6 +113,7 @@ export const legacyAskModes: readonly AskModeDescriptor[] = [normalMode];
 export const legacyAskSources: readonly AskSourceDescriptor[] = [
   crmSource,
   mailSource,
+  meetingSource,
   documentSource,
 ];
 export const legacyAskAnswerActions: readonly AskAnswerActionDescriptor[] = [

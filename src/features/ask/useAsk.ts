@@ -16,11 +16,20 @@ import {
   type SetStateAction,
 } from 'react';
 import { flushSync } from 'react-dom';
-import { SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
+import {
+  resolveActiveMatter,
+  SAMPLE_MATTER_ID,
+  useMatterStore,
+} from '@/platform/matter/matterStore';
 import {
   readSelectionOperationDecision,
   useSelectionOperationDecision,
 } from '@/platform/client-context';
+import {
+  readSelectionPresentation,
+  useSelectionPresentation,
+} from '@/platform/client-context/selectionPresentation';
+import type { Matter } from '@/platform/types/matter';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import {
@@ -178,9 +187,70 @@ const ASK_FILES_ONLY_KEY = SK_ASK_FILES_ONLY;
 
 const ASK_SELECTION_REQUEST = {
   operationClass: 'matter-scoped',
-  allowAllMatters: true,
+  // Whole Firm remains closed. Ask has no safe all-clients retrieval path while
+  // a client-facing surface is selected (or when one cannot be proved).
+  allowAllMatters: false,
   requireFollowerAgreement: true,
 } as const;
+
+type AskMatterSelection =
+  | { readonly kind: 'matter'; readonly matter: Matter }
+  | { readonly kind: 'refused'; readonly message: string };
+
+/**
+ * The client bar remains the visible authority while the new selection writer
+ * is dark. In that compatibility state the reader deliberately reports the
+ * old all-matters arm, so Ask must resolve the displayed live matter itself.
+ * It never turns a missing, stale, or global value into an all-matters query.
+ */
+function readAskMatterSelection(): AskMatterSelection {
+  const presentation = readSelectionPresentation();
+  if (presentation.authorityEnabled) {
+    const decision = readSelectionOperationDecision(ASK_SELECTION_REQUEST);
+    if (decision.kind === 'matter') {
+      return { kind: 'matter', matter: decision.matter };
+    }
+    if (decision.kind === 'refused') {
+      return { kind: 'refused', message: decision.message };
+    }
+    return {
+      kind: 'refused',
+      message: 'This action needs one selected client or matter. Choose one and try again.',
+    };
+  }
+
+  if (presentation.stale) {
+    return {
+      kind: 'refused',
+      message: 'The client selection is still catching up. Wait a moment and try again.',
+    };
+  }
+  if (!presentation.matterId) {
+    const decision = readSelectionOperationDecision(ASK_SELECTION_REQUEST);
+    if (decision.kind === 'refused') {
+      return { kind: 'refused', message: decision.message };
+    }
+    return {
+      kind: 'refused',
+      message: 'This action needs one selected client or matter. Choose one and try again.',
+    };
+  }
+
+  const matterState = useMatterStore.getState();
+  if (matterState.activeMatterId !== presentation.matterId) {
+    return {
+      kind: 'refused',
+      message: 'The selected client changed before this action finished. Try the action again for the current client.',
+    };
+  }
+  const matter = resolveActiveMatter(matterState.matters, presentation.matterId);
+  return matter
+    ? { kind: 'matter', matter }
+    : {
+        kind: 'refused',
+        message: 'The selected client or matter is no longer available. Choose another one and try again.',
+      };
+}
 
 /** How many prior exchanges are placed in the prompt's history block. The SAME
  *  window bounds transitive grounding, so a turn outside it can't mark the answer
@@ -361,7 +431,22 @@ export function useAsk({
   // Future modes contribute the same three contracts (scope, retrieval, prompt).
   const askMode = getAskMode(NORMAL_ASK_MODE);
   const selection = useSelectionOperationDecision(ASK_SELECTION_REQUEST);
-  const activeMatter = selection.kind === 'matter' ? selection.matter : null;
+  const selectionPresentation = useSelectionPresentation();
+  const visibleMatter = useMatterStore((state) =>
+    selectionPresentation.matterId
+      ? resolveActiveMatter(state.matters, selectionPresentation.matterId)
+      : null
+  );
+  // With the authority gate on, the source reader is decisive. With it dark,
+  // the selected client bar is the compatibility authority, but only if it
+  // still resolves to one exact live matter.
+  const activeMatter = selectionPresentation.authorityEnabled
+    ? selection.kind === 'matter'
+      ? selection.matter
+      : null
+    : !selectionPresentation.blocked && !selectionPresentation.stale
+      ? visibleMatter
+      : null;
   const hasActiveMatter = Boolean(activeMatter);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const rootGeneration = useWorkspaceStore((s) => s.rootGeneration);
@@ -939,14 +1024,20 @@ export function useAsk({
       const q = (overrideQuestion ?? question).trim();
       if (!q || status === 'retrieving' || status === 'answering') return;
 
-      const currentSelection = readSelectionOperationDecision(
-        ASK_SELECTION_REQUEST
-      );
+      const currentSelection = readAskMatterSelection();
       if (currentSelection.kind === 'refused') {
         setErrorMsg(currentSelection.message);
         setStatus('error');
         return;
       }
+      const sendMatter = currentSelection.matter;
+      // A hidden/stale global scope can never broaden this client-visible Ask.
+      // Whole Firm is closed, so both global spellings reduce to the exact
+      // selected matter before consent, retrieval, prompting, or citation work.
+      const sendAskScope =
+        askScope === 'all-matters' || askScope === 'whole-practice'
+          ? 'this-matter'
+          : askScope;
 
       abortRef.current?.abort();
       const abort = new AbortController();
@@ -970,7 +1061,11 @@ export function useAsk({
         sendMeetingVisibilityIdentity ===
           currentMeetingVisibilityAuthorityIdentity() &&
         sendMeetingVisibilityGeneration ===
-          meetingVisibilityGenerationRef.current;
+          meetingVisibilityGenerationRef.current &&
+        (() => {
+          const latest = readAskMatterSelection();
+          return latest.kind === 'matter' && latest.matter.id === sendMatter.id;
+        })();
 
       setErrorMsg(null);
       setCrmUnavailableNotice(null);
@@ -1023,7 +1118,7 @@ export function useAsk({
           updateMessages(chatId, visibleMessages);
 
         /* Demo branch: sample matter + no cloud key + matching question */
-        const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
+        const isSampleMatter = sendMatter.id === SAMPLE_MATTER_ID;
         if (isSampleMatter && rootPath) {
           const cloudKey = await hasCloudKey();
           if (!cloudKey) {
@@ -1048,10 +1143,9 @@ export function useAsk({
               // files), so mark it with its true scope (not the widest-scope
               // fail-closed fallback) so a later same-sample send keeps it in
               // history rather than over-redacting it (Codex final review P2).
-              // `activeMatter` is narrowed non-null here (isSampleMatter guard above).
               const demoGroundingScope = askConsentScope(
-                activeMatter.id,
-                askScope
+                sendMatter.id,
+                sendAskScope
               );
               const completedTurn: AskTurn = {
                 question: q,
@@ -1145,8 +1239,8 @@ export function useAsk({
          * drift. Local engines never leak and the web demo runs on synthetic sample
          * data, so neither is gated there. */
         const turnConsentScope: ConsentScope = askConsentScope(
-          activeMatter?.id ?? null,
-          askScope
+          sendMatter.id,
+          sendAskScope
         );
 
         /* Step 1: RAG retrieval
@@ -1157,8 +1251,8 @@ export function useAsk({
          * preserves the confidentiality partition at the database level.
          */
         const retrievalPlan = askMode.buildRetrievalPlan({
-          activeMatterId: activeMatter?.id ?? null,
-          askScope,
+          activeMatterId: sendMatter.id,
+          askScope: sendAskScope,
         });
         const retrievalScope: RetrievalScope = retrievalPlan.scope;
 
@@ -1537,8 +1631,8 @@ export function useAsk({
         // would tell the AI it's answering for the active client while retrieval ran
         // across everything — so the prompt and the audited scope would disagree.
         const matterHint = scopeHintForMatter(
-          retrievalScope.kind === 'matter' && activeMatter
-            ? matterLabel(activeMatter)
+          retrievalScope.kind === 'matter'
+            ? matterLabel(sendMatter)
             : null
         );
         // F2.5b (Codex P1/round-3) — "reading is sending" also covers CONVERSATION
@@ -1731,7 +1825,7 @@ export function useAsk({
             inputs: { promptLength: q.length },
             outputs: { contentLength },
             userDecision: 'auto',
-            metadata: { chatId, askScope },
+            metadata: { chatId, askScope: sendAskScope },
             tokensIn: usage?.inputTokens ?? 0,
             tokensOut: usage?.outputTokens ?? 0,
             costUsd: cost ?? 0,
@@ -2022,8 +2116,7 @@ export function useAsk({
          * rows can also be verified by id + matterId, but older indexed rows are
          * still grounded when the cited file + locator were actually retrieved.
          */
-        const expectedMatterId: string | null =
-          activeMatter && askScope !== 'all-matters' ? activeMatter.id : null;
+        const expectedMatterId: string | null = sendMatter.id;
         failedStage = 'post-processing';
         // Files-only mode: bind the whole answer flatly (the existing cited path).
         // Smart mode: parse the answer into provenance blocks and bind citations
@@ -2187,14 +2280,11 @@ export function useAsk({
               mode: getConfidentialityMode(),
               destination: egress.destination,
               dataLeaves: egress.dataLeaves,
-              scope:
-                activeMatter && askScope !== 'all-matters'
-                  ? {
-                      kind: 'matter',
-                      matterId: activeMatter.id,
-                      matterName: matterLabel(activeMatter),
-                    }
-                  : { kind: 'allMatters' },
+              scope: {
+                kind: 'matter',
+                matterId: sendMatter.id,
+                matterName: matterLabel(sendMatter),
+              },
             },
             outputs: {
               success: false,
@@ -2264,7 +2354,6 @@ export function useAsk({
     [
       question,
       status,
-      activeMatter,
       turns,
       chatId,
       addMessage,
