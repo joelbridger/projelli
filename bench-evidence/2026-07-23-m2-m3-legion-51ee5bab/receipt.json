@@ -1,0 +1,81 @@
+{
+  "recorded_at_utc": "2026-07-23T01:49:00Z",
+  "machine": {
+    "name": "DESKLINK129887",
+    "role": "Legion Windows bench"
+  },
+  "source": {
+    "revision": "51ee5bab5348497ccb6879e0c79e4fd0f10e52bc",
+    "tree": "3c1fb6af5b3817193a49a857185845aff9246bb4",
+    "archive_path": "D:\\LanternM2Sources\\lantern-51ee5bab.tar",
+    "archive_sha256": "98F97040F7361E699CBD4DA8F064EEB21993018D27221444E0F8C526D11713F2",
+    "fresh_source_path": "C:\\Lantern-M2-M3-51ee5bab\\source"
+  },
+  "build": {
+    "cargo_build_invocations": 1,
+    "second_build_ran": false,
+    "marker_utc": "2026-07-23T01:23:51.9901265Z",
+    "fresh_installer_write_utc": "2026-07-23T01:32:50.127Z",
+    "fresh_executable_write_utc": "2026-07-23T01:32:50.479Z",
+    "approx_marker_to_artifact_seconds": 538.5,
+    "npm_ci_seconds": 18.2879536,
+    "cargo_target": "D:\\Lantern-M2-Targets\\afcdae55-from-073556ba-partial",
+    "compile_and_nsis": "pass",
+    "release_signing": "fail_missing_key",
+    "package_verdict": "partial_unsigned_development_only",
+    "launcher_correction_before_build": true
+  },
+  "cache": {
+    "tool": "sccache 0.16.0",
+    "directory": "D:\\Lantern-sccache-cache",
+    "limit_gib": 25,
+    "temperature": "cold",
+    "compile_requests": 11,
+    "executed_requests": 2,
+    "hits": 0,
+    "rust_misses": 2,
+    "non_cacheable_calls": 9,
+    "compilations": 2,
+    "cache_size_mib": 2,
+    "errors": 0,
+    "failures": 0
+  },
+  "artifacts": {
+    "executable": {
+      "path": "C:\\Lantern-M2-M3-51ee5bab\\package\\lantern.exe",
+      "bytes": 215606784,
+      "sha256": "23A723F90D156929C2AF97888464B0ED4DBDFAC7A3455FCD4DFE090C7177774B"
+    },
+    "installer": {
+      "path": "C:\\Lantern-M2-M3-51ee5bab\\package\\Advisor Prep Hero_3.3.5_x64-setup.exe",
+      "bytes": 172344644,
+      "sha256": "D53993A7DFAFD3E5570997BC7D5C7699AA70238C6A5A1C4508DA6DF7D9D08D01"
+    },
+    "staged_package_files": 399,
+    "staged_package_bytes": 533134892
+  },
+  "post_build_headroom_bytes": {
+    "available_ram": 20620861440,
+    "c_free": 15891562496,
+    "d_free": 688427474944
+  },
+  "drive": {
+    "launch_method": "logged-in desktop OS input helper",
+    "workspace": "C:\\Lantern-M2-M3-51ee5bab\\workspace\\Hendricks",
+    "profile": "C:\\Lantern-M2-M3-51ee5bab\\profile",
+    "m2_verdict": "partial",
+    "m2_passed": [
+      "fresh chooser and Hendricks selection",
+      "Meetings shell",
+      "meeting list load",
+      "real seeded row detail stays open",
+      "summary renders"
+    ],
+    "first_blocker": "Send to team remained on Saving in local-only mode; Review send did not advance",
+    "no_send_occurred": true,
+    "privacy_exclusion_proven": false,
+    "reload_close_reopen_proven": false,
+    "m3_verdict": "not_run_after_m2_blocker",
+    "fixture_changes": false
+  }
+}
