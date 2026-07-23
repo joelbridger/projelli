@@ -119,6 +119,15 @@
       "summary-copied": "Resumen copiado",
       "summary-empty": "Todavía no hay texto de resumen.",
       "summary-not-ready": "El resumen aún no está listo. La exportación se activa cuando haya texto real de notas.",
+      "private-note": {
+        "action": "Mantener esta nota privada para la cuenta con sesión iniciada",
+        "saving": "Haciendo privada esta nota…",
+        "saved": "Esta nota es privada para la cuenta que tiene la sesión iniciada.",
+        "unavailable": "Esta nota no se puede hacer privada ahora. No se cambió nada.",
+        "unavailable-identity": "Inicie sesión antes de hacer privada esta nota.",
+        "unavailable-workspace": "Abra el espacio de trabajo de esta reunión antes de hacer privada esta nota.",
+        "save-failed": "No se pudo hacer privada esta nota. No se cambió nada."
+      },
       "structured-summary-loading": "Cargando el resumen de esta reunión.",
       "structured-summary-read-error": "No se pudo cargar el resumen de esta reunión. Tu grabación y transcripción están seguras.",
       "structured-summary-title": "Resumen de la reunión",

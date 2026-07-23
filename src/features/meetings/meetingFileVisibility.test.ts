@@ -197,8 +197,8 @@ describe('file-backed meeting visibility', () => {
     ).toBe(true);
   });
 
-  it('uses only a signed-in firm member as the current viewer', () => {
-    useFirmStore.setState({ session: null });
+  it('uses only a live, non-revoked signed-in firm member as the current viewer', () => {
+    useFirmStore.setState({ session: null, accessToken: null, isLoading: false });
     expect(readCurrentMeetingViewerId()).toBeNull();
     useFirmStore.setState({
       session: {
@@ -213,9 +213,18 @@ describe('file-backed meeting visibility', () => {
         lastValidatedAt: null,
         activated: false,
       },
+      accessToken: null,
+      serverVerdict: 'unknown',
+      isLoading: false,
     });
+    // Persisted metadata is not a live identity while keychain hydration has
+    // not produced a runtime credential.
+    expect(readCurrentMeetingViewerId()).toBeNull();
+    useFirmStore.setState({ accessToken: 'runtime-access-token' });
     expect(readCurrentMeetingViewerId()).toBe('firm-member-1');
-    useFirmStore.setState({ session: null });
+    useFirmStore.setState({ serverVerdict: 'revoked' });
+    expect(readCurrentMeetingViewerId()).toBeNull();
+    useFirmStore.setState({ session: null, accessToken: null, isLoading: false });
   });
 
   it('fails closed with a stable error when the current policy read never settles', async () => {
@@ -235,6 +244,9 @@ describe('file-backed meeting visibility', () => {
           lastValidatedAt: null,
           activated: false,
         },
+        accessToken: 'runtime-access-token',
+        serverVerdict: 'unknown',
+        isLoading: false,
       });
       loadMeetingVisibilityPoliciesMock.mockImplementation(
         () => new Promise<readonly unknown[]>(() => {})
@@ -269,7 +281,7 @@ describe('file-backed meeting visibility', () => {
       expect(workspace.writeFile).not.toHaveBeenCalled();
     } finally {
       loadMeetingVisibilityPoliciesMock.mockReset();
-      useFirmStore.setState({ session: null });
+      useFirmStore.setState({ session: null, accessToken: null, isLoading: false });
       useWorkspaceStore.setState({ rootPath: null, rootGeneration: 0 });
       vi.useRealTimers();
     }

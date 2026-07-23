@@ -119,6 +119,15 @@
       "summary-copied": "Zusammenfassung kopiert",
       "summary-empty": "Noch kein Zusammenfassungstext verfügbar.",
       "summary-not-ready": "Die Zusammenfassung ist noch nicht bereit. Der Export wird aktiviert, sobald echter Notiztext verfügbar ist.",
+      "private-note": {
+        "action": "Diese Notiz für das angemeldete Konto privat halten",
+        "saving": "Diese Notiz wird privat gemacht…",
+        "saved": "Diese Notiz ist für das aktuell angemeldete Konto privat.",
+        "unavailable": "Diese Notiz kann jetzt nicht privat gemacht werden. Nichts wurde geändert.",
+        "unavailable-identity": "Melden Sie sich an, bevor Sie diese Notiz privat machen.",
+        "unavailable-workspace": "Öffnen Sie den Arbeitsbereich dieser Besprechung, bevor Sie diese Notiz privat machen.",
+        "save-failed": "Diese Notiz konnte nicht privat gemacht werden. Nichts wurde geändert."
+      },
       "structured-summary-loading": "Die Zusammenfassung dieses Gesprächs wird geladen.",
       "structured-summary-read-error": "Die Zusammenfassung dieses Gesprächs konnte nicht geladen werden. Ihre Aufnahme und das Transkript sind sicher.",
       "structured-summary-title": "Gesprächszusammenfassung",

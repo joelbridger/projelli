@@ -86,11 +86,16 @@ import { useMeetingFollowUpCompatibility } from './followUp/meetingFollowUpCompa
 import { useMeetingFoundationPreferencesStore } from './foundation/contract';
 import {
   FILE_MEETING_OWNER_PRIVATE_POLICY,
+  FILE_MEETING_OWNER_PRIVATE_POLICY_ID,
   meetingFileVisibilityContextIdentity,
+  meetingFileVisibilityManifestFromMeta,
+  readCurrentMeetingViewerId,
   requireCurrentMeetingFileAccess,
   resolveMeetingFilePathVisibility,
   type MeetingFileVisibilityContext,
+  type MeetingFileVisibilityManifest,
 } from './meetingFileVisibility';
+import type { MeetingVisibilitySubject } from '@/platform/meeting-visibility';
 
 export interface MeetingEntryProps {
   /** The live, complete household + matter pair. */
@@ -204,6 +209,77 @@ function toExactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   );
 }
 
+function exactIdentity(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 && value === value.trim()
+    ? value
+    : null;
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+
+function isAccountlessFileReference(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const file = value as Record<string, unknown>;
+  return (
+    hasOnlyKeys(file, ['id', 'kind', 'lineage']) &&
+    file['kind'] === 'file-reference' &&
+    file['lineage'] === 'accountless-unrestricted' &&
+    exactIdentity(file['id']) !== null
+  );
+}
+
+/**
+ * Phase 1 starts only from the explicit accountless map written for seeded
+ * solo meetings. Any other map could already carry a broader restriction, so
+ * changing it here would be guesswork. Keep the control closed instead.
+ */
+function isCompatiblePrivateNoteMap(
+  manifest: MeetingFileVisibilityManifest
+): boolean {
+  const root = manifest.meetingSubject as unknown as Record<string, unknown>;
+  if (
+    !hasOnlyKeys(root, ['id', 'kind', 'lineage']) ||
+    root['kind'] !== 'meeting-note' ||
+    root['lineage'] !== 'accountless-unrestricted' ||
+    !exactIdentity(root['id'])
+  )
+    return false;
+
+  const note = manifest.files['notes.docx'];
+  if (!note) return false;
+  return Object.values(manifest.files).every(
+    (file) => isAccountlessFileReference(file)
+  );
+}
+
+function isOwnerPrivateNote(
+  manifest: MeetingFileVisibilityManifest,
+  ownerId: string
+): boolean {
+  const note = manifest.files['notes.docx'];
+  return (
+    note?.kind === 'meeting-note' &&
+    note.lineage === 'root' &&
+    note.ownerRef === ownerId &&
+    note.visibilityPolicyId === FILE_MEETING_OWNER_PRIVATE_POLICY_ID
+  );
+}
+
+function ownerPrivateNoteSubject(
+  existing: MeetingVisibilitySubject,
+  ownerId: string
+): MeetingVisibilitySubject {
+  return {
+    id: existing.id,
+    kind: 'meeting-note',
+    lineage: 'root',
+    ownerRef: ownerId,
+    visibilityPolicyId: FILE_MEETING_OWNER_PRIVATE_POLICY_ID,
+  };
+}
+
 function transcriptToText(transcript: TranscriptFile | null): string {
   if (!transcript) return '';
   return transcript.segments
@@ -243,9 +319,7 @@ function MeetingEntryHost({
   useMeetingFollowUpCompatibility();
   const { t } = useTranslation();
   const firm = useFirm();
-  const currentViewerId = useFirmStore(
-    (state) => state.session?.userId ?? null
-  );
+  const currentViewerId = useFirmStore(readCurrentMeetingViewerId);
   const workspaceGeneration = useWorkspaceStore(
     (state) => state.rootGeneration
   );
@@ -296,6 +370,10 @@ function MeetingEntryHost({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [retryingNotes, setRetryingNotes] = useState(false);
   const [retryingTranscript, setRetryingTranscript] = useState(false);
+  const [savingPrivateNote, setSavingPrivateNote] = useState(false);
+  const [privateNoteNotice, setPrivateNoteNotice] = useState<string | null>(
+    null
+  );
   const [
     authorizedRenderedAuthorityIdentity,
     setAuthorizedRenderedAuthorityIdentity,
@@ -381,6 +459,8 @@ function MeetingEntryHost({
     setNotices([]);
     setRetryingNotes(false);
     setRetryingTranscript(false);
+    setSavingPrivateNote(false);
+    setPrivateNoteNotice(null);
     setAuthorizedRenderedAuthorityIdentity(null);
     didInitialSeek.current = false;
     // eslint-disable-next-line lantern-async/no-silent-failure -- each meeting-file read below renders a safe empty/pending state on failure
@@ -769,6 +849,93 @@ function MeetingEntryHost({
     workspaceService,
     onChanged,
     requireLiveMeetingFileAccess,
+  ]);
+
+  const privateNoteMap = useMemo(
+    () => (meta ? meetingFileVisibilityManifestFromMeta(meta) : null),
+    [meta]
+  );
+  const signedInOwnerId = exactIdentity(currentViewerId);
+  const privateNoteAlreadySaved =
+    privateNoteMap !== null &&
+    signedInOwnerId !== null &&
+    isOwnerPrivateNote(privateNoteMap, signedInOwnerId);
+  const canMakePrivateNote =
+    hasNotes &&
+    workspaceService !== null &&
+    signedInOwnerId !== null &&
+    privateNoteMap !== null &&
+    isCompatiblePrivateNoteMap(privateNoteMap);
+
+  const privateNoteUnavailableMessage = !hasNotes
+    ? null
+    : !signedInOwnerId
+      ? t('meetings.entry.private-note.unavailable-identity')
+      : !workspaceService
+        ? t('meetings.entry.private-note.unavailable-workspace')
+        : !privateNoteMap || !isCompatiblePrivateNoteMap(privateNoteMap)
+          ? t('meetings.entry.private-note.unavailable')
+          : null;
+
+  const handleKeepPrivateNote = useCallback(async () => {
+    if (!signedInOwnerId || !workspaceService || !hasNotes) {
+      setPrivateNoteNotice(t('meetings.entry.private-note.unavailable'));
+      return;
+    }
+    setSavingPrivateNote(true);
+    setPrivateNoteNotice(null);
+    let updated: MeetingMeta | null;
+    try {
+      updated = await updateMeetingJson(
+        meetingDir,
+        (current) => {
+          if (current.matterId !== matterId)
+            throw new Error('The meeting changed before this note could be updated.');
+          const manifest = meetingFileVisibilityManifestFromMeta(current);
+          if (!manifest || !isCompatiblePrivateNoteMap(manifest))
+            throw new Error('The meeting note is not ready for this change.');
+          const note = manifest.files['notes.docx'];
+          if (!note) throw new Error('The meeting note is not ready for this change.');
+          return {
+            ...current,
+            meetingFileVisibility: {
+              ...manifest,
+              files: {
+                ...manifest.files,
+                'notes.docx': ownerPrivateNoteSubject(note, signedInOwnerId),
+              },
+            },
+          };
+        },
+        {
+          assertCurrentAccess: async () => {
+            await requireLiveMeetingFileAccess('meeting.json');
+            await requireLiveMeetingFileAccess('notes.docx');
+          },
+        }
+      );
+    } catch {
+      setPrivateNoteNotice(t('meetings.entry.private-note.save-failed'));
+      return;
+    } finally {
+      setSavingPrivateNote(false);
+    }
+    if (!updated) {
+      setPrivateNoteNotice(t('meetings.entry.private-note.save-failed'));
+      return;
+    }
+    setMeta(updated);
+    setPrivateNoteNotice(t('meetings.entry.private-note.saved'));
+    onChanged?.();
+  }, [
+    hasNotes,
+    matterId,
+    meetingDir,
+    onChanged,
+    requireLiveMeetingFileAccess,
+    signedInOwnerId,
+    t,
+    workspaceService,
   ]);
 
   const copyText = useCallback(async (text: string, notice: string) => {
@@ -1442,6 +1609,83 @@ function MeetingEntryHost({
         )}
 
         <div style={{ padding: 'var(--kp-gutter)' }}>
+          {activePanel?.id === 'summary' && hasNotes && (
+            <div
+              data-testid="meeting-private-note-control"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginBottom: 'var(--kp-space-sm)',
+                padding: '8px 10px',
+                border: '1px solid var(--kp-divider)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--kp-surface)',
+              }}
+            >
+              {privateNoteAlreadySaved ? (
+                <span
+                  data-testid="meeting-private-note-saved"
+                  style={{
+                    color: 'var(--kp-navy)',
+                    fontSize: 'var(--kp-font-sm)',
+                  }}
+                >
+                  {t('meetings.entry.private-note.saved')}
+                </span>
+              ) : canMakePrivateNote ? (
+                <button
+                  type="button"
+                  data-testid="meeting-private-note-action"
+                  disabled={savingPrivateNote}
+                  onClick={() => {
+                    void handleKeepPrivateNote().catch((error: unknown) => {
+                      setPrivateNoteNotice(
+                        error instanceof Error ? error.message : String(error)
+                      );
+                    });
+                  }}
+                  style={{
+                    border: '1px solid var(--kp-divider)',
+                    background: 'white',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '5px 8px',
+                    color: 'var(--kp-navy)',
+                    fontFamily: 'inherit',
+                    fontSize: 'var(--kp-font-sm)',
+                    cursor: savingPrivateNote ? 'wait' : 'pointer',
+                  }}
+                >
+                  {savingPrivateNote
+                    ? t('meetings.entry.private-note.saving')
+                    : t('meetings.entry.private-note.action')}
+                </button>
+              ) : (
+                <span
+                  data-testid="meeting-private-note-unavailable"
+                  style={{
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 'var(--kp-font-sm)',
+                  }}
+                >
+                  {privateNoteUnavailableMessage}
+                </span>
+              )}
+              {privateNoteNotice && !privateNoteAlreadySaved && (
+                <span
+                  role="status"
+                  data-testid="meeting-private-note-notice"
+                  style={{
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 'var(--kp-font-xs)',
+                  }}
+                >
+                  {privateNoteNotice}
+                </span>
+              )}
+            </div>
+          )}
           {activePanel?.mount(panelContext)}
 
           {meetingInsights.length > 0 && (
