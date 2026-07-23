@@ -111,27 +111,33 @@ function ports(
   const task: ExactMeetingTaskDelivery = {
     create: taskCreate,
   };
-  const crmIsConnected = vi.fn(() => {
-    events.push('crm-connect-read');
-    return Promise.resolve(true);
-  });
-  const crmSaveProposal = vi.fn<NotesReviewCrmDelivery['saveProposal']>(() => {
-    events.push('crm-save');
-    return Promise.resolve();
-  });
-  const crmPrepareProposal = vi.fn(() => {
-    events.push('crm-prepare');
-    return Promise.resolve();
-  });
-  const crmApproveProposal = vi.fn(() => {
-    events.push('crm-write');
-    return Promise.resolve({ remoteId: 'remote-1', deduped: false });
+  const localCrmWrites = new Map<string, { field: string; value: unknown }>();
+  const crmSaveApprovedLocalField = vi.fn<
+    NonNullable<NotesReviewCrmDelivery['saveApprovedLocalField']>
+  >(async (request) => {
+    events.push('local-crm-write');
+    const existing = localCrmWrites.get(request.deliveryKey);
+    if (existing) {
+      if (existing.field === request.field && existing.value === request.value)
+        return { recordId: request.householdRef, deduped: true };
+      throw Object.assign(new Error('local delivery conflict'), {
+        retryable: false,
+      });
+    }
+    localCrmWrites.set(request.deliveryKey, {
+      field: request.field,
+      value: request.value,
+    });
+    return { recordId: request.householdRef, deduped: false };
   });
   const crm: NotesReviewCrmDelivery = {
-    isConnected: crmIsConnected,
-    saveProposal: crmSaveProposal,
-    prepareProposal: crmPrepareProposal,
-    approveProposal: crmApproveProposal,
+    isConnected: () => Promise.resolve(true),
+    saveProposal: () => Promise.reject(new Error('provider path must not run')),
+    prepareProposal: () =>
+      Promise.reject(new Error('provider path must not run')),
+    approveProposal: () =>
+      Promise.reject(new Error('provider path must not run')),
+    saveApprovedLocalField: crmSaveApprovedLocalField,
   };
   type RepositoryInput = MakeExactMeetingNotesReviewRepositoryInput<
     typeof client
@@ -200,10 +206,7 @@ function ports(
     repository,
     listForMeeting,
     taskCreate,
-    crmIsConnected,
-    crmSaveProposal,
-    crmPrepareProposal,
-    crmApproveProposal,
+    crmSaveApprovedLocalField,
     approveArtifact: decideArtifact,
     decideArtifact,
     recordDelivery,
@@ -269,10 +272,7 @@ describe('exact meeting notes review reader', () => {
       expect(lane.listForMeeting).not.toHaveBeenCalled();
       expect(lane.approveArtifact).not.toHaveBeenCalled();
       expect(lane.taskCreate).not.toHaveBeenCalled();
-      expect(lane.crmIsConnected).not.toHaveBeenCalled();
-      expect(lane.crmSaveProposal).not.toHaveBeenCalled();
-      expect(lane.crmPrepareProposal).not.toHaveBeenCalled();
-      expect(lane.crmApproveProposal).not.toHaveBeenCalled();
+      expect(lane.crmSaveApprovedLocalField).not.toHaveBeenCalled();
     }
   );
 
@@ -316,9 +316,7 @@ describe('exact meeting notes review reader', () => {
     await lane.repository.list('crm-update');
     expect(lane.approveArtifact).not.toHaveBeenCalled();
     expect(lane.taskCreate).not.toHaveBeenCalled();
-    expect(lane.crmSaveProposal).not.toHaveBeenCalled();
-    expect(lane.crmPrepareProposal).not.toHaveBeenCalled();
-    expect(lane.crmApproveProposal).not.toHaveBeenCalled();
+    expect(lane.crmSaveApprovedLocalField).not.toHaveBeenCalled();
   });
 
   it('shows no restricted title or body to an excluded coworker', async () => {
@@ -329,7 +327,7 @@ describe('exact meeting notes review reader', () => {
     expect(facts.crmUpdates).toEqual([]);
     expect(facts.proposedCount).toBe(0);
     expect(lane.taskCreate).not.toHaveBeenCalled();
-    expect(lane.crmSaveProposal).not.toHaveBeenCalled();
+    expect(lane.crmSaveApprovedLocalField).not.toHaveBeenCalled();
   });
 
   it('records approval for the exact artifact before creating the edited task', async () => {
@@ -377,7 +375,7 @@ describe('exact meeting notes review reader', () => {
     expect(receipt.status).toBe('created');
   });
 
-  it('keeps typed CRM before values immutable and sends edited proposed values only after approval', async () => {
+  it('keeps typed CRM before values immutable and writes the edited proposed value locally only after approval', async () => {
     const lane = ports();
     const item = (await lane.repository.list('crm-update'))[0];
     if (!item || item.kind !== 'crm-update') throw new Error('expected CRM');
@@ -390,35 +388,22 @@ describe('exact meeting notes review reader', () => {
     };
     await lane.repository.approve(edited);
 
-    expect(lane.events).toEqual([
-      'crm-connect-read',
-      'artifact-approval',
-      'crm-save',
-      'crm-prepare',
-      'crm-write',
-    ]);
-    expect(lane.crmSaveProposal).toHaveBeenCalledWith(
+    expect(lane.events).toEqual(['artifact-approval', 'local-crm-write']);
+    expect(lane.crmSaveApprovedLocalField).toHaveBeenCalledWith(
       expect.objectContaining({
-        kind: 'field',
+        householdRef: 'household-a',
         matterId: 'matter-shared',
         field: 'risk_tolerance',
-        existingValue: 'Conservative',
-        newValue: 'Moderate',
-        finalValue: 'Moderate',
-        sourceRef: 'meeting:meeting-a#88000',
+        value: 'Moderate',
+        deliveryKey: expect.stringMatching(/^meeting-delivery-/),
       })
     );
-    const savedProposal = lane.crmSaveProposal.mock.calls[0]?.[0];
-    if (!savedProposal) throw new Error('Expected the CRM proposal write.');
-    expect(savedProposal.provenance).toBeUndefined();
-    expect(savedProposal.meetingVisibility).toEqual({
-      kind: 'proposal',
-      id: savedProposal.id,
-      lineage: 'derived',
-      ownerRef: 'advisor-a',
-      visibilityPolicyId: 'policy-private',
-      parentRef: { kind: 'meeting-artifact', id: 'artifact-crm' },
+    const delivered = (await lane.repository.list('crm-update'))[0];
+    if (!delivered) throw new Error('expected saved CRM update');
+    await expect(lane.repository.approve(delivered)).resolves.toMatchObject({
+      status: 'saved',
     });
+    expect(lane.crmSaveApprovedLocalField).toHaveBeenCalledTimes(1);
 
     await expect(
       lane.repository.approve({
@@ -426,6 +411,19 @@ describe('exact meeting notes review reader', () => {
         fields: item.fields.map((field) => ({ ...field, before: 'Invented' })),
       })
     ).rejects.toThrow('before values');
+  });
+
+  it('refuses a reused local CRM delivery key with changed content', async () => {
+    const lane = ports();
+    const item = (await lane.repository.list('crm-update'))[0];
+    if (!item || item.kind !== 'crm-update') throw new Error('expected CRM');
+    await lane.repository.approve(item);
+    const first = lane.crmSaveApprovedLocalField.mock.calls[0]?.[0];
+    if (!first) throw new Error('expected local delivery request');
+
+    await expect(
+      lane.crmSaveApprovedLocalField({ ...first, value: 'Aggressive' })
+    ).rejects.toMatchObject({ retryable: false });
   });
 
   it('rejects a CRM proposal whose producer omitted the real before value', async () => {
@@ -455,7 +453,7 @@ describe('exact meeting notes review reader', () => {
       'missing its real before value'
     );
     expect(lane.approveArtifact).not.toHaveBeenCalled();
-    expect(lane.crmSaveProposal).not.toHaveBeenCalled();
+    expect(lane.crmSaveApprovedLocalField).not.toHaveBeenCalled();
   });
 
   it('fails closed before showing or delivering a proposal with missing lineage', async () => {
@@ -515,7 +513,7 @@ describe('exact meeting notes review reader', () => {
       detail: 'Advisor rejected this after review.',
     });
     expect(lane.taskCreate).not.toHaveBeenCalled();
-    expect(lane.crmSaveProposal).not.toHaveBeenCalled();
+    expect(lane.crmSaveApprovedLocalField).not.toHaveBeenCalled();
     expect(lane.recordDelivery).not.toHaveBeenCalled();
   });
 
@@ -594,14 +592,13 @@ describe('exact meeting notes review reader', () => {
     }
   );
 
-  it('rechecks authority after CRM staging awaits and before the next provider write', async () => {
+  it('rechecks authority immediately before the local CRM write', async () => {
     const lane = ports();
-    lane.crmSaveProposal.mockImplementationOnce(() => {
-      lane.assertEgressAuthority.mockRejectedValueOnce(
+    lane.assertEgressAuthority
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(
         new MeetingProposalEgressAuthorityError('membership revoked')
       );
-      return Promise.resolve();
-    });
     const item = (await lane.repository.list('crm-update'))[0];
     if (!item) throw new Error('expected CRM update');
 
@@ -609,9 +606,7 @@ describe('exact meeting notes review reader', () => {
       approvalRecorded: true,
       retryable: false,
     });
-    expect(lane.crmSaveProposal).toHaveBeenCalledOnce();
-    expect(lane.crmPrepareProposal).not.toHaveBeenCalled();
-    expect(lane.crmApproveProposal).not.toHaveBeenCalled();
+    expect(lane.crmSaveApprovedLocalField).not.toHaveBeenCalled();
   });
 
   it('keeps a terminal destination refusal failed and unavailable for retry', async () => {

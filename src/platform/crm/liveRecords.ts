@@ -14,6 +14,113 @@ export type LiveCrmRecord = {
   [key: string]: unknown;
 };
 
+export type CompletedMeetingCrmDeliveryMarker = {
+  readonly key: string;
+  readonly field: string;
+  readonly value: string | number | boolean | null;
+};
+
+const COMPLETED_MEETING_CRM_DELIVERIES =
+  'completedMeetingCrmDeliveries' as const;
+
+function completedMeetingCrmDeliveries(
+  record: LiveCrmRecord
+): readonly CompletedMeetingCrmDeliveryMarker[] {
+  const value = record[COMPLETED_MEETING_CRM_DELIVERIES];
+  if (!Array.isArray(value)) return [];
+  return value.filter((marker): marker is CompletedMeetingCrmDeliveryMarker =>
+    Boolean(
+      marker &&
+      typeof marker === 'object' &&
+      typeof marker.key === 'string' &&
+      typeof marker.field === 'string' &&
+      (typeof marker.value === 'string' ||
+        typeof marker.value === 'number' ||
+        typeof marker.value === 'boolean' ||
+        marker.value === null)
+    )
+  );
+}
+
+/**
+ * Applies one approved meeting field update to the exact local household.
+ * The narrowly named marker makes retry/reload safe without involving a CRM
+ * provider: a matching key is already complete, while changed content under
+ * the same key is refused.
+ */
+export async function saveApprovedMeetingCrmFieldRebased(input: {
+  readonly workspaceRoot: string | null | undefined;
+  readonly householdRef: string;
+  readonly matterId: string;
+  readonly deliveryKey: string;
+  readonly field: string;
+  readonly value: string | number | boolean | null;
+  readonly canPersist: () => boolean;
+}): Promise<{ readonly record: LiveCrmRecord; readonly deduped: boolean }> {
+  if (!isTauri())
+    throw new Error('CRM records can only be saved in the desktop app.');
+  if (!input.workspaceRoot)
+    throw new Error('Open a workspace before saving CRM data.');
+  return inCrmWorkspace(input.workspaceRoot, async () => {
+    const records = await invoke<LiveCrmRecord[]>('crm_live_list');
+    const household = records.find(
+      (record) =>
+        record.id === input.householdRef &&
+        record.kind === 'household' &&
+        record.matterId === input.matterId
+    );
+    if (!household)
+      throw Object.assign(
+        new Error('The selected household is no longer available locally.'),
+        { retryable: false }
+      );
+    const matchingKey = completedMeetingCrmDeliveries(household).find(
+      (marker) => marker.key === input.deliveryKey
+    );
+    if (matchingKey) {
+      if (
+        matchingKey.field === input.field &&
+        sameRecordValue(matchingKey.value, input.value)
+      )
+        return { record: household, deduped: true };
+      throw Object.assign(
+        new Error(
+          'This local CRM delivery key conflicts with different content.'
+        ),
+        { retryable: false }
+      );
+    }
+    if (!input.canPersist())
+      throw new Error(
+        'The workspace changed while CRM data was being updated. Try again.'
+      );
+    const marker: CompletedMeetingCrmDeliveryMarker = {
+      key: input.deliveryKey,
+      field: input.field,
+      value: input.value,
+    };
+    const desired: LiveCrmRecord = {
+      ...household,
+      [input.field]: input.value,
+      [COMPLETED_MEETING_CRM_DELIVERIES]: [
+        ...completedMeetingCrmDeliveries(household),
+        marker,
+      ],
+    };
+    const rebased = rebaseLiveCrmRecord(desired, household, household);
+    if (!input.canPersist())
+      throw new Error(
+        'The workspace changed while CRM data was being updated. Try again.'
+      );
+    return {
+      record: await invoke<LiveCrmRecord>('crm_live_upsert', {
+        record: rebased,
+      }),
+      deduped: false,
+    };
+  });
+}
+
 function sameRecordValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }

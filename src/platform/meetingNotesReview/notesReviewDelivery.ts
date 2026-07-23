@@ -48,6 +48,18 @@ export interface NotesReviewCrmDelivery {
   approveProposal(
     proposalId: string
   ): Promise<{ remoteId: string; deduped: boolean }>;
+  /**
+   * The M3 destination is Lantern's own encrypted CRM, not the provider
+   * proposal API.  It is optional only while the older summary-review adapter
+   * remains compiled; exact-meeting delivery requires it at runtime.
+   */
+  saveApprovedLocalField?(input: {
+    readonly deliveryKey: string;
+    readonly householdRef: string;
+    readonly matterId: string;
+    readonly field: string;
+    readonly value: NotesReviewCrmFieldValue;
+  }): Promise<{ readonly recordId: string; readonly deduped: boolean }>;
 }
 
 interface StoredItem extends NotesReviewItem {
@@ -764,7 +776,9 @@ export function makeExactMeetingNotesReviewRepository<
     if (source.approvalState === 'rejected')
       throw new Error('This proposal was rejected and cannot be delivered.');
     if (source.delivery?.status === 'failed')
-      throw new Error('This delivery failed permanently and cannot be retried.');
+      throw new Error(
+        'This delivery failed permanently and cannot be retried.'
+      );
     if (source.delivery?.status === 'pending')
       throw new Error(
         'This delivery outcome is unknown. Check the destination before doing anything else.'
@@ -783,18 +797,6 @@ export function makeExactMeetingNotesReviewRepository<
       source.delivery?.status === 'confirmed'
     ) {
       return receiptFromStoredDelivery(source.delivery, deliveryKey);
-    }
-
-    // Connectivity is a read-only preflight. A known disconnected provider
-    // should not consume the one legal approval transition.
-    assertCompleteIdentity();
-    if (
-      validated.kind === 'crm-update' &&
-      !(await input.crmDelivery.isConnected())
-    ) {
-      throw new Error(
-        'Connect Wealthbox before sending a CRM update. Nothing was sent.'
-      );
     }
 
     // The append-only approval transition is the authorization token. No task
@@ -844,11 +846,8 @@ export function makeExactMeetingNotesReviewRepository<
               deliveryKey,
               () => assertLiveEgressAuthority(current, deliveryKey)
             )
-          : await deliverExactCrm(
-              current,
-              input.crmDelivery,
-              deliveryKey,
-              () => assertLiveEgressAuthority(current, deliveryKey)
+          : await deliverExactCrm(current, input.crmDelivery, deliveryKey, () =>
+              assertLiveEgressAuthority(current, deliveryKey)
             );
     } catch (error) {
       await input.recordDelivery({
@@ -1134,49 +1133,35 @@ async function deliverExactCrm<Client extends NotesReviewClientPair>(
   deliveryKey: string,
   assertEgressAuthority: () => Promise<void>
 ): Promise<NotesReviewReceipt> {
-  const parent = artifactMeetingVisibility(itemArtifact(item));
-  const receipts: string[] = [];
-  for (const field of item.fields) {
-    const proposalId = `meeting-review-${stableId(
-      `${deliveryKey}\n${field.field}`
-    )}`;
-    const requestedAt = new Date().toISOString();
-    await assertEgressAuthority();
-    await delivery.saveProposal({
-      id: proposalId,
-      kind: 'field',
-      matterId: item.client.matterId,
-      title: item.title,
-      body: item.detail,
-      sourceRef: item.transcriptRef,
-      status: 'proposed',
-      field: field.field,
-      existingValue: crmValueForTransport(field.before),
-      newValue: crmValueForTransport(field.proposed),
-      finalValue: crmValueForTransport(field.proposed),
-      meetingVisibility: meetingVisibilityProposal(proposalId, parent),
-    });
-    await assertEgressAuthority();
-    await delivery.prepareProposal({
-      proposalId,
-      householdKey: item.client.householdRef,
-      requestedAt,
-    });
-    await assertEgressAuthority();
-    const result = await delivery.approveProposal(proposalId);
-    receipts.push(result.remoteId);
-  }
+  if (item.fields.length !== 1)
+    throw Object.assign(
+      new Error('A local CRM delivery must contain exactly one field update.'),
+      { retryable: false }
+    );
+  if (!delivery.saveApprovedLocalField)
+    throw Object.assign(
+      new Error(
+        'The local CRM delivery adapter is unavailable. Nothing was sent.'
+      ),
+      { retryable: false }
+    );
+  const field = item.fields[0];
+  if (!field) throw new Error('A local CRM delivery field is missing.');
+  await assertEgressAuthority();
+  const result = await delivery.saveApprovedLocalField({
+    deliveryKey,
+    householdRef: item.client.householdRef,
+    matterId: item.client.matterId,
+    field: field.field,
+    value: field.proposed,
+  });
   return {
-    status: 'sent',
-    message: `CRM update delivered (${receipts.length.toString()} field${
-      receipts.length === 1 ? '' : 's'
-    }; receipts ${receipts.join(', ')}).`,
+    status: 'saved',
+    message: `CRM update saved locally (${result.deduped ? 'already applied' : `receipt ${result.recordId}`}).`,
   };
 }
 
-function deliveryFailureStatus(
-  error: unknown
-): 'failed' | 'retryable' {
+function deliveryFailureStatus(error: unknown): 'failed' | 'retryable' {
   return error instanceof MeetingProposalEgressAuthorityError ||
     (error &&
       typeof error === 'object' &&
@@ -1186,7 +1171,9 @@ function deliveryFailureStatus(
     : 'retryable';
 }
 
-function itemArtifact(item: ExactMeetingNotesReviewItem): ExactMeetingReviewArtifact {
+function itemArtifact(
+  item: ExactMeetingNotesReviewItem
+): ExactMeetingReviewArtifact {
   return {
     id: item.artifactId,
     meetingId: item.meetingId,
@@ -1223,8 +1210,10 @@ function artifactMeetingVisibility(
       'The meeting proposal is missing its private-note lineage. Nothing was shown or delivered.'
     );
   const subject = candidate as MeetingVisibilitySubject;
-  const exactArtifact = subject.kind === 'meeting-artifact' && subject.id === artifact.id;
-  const exactLegacy = exactArtifact && subject.lineage === 'legacy-unrestricted';
+  const exactArtifact =
+    subject.kind === 'meeting-artifact' && subject.id === artifact.id;
+  const exactLegacy =
+    exactArtifact && subject.lineage === 'legacy-unrestricted';
   const exactDerived =
     exactArtifact &&
     subject.lineage === 'derived' &&
@@ -1386,9 +1375,4 @@ function crmValue(
     return value;
   }
   throw new Error(`CRM ${type} value is malformed.`);
-}
-
-function crmValueForTransport(value: NotesReviewCrmFieldValue): string {
-  if (value === null) return '';
-  return String(value);
 }
