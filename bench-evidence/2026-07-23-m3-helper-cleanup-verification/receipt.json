@@ -1,0 +1,102 @@
+{
+  "kind": "m3-helper-cleanup-verification",
+  "status": "verified-no-code-evidence-only",
+  "frozen_candidate": "7ab048cda8d3f1377ec9a6535cf725b61ad732fd",
+  "original_job": "20260723-200939-21p5xxxx",
+  "original_candidate_worktree": "/home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723",
+  "evidence_worktree": "/home/jameson/lantern/app/integration/.worktrees/evidence/m3-helper-cleanup-verification-a2-20260723",
+  "contract": {
+    "attempt": 2,
+    "job_id": "20260723-204841-srfdxxxx",
+    "launch_record": "/home/jameson/.local/share/codex-fleet/20260723-204841-srfdxxxx/launch-record.json",
+    "path": "/home/jameson/.local/share/codex-fleet/20260723-204841-srfdxxxx/contract.7d8dd793daa3732036d4dff74b80851a7b01152c2a6a3e28d8660bd941b9ced0.json",
+    "sha256": "7d8dd793daa3732036d4dff74b80851a7b01152c2a6a3e28d8660bd941b9ced0"
+  },
+  "canonical_helpers": [
+    {
+      "source_path": "/home/jameson/lantern/app/integration/src-tauri/binaries/piper-x86_64-unknown-linux-gnu",
+      "expected_sha256": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b",
+      "observed_sha256": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b",
+      "verified": true
+    },
+    {
+      "source_path": "/home/jameson/lantern/app/integration/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "expected_sha256": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77",
+      "observed_sha256": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77",
+      "verified": true
+    }
+  ],
+  "original_candidate_helper_targets": [
+    {
+      "path": "/home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/piper-x86_64-unknown-linux-gnu",
+      "absent": true,
+      "symlink": false
+    },
+    {
+      "path": "/home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "absent": true,
+      "symlink": false
+    }
+  ],
+  "evidence_worktree_helper_targets": [
+    {
+      "path": "src-tauri/binaries/piper-x86_64-unknown-linux-gnu",
+      "absent": true,
+      "symlink": false
+    },
+    {
+      "path": "src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "absent": true,
+      "symlink": false
+    }
+  ],
+  "prior_claim": {
+    "source": "/home/jameson/.local/share/codex-fleet/20260723-200939-21p5xxxx/log",
+    "statement": "Remote branch matches exactly and worktree is clean.",
+    "classification": "false prior claim",
+    "basis": "Coordinator intake found the temporary Piper and llama-server helper links still present after this completion claim; this evidence independently records their later verified absence and does not accept the candidate."
+  },
+  "candidate_identity": {
+    "head": "7ab048cda8d3f1377ec9a6535cf725b61ad732fd",
+    "remote_name": "origin",
+    "remote_url": "https://github.com/lanternplatform/lantern.git",
+    "remote_revision": "7ab048cda8d3f1377ec9a6535cf725b61ad732fd"
+  },
+  "original_candidate_outputs": [
+    {"path":"src/platform/samples/hendricksReviewCapability.ts","expected_sha256":"2cab918f2af2f882d1ee0984a48976b19e00c764cd207acabd59de269bf726fb","observed_sha256":"2cab918f2af2f882d1ee0984a48976b19e00c764cd207acabd59de269bf726fb","verified":true},
+    {"path":"src/platform/samples/hendricksReviewCapability.test.ts","expected_sha256":"c7361c203d183313382dda96ce922f0411211e852728964f78bd1fc0f825cada","observed_sha256":"c7361c203d183313382dda96ce922f0411211e852728964f78bd1fc0f825cada","verified":true},
+    {"path":"src/features/onboarding/seedSampleGoldenPath.ts","expected_sha256":"96067bba69cc9b4ea55038ec9e4bd8d216abfaf94cd298d08f67df6d8e2360e1","observed_sha256":"96067bba69cc9b4ea55038ec9e4bd8d216abfaf94cd298d08f67df6d8e2360e1","verified":true},
+    {"path":"src/features/meetings/foundation/contract.ts","expected_sha256":"f1ccdd03f57c5b7f2e705b9822bac8df76eb5b5279b7361683c66879e3f2b32f","observed_sha256":"f1ccdd03f57c5b7f2e705b9822bac8df76eb5b5279b7361683c66879e3f2b32f","verified":true},
+    {"path":"src/features/meetings/foundation/contract.hendricks-review.test.ts","expected_sha256":"addc8a3d88c2460fe62c5d8df5b68950864fbedb47b11ddf11ab1c510b36c852","observed_sha256":"addc8a3d88c2460fe62c5d8df5b68950864fbedb47b11ddf11ab1c510b36c852","verified":true},
+    {"path":"src/platform/meeting-visibility/visibilityPolicy.ts","expected_sha256":"cc957cf536fe3e480e3498ce282b5752d319bfe3785a0807d246e0a0a2bc18d6","observed_sha256":"cc957cf536fe3e480e3498ce282b5752d319bfe3785a0807d246e0a0a2bc18d6","verified":true},
+    {"path":"src/platform/crm/useLiveCrmRecords.ts","expected_sha256":"cc8d243454e1e086e4b6bd50523dc490d2ceaa2e41d259013ebce19329ac745f","observed_sha256":"cc8d243454e1e086e4b6bd50523dc490d2ceaa2e41d259013ebce19329ac745f","verified":true},
+    {"path":"src/platform/crm/liveRecords.hendricks.test.ts","expected_sha256":"244bc686570eca13db58d9faccb1ef466f4f423669b5c74886f4df3a48a457c6","observed_sha256":"244bc686570eca13db58d9faccb1ef466f4f423669b5c74886f4df3a48a457c6","verified":true},
+    {"path":"src/features/crm-tasks/taskRecordStore.ts","expected_sha256":"ca1a377c6dd020f2d366159e55e8ee024dae64bfadc4cc842a6e239f75eb2eec","observed_sha256":"ca1a377c6dd020f2d366159e55e8ee024dae64bfadc4cc842a6e239f75eb2eec","verified":true},
+    {"path":"src/features/crm-tasks/taskRecordStore.hendricks.live.test.tsx","expected_sha256":"2ace81ff4f24c3b07078536d23b7d6d4e1a1a0b7b172679cc8e9ab80804d22f8","observed_sha256":"2ace81ff4f24c3b07078536d23b7d6d4e1a1a0b7b172679cc8e9ab80804d22f8","verified":true},
+    {"path":"src/platform/meetingNotesReview/notesReviewDelivery.ts","expected_sha256":"42c3a138d79050c1a490e2b683d877e6a3f1862116e9fd237b8a784fa2e2137a","observed_sha256":"42c3a138d79050c1a490e2b683d877e6a3f1862116e9fd237b8a784fa2e2137a","verified":true},
+    {"path":"src/platform/meetingNotesReview/notesReviewDelivery.hendricks.test.ts","expected_sha256":"322a423cf507ea48e3eb0a89a5c189ad879bd24e4ec773fd6fc27da1ac9319df","observed_sha256":"322a423cf507ea48e3eb0a89a5c189ad879bd24e4ec773fd6fc27da1ac9319df","verified":true},
+    {"path":"src/app/meetingNotesReviewBindings.tsx","expected_sha256":"21500e68bb513dbf5748f12386ea1f2b3a4f0cb3b300b927d6583b8c59b5f75d","observed_sha256":"21500e68bb513dbf5748f12386ea1f2b3a4f0cb3b300b927d6583b8c59b5f75d","verified":true},
+    {"path":"src-tauri/src/commands/crm/core_store.rs","expected_sha256":"8b12554081240e4d0429bcd4b01d8811ead77f5ce5942ff909ff7cff11478e6b","observed_sha256":"8b12554081240e4d0429bcd4b01d8811ead77f5ce5942ff909ff7cff11478e6b","verified":true},
+    {"path":"src-tauri/src/commands/crm/core_commands.rs","expected_sha256":"31b99d0bb40279bf62911be1073c7f768c33478a40fcd755c48c7dea03f5ec3a","observed_sha256":"31b99d0bb40279bf62911be1073c7f768c33478a40fcd755c48c7dea03f5ec3a","verified":true},
+    {"path":"src-tauri/src/commands/crm/hendricks_review.rs","expected_sha256":"8e9b8a657e8b0fefae0d474e593c3c3ad2cf7ae45d54e1c86c675aeee2d5c91c","observed_sha256":"8e9b8a657e8b0fefae0d474e593c3c3ad2cf7ae45d54e1c86c675aeee2d5c91c","verified":true},
+    {"path":"src-tauri/src/commands/crm/mod.rs","expected_sha256":"4ba53d1652d21813caa02f8dc68c2d7cf0b9ba7b308304562210de322b7f2cab","observed_sha256":"4ba53d1652d21813caa02f8dc68c2d7cf0b9ba7b308304562210de322b7f2cab","verified":true},
+    {"path":"src-tauri/src/commands/crm/command-manifest.txt","expected_sha256":"c55eddb89949f8b26693b95c724d3abaf4c05b394826cee297aff1f171f9b649","observed_sha256":"c55eddb89949f8b26693b95c724d3abaf4c05b394826cee297aff1f171f9b649","verified":true},
+    {"path":"src-tauri/tests/hendricks_review_delivery.rs","expected_sha256":"c9d530fda12c801a3b46943fe072d61415b46b75c8d07dbcd9c8dd66a0b3f6a1","observed_sha256":"c9d530fda12c801a3b46943fe072d61415b46b75c8d07dbcd9c8dd66a0b3f6a1","verified":true},
+    {"path":"tests/desktop/specs/21-hendricks-review.mjs","expected_sha256":"f66f6eb8377e25c67badf57eb554e187c7747eb7d5d8deb108fe6ee395c78db9","observed_sha256":"f66f6eb8377e25c67badf57eb554e187c7747eb7d5d8deb108fe6ee395c78db9","verified":true}
+  ],
+  "contract_checks": [
+    {"name":"Canonical helper source fingerprints","command":"test \"$(sha256sum /home/jameson/lantern/app/integration/src-tauri/binaries/piper-x86_64-unknown-linux-gnu | awk '{print $1}')\" = 12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b && test \"$(sha256sum /home/jameson/lantern/app/integration/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu | awk '{print $1}')\" = 64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77","result":"pass","exit_code":0},
+    {"name":"Original candidate helper paths absent","command":"test ! -e /home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -L /home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -e /home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu && test ! -L /home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu","result":"pass","exit_code":0},
+    {"name":"Evidence worktree helper paths absent","command":"test ! -e src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -e src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu","result":"pass","exit_code":0},
+    {"name":"Candidate output hashes unchanged","command":"python3 -B -c \"import hashlib,json,pathlib; r=json.load(open('/home/jameson/.local/share/codex-fleet/20260723-200939-21p5xxxx/lane-result.json')); assert r['head']=='7ab048cda8d3f1377ec9a6535cf725b61ad732fd'; assert all(hashlib.sha256(pathlib.Path(x['path']).read_bytes()).hexdigest()==x['sha256'] for x in r['outputs'])\"","result":"pass","exit_code":0},
+    {"name":"Candidate identity and remote unchanged","command":"test \"$(git rev-parse 7ab048cda8d3f1377ec9a6535cf725b61ad732fd)\" = 7ab048cda8d3f1377ec9a6535cf725b61ad732fd && test \"$(git rev-parse origin/product/m3-hendricks-fresh-capability-a2-20260723)\" = 7ab048cda8d3f1377ec9a6535cf725b61ad732fd","result":"pass","exit_code":0},
+    {"name":"Evidence diff hygiene","command":"git diff --check 7ab048cda8d3f1377ec9a6535cf725b61ad732fd..HEAD","result":"pass","exit_code":0}
+  ],
+  "disclaimers": {
+    "no_code": true,
+    "no_cargo": true,
+    "no_windows": true,
+    "no_provider": true,
+    "no_acceptance": true
+  }
+}
