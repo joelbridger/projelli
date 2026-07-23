@@ -37,6 +37,7 @@ export interface FollowUpDraftsOnlyEditorProps {
   readonly draft: MeetingFollowUpDraft;
   readonly savedToDrafts?: boolean;
   readonly savedProvider?: 'm365' | 'gmail';
+  readonly savedAccountLabel?: string;
   /** A durable pre-call receipt exists, so another provider save is unsafe. */
   readonly unresolvedAttempt?: FollowUpDraftsOnlyUnresolvedAttempt;
   readonly initialHandoffState?: 'idle' | 'opened-drafts' | 'open-failed';
@@ -93,6 +94,7 @@ export function FollowUpDraftsOnlyEditor({
   draft: initialDraft,
   savedToDrafts = false,
   savedProvider,
+  savedAccountLabel,
   unresolvedAttempt,
   initialHandoffState = 'idle',
   onDraftChange,
@@ -154,6 +156,17 @@ export function FollowUpDraftsOnlyEditor({
   };
 
   const account = accounts[accountIndex];
+  const savedAccount = savedProvider
+    ? accounts.find((providerAccount) => providerAccount.provider === savedProvider)
+    : account;
+  const savedProviderName =
+    savedProvider === 'gmail'
+      ? 'Gmail'
+      : savedProvider === 'm365'
+        ? 'Outlook'
+        : (savedAccount?.label ?? 'your provider');
+  const selectedAccountLabel =
+    savedAccountLabel ?? savedAccount?.label ?? 'the selected account';
   const canSave =
     account != null &&
     parseFollowUpRecipients(draft.to).length > 0 &&
@@ -268,8 +281,9 @@ export function FollowUpDraftsOnlyEditor({
       >
         <span>
           Lantern cannot confirm whether a draft was created in {providerName}{' '}
-          Drafts for {accountLabel}. Inspect that exact Drafts folder. Do not
-          save another provider draft for this meeting.
+          Drafts. If another account opens, switch to {accountLabel}, then
+          inspect its Drafts folder. Do not save another provider draft for this
+          meeting.
         </span>
         {error != null && <span>{error}</span>}
         {locked && (
@@ -281,7 +295,7 @@ export function FollowUpDraftsOnlyEditor({
             }}
             style={{ alignSelf: 'flex-start' }}
           >
-            Open {providerName} Drafts for {accountLabel}
+            Open {providerName} Drafts
           </button>
         )}
       </div>
@@ -460,10 +474,8 @@ export function FollowUpDraftsOnlyEditor({
             }}
           >
             {handoffState === 'opened-drafts'
-              ? `Saved to ${savedProvider === 'gmail' ? 'Gmail' : savedProvider === 'm365' ? 'Outlook' : (account?.label ?? 'your provider')} Drafts. That folder is open; review and send it there. Nothing was sent.`
-              : handoffState === 'open-failed'
-                ? `Saved to ${savedProvider === 'gmail' ? 'Gmail' : savedProvider === 'm365' ? 'Outlook' : (account?.label ?? 'your provider')} Drafts. Open that provider's Drafts folder to review and send it there. Nothing was sent.`
-                : `Saved to ${savedProvider === 'gmail' ? 'Gmail' : savedProvider === 'm365' ? 'Outlook' : (account?.label ?? 'your provider')} Drafts. Nothing was sent.`}
+              ? `Saved to ${savedProviderName} Drafts. That folder is open. If another account opens, switch to ${selectedAccountLabel}, then review and press Send there. Nothing was sent.`
+              : `Saved to ${savedProviderName} Drafts. Open ${savedProviderName} Drafts. If another account opens, switch to ${selectedAccountLabel}, then review and press Send there. Nothing was sent.`}
           </p>
         )}
       </div>

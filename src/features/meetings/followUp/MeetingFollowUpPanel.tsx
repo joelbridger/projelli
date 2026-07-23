@@ -35,6 +35,7 @@ type PanelState =
       readonly savedToDrafts: boolean;
       readonly artifactId: string;
       readonly draftProvider?: 'm365' | 'gmail';
+      readonly draftAccountLabel?: string;
       readonly unresolvedAttempt?: FollowUpDraftsOnlyUnresolvedAttempt;
       readonly handoffState?: 'idle' | 'opened-drafts' | 'open-failed';
     };
@@ -55,7 +56,12 @@ function stateFromRead(
     savedToDrafts: result.recap.state === 'saved-to-drafts',
     artifactId: result.recap.artifactId,
     ...(result.recap.draftProvider
-      ? { draftProvider: result.recap.draftProvider }
+      ? {
+          draftProvider: result.recap.draftProvider,
+          ...(result.recap.draftAccountLabel
+            ? { draftAccountLabel: result.recap.draftAccountLabel }
+            : {}),
+        }
       : {}),
     ...(result.recap.state === 'provider-save-pending' ||
     result.recap.state === 'provider-save-unknown'
@@ -241,6 +247,9 @@ export function MeetingFollowUpPanel({
         draft={state.draft}
         savedToDrafts={state.savedToDrafts}
         {...(state.draftProvider ? { savedProvider: state.draftProvider } : {})}
+        {...(state.draftAccountLabel
+          ? { savedAccountLabel: state.draftAccountLabel }
+          : {})}
         {...(state.unresolvedAttempt
           ? { unresolvedAttempt: state.unresolvedAttempt }
           : {})}
@@ -294,6 +303,7 @@ export function MeetingFollowUpPanel({
           setState({
             ...next,
             draftProvider: saved.provider,
+            draftAccountLabel: saved.accountLabel,
             handoffState: saved.handoffState,
           });
         }}

@@ -373,7 +373,19 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     ).resolves.toEqual({ kind: 'refused' });
   });
 
-  it('offers both providers, saves the selected Gmail draft, and opens only Gmail Drafts', async () => {
+  it('treats Gmail /u/0/ Drafts as provider-only and names the selected account', async () => {
+    mail.accounts.mockResolvedValueOnce([
+      {
+        provider: 'm365',
+        account: 'default',
+        label: 'Outlook — other@firm.test',
+      },
+      {
+        provider: 'gmail',
+        account: 'gmail',
+        label: 'Gmail — advisor@firm.test',
+      },
+    ]);
     const store: MeetingFollowUpStore = {
       read: vi.fn<MeetingFollowUpStore['read']>(() =>
         Promise.resolve({ kind: 'ready', recap: recap() })
@@ -400,9 +412,11 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     );
     expect(
       await screen.findByTestId('meeting-follow-up-saved')
-    ).toHaveTextContent('That folder is open');
+    ).toHaveTextContent(
+      'If another account opens, switch to Gmail — advisor@firm.test, then review and press Send there.'
+    );
     expect(screen.getByTestId('meeting-follow-up-saved')).not.toHaveTextContent(
-      'exact draft'
+      'Gmail — advisor@firm.test Drafts is open'
     );
   });
 
@@ -539,7 +553,9 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     render(<MeetingFollowUpPanel context={context()} store={lane.store} />);
     expect(
       await screen.findByTestId('meeting-follow-up-unresolved')
-    ).toHaveTextContent('Inspect that exact Drafts folder');
+    ).toHaveTextContent(
+      'If another account opens, switch to Outlook, then inspect its Drafts folder'
+    );
     expect(mail.saveDraft).toHaveBeenCalledTimes(1);
   });
 
@@ -591,11 +607,20 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     render(<MeetingFollowUpPanel context={context()} store={lane.store} />);
     expect(
       await screen.findByTestId('meeting-follow-up-unresolved')
-    ).toHaveTextContent('Outlook Drafts for Outlook');
+    ).toHaveTextContent(
+      'If another account opens, switch to Outlook, then inspect its Drafts folder'
+    );
     expect(mail.saveDraft).toHaveBeenCalledTimes(1);
   });
 
-  it('says only that Drafts opened when the exact draft has no safe open target', async () => {
+  it('gives Outlook the same provider-only account-switch guidance', async () => {
+    mail.accounts.mockResolvedValueOnce([
+      {
+        provider: 'm365',
+        account: 'default',
+        label: 'Outlook — advisor@firm.test',
+      },
+    ]);
     const store: MeetingFollowUpStore = {
       read: vi.fn<MeetingFollowUpStore['read']>(() =>
         Promise.resolve({ kind: 'ready', recap: recap() })
@@ -606,9 +631,12 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     fireEvent.click(await screen.findByTestId('followup-drafts-save'));
     const saved = await screen.findByTestId('meeting-follow-up-saved');
-    expect(saved).toHaveTextContent('That folder is open');
-    expect(saved).toHaveTextContent('review and send it there');
-    expect(saved).not.toHaveTextContent('exact draft');
+    expect(saved).toHaveTextContent(
+      'If another account opens, switch to Outlook — advisor@firm.test, then review and press Send there.'
+    );
+    expect(saved).not.toHaveTextContent(
+      'Outlook — advisor@firm.test Drafts is open'
+    );
   });
 
   it('never claims the Drafts folder opened when the provider handoff fails', async () => {
@@ -623,8 +651,11 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     fireEvent.click(await screen.findByTestId('followup-drafts-save'));
     const saved = await screen.findByTestId('meeting-follow-up-saved');
-    expect(saved).toHaveTextContent("Open that provider's Drafts folder");
-    expect(saved).not.toHaveTextContent('That folder is open');
+    expect(saved).toHaveTextContent('Open Outlook Drafts');
+    expect(saved).toHaveTextContent(
+      'If another account opens, switch to Outlook'
+    );
+    expect(saved).not.toHaveTextContent('Outlook Drafts is open');
     expect(saved).not.toHaveTextContent('raw browser detail');
   });
 });

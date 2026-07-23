@@ -55,7 +55,9 @@ export type ProviderDraftAccount = ConnectedAccount & {
   readonly provider: FollowUpDraftProvider;
 };
 
-export async function loadProviderDraftAccounts(): Promise<ProviderDraftAccount[]> {
+export async function loadProviderDraftAccounts(): Promise<
+  ProviderDraftAccount[]
+> {
   const accounts = await mailConnectedAccounts();
   return accounts.filter(
     (account): account is ProviderDraftAccount =>
@@ -90,8 +92,9 @@ export async function saveProviderFollowUpDraft(
 
 /**
  * `mailSaveDraft` returns only an opaque provider id, never a browser-safe
- * message URL. Open the provider's Drafts view rather than claiming an exact
- * message was opened.
+ * message URL. These provider-only routes cannot prove which signed-in account
+ * opened, so callers must give account-switch guidance rather than claim the
+ * selected mailbox is open.
  */
 export function providerDraftsUrl(provider: FollowUpDraftProvider): string {
   return provider === 'gmail'
