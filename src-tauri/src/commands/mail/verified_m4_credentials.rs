@@ -1,82 +1,165 @@
-//! Closed M4 credential inputs and a pure keychain service-name builder.
-//!
-//! This is deliberately dark code: it names a future native credential slot,
-//! but never opens the OS keychain or contacts a provider.
+//! Closed provider and credential-generation values for the M4 foundation.
+
+#![allow(dead_code)] // Deliberately dark until sealed adapters are connected.
+
+use anyhow::{bail, Result};
 
 use super::verified_workspace_authority::VerifiedWorkspaceAuthority;
 
-/// The only M4 mailbox providers. There is no string conversion or fallback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum M4CredentialProvider {
     Microsoft,
     Gmail,
 }
 
 impl M4CredentialProvider {
-    fn service_segment(self) -> &'static str {
+    pub(super) fn as_db(self) -> &'static str {
         match self {
             Self::Microsoft => "microsoft",
             Self::Gmail => "gmail",
         }
     }
+
+    pub(super) fn from_db(value: &str) -> Result<Self> {
+        match value {
+            "microsoft" => Ok(Self::Microsoft),
+            "gmail" => Ok(Self::Gmail),
+            _ => bail!("unrecognized verified-mailbox provider"),
+        }
+    }
 }
 
-/// An opaque credential generation issued by the native lifecycle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ProviderSubject(String);
+
+impl ProviderSubject {
+    pub(super) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct CredentialGeneration(u64);
 
 impl CredentialGeneration {
-    fn service_segment(&self) -> u64 {
+    pub(super) fn value(self) -> u64 {
         self.0
     }
 }
 
-/// Build the native-owned M4 credential service name without touching a keychain.
-pub(super) fn m4_keychain_service_name(
-    workspace: VerifiedWorkspaceAuthority,
+/// Closed proof that one provider subject owns the current credential generation.
+#[derive(Debug, Clone)]
+pub(super) struct VerifiedCredentialBinding {
     provider: M4CredentialProvider,
+    subject: ProviderSubject,
     generation: CredentialGeneration,
+}
+
+impl VerifiedCredentialBinding {
+    pub(super) fn provider(&self) -> M4CredentialProvider {
+        self.provider
+    }
+    pub(super) fn subject(&self) -> &ProviderSubject {
+        &self.subject
+    }
+    pub(super) fn generation(&self) -> CredentialGeneration {
+        self.generation
+    }
+}
+
+pub(super) fn m4_keychain_service_name(
+    workspace: &VerifiedWorkspaceAuthority,
+    credential: &VerifiedCredentialBinding,
 ) -> String {
     format!(
         "{}{}-{}-generation-{}",
         crate::identity::M4_MAIL_KEYCHAIN_SERVICE_PREFIX,
-        provider.service_segment(),
-        workspace.service_segment(),
-        generation.service_segment(),
+        credential.provider.as_db(),
+        workspace.native_handle(),
+        credential.generation.value(),
     )
 }
 
+fn is_generic_account_id(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "" | "default" | "generic" | "account" | "unknown" | "none" | "null"
+    )
+}
+
+/// The future native credential lifecycle is the one production minting point.
+fn mint_from_native_credential_state(
+    provider: M4CredentialProvider,
+    provider_subject: String,
+    generation: u64,
+) -> Result<VerifiedCredentialBinding> {
+    if is_generic_account_id(&provider_subject) {
+        bail!("generic provider account ids are not valid verified credentials")
+    }
+    if generation == 0 {
+        bail!("credential generation must be nonzero")
+    }
+    Ok(VerifiedCredentialBinding {
+        provider,
+        subject: ProviderSubject(provider_subject),
+        generation: CredentialGeneration(generation),
+    })
+}
+
 #[cfg(test)]
-fn test_only_credential_generation() -> CredentialGeneration {
-    CredentialGeneration(1)
+pub(super) fn test_only_credential(
+    provider: M4CredentialProvider,
+    subject: &str,
+    generation: u64,
+) -> VerifiedCredentialBinding {
+    mint_from_native_credential_state(provider, subject.to_string(), generation).unwrap()
 }
 
 #[cfg(test)]
 pub(crate) fn test_only_service_name() -> String {
-    m4_keychain_service_name(
-        super::verified_workspace_authority::test_only_verified_workspace_authority(),
-        M4CredentialProvider::Microsoft,
-        test_only_credential_generation(),
-    )
+    let workspace =
+        crate::commands::mail::verified_workspace_lifecycle::test_only_current_workspace_authority(
+            "test-workspace",
+            1,
+        );
+    let credential = test_only_credential(M4CredentialProvider::Microsoft, "test-subject", 1);
+    m4_keychain_service_name(&workspace, &credential)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::mail::verified_workspace_lifecycle::test_only_current_workspace_authority;
 
     #[test]
-    fn m4_foundation_builder_accepts_only_closed_native_inputs() {
-        let service = test_only_service_name();
+    fn m4_shared_foundation_credential_inputs_are_closed_and_generic_accounts_refuse() {
+        for generic in [
+            "", "default", "generic", "account", "unknown", "none", "null",
+        ] {
+            assert!(mint_from_native_credential_state(
+                M4CredentialProvider::Microsoft,
+                generic.to_string(),
+                1
+            )
+            .is_err());
+        }
+        assert!(mint_from_native_credential_state(
+            M4CredentialProvider::Gmail,
+            "real-subject".into(),
+            0
+        )
+        .is_err());
+        let credential =
+            test_only_credential(M4CredentialProvider::Microsoft, "provider-subject-7", 3);
+        let workspace = test_only_current_workspace_authority("native-workspace-a", 2);
         assert_eq!(
-            service,
-            "lantern-m4-mail-microsoft-test-workspace-generation-1"
+            m4_keychain_service_name(&workspace, &credential),
+            "lantern-m4-mail-microsoft-native-workspace-a-generation-3"
         );
-    }
-
-    #[test]
-    fn m4_foundation_provider_is_closed_to_the_two_supported_values() {
         assert_eq!(
-            M4CredentialProvider::Microsoft.service_segment(),
-            "microsoft"
+            M4CredentialProvider::from_db("gmail").unwrap(),
+            M4CredentialProvider::Gmail
         );
-        assert_eq!(M4CredentialProvider::Gmail.service_segment(), "gmail");
+        assert!(M4CredentialProvider::from_db("imap").is_err());
     }
 }

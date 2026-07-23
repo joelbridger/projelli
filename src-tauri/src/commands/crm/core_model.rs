@@ -247,6 +247,31 @@ pub struct ExportJob {
     pub finished_at: Option<String>,
 }
 
+/// The encrypted durable payload for an approved M4 claim. Mailbox identity is
+/// intentionally held in the sealed mailbox module rather than this broadly
+/// shared CRM model, so a sibling cannot construct current-mailbox truth.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) struct ApprovedDraftClaimRecord {
+    pub claim_handle: String,
+    pub mailbox_handle: String,
+    pub mailbox_version: u64,
+    pub workspace_handle: String,
+    pub provider: String,
+    pub workspace_generation: u64,
+    pub credential_generation: u64,
+    pub client_context: String,
+    pub meeting_context: String,
+    pub recipients_json: String,
+    pub draft_subject: String,
+    pub body: String,
+    pub content_hash: String,
+    pub approval_receipt: String,
+    pub idempotency_key: String,
+    pub version: u64,
+    pub status: String,
+}
+
 /// Derived-only workflow display. The append-only operations remain the truth;
 /// invalid/quarantined candidates are omitted by the caller before this order is
 /// applied. Ties intentionally fall through to the immutable operation id.

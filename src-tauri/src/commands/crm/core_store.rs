@@ -160,6 +160,16 @@ impl CrmCoreStore {
         Ok(result)
     }
 
+    /// Narrow transaction boundary reserved for the sealed M4 mailbox
+    /// foundation. It keeps its truth in this existing SQLCipher store.
+    #[allow(dead_code)]
+    pub(crate) fn m4_shared_foundation_transaction<T>(
+        &self,
+        operation: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<T>,
+    ) -> Result<T> {
+        self.with_immediate_transaction(operation)
+    }
+
     /// Importer-only persistence boundary. Wealthbox ids are opaque source
     /// values, and this path accepted every non-empty id before descriptors
     /// were introduced. Keep that compatibility while still running any
@@ -280,20 +290,43 @@ impl CrmCoreStore {
     /// Records an authenticated CRDT blob and advances its relay cursor in one
     /// SQLCipher transaction. Replays are accepted only when their immutable
     /// blob identity matches; gaps are rejected before state can advance.
-    pub fn record_applied_cursor(&self, stream_key: &str, cursor: i64, blob_id: &str) -> Result<()> {
+    pub fn record_applied_cursor(
+        &self,
+        stream_key: &str,
+        cursor: i64,
+        blob_id: &str,
+    ) -> Result<()> {
         let mut conn = lock_unpoison(&self.conn);
         let tx = conn.transaction()?;
-        let current = tx.query_row("SELECT cursor FROM crm_sync_cursors WHERE stream_key=?1", [stream_key], |row| row.get::<_, i64>(0)).optional()?.unwrap_or(0);
+        let current = tx
+            .query_row(
+                "SELECT cursor FROM crm_sync_cursors WHERE stream_key=?1",
+                [stream_key],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?
+            .unwrap_or(0);
         if cursor <= current {
-            let existing: Option<String> = tx.query_row("SELECT blob_id FROM crm_sync_applied WHERE stream_key=?1 AND cursor=?2", params![stream_key, cursor], |row| row.get(0)).optional()?;
+            let existing: Option<String> = tx
+                .query_row(
+                    "SELECT blob_id FROM crm_sync_applied WHERE stream_key=?1 AND cursor=?2",
+                    params![stream_key, cursor],
+                    |row| row.get(0),
+                )
+                .optional()?;
             match existing {
                 Some(existing) if existing == blob_id => return Ok(()),
                 Some(_) => bail!("CRM relay blob identity mismatch"),
                 None => bail!("CRM relay cursor history is incomplete"),
             }
         }
-        if cursor != current + 1 { bail!("CRM relay cursor must stay contiguous") }
-        tx.execute("INSERT INTO crm_sync_applied(stream_key,cursor,blob_id) VALUES(?1,?2,?3)", params![stream_key,cursor,blob_id])?;
+        if cursor != current + 1 {
+            bail!("CRM relay cursor must stay contiguous")
+        }
+        tx.execute(
+            "INSERT INTO crm_sync_applied(stream_key,cursor,blob_id) VALUES(?1,?2,?3)",
+            params![stream_key, cursor, blob_id],
+        )?;
         tx.execute("INSERT INTO crm_sync_cursors(stream_key,cursor,key_epoch) VALUES(?1,?2,0) ON CONFLICT(stream_key) DO UPDATE SET cursor=excluded.cursor", params![stream_key,cursor])?;
         tx.commit()?;
         Ok(())
@@ -311,7 +344,9 @@ impl CrmCoreStore {
         activity_idempotency_key: &str,
         notification_rows: &[(String, String)],
     ) -> Result<()> {
-        if !matches!(kind, "apply" | "undo") { bail!("invalid propagation transaction kind") }
+        if !matches!(kind, "apply" | "undo") {
+            bail!("invalid propagation transaction kind")
+        }
         let mut conn = lock_unpoison(&self.conn);
         let tx = conn.transaction()?;
         tx.execute("INSERT OR IGNORE INTO crm_propagation_transactions(event_id,kind,instance_json,created_at) VALUES(?1,?2,?3,?4)", params![event_id,kind,instance_json,now_iso()])?;
@@ -751,14 +786,30 @@ mod tests {
     fn propagation_commit_persists_snapshot_operations_activity_and_notification_intent_together() {
         let (_d, s) = store();
         s.commit_propagation_transaction(
-            "apply", "event-1", r#"{"id":"instance-1"}"#,
-            &["op-1".into(), "op-2".into()], "activity:event-1",
+            "apply",
+            "event-1",
+            r#"{"id":"instance-1"}"#,
+            &["op-1".into(), "op-2".into()],
+            "activity:event-1",
             &[("org-1".into(), "envelope-1".into())],
-        ).unwrap();
+        )
+        .unwrap();
         let conn = lock_unpoison(&s.conn);
-        for table in ["crm_propagation_transactions", "crm_immutable_operations", "crm_activity_outbox", "crm_notification_outbox_intents"] {
-            let count: i64 = conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0)).unwrap();
-            assert!(count > 0, "{table} must be committed with the propagation event");
+        for table in [
+            "crm_propagation_transactions",
+            "crm_immutable_operations",
+            "crm_activity_outbox",
+            "crm_notification_outbox_intents",
+        ] {
+            let count: i64 = conn
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert!(
+                count > 0,
+                "{table} must be committed with the propagation event"
+            );
         }
     }
 }
