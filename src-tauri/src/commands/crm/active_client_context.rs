@@ -279,22 +279,54 @@ mod tests {
 
     #[tokio::test]
     async fn missing_deleted_duplicate_and_disagreeing_records_refuse_and_clear() {
-        for records in [
-            vec![],
-            vec![
-                json!({"kind":"household", "id":"household-a", "matterId":"matter-a", "deleted":true}),
-            ],
-            vec![
-                record("household-a", "matter-a"),
-                record("household-a", "matter-a"),
-            ],
-            vec![record("household-a", "matter-other")],
+        for (records, household_id, matter_id) in [
+            (
+                vec![record("household-live", "matter-live")],
+                "household-missing",
+                "matter-a",
+            ),
+            (
+                vec![
+                    record("household-live", "matter-live"),
+                    json!({"kind":"household", "id":"household-a", "matterId":"matter-a", "deleted":true}),
+                ],
+                "household-a",
+                "matter-a",
+            ),
+            (
+                vec![
+                    record("household-live", "matter-live"),
+                    record("household-a", "matter-a"),
+                    record("household-a", "matter-a"),
+                ],
+                "household-a",
+                "matter-a",
+            ),
+            (
+                vec![
+                    record("household-live", "matter-live"),
+                    record("household-a", "matter-other"),
+                ],
+                "household-a",
+                "matter-a",
+            ),
         ] {
             let workspace = TempDir::new().unwrap();
             seed(&workspace, &records);
             let state = state_at(&workspace).await;
-            assert!(!request(&state, "household-a", "matter-a").await.activated);
+            assert!(
+                request(&state, "household-live", "matter-live")
+                    .await
+                    .activated
+            );
+            let live_lease = capture_active_client_lease(&state)
+                .await
+                .expect("live lease before refusal");
+            assert!(!request(&state, household_id, matter_id).await.activated);
             assert!(capture_active_client_lease(&state).await.is_none());
+            assert!(require_active_client_lease(&state, &live_lease)
+                .await
+                .is_err());
         }
     }
 
@@ -343,7 +375,17 @@ mod tests {
         assert!(after_return.workspace_revision > first.workspace_revision);
         assert!(capture_active_client_lease(&state).await.is_none());
         assert!(require_active_client_lease(&state, &lease).await.is_err());
+        let before_same_path_handoff = after_return.workspace_revision;
         state.service().set_workspace(a.path().to_path_buf()).await;
+        let after_same_path_handoff = state
+            .active_client_context
+            .lock()
+            .await
+            .receipt(false, None);
+        assert!(
+            after_same_path_handoff.workspace_revision > before_same_path_handoff,
+            "a same-path handoff must advance the native workspace revision"
+        );
         assert!(capture_active_client_lease(&state).await.is_none());
     }
 
@@ -351,6 +393,14 @@ mod tests {
     async fn clear_and_default_states_have_no_lease() {
         let state = CrmState::default();
         assert!(capture_active_client_lease(&state).await.is_none());
+
+        let workspace = TempDir::new().unwrap();
+        seed(&workspace, &[record("household-a", "matter-a")]);
+        let state = state_at(&workspace).await;
+        assert!(request(&state, "household-a", "matter-a").await.activated);
+        let live_lease = capture_active_client_lease(&state)
+            .await
+            .expect("live lease before clear");
         let receipt = {
             let mut context = state.active_client_context.lock().await;
             context.clear();
@@ -358,11 +408,20 @@ mod tests {
         };
         assert!(!receipt.activated);
         assert!(capture_active_client_lease(&state).await.is_none());
+        assert!(require_active_client_lease(&state, &live_lease)
+            .await
+            .is_err());
     }
 
     #[tokio::test]
-    async fn fabricated_renderer_receipts_and_revisions_do_not_create_a_lease() {
-        let state = CrmState::default();
+    async fn fabricated_renderer_receipts_and_revisions_cannot_consume_a_live_lease() {
+        let workspace = TempDir::new().unwrap();
+        seed(&workspace, &[record("household-a", "matter-a")]);
+        let state = state_at(&workspace).await;
+        assert!(request(&state, "household-a", "matter-a").await.activated);
+        let live_lease = capture_active_client_lease(&state)
+            .await
+            .expect("live native lease");
         let fabricated_receipt = ActiveClientContextReceipt {
             activated: true,
             reason: None,
@@ -371,7 +430,10 @@ mod tests {
         };
         assert!(fabricated_receipt.activated);
         // This display DTO is not an input to any authority API. Only native
-        // validation can put a private ActiveClientLease in state.
-        assert!(capture_active_client_lease(&state).await.is_none());
+        // validation can put a private ActiveClientLease in state, and a
+        // fabricated renderer revision cannot consume the already-live one.
+        require_active_client_lease(&state, &live_lease)
+            .await
+            .unwrap();
     }
 }

@@ -1,44 +1,82 @@
 {
   "lane": "m3-foundation-b-native-active-client-context-20260723",
-  "contractSha256": "47f51fb68e2dbc46a19960e368e957a7aeab96d51c4afcdb8490b8899195cbdd",
-  "base": "30cc6c2dfbacffe5f5f4cd4d8563b02b7f31ea12",
-  "nativeFiles": [
+  "attempt": 2,
+  "contractSha256": "760cb406dcbb695a079741c50784ac46dc09ef448bf1c970679d53712c9f43c8",
+  "candidateBase": "30cc6c2dfbacffe5f5f4cd4d8563b02b7f31ea12",
+  "amendmentBase": "7c45f4d49683f9696a2d3731829346b1b86b1193",
+  "candidateFiles": [
+    "bench-evidence/2026-07-23-m3-native-active-client-context/receipt.json",
+    "scripts/verify-m3-native-active-client-context.sh",
     "src-tauri/src/commands/crm/active_client_context.rs",
+    "src-tauri/src/commands/crm/command-manifest.txt",
     "src-tauri/src/commands/crm/commands.rs",
     "src-tauri/src/commands/crm/features/connector/commands.rs",
     "src-tauri/src/commands/crm/mod.rs",
-    "src-tauri/src/commands/crm/command-manifest.txt"
-  ],
-  "rendererFiles": [
-    "src/platform/client-context/nativeActiveClientContext.ts",
-    "src/platform/client-context/nativeActiveClientContext.test.ts",
-    "src/platform/client-context/clientContextStore.ts",
+    "src-tauri/src/lib.rs",
     "src/platform/client-context/clientContextStore.test.ts",
-    "src/platform/client-context/index.ts"
+    "src/platform/client-context/clientContextStore.ts",
+    "src/platform/client-context/index.ts",
+    "src/platform/client-context/nativeActiveClientContext.test.ts",
+    "src/platform/client-context/nativeActiveClientContext.ts"
+  ],
+  "attemptTwoFiles": [
+    "bench-evidence/2026-07-23-m3-native-active-client-context/receipt.json",
+    "src-tauri/src/commands/crm/active_client_context.rs",
+    "src/platform/client-context/nativeActiveClientContext.test.ts"
   ],
   "commands": [
-    "bash scripts/verify-m3-native-active-client-context.sh",
-    "rustfmt --edition 2021 --config skip_children=true --check src-tauri/src/commands/crm/active_client_context.rs src-tauri/src/commands/crm/mod.rs src-tauri/src/commands/crm/commands.rs src-tauri/src/commands/crm/features/connector/commands.rs src-tauri/src/lib.rs",
-    "npx prettier --check src/platform/client-context/nativeActiveClientContext.ts src/platform/client-context/nativeActiveClientContext.test.ts src/platform/client-context/clientContextStore.ts src/platform/client-context/clientContextStore.test.ts src/platform/client-context/index.ts",
-    "npm run typecheck",
-    "node scripts/check-tauri-contracts.mjs"
-  ],
-  "results": {
-    "native": "6 passed against real temporary SQLCipher stores",
-    "renderer": "26 passed across the focused bridge and existing client-context tests",
-    "typecheck": "passed",
-    "tauriContracts": "passed with pre-existing uninvoked-command warnings",
-    "helperSources": {
-      "piper": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b",
-      "llamaServer": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77",
-      "removedAfterRun": true
+    {
+      "command": "bash scripts/verify-m3-native-active-client-context.sh",
+      "output": "cargo test: 6 passed; 0 failed; 0 ignored; 0 measured; 1614 filtered out. vitest: 2 test files passed; 28 tests passed."
+    },
+    {
+      "command": "rustfmt --edition 2021 --config skip_children=true --check src-tauri/src/commands/crm/active_client_context.rs",
+      "output": "exit 0; no formatting differences."
+    },
+    {
+      "command": "npx prettier --check src/platform/client-context/nativeActiveClientContext.test.ts",
+      "output": "exit 0; Checking formatting... All matched files use Prettier code style!"
+    },
+    {
+      "command": "npm run typecheck",
+      "output": "exit 0; advisor-prep-hero@3.3.5 typecheck ran tsc --noEmit with no diagnostics."
+    },
+    {
+      "command": "node scripts/check-tauri-contracts.mjs",
+      "output": "exit 0; Tauri contract check passed: 79 TS invokes, 90 target registered Rust commands checked (304 total manifest commands). The command also reported 20 pre-existing uninvoked-command warnings."
+    },
+    {
+      "command": "test ! -e src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -e src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "output": "exit 0; both temporary helper paths were absent after verification."
+    },
+    {
+      "command": "git diff --check 30cc6c2dfbacffe5f5f4cd4d8563b02b7f31ea12..HEAD && test \"$(git diff --name-only 7c45f4d49683f9696a2d3731829346b1b86b1193..HEAD | sort)\" = \"$(printf '%s\\n' bench-evidence/2026-07-23-m3-native-active-client-context/receipt.json src-tauri/src/commands/crm/active_client_context.rs src/platform/client-context/nativeActiveClientContext.test.ts | sort)\"",
+      "output": "exit 0; no whitespace errors and exactly the three attempt-two files changed."
     }
+  ],
+  "helperSources": {
+    "piper": {
+      "canonicalSource": "/home/jameson/lantern/app/integration/src-tauri/binaries/piper-x86_64-unknown-linux-gnu",
+      "sha256": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b"
+    },
+    "llamaServer": {
+      "canonicalSource": "/home/jameson/lantern/app/integration/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "sha256": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77"
+    },
+    "removal": "The verifier hashes both canonical sources before creating either symlink, installs cleanup first, and removes both helpers on every exit; the final helper-absence check passed."
   },
-  "privacyBoundary": "The browser can request only untrusted householdId and matterId values. Rust reads the existing encrypted CRM store, retains the non-serializable lease privately, and rechecks it only in Rust.",
+  "proof": {
+    "samePathWorkspaceHandoff": "A native SQLCipher test starts with a live lease, performs A-to-B-to-A, then re-hands off A. It asserts that the same-path handoff advances workspaceRevision and that the old lease is absent.",
+    "clearStates": "A native test proves a live lease is absent after native clear; focused bridge tests prove client-clear, Whole Firm, matter-only, blocked, native refusal, and window teardown each route to the native clear command.",
+    "fabricatedRendererValues": "A native SQLCipher test keeps a valid private lease live while fabricating display revisions and a receipt; the fabricated DTO is not an authority input and cannot consume that lease.",
+    "invalidActivation": "Each missing, deleted, duplicate, and matter-disagreeing request starts after a valid lease, then proves the request refuses, the current native lease is absent, and the old lease fails recheck."
+  },
+  "privacyBoundary": "The renderer supplies only untrusted householdId and matterId requests. Rust reads the existing encrypted CRM store, keeps the non-serializable lease private, and rechecks it only in Rust. Renderer mocks prove routing only, never native authority.",
   "scopeExclusions": [
-    "No browser-pixel or click proof",
+    "No browser-pixel or click-identity proof",
     "No advisor identity, staff permissions, or authorization proof",
-    "No provider, mail, task, CRM-write, delivery, or Whole Firm protected path",
-    "No Windows or full-M3 proof"
-  ]
+    "No provider, mail, Task, CRM-write, delivery, or Whole Firm protected path",
+    "No Windows proof and no full-M3 proof"
+  ],
+  "status": "This receipt preserves the prior final-review FAIL verdict until a fresh independent review. It records proof correction only and does not claim acceptance."
 }
