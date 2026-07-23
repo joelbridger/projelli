@@ -15,7 +15,6 @@ import {
 } from '@/features/crm-tasks';
 import {
   MeetingNotesReview,
-  productionMeetingNotesReviewCrmDelivery,
 } from '@/platform/meetingNotesReview/MeetingNotesReview';
 import {
   EXACT_MEETING_REVIEW_SCHEMA_VERSION,
@@ -24,7 +23,10 @@ import {
   makeExactMeetingNotesReviewRepository,
   type ExactMeetingReviewArtifact,
   type ExactMeetingTaskDelivery,
+  type NotesReviewCrmDelivery,
 } from '@/platform/meetingNotesReview/notesReviewDelivery';
+import { saveApprovedMeetingCrmFieldRebased } from '@/platform/crm/liveRecords';
+import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type { ExactMeetingReviewKind } from '@/ui/notesReview';
 import {
   resolveMeetingVisibility,
@@ -39,6 +41,31 @@ export function createExactMeetingTaskDelivery(
   return {
     create: ({ deliveryKey, ...input }) =>
       tasks.create({ ...input, meetingDeliveryKey: deliveryKey }),
+  };
+}
+
+export function createExactMeetingLocalCrmDelivery(input: {
+  readonly workspaceRoot: string | null | undefined;
+  readonly canPersist: () => boolean;
+}): NotesReviewCrmDelivery {
+  const disabled = () => Promise.reject(new Error('Provider CRM delivery is disabled.'));
+  return {
+    isConnected: () => Promise.resolve(true),
+    saveProposal: disabled,
+    prepareProposal: disabled,
+    approveProposal: disabled,
+    saveApprovedLocalField: async (request) => {
+      const saved = await saveApprovedMeetingCrmFieldRebased({
+        workspaceRoot: input.workspaceRoot,
+        householdRef: request.householdRef,
+        matterId: request.matterId,
+        deliveryKey: request.deliveryKey,
+        field: request.field,
+        value: request.value,
+        canPersist: input.canPersist,
+      });
+      return { recordId: saved.record.id, deduped: saved.deduped };
+    },
   };
 }
 
@@ -138,6 +165,7 @@ function ExactMeetingReviewPanel({
   const preferences = useMeetingFoundationPreferencesStore().preferences;
   const artifacts = useMeetingArtifactStore();
   const tasks = useTaskRecordStore();
+  const liveCrm = useLiveCrmRecords();
   const viewerId = useFirmStore((state) => state.session?.userId ?? null);
   const meeting = context.canonicalMeeting ?? null;
   const client = context.clientBoundary ?? null;
@@ -190,7 +218,14 @@ function ExactMeetingReviewPanel({
           );
       },
       taskDelivery: createExactMeetingTaskDelivery(tasks),
-      crmDelivery: productionMeetingNotesReviewCrmDelivery,
+      crmDelivery: createExactMeetingLocalCrmDelivery({
+        workspaceRoot: liveCrm.workspaceRoot,
+        canPersist: () =>
+          hasMatchingCompleteMeetingReviewIdentity(
+            context.canonicalMeeting ?? null,
+            context.clientBoundary ?? null
+          ),
+      }),
       canReadArtifact: (artifact) =>
         canReadExactMeetingReviewArtifact({
           artifact,
@@ -207,6 +242,7 @@ function ExactMeetingReviewPanel({
     meetings,
     preferences.visibilityPolicies,
     tasks,
+    liveCrm.workspaceRoot,
     viewerId,
   ]);
 

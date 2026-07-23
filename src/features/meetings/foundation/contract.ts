@@ -20,6 +20,10 @@ import {
 } from '@/platform/crm/meetingVisibilityMigration';
 import type { Matter } from '@/platform/types/matter';
 import {
+  isExactHendricksAccountlessMeeting,
+  isExactHendricksReviewProposal,
+} from '@/platform/samples/hendricksReviewSpec';
+import {
   canReadMeetingDerivedRecord,
   derivedMeetingVisibility,
   explicitLegacyMeetingVisibility,
@@ -2290,6 +2294,7 @@ function projectArtifact(
     subject.kind !== 'meeting-artifact' ||
     subject.id !== record.id ||
     (subject.lineage !== 'legacy-unrestricted' &&
+      subject.lineage !== 'accountless-unrestricted' &&
       !(
         subject.lineage === 'derived' &&
         subject.parentRef?.kind === 'meeting-note' &&
@@ -2939,6 +2944,15 @@ export function createMeetingArtifactStore(
       );
       if (!parent)
         throw new Error('Artifacts must belong to an existing meeting.');
+      const isExactAccountlessSample =
+        isExactHendricksAccountlessMeeting(parent, {
+          matterId: expected.matterId,
+          workspaceId: port.workspaceRoot ?? '',
+        }) &&
+        input.kind === 'action-update-proposal' &&
+        isExactHendricksReviewProposal(input.payload['proposal']);
+      if (parent['ownerRef'] === null && !isExactAccountlessSample)
+        throw new Error('Accountless meeting artifacts are only allowed for the exact Hendricks sample.');
       // Fail-closed write: an artifact can only be appended to a meeting owned
       // by the active client, so B cannot append onto A's meeting after a switch.
       scope.assertOwns(recordClientBoundary(parent), 'Meeting');
@@ -2972,7 +2986,9 @@ export function createMeetingArtifactStore(
                 ownerRef: nonEmpty(parent['ownerRef'], 'Meeting owner'),
                 visibilityPolicyId: parent['visibilityPolicyId'],
               } satisfies MeetingVisibilitySubject)
-            : explicitLegacyMeetingVisibility('meeting-artifact', id),
+            : isExactAccountlessSample
+              ? { kind: 'meeting-artifact', id, lineage: 'accountless-unrestricted' }
+              : explicitLegacyMeetingVisibility('meeting-artifact', id),
       };
       const persisted = await persist(record, expected);
       if (!canReadArtifact(persisted, raw))

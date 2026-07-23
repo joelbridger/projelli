@@ -14,10 +14,16 @@ import {
   type SealedMeetingClientBoundary,
 } from '@/features/meetings';
 import type { MeetingFileVisibilityManifest } from '@/features/meetings/meetingFileVisibility';
+import type { MeetingArtifact, MeetingArtifactInput } from '@/features/meetings/foundation/contract';
 import type { TranscriptFile } from '@/platform/types/meeting';
-import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { markdownToDocxBytes } from '@/platform/utils/docx-io';
+import {
+  HENDRICKS_REVIEW,
+  HENDRICKS_REVIEW_PROPOSALS,
+  isExactHendricksAccountlessMeeting,
+  isExactHendricksReviewProposal,
+} from '@/platform/samples/hendricksReviewSpec';
 import {
   SAMPLE_FILE_BENEFICIARY_ESTATE,
   SAMPLE_FILE_MEETING_NOTES,
@@ -26,12 +32,12 @@ import {
 } from '@/platform/matter/samples/sampleMatterDemo';
 
 const SAMPLE_MEETING_FOLDER = '2026-07-02-hendricks-annual-review';
-const SAMPLE_MEETING_EVENT_ID = 'sample-hendricks-annual-review';
-const SAMPLE_MEETING_EVENT_TITLE = 'Hendricks annual review';
-const SAMPLE_MEETING_STARTED_AT = '2026-07-02T14:00:00.000Z';
-const SAMPLE_MEETING_ENDED_AT = '2026-07-02T14:42:00.000Z';
-const SAMPLE_CRM_SOURCE_REF = `meeting:${SAMPLE_MEETING_EVENT_ID}`;
-const SAMPLE_CRM_HOUSEHOLD_KEY = 'sample-hendricks-household';
+const SAMPLE_MEETING_EVENT_ID = HENDRICKS_REVIEW.eventId;
+const SAMPLE_MEETING_EVENT_TITLE = HENDRICKS_REVIEW.title;
+const SAMPLE_MEETING_STARTED_AT = HENDRICKS_REVIEW.startedAt;
+const SAMPLE_MEETING_ENDED_AT = HENDRICKS_REVIEW.endedAt;
+const SAMPLE_CRM_SOURCE_REF = HENDRICKS_REVIEW.sourceRef;
+const SAMPLE_CRM_HOUSEHOLD_KEY = HENDRICKS_REVIEW.householdRef;
 const SAMPLE_MEETING_FILE_NAMES = [
   'meeting.json',
   'transcript.json',
@@ -231,21 +237,60 @@ function sampleBrief(
   };
 }
 
-function seedSampleCrmApproval(matterId: string): void {
-  const store = useCrmWriteQueueStore.getState();
-  const existing = store.items.some(
-    (item) =>
-      item.matterId === matterId && item.sourceRef === SAMPLE_CRM_SOURCE_REF
+export interface SampleReviewArtifactStore {
+  listForMeeting(meetingId: string): readonly MeetingArtifact[];
+  append(artifact: MeetingArtifactInput): Promise<MeetingArtifact>;
+}
+
+function sampleReviewArtifacts(meetingId: string): readonly MeetingArtifactInput[] {
+  const transcriptRef = `transcript:${SAMPLE_MEETING_EVENT_ID}`;
+  const sourceRefs = [SAMPLE_CRM_SOURCE_REF, transcriptRef];
+  return HENDRICKS_REVIEW_PROPOSALS.map((proposal) => ({
+    meetingId,
+    kind: 'action-update-proposal',
+    schemaVersion: 2,
+    producedAt: SAMPLE_MEETING_ENDED_AT,
+    sourceRefs,
+    provenance: 'local-processing',
+    payload: {
+      proposal: proposal.kind === 'task'
+        ? { ...proposal, transcriptRef, sourceLabel: SAMPLE_MEETING_EVENT_TITLE }
+        : {
+            id: proposal.id, kind: proposal.kind, title: proposal.title, detail: proposal.detail,
+            transcriptRef, entityRef: SAMPLE_CRM_HOUSEHOLD_KEY, sourceLabel: SAMPLE_MEETING_EVENT_TITLE,
+            fields: [{ field: proposal.field, label: 'Next review date', valueType: 'date', before: proposal.before, proposed: proposal.proposed }],
+          },
+    },
+  }));
+}
+
+async function seedExactReviewArtifacts(
+  store: SampleReviewArtifactStore,
+  meetingId: string
+): Promise<void> {
+  const expected = sampleReviewArtifacts(meetingId);
+  const current = store.listForMeeting(meetingId).filter(
+    (artifact) => artifact.kind === 'action-update-proposal'
   );
-  if (existing) return;
-  store.enqueue({
-    kind: 'note',
-    matterId,
-    title: 'Annual review follow-ups',
-    body: 'Annual review completed. Prepare Q4 Roth conversion authorization, confirm remaining beneficiary designations, and revisit 529 funding at the October review.',
-    sourceRef: SAMPLE_CRM_SOURCE_REF,
-    aiSource: { kind: 'meeting', date: SAMPLE_MEETING_STARTED_AT.slice(0, 10) },
-  });
+  const byProposalId = new Map<string, MeetingArtifact>();
+  for (const artifact of current) {
+    const proposal = artifact.payload['proposal'] as Record<string, unknown> | undefined;
+    const id = proposal?.['id'];
+    if (typeof id !== 'string') continue;
+    if (byProposalId.has(id)) throw new Error('The Hendricks review proposals conflict locally.');
+    byProposalId.set(id, artifact);
+  }
+  for (const artifact of expected) {
+    const proposal = artifact.payload['proposal'];
+    const id = (proposal as Record<string, unknown>)['id'] as string;
+    const existing = byProposalId.get(id);
+    if (existing) {
+      if (!isExactHendricksReviewProposal(existing.payload['proposal']))
+        throw new Error('The Hendricks review proposals conflict locally.');
+      continue;
+    }
+    await store.append(artifact);
+  }
 }
 
 /**
@@ -403,7 +448,8 @@ export async function seedSampleGoldenPath(
   workspaceRoot: string,
   matterId: string,
   population: MeetingPopulationService,
-  boundary: SealedMeetingClientBoundary
+  boundary: SealedMeetingClientBoundary,
+  reviewArtifacts: SampleReviewArtifactStore
 ): Promise<void> {
   // The welcome action minted this exact boundary. Deferred work must verify
   // it, never capture whichever client happens to be selected later.
@@ -424,6 +470,8 @@ export async function seedSampleGoldenPath(
   // therefore cannot leave sample material in the previously open workspace.
   const canonical = await ensureCanonicalSampleMeeting(operation, workspaceRoot);
   if (!canonical) throw new Error('The canonical Hendricks meeting could not be found.');
+  if (!isExactHendricksAccountlessMeeting(canonical, { matterId, workspaceId: workspaceRoot }))
+    throw new Error('The canonical Hendricks sample meeting does not match its safe boundary.');
   operation.assertStable();
   await workspace.writeFile(
     `${meetingDir}/meeting.json`,
@@ -448,9 +496,10 @@ export async function seedSampleGoldenPath(
   operation.assertStable();
   await completeCanonicalSampleMeeting(operation, canonical);
   operation.assertStable();
+  await seedExactReviewArtifacts(reviewArtifacts, canonical.id);
+  operation.assertStable();
   const sample = sampleBrief(workspaceRoot, matterId);
   useBriefStore.getState().upsert(sample.identity, sample.brief);
-  seedSampleCrmApproval(matterId);
 }
 
 export const SAMPLE_GOLDEN_PATH = {
@@ -463,4 +512,6 @@ export const SAMPLE_GOLDEN_PATH = {
   endedAt: SAMPLE_MEETING_ENDED_AT,
   crmSourceRef: SAMPLE_CRM_SOURCE_REF,
   crmHouseholdKey: SAMPLE_CRM_HOUSEHOLD_KEY,
+  taskProposalId: HENDRICKS_REVIEW.taskProposalId,
+  crmProposalId: HENDRICKS_REVIEW.crmProposalId,
 } as const;

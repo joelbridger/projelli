@@ -107,11 +107,15 @@ vi.mock('@/features/meetings/foundation/contract', async (importOriginal) => {
             ? seedControl.meeting
             : undefined;
         },
-        createForActiveClient: async () => {
+        createForActiveClient: async (draft: Record<string, unknown>) => {
           assertStable();
           seedControl.creates += 1;
           seedControl.meeting = {
             id: 'app-hendricks-meeting',
+            kind: 'meeting',
+            householdRef: boundary.householdRef,
+            matterId: boundary.matterId,
+            ...draft,
             state: 'draft',
             references: ['meeting:sample-hendricks-annual-review'],
           };

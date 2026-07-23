@@ -8,7 +8,6 @@ import type {
   MeetingRecord,
 } from '@/features/meetings';
 import { useBriefStore } from '@/features/meetings';
-import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import {
   decideMeetingFileVisibility,
@@ -20,6 +19,28 @@ import {
   ensureSampleHendricksCrmLink,
   seedSampleGoldenPath,
 } from './seedSampleGoldenPath';
+
+function sampleReviewArtifacts() {
+  const artifacts: any[] = [];
+  return {
+    listForMeeting: (meetingId: string) =>
+      artifacts.filter((artifact) => artifact.meetingId === meetingId),
+    append: async (artifact: any) => {
+      const id = `artifact-${artifacts.length}`;
+      const saved = {
+        ...artifact,
+        id,
+        householdRef: SAMPLE_GOLDEN_PATH.crmHouseholdKey,
+        matterId,
+        state: 'produced',
+        createdAt: artifact.producedAt,
+        meetingVisibility: { kind: 'meeting-artifact', id, lineage: 'accountless-unrestricted' },
+      };
+      artifacts.push(saved);
+      return saved;
+    },
+  };
+}
 
 class InMemoryWorkspace {
   readonly textFiles = new Map<string, string>();
@@ -130,7 +151,6 @@ function samplePopulation(): MeetingPopulationService {
 
 beforeEach(() => {
   useBriefStore.setState({ briefs: {} });
-  useCrmWriteQueueStore.setState({ items: [] });
   useMatterStore.setState({
     matters: [
       {
@@ -149,6 +169,7 @@ describe('seedSampleGoldenPath', () => {
   it('uses one canonical Hendricks meeting across the sample proof', async () => {
     const workspace = new InMemoryWorkspace();
     const population = samplePopulation();
+    const artifacts = sampleReviewArtifacts();
     ensureSampleHendricksCrmLink(matterId);
 
     await seedSampleGoldenPath(
@@ -156,7 +177,8 @@ describe('seedSampleGoldenPath', () => {
       workspaceRoot,
       matterId,
       population,
-      sampleBoundary
+      sampleBoundary,
+      artifacts
     );
     // Re-running onboarding must update the same sample artifacts, not add a
     // second CRM item awaiting advisor approval.
@@ -165,7 +187,8 @@ describe('seedSampleGoldenPath', () => {
       workspaceRoot,
       matterId,
       population,
-      sampleBoundary
+      sampleBoundary,
+      artifacts
     );
 
     const meetingPath = `${workspaceRoot}/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}`;
@@ -176,7 +199,6 @@ describe('seedSampleGoldenPath', () => {
       workspace.textFiles.get(`${meetingPath}/transcript.json`) ?? ''
     );
     const briefs = Object.values(useBriefStore.getState().briefs);
-    const proposals = useCrmWriteQueueStore.getState().items;
 
     expect(meeting).toMatchObject({
       matterId,
@@ -202,16 +224,6 @@ describe('seedSampleGoldenPath', () => {
       matterId,
       householdRef: SAMPLE_GOLDEN_PATH.crmHouseholdKey,
     });
-    expect(proposals).toEqual([
-      expect.objectContaining({
-        matterId,
-        sourceRef: SAMPLE_GOLDEN_PATH.crmSourceRef,
-        aiSource: {
-          kind: 'meeting',
-          date: SAMPLE_GOLDEN_PATH.startedAt.slice(0, 10),
-        },
-      }),
-    ]);
     expect(SAMPLE_GOLDEN_PATH).toMatchObject({
       completedEventId: meeting.calendarEvent.id,
       briefEventId: meeting.calendarEvent.id,
@@ -249,7 +261,7 @@ describe('seedSampleGoldenPath', () => {
       },
     }));
 
-    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary);
+    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary, sampleReviewArtifacts());
 
     const manifest = JSON.parse(await workspace.readFile(path)).meetingFileVisibility;
     expect(manifest).toMatchObject({
@@ -284,14 +296,14 @@ describe('seedSampleGoldenPath', () => {
         workspaceRoot,
         matterId,
         population,
-        sampleBoundary
+        sampleBoundary,
+        sampleReviewArtifacts()
       )
     ).rejects.toThrow('canonical create failed');
 
     expect(workspace.textFiles).toEqual(new Map());
     expect(workspace.binaryFiles).toEqual(new Map());
     expect(useBriefStore.getState().briefs).toEqual({});
-    expect(useCrmWriteQueueStore.getState().items).toEqual([]);
   });
 
   it('keeps a persisted draft and finishes exactly one meeting after a link retry', async () => {
@@ -310,7 +322,7 @@ describe('seedSampleGoldenPath', () => {
     });
 
     await expect(
-      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary)
+      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary, sampleReviewArtifacts())
     ).rejects.toThrow('legacy link failed');
     expect(create).toHaveBeenCalledTimes(1);
 
@@ -319,7 +331,8 @@ describe('seedSampleGoldenPath', () => {
       workspaceRoot,
       matterId,
       population,
-      sampleBoundary
+      sampleBoundary,
+      sampleReviewArtifacts()
     );
     expect(create).toHaveBeenCalledTimes(1);
     expect(link).toHaveBeenCalledTimes(2);
@@ -355,7 +368,7 @@ describe('seedSampleGoldenPath', () => {
     await workspace.writeFile(path, original);
 
     await expect(
-      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary)
+      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary, sampleReviewArtifacts())
     ).rejects.toThrow('could not be recovered safely');
     expect(await workspace.readFile(path)).toBe(original);
     expect(await population.findByReference(SAMPLE_GOLDEN_PATH.crmSourceRef)).toBeUndefined();

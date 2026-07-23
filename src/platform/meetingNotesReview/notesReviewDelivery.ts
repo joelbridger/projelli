@@ -48,6 +48,13 @@ export interface NotesReviewCrmDelivery {
   approveProposal(
     proposalId: string
   ): Promise<{ remoteId: string; deduped: boolean }>;
+  saveApprovedLocalField?(input: {
+    readonly deliveryKey: string;
+    readonly householdRef: string;
+    readonly matterId: string;
+    readonly field: string;
+    readonly value: NotesReviewCrmFieldValue;
+  }): Promise<{ readonly recordId: string; readonly deduped: boolean }>;
 }
 
 interface StoredItem extends NotesReviewItem {
@@ -785,18 +792,6 @@ export function makeExactMeetingNotesReviewRepository<
       return receiptFromStoredDelivery(source.delivery, deliveryKey);
     }
 
-    // Connectivity is a read-only preflight. A known disconnected provider
-    // should not consume the one legal approval transition.
-    assertCompleteIdentity();
-    if (
-      validated.kind === 'crm-update' &&
-      !(await input.crmDelivery.isConnected())
-    ) {
-      throw new Error(
-        'Connect Wealthbox before sending a CRM update. Nothing was sent.'
-      );
-    }
-
     // The append-only approval transition is the authorization token. No task
     // or CRM destination is touched until this exact artifact accepts it.
     assertCompleteIdentity();
@@ -831,11 +826,10 @@ export function makeExactMeetingNotesReviewRepository<
       throw new Error(
         'The approved proposal changed before delivery. Nothing was sent.'
       );
-    await assertLiveEgressAuthority(current, deliveryKey);
-
     let receipt: NotesReviewReceipt;
     try {
       assertCompleteIdentity();
+      await assertLiveEgressAuthority(current, deliveryKey);
       receipt =
         current.kind === 'task'
           ? await deliverExactTask(
@@ -1134,43 +1128,22 @@ async function deliverExactCrm<Client extends NotesReviewClientPair>(
   deliveryKey: string,
   assertEgressAuthority: () => Promise<void>
 ): Promise<NotesReviewReceipt> {
-  const parent = artifactMeetingVisibility(itemArtifact(item));
-  const receipts: string[] = [];
-  for (const field of item.fields) {
-    const proposalId = `meeting-review-${stableId(
-      `${deliveryKey}\n${field.field}`
-    )}`;
-    const requestedAt = new Date().toISOString();
-    await assertEgressAuthority();
-    await delivery.saveProposal({
-      id: proposalId,
-      kind: 'field',
-      matterId: item.client.matterId,
-      title: item.title,
-      body: item.detail,
-      sourceRef: item.transcriptRef,
-      status: 'proposed',
-      field: field.field,
-      existingValue: crmValueForTransport(field.before),
-      newValue: crmValueForTransport(field.proposed),
-      finalValue: crmValueForTransport(field.proposed),
-      meetingVisibility: meetingVisibilityProposal(proposalId, parent),
-    });
-    await assertEgressAuthority();
-    await delivery.prepareProposal({
-      proposalId,
-      householdKey: item.client.householdRef,
-      requestedAt,
-    });
-    await assertEgressAuthority();
-    const result = await delivery.approveProposal(proposalId);
-    receipts.push(result.remoteId);
-  }
+  if (item.fields.length !== 1) throw Object.assign(
+    new Error('A local CRM delivery must contain exactly one field update.'), { retryable: false }
+  );
+  if (!delivery.saveApprovedLocalField) throw Object.assign(
+    new Error('The local CRM delivery adapter is unavailable. Nothing was sent.'), { retryable: false }
+  );
+  const field = item.fields[0];
+  if (!field) throw new Error('A local CRM delivery field is missing.');
+  await assertEgressAuthority();
+  const result = await delivery.saveApprovedLocalField({
+    deliveryKey, householdRef: item.client.householdRef, matterId: item.client.matterId,
+    field: field.field, value: field.proposed,
+  });
   return {
-    status: 'sent',
-    message: `CRM update delivered (${receipts.length.toString()} field${
-      receipts.length === 1 ? '' : 's'
-    }; receipts ${receipts.join(', ')}).`,
+    status: 'saved',
+    message: `CRM update saved locally (${result.deduped ? 'already applied' : `receipt ${result.recordId}`}).`,
   };
 }
 
@@ -1386,9 +1359,4 @@ function crmValue(
     return value;
   }
   throw new Error(`CRM ${type} value is malformed.`);
-}
-
-function crmValueForTransport(value: NotesReviewCrmFieldValue): string {
-  if (value === null) return '';
-  return String(value);
 }

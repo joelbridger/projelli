@@ -53,6 +53,8 @@ import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
 import {
   readActiveMeetingClientBoundary,
+  useMeetingArtifactStore,
+  useMeetingFoundationStore,
   useMeetingPopulationService,
   type SealedMeetingClientBoundary,
 } from '@/features/meetings/foundation/contract';
@@ -312,6 +314,8 @@ function App() {
 function AppShell() {
   const { t } = useTranslation();
   const sampleMeetingPopulation = useMeetingPopulationService();
+  const sampleMeetingStore = useMeetingFoundationStore();
+  const sampleMeetingArtifacts = useMeetingArtifactStore();
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
     !IS_TEST_MODE && !IS_DEMO_MODE
   );
@@ -1341,7 +1345,16 @@ function AppShell() {
       pendingSampleMeetingSeed.root,
       pendingSampleMeetingSeed.matterId,
       sampleMeetingPopulation,
-      pendingSampleMeetingSeed.boundary
+      pendingSampleMeetingSeed.boundary,
+      {
+        listForMeeting: (meetingId) =>
+          sampleMeetingArtifacts
+            .readerFor(sampleMeetingStore, pendingSampleMeetingSeed.boundary, [
+              { kind: 'action-update-proposal', minimumSchemaVersion: 2 },
+            ])
+            .listForMeeting(meetingId, ['action-update-proposal']),
+        append: (artifact) => sampleMeetingArtifacts.append(artifact),
+      }
     )
       .then(() => {
         setSampleMeetingSeedFailure(null);
@@ -1367,7 +1380,7 @@ function AppShell() {
             : pending
         );
       });
-  }, [pendingSampleMeetingSeed, rootPath, sampleMeetingPopulation]);
+  }, [pendingSampleMeetingSeed, rootPath, sampleMeetingPopulation, sampleMeetingArtifacts, sampleMeetingStore]);
 
   const retrySampleMeetingSeed = useCallback(() => {
     if (!sampleMeetingSeedFailure) return;

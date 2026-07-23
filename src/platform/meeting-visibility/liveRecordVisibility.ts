@@ -1,5 +1,10 @@
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
+  HENDRICKS_REVIEW,
+  isExactHendricksAccountlessMeeting,
+  isExactHendricksReviewProposal,
+} from '@/platform/samples/hendricksReviewSpec';
+import {
   resolveMeetingVisibility,
   type DerivedMeetingVisibilitySubject,
   type LegacyUnrestrictedMeetingVisibilitySubject,
@@ -131,6 +136,30 @@ function resolveExactParent(
   return matches.length === 1 ? (matches[0] ?? null) : null;
 }
 
+/** Accountless access is a single demo exception, never a general fallback. */
+function isExactAccountlessHendricksLineage(
+  record: LiveCrmRecord,
+  subject: MeetingVisibilitySubject,
+  records: readonly LiveCrmRecord[]
+): boolean {
+  if (subject.lineage !== 'accountless-unrestricted') return true;
+  const artifact = record.kind === 'meeting_artifact' ? record :
+    records.find((candidate) => candidate.kind === 'meeting_artifact' &&
+      candidate.id === (records.find((delivery) => delivery.kind === 'meeting_artifact_delivery' &&
+        delivery['deliveryKey'] === record['meetingDeliveryKey'])?.['artifactId']));
+  if (!artifact || artifact['meetingVisibility'] === undefined ||
+    (artifact['meetingVisibility'] as Partial<MeetingVisibilitySubject>).lineage !== 'accountless-unrestricted' ||
+    !isExactHendricksReviewProposal((artifact['payload'] as Record<string, unknown> | undefined)?.['proposal'])) return false;
+  const meeting = records.find((candidate) => candidate.kind === 'meeting' && candidate.id === artifact['meetingId']);
+  if (!meeting || !isExactHendricksAccountlessMeeting(meeting, {
+    matterId: String(artifact.matterId ?? ''), workspaceId: String(meeting['workspaceId'] ?? ''),
+  })) return false;
+  if (record.kind === 'task')
+    return record.id === `task-${record['meetingDeliveryKey']}` &&
+      (record['householdRef'] as { id?: unknown } | undefined)?.id === HENDRICKS_REVIEW.householdRef;
+  return record.kind === 'meeting_artifact';
+}
+
 /** Resolve before projecting a title, body, rationale, or summary. */
 export function canReadMeetingDerivedRecord(
   record: LiveCrmRecord,
@@ -140,6 +169,7 @@ export function canReadMeetingDerivedRecord(
 ): boolean {
   const subject = meetingVisibilitySubject(record, kind);
   if (!subject) return false;
+  if (!isExactAccountlessHendricksLineage(record, subject, records)) return false;
   return canReadMeetingVisibilitySubject(subject, records, viewerId);
 }
 

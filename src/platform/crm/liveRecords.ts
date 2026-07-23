@@ -14,6 +14,62 @@ export type LiveCrmRecord = {
   [key: string]: unknown;
 };
 
+type CompletedMeetingCrmDeliveryMarker = {
+  readonly key: string;
+  readonly field: string;
+  readonly value: string | number | boolean | null;
+};
+
+const COMPLETED_MEETING_CRM_DELIVERIES = 'completedMeetingCrmDeliveries' as const;
+
+function completedMeetingCrmDeliveries(record: LiveCrmRecord): readonly CompletedMeetingCrmDeliveryMarker[] {
+  const value = record[COMPLETED_MEETING_CRM_DELIVERIES];
+  return Array.isArray(value) ? value.filter((entry): entry is CompletedMeetingCrmDeliveryMarker =>
+    Boolean(entry && typeof entry === 'object' && typeof (entry as any).key === 'string' &&
+      typeof (entry as any).field === 'string' &&
+      (typeof (entry as any).value === 'string' || typeof (entry as any).value === 'number' ||
+        typeof (entry as any).value === 'boolean' || (entry as any).value === null)))
+    : [];
+}
+
+/** Local-only, reloaded, idempotent one-field delivery for an approved meeting proposal. */
+export async function saveApprovedMeetingCrmFieldRebased(input: {
+  readonly workspaceRoot: string | null | undefined;
+  readonly householdRef: string;
+  readonly matterId: string;
+  readonly deliveryKey: string;
+  readonly field: string;
+  readonly value: string | number | boolean | null;
+  readonly canPersist: () => boolean;
+}): Promise<{ readonly record: LiveCrmRecord; readonly deduped: boolean }> {
+  if (!isTauri()) throw new Error('CRM records can only be saved in the desktop app.');
+  if (!input.workspaceRoot) throw new Error('Open a workspace before saving CRM data.');
+  return inCrmWorkspace(input.workspaceRoot, async () => {
+    const records = await invoke<LiveCrmRecord[]>('crm_live_list');
+    const household = records.find((record) => record.id === input.householdRef &&
+      record.kind === 'household' && record.matterId === input.matterId);
+    if (!household) throw Object.assign(new Error('The selected household is no longer available locally.'), { retryable: false });
+    const rawMarkers = household[COMPLETED_MEETING_CRM_DELIVERIES];
+    if (Array.isArray(rawMarkers) && rawMarkers.some((marker) =>
+      marker && typeof marker === 'object' && (marker as any).key === input.deliveryKey &&
+      !completedMeetingCrmDeliveries(household).includes(marker as CompletedMeetingCrmDeliveryMarker)))
+      throw Object.assign(new Error('The local CRM delivery marker is malformed.'), { retryable: false });
+    const prior = completedMeetingCrmDeliveries(household).find((marker) => marker.key === input.deliveryKey);
+    if (prior) {
+      if (prior.field === input.field && sameRecordValue(prior.value, input.value)) return { record: household, deduped: true };
+      throw Object.assign(new Error('This local CRM delivery key conflicts with different content.'), { retryable: false });
+    }
+    if (!input.canPersist()) throw new Error('The workspace changed while CRM data was being updated. Try again.');
+    const desired = {
+      ...household,
+      [input.field]: input.value,
+      [COMPLETED_MEETING_CRM_DELIVERIES]: [...completedMeetingCrmDeliveries(household), { key: input.deliveryKey, field: input.field, value: input.value }],
+    } as LiveCrmRecord;
+    if (!input.canPersist()) throw new Error('The workspace changed while CRM data was being updated. Try again.');
+    return { record: await invoke<LiveCrmRecord>('crm_live_upsert', { record: desired }), deduped: false };
+  });
+}
+
 function sameRecordValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }

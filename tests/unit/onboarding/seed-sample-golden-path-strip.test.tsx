@@ -39,15 +39,18 @@ function makeSamplePopulation() {
     id: string;
     state: 'draft' | 'scheduled' | 'in-progress' | 'completed';
     references: readonly string[];
+    [key: string]: unknown;
   } | undefined;
   return {
     captureActiveClientOperationForBoundary: () => ({
       assertStable: () => undefined,
       findByReference: async (reference: string) =>
         record?.references.includes(reference) ? record : undefined,
-      createForActiveClient: async () => {
+      createForActiveClient: async (draft: Record<string, unknown>) => {
         record = {
           id: 'sample-canonical-meeting',
+          kind: 'meeting', householdRef: sampleBoundary.householdRef, matterId: sampleBoundary.matterId,
+          ...draft,
           state: 'draft',
           references: [SAMPLE_GOLDEN_PATH.crmSourceRef],
         };
@@ -106,7 +109,8 @@ describe('seedSampleGoldenPath BeforeYouMeetStrip behavior', () => {
       '/workspace',
       'sample-matter',
       makeSamplePopulation() as never,
-      sampleBoundary
+      sampleBoundary,
+      { listForMeeting: () => [], append: async (input: any) => ({ ...input, id: 'artifact', householdRef: sampleBoundary.householdRef, matterId: sampleBoundary.matterId, state: 'produced', createdAt: input.producedAt }) }
     );
 
     vi.setSystemTime(new Date('2026-07-10T12:00:00.000Z'));

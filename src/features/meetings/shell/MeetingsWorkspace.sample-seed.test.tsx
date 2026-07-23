@@ -13,7 +13,7 @@ import {
 } from '@/platform/client-context';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { createMeetingPopulationService, readActiveMeetingClientBoundary } from '../foundation/contract';
+import { createMeetingArtifactStore, createMeetingPopulationService, createMeetingStore, readActiveMeetingClientBoundary } from '../foundation/contract';
 import { SAMPLE_GOLDEN_PATH, ensureSampleHendricksCrmLink, seedSampleGoldenPath } from '@/features/onboarding/seedSampleGoldenPath';
 import { meetingsSurface } from './appSurface';
 
@@ -108,7 +108,16 @@ describe('Hendricks sample meeting in the real Meetings shell', () => {
     };
     const boundary = readActiveMeetingClientBoundary();
     if (!boundary) throw new Error('expected Hendricks selection boundary');
-    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, ROOT, 'matter-hendricks', createMeetingPopulationService(port), boundary);
+    const artifactStore = createMeetingArtifactStore(port);
+    const artifactReader = artifactStore.readerFor(
+      createMeetingStore(port),
+      boundary,
+      [{ kind: 'action-update-proposal', minimumSchemaVersion: 2 }]
+    );
+    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, ROOT, 'matter-hendricks', createMeetingPopulationService(port), boundary, {
+      listForMeeting: (id) => artifactReader.listForMeeting(id, ['action-update-proposal']),
+      append: (artifact) => artifactStore.append(artifact),
+    });
     expect(crm.records.filter((record) => record.kind === 'meeting')).toEqual([
       expect.objectContaining({ ownerRef: null, state: 'completed' }),
     ]);

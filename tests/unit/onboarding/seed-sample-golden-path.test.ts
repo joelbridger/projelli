@@ -5,7 +5,6 @@ import {
   SAMPLE_GOLDEN_PATH,
 } from '@/features/onboarding/seedSampleGoldenPath';
 import { useBriefStore } from '@/features/meetings/briefStore';
-import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
 import type { TranscriptFile } from '@/platform/types/meeting';
@@ -35,6 +34,7 @@ type SampleRecord = {
   id: string;
   state: 'draft' | 'scheduled' | 'in-progress' | 'completed';
   references: readonly string[];
+  [key: string]: unknown;
 };
 
 const sampleBoundary = {
@@ -50,9 +50,11 @@ function makeSamplePopulation() {
       assertStable: () => undefined,
       findByReference: async (reference: string) =>
         record?.references.includes(reference) ? record : undefined,
-      createForActiveClient: async () => {
+      createForActiveClient: async (draft: Record<string, unknown>) => {
         record = {
           id: 'sample-canonical-meeting',
+          kind: 'meeting', householdRef: sampleBoundary.householdRef, matterId: sampleBoundary.matterId,
+          ...draft,
           state: 'draft',
           references: [SAMPLE_GOLDEN_PATH.crmSourceRef],
         };
@@ -78,11 +80,19 @@ function makeSamplePopulation() {
   };
 }
 
+function reviewArtifacts() {
+  const records: any[] = [];
+  return { listForMeeting: (id: string) => records.filter((record) => record.meetingId === id), append: async (input: any) => {
+    const id = `artifact-${records.length}`;
+    const record = { ...input, id, householdRef: sampleBoundary.householdRef, matterId: sampleBoundary.matterId, state: 'produced', createdAt: input.producedAt, meetingVisibility: { kind: 'meeting-artifact', id, lineage: 'accountless-unrestricted' } };
+    records.push(record); return record;
+  }};
+}
+
 describe('seedSampleGoldenPath', () => {
   beforeEach(() => {
     localStorage.clear();
     useBriefStore.setState({ briefs: {} });
-    useCrmWriteQueueStore.setState({ items: [] });
     useMatterStore.setState({
       matters: [
         {
@@ -98,7 +108,7 @@ describe('seedSampleGoldenPath', () => {
     ensureSampleHendricksCrmLink('sample-matter');
   });
 
-  it('seeds a processed meeting, a ready brief, and one pending CRM approval', async () => {
+  it('seeds a processed meeting and a ready brief', async () => {
     const { service, textWrites, binaryWrites } = makeWorkspace();
 
     await seedSampleGoldenPath(
@@ -106,7 +116,7 @@ describe('seedSampleGoldenPath', () => {
       '/workspace',
       'sample-matter',
       makeSamplePopulation() as never,
-      sampleBoundary
+      sampleBoundary, reviewArtifacts()
     );
 
     const meetingPath = `/workspace/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}/meeting.json`;
@@ -139,10 +149,6 @@ describe('seedSampleGoldenPath', () => {
     expect(briefs[0]?.isSample).toBe(true);
     expect(briefs[0]?.bullets?.length).toBe(3);
 
-    const queueItems = useCrmWriteQueueStore.getState().items;
-    expect(queueItems).toHaveLength(1);
-    expect(queueItems[0]?.status).toBe('proposed');
-    expect(queueItems[0]?.sourceRef).toBe(SAMPLE_GOLDEN_PATH.crmSourceRef);
 
     const matter = useMatterStore
       .getState()
@@ -152,26 +158,26 @@ describe('seedSampleGoldenPath', () => {
     );
   });
 
-  it('does not duplicate the pending CRM approval when re-seeded', async () => {
+  it('does not duplicate the review artifacts when re-seeded', async () => {
     const first = makeWorkspace();
     const second = makeWorkspace();
     const population = makeSamplePopulation();
+    const artifacts = reviewArtifacts();
 
     await seedSampleGoldenPath(
       first.service as never,
       '/workspace',
       'sample-matter',
       population as never,
-      sampleBoundary
+      sampleBoundary, artifacts
     );
     await seedSampleGoldenPath(
       second.service as never,
       '/workspace',
       'sample-matter',
       population as never,
-      sampleBoundary
+      sampleBoundary, artifacts
     );
 
-    expect(useCrmWriteQueueStore.getState().items).toHaveLength(1);
   });
 });
