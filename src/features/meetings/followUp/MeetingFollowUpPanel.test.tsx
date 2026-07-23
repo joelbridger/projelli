@@ -24,12 +24,14 @@ import {
   type MeetingFollowUpRecap,
   type MeetingFollowUpStore,
   type MeetingFollowUpTarget,
+  type ProviderSaveClaim,
 } from './meetingFollowUpStore';
 
 const mail = vi.hoisted(() => ({
   accounts: vi.fn(),
   saveDraft: vi.fn(),
 }));
+const external = vi.hoisted(() => ({ open: vi.fn() }));
 
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
   const actual =
@@ -42,6 +44,9 @@ vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
 });
 
 vi.mock('@/platform/matter/matterStore', () => ({ useMatters: () => [] }));
+vi.mock('@/platform/utils/openExternal', () => ({
+  openExternal: external.open,
+}));
 
 const translations: Record<string, string> = {
   'meetings.entry.follow-up.loading': 'Loading follow-up',
@@ -125,6 +130,36 @@ function recap(
   };
 }
 
+function receiptAwareSave(
+  complete: (
+    input: Parameters<MeetingFollowUpStore['save']>[1]
+  ) => MeetingFollowUpRecap = (input) =>
+    recap({
+      artifactId: 'follow-up-artifact-2',
+      to: input.to,
+      subject: input.subject,
+      body: input.body,
+      state: input.state,
+      ...(input.state === 'saved-to-drafts'
+        ? { outlookDraftId: input.outlookDraftId }
+        : {}),
+      ...(input.state !== 'edited'
+        ? {
+            draftProvider: input.draftProvider,
+            draftAccount: input.draftAccount,
+            draftAccountLabel: input.draftAccountLabel,
+          }
+        : {}),
+    })
+) {
+  return vi.fn<MeetingFollowUpStore['save']>((_target, input) =>
+    Promise.resolve({
+      kind: 'ready' as const,
+      recap: complete(input),
+    })
+  );
+}
+
 function productionStoreHarness() {
   const client = boundary();
   const meetings: MeetingStore = {
@@ -136,6 +171,8 @@ function productionStoreHarness() {
     transition: vi.fn(),
   };
   const records: MeetingArtifact[] = [];
+  let appendAttempt = 0;
+  const failedAppendAttempts = new Set<number>();
   const artifacts: MeetingArtifactStore = {
     readerFor: (_meetings, requestedClient): MeetingArtifactReader => ({
       listForMeeting: (meetingId, kinds) =>
@@ -149,6 +186,10 @@ function productionStoreHarness() {
       get: (id) => records.find((artifact) => artifact.id === id) ?? null,
     }),
     append: vi.fn((input: MeetingArtifactInput) => {
+      appendAttempt += 1;
+      if (failedAppendAttempts.has(appendAttempt)) {
+        return Promise.reject(new Error('simulated local artifact failure'));
+      }
       const artifact: MeetingArtifact = {
         ...input,
         id: `artifact-${String(records.length + 1)}`,
@@ -166,21 +207,49 @@ function productionStoreHarness() {
     meetingId: 'meeting-a',
     client,
   };
+  const defaultProviderSaveClaim: ProviderSaveClaim = async (claim) => {
+    await artifacts.append({
+      meetingId: claim.meetingId,
+      kind: 'follow-up-draft',
+      schemaVersion: 1,
+      producedAt: new Date().toISOString(),
+      sourceRefs: [],
+      provenance: 'local-entry',
+      payload: {
+        recapKey: claim.recapKey,
+        to: claim.to,
+        subject: claim.subject,
+        body: claim.body,
+        deliveryState: 'provider-save-pending',
+        draftProvider: claim.provider,
+        draftAccount: claim.account,
+        draftAccountLabel: claim.accountLabel,
+      },
+    });
+    return { outcome: 'acquired' };
+  };
+  const createStore = (claim = defaultProviderSaveClaim) =>
+    createMeetingFollowUpStore(meetings, artifacts, undefined, claim);
   return {
     records,
-    store: createMeetingFollowUpStore(meetings, artifacts),
+    store: createStore(),
+    createStore,
     target,
+    failAppendAttempts(...attempts: number[]) {
+      for (const attempt of attempts) failedAppendAttempts.add(attempt);
+    },
   };
 }
 
-describe('Meeting follow-up Outlook Drafts-only panel', () => {
+describe('Meeting follow-up provider Drafts-only panel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mail.accounts.mockResolvedValue([
-      { provider: 'gmail', account: 'gmail', label: 'Gmail' },
       { provider: 'm365', account: 'default', label: 'Outlook' },
+      { provider: 'gmail', account: 'gmail', label: 'Gmail' },
     ]);
     mail.saveDraft.mockResolvedValue('outlook-draft-1');
+    external.open.mockResolvedValue(undefined);
   });
 
   it('shows loading and then the honest not-produced state', async () => {
@@ -195,6 +264,7 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       read,
       start: vi.fn(),
       save: vi.fn(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     expect(screen.getByTestId('meeting-follow-up-loading')).toBeTruthy();
@@ -262,8 +332,22 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       await screen.findByTestId('meeting-follow-up-saved')
     ).toHaveTextContent('Nothing was sent');
     expect(mail.saveDraft).toHaveBeenCalledTimes(1);
-    expect(lane.records).toHaveLength(2);
+    expect(external.open).toHaveBeenCalledWith(
+      'https://outlook.office.com/mail/?path=/mail/drafts'
+    );
+    expect(lane.records).toHaveLength(3);
     expect(lane.records[1]).toMatchObject({
+      meetingId: 'meeting-a',
+      householdRef: 'household-a',
+      matterId: 'matter-shared',
+      payload: {
+        body: 'Edited exact-meeting recap.',
+        deliveryState: 'provider-save-pending',
+        draftProvider: 'm365',
+        draftAccount: 'default',
+      },
+    });
+    expect(lane.records[2]).toMatchObject({
       meetingId: 'meeting-a',
       householdRef: 'household-a',
       matterId: 'matter-shared',
@@ -272,6 +356,58 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
         deliveryState: 'saved-to-drafts',
         outlookDraftId: 'outlook-draft-1',
       },
+    });
+  });
+
+  it('lets two separately created panels reach the provider save only once', async () => {
+    let arrived = 0;
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let acquired = false;
+    const sharedClaim = async (): Promise<{
+      outcome: 'acquired' | 'alreadyClaimed';
+    }> => {
+      arrived += 1;
+      if (arrived === 2) release();
+      await released;
+      if (acquired) return { outcome: 'alreadyClaimed' };
+      acquired = true;
+      return { outcome: 'acquired' };
+    };
+    const makeStore = (): MeetingFollowUpStore => ({
+      read: vi.fn<MeetingFollowUpStore['read']>(() =>
+        Promise.resolve({
+          kind: 'ready',
+          recap: recap({
+            to: 'client@example.test',
+            subject: 'Exact meeting recap',
+            body: 'One exact-meeting recap.',
+          }),
+        })
+      ),
+      start: vi.fn(),
+      save: receiptAwareSave(),
+      claimProviderSave: async () => {
+        const result = await sharedClaim();
+        return result.outcome === 'acquired'
+          ? { kind: 'acquired' as const }
+          : { kind: 'already-claimed' as const };
+      },
+    });
+    render(
+      <>
+        <MeetingFollowUpPanel context={context()} store={makeStore()} />
+        <MeetingFollowUpPanel context={context()} store={makeStore()} />
+      </>
+    );
+    for (const save of await screen.findAllByTestId('followup-drafts-save')) {
+      fireEvent.click(save);
+    }
+
+    await waitFor(() => {
+      expect(mail.saveDraft).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -284,6 +420,7 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       read,
       start: vi.fn(),
       save: vi.fn(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     expect(
@@ -294,23 +431,96 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
     expect(read).toHaveBeenCalledTimes(2);
   });
 
+  it('refuses a different household even when the meeting id is the same', async () => {
+    const lane = productionStoreHarness();
+    const otherClient = boundary('household-b');
+    await expect(
+      lane.store.read({ meetingId: 'meeting-a', client: otherClient })
+    ).resolves.toEqual({ kind: 'refused' });
+    await expect(
+      lane.store.save(
+        { meetingId: 'meeting-a', client: otherClient },
+        {
+          to: 'client@example.test',
+          subject: 'Wrong household',
+          body: 'This must not cross the client boundary.',
+          state: 'saved-to-drafts',
+          outlookDraftId: 'outlook-draft-1',
+          draftProvider: 'm365',
+          draftAccount: 'default',
+          draftAccountLabel: 'Outlook',
+        }
+      )
+    ).resolves.toEqual({ kind: 'refused' });
+  });
+
+  it('treats Gmail /u/0/ Drafts as provider-only and names the selected account', async () => {
+    mail.accounts.mockResolvedValueOnce([
+      {
+        provider: 'm365',
+        account: 'default',
+        label: 'Outlook — other@firm.test',
+      },
+      {
+        provider: 'gmail',
+        account: 'gmail',
+        label: 'Gmail — advisor@firm.test',
+      },
+    ]);
+    const store: MeetingFollowUpStore = {
+      read: vi.fn<MeetingFollowUpStore['read']>(() =>
+        Promise.resolve({ kind: 'ready', recap: recap() })
+      ),
+      start: vi.fn(),
+      save: receiptAwareSave(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
+    };
+    render(<MeetingFollowUpPanel context={context()} store={store} />);
+    const account = await screen.findByTestId('followup-drafts-account');
+    expect(account).toHaveTextContent('Outlook');
+    expect(account).toHaveTextContent('Gmail');
+    fireEvent.change(account, { target: { value: '1' } });
+    fireEvent.click(screen.getByTestId('followup-drafts-save'));
+    await waitFor(() => {
+      expect(mail.saveDraft).toHaveBeenCalledWith(
+        'gmail:gmail',
+        ['client@example.test'],
+        'Annual review recap',
+        expect.any(String)
+      );
+    });
+    expect(external.open).toHaveBeenCalledWith(
+      'https://mail.google.com/mail/u/0/#drafts'
+    );
+    expect(
+      await screen.findByTestId('meeting-follow-up-saved')
+    ).toHaveTextContent(
+      'If another account opens, switch to Gmail — advisor@firm.test, then review and press Send there.'
+    );
+    expect(screen.getByTestId('meeting-follow-up-saved')).not.toHaveTextContent(
+      'Gmail — advisor@firm.test Drafts is open'
+    );
+  });
+
   it('renders an editable recap, saves one Outlook draft, and exposes no Send path', async () => {
-    const save = vi.fn<MeetingFollowUpStore['save']>((target, input) =>
-      input.state === 'saved-to-drafts'
-        ? Promise.resolve({
-            kind: 'ready',
-            recap: recap({
-              artifactId: 'follow-up-artifact-2',
-              to: input.to,
-              subject: input.subject,
-              body: input.body,
-              state: 'saved-to-drafts',
-              outlookDraftId: input.outlookDraftId,
-              householdRef: target.client.householdRef,
-              matterId: target.client.matterId,
-            }),
-          })
-        : Promise.resolve({ kind: 'refused' })
+    const save = receiptAwareSave((input) =>
+      recap({
+        artifactId: 'follow-up-artifact-2',
+        to: input.to,
+        subject: input.subject,
+        body: input.body,
+        state: input.state,
+        ...(input.state === 'saved-to-drafts'
+          ? { outlookDraftId: input.outlookDraftId }
+          : {}),
+        ...(input.state !== 'edited'
+          ? {
+              draftProvider: input.draftProvider,
+              draftAccount: input.draftAccount,
+              draftAccountLabel: input.draftAccountLabel,
+            }
+          : {}),
+      })
     );
     const store: MeetingFollowUpStore = {
       read: vi.fn<MeetingFollowUpStore['read']>(() =>
@@ -318,6 +528,7 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       ),
       start: vi.fn(),
       save,
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     const body = await screen.findByTestId('followup-drafts-body');
@@ -353,9 +564,9 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
     ).toHaveTextContent('Nothing was sent');
   });
 
-  it('blocks clearly when no Outlook account is connected', async () => {
+  it('blocks clearly when neither Outlook nor Gmail is connected', async () => {
     mail.accounts.mockResolvedValueOnce([
-      { provider: 'gmail', account: 'gmail', label: 'Gmail' },
+      { provider: 'imap', account: 'firm@example.test', label: 'Firm IMAP' },
     ]);
     const store: MeetingFollowUpStore = {
       read: vi.fn<MeetingFollowUpStore['read']>(() =>
@@ -363,36 +574,76 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       ),
       start: vi.fn(),
       save: vi.fn(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     expect(
       await screen.findByTestId('meeting-follow-up-blocked')
-    ).toHaveTextContent('Connect Outlook');
+    ).toHaveTextContent('Connect Outlook or Gmail');
     expect(screen.queryByTestId('followup-drafts-save')).toBeNull();
   });
 
-  it('sanitizes a raw Outlook failure and keeps the explicit save retryable', async () => {
+  it('records an ambiguous provider rejection as unresolved and makes another save unreachable', async () => {
     mail.saveDraft.mockRejectedValueOnce(
       new Error('Graph 401 raw tenant secret detail')
     );
-    const store: MeetingFollowUpStore = {
-      read: vi.fn<MeetingFollowUpStore['read']>(() =>
-        Promise.resolve({ kind: 'ready', recap: recap() })
-      ),
-      start: vi.fn(),
-      save: vi.fn(),
-    };
-    render(<MeetingFollowUpPanel context={context()} store={store} />);
+    const lane = productionStoreHarness();
+    await lane.store.start(lane.target);
+    const rendered = render(
+      <MeetingFollowUpPanel context={context()} store={lane.store} />
+    );
+    fireEvent.change(await screen.findByTestId('followup-drafts-to'), {
+      target: { value: 'client@example.test' },
+    });
+    fireEvent.change(screen.getByTestId('followup-drafts-body'), {
+      target: { value: 'Exact meeting follow-up.' },
+    });
     const save = await screen.findByTestId('followup-drafts-save');
     fireEvent.click(save);
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('The draft was not saved to Outlook');
+    const alert = await screen.findByTestId('meeting-follow-up-unresolved');
+    expect(alert).toHaveTextContent(
+      'cannot confirm whether a draft was created'
+    );
+    expect(alert).toHaveTextContent('Outlook');
     expect(alert).not.toHaveTextContent('401');
     expect(alert).not.toHaveTextContent('tenant secret');
-    expect(save).not.toBeDisabled();
+    expect(screen.queryByTestId('followup-drafts-save')).toBeNull();
+    expect(screen.queryByTestId('followup-drafts-account')).toBeNull();
+    expect(mail.saveDraft).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId('followup-drafts-open-locked-folder'));
+    await waitFor(() => {
+      expect(external.open).toHaveBeenCalledWith(
+        'https://outlook.office.com/mail/?path=/mail/drafts'
+      );
+    });
+    expect(lane.records).toHaveLength(3);
+    expect(lane.records[2]).toMatchObject({
+      payload: {
+        deliveryState: 'provider-save-unknown',
+        draftProvider: 'm365',
+        draftAccount: 'default',
+        draftAccountLabel: 'Outlook',
+      },
+    });
+    rendered.rerender(
+      <MeetingFollowUpPanel
+        context={context(boundary('household-b'))}
+        store={lane.store}
+      />
+    );
+    expect(await screen.findByTestId('meeting-follow-up-refused')).toBeTruthy();
+    expect(mail.saveDraft).toHaveBeenCalledTimes(1);
+    rendered.unmount();
+    render(<MeetingFollowUpPanel context={context()} store={lane.store} />);
+    expect(
+      await screen.findByTestId('meeting-follow-up-unresolved')
+    ).toHaveTextContent(
+      'If another account opens, switch to Outlook, then inspect its Drafts folder'
+    );
+    expect(mail.saveDraft).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps an Outlook account-check failure generic and retryable', async () => {
+  it('keeps a provider account-check failure generic and retryable', async () => {
     mail.accounts
       .mockRejectedValueOnce(new Error('raw account token detail'))
       .mockResolvedValueOnce([
@@ -404,15 +655,96 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       ),
       start: vi.fn(),
       save: vi.fn(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
 
     const error = await screen.findByTestId('followup-drafts-local-error');
-    expect(error).toHaveTextContent('Outlook could not be checked');
+    expect(error).toHaveTextContent('draft accounts could not be checked');
     expect(error).not.toHaveTextContent('token');
     fireEvent.click(screen.getByTestId('followup-drafts-retry'));
     expect(await screen.findByTestId('followup-drafts-body')).toHaveValue(
       'Thank you for meeting today.'
     );
+  });
+
+  it('keeps the durable pending receipt locked across full unmount and remount when local completion fails', async () => {
+    const lane = productionStoreHarness();
+    await lane.store.start(lane.target);
+    // Start is append 1, receipt is append 2; both completion records fail.
+    lane.failAppendAttempts(3, 4);
+    const rendered = render(
+      <MeetingFollowUpPanel context={context()} store={lane.store} />
+    );
+    fireEvent.change(await screen.findByTestId('followup-drafts-to'), {
+      target: { value: 'client@example.test' },
+    });
+    fireEvent.change(screen.getByTestId('followup-drafts-body'), {
+      target: { value: 'Exact meeting follow-up.' },
+    });
+    fireEvent.click(await screen.findByTestId('followup-drafts-save'));
+    expect(
+      await screen.findByTestId('meeting-follow-up-unresolved')
+    ).toHaveTextContent('Do not save another provider draft');
+    expect(mail.saveDraft).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(lane.records).toHaveLength(2);
+    });
+    rendered.unmount();
+    render(<MeetingFollowUpPanel context={context()} store={lane.store} />);
+    expect(
+      await screen.findByTestId('meeting-follow-up-unresolved')
+    ).toHaveTextContent(
+      'If another account opens, switch to Outlook, then inspect its Drafts folder'
+    );
+    expect(mail.saveDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives Outlook the same provider-only account-switch guidance', async () => {
+    mail.accounts.mockResolvedValueOnce([
+      {
+        provider: 'm365',
+        account: 'default',
+        label: 'Outlook — advisor@firm.test',
+      },
+    ]);
+    const store: MeetingFollowUpStore = {
+      read: vi.fn<MeetingFollowUpStore['read']>(() =>
+        Promise.resolve({ kind: 'ready', recap: recap() })
+      ),
+      start: vi.fn(),
+      save: receiptAwareSave(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
+    };
+    render(<MeetingFollowUpPanel context={context()} store={store} />);
+    fireEvent.click(await screen.findByTestId('followup-drafts-save'));
+    const saved = await screen.findByTestId('meeting-follow-up-saved');
+    expect(saved).toHaveTextContent(
+      'If another account opens, switch to Outlook — advisor@firm.test, then review and press Send there.'
+    );
+    expect(saved).not.toHaveTextContent(
+      'Outlook — advisor@firm.test Drafts is open'
+    );
+  });
+
+  it('never claims the Drafts folder opened when the provider handoff fails', async () => {
+    external.open.mockRejectedValueOnce(new Error('raw browser detail'));
+    const store: MeetingFollowUpStore = {
+      read: vi.fn<MeetingFollowUpStore['read']>(() =>
+        Promise.resolve({ kind: 'ready', recap: recap() })
+      ),
+      start: vi.fn(),
+      save: receiptAwareSave(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
+    };
+    render(<MeetingFollowUpPanel context={context()} store={store} />);
+    fireEvent.click(await screen.findByTestId('followup-drafts-save'));
+    const saved = await screen.findByTestId('meeting-follow-up-saved');
+    expect(saved).toHaveTextContent('Open Outlook Drafts');
+    expect(saved).toHaveTextContent(
+      'If another account opens, switch to Outlook'
+    );
+    expect(saved).not.toHaveTextContent('Outlook Drafts is open');
+    expect(saved).not.toHaveTextContent('raw browser detail');
   });
 });

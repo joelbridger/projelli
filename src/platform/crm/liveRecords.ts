@@ -14,6 +14,24 @@ export type LiveCrmRecord = {
   [key: string]: unknown;
 };
 
+export interface ProviderFollowUpDraftClaim {
+  readonly recapKey: string;
+  readonly artifactId: string;
+  readonly meetingId: string;
+  readonly householdRef: string;
+  readonly matterId: string;
+  readonly to: string;
+  readonly subject: string;
+  readonly body: string;
+  readonly provider: 'm365' | 'gmail';
+  readonly account: string;
+  readonly accountLabel: string;
+}
+
+export type ProviderFollowUpDraftClaimResult =
+  | { readonly outcome: 'acquired' }
+  | { readonly outcome: 'alreadyClaimed' };
+
 function sameRecordValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
@@ -124,6 +142,27 @@ export async function saveLiveCrmRecord(
     throw new Error('Open a workspace before saving CRM data.');
   return inCrmWorkspace(workspaceRoot, () =>
     invoke<LiveCrmRecord>('crm_live_upsert', { record })
+  );
+}
+
+/**
+ * The native CRM store claims a provider Drafts save under SQLite's immediate
+ * write lock. This is intentionally separate from renderer queues: different
+ * Lantern processes share only the encrypted store transaction.
+ */
+export async function claimProviderFollowUpDraft(
+  workspaceRoot: string | null | undefined,
+  claim: ProviderFollowUpDraftClaim
+): Promise<ProviderFollowUpDraftClaimResult> {
+  if (!isTauri())
+    throw new Error('Provider draft claims can only run in the desktop app.');
+  if (!workspaceRoot)
+    throw new Error('Open a workspace before saving a provider draft.');
+  return inCrmWorkspace(workspaceRoot, () =>
+    invoke<ProviderFollowUpDraftClaimResult>(
+      'crm_claim_provider_follow_up_draft',
+      { claim }
+    )
   );
 }
 

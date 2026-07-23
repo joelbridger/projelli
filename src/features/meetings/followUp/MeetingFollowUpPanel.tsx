@@ -4,7 +4,10 @@ import {
   useMeetingFoundationStore,
 } from '../foundation/contract';
 import type { MeetingPanelContext } from '../meetingWorkspaceTypes';
-import { FollowUpDraftsOnlyEditor } from './FollowUpDraftsOnlyEditor';
+import {
+  FollowUpDraftsOnlyEditor,
+  type FollowUpDraftsOnlyUnresolvedAttempt,
+} from './FollowUpDraftsOnlyEditor';
 import {
   createMeetingFollowUpStore,
   meetingFollowUpTarget,
@@ -31,6 +34,10 @@ type PanelState =
       readonly draft: MeetingFollowUpDraft;
       readonly savedToDrafts: boolean;
       readonly artifactId: string;
+      readonly draftProvider?: 'm365' | 'gmail';
+      readonly draftAccountLabel?: string;
+      readonly unresolvedAttempt?: FollowUpDraftsOnlyUnresolvedAttempt;
+      readonly handoffState?: 'idle' | 'opened-drafts' | 'open-failed';
     };
 
 function stateFromRead(
@@ -48,7 +55,37 @@ function stateFromRead(
     },
     savedToDrafts: result.recap.state === 'saved-to-drafts',
     artifactId: result.recap.artifactId,
+    ...(result.recap.draftProvider
+      ? {
+          draftProvider: result.recap.draftProvider,
+          ...(result.recap.draftAccountLabel
+            ? { draftAccountLabel: result.recap.draftAccountLabel }
+            : {}),
+        }
+      : {}),
+    ...(result.recap.state === 'provider-save-pending' ||
+    result.recap.state === 'provider-save-unknown'
+      ? {
+          unresolvedAttempt: {
+            provider: result.recap.draftProvider!,
+            account: result.recap.draftAccount!,
+            accountLabel: result.recap.draftAccountLabel!,
+          },
+        }
+      : {}),
   };
+}
+
+function sameTarget(
+  left: MeetingFollowUpTarget,
+  right: MeetingFollowUpTarget | null
+): boolean {
+  return Boolean(
+    right &&
+    left.meetingId === right.meetingId &&
+    left.client.householdRef === right.client.householdRef &&
+    left.client.matterId === right.client.matterId
+  );
 }
 
 function exactIdentity(context: MeetingPanelContext): string | null {
@@ -176,6 +213,16 @@ export function MeetingFollowUpPanel({
     );
   }
 
+  // Never leave the old client's editor interactive for even one render while
+  // a selected client changes underneath an in-flight provider receipt.
+  if (!sameTarget(state.target, target)) {
+    return (
+      <div data-testid="meeting-follow-up-loading" aria-live="polite">
+        {context.t('meetings.entry.follow-up.loading')}
+      </div>
+    );
+  }
+
   if (!store) return null;
 
   return (
@@ -199,6 +246,16 @@ export function MeetingFollowUpPanel({
         matterId={state.target.client.matterId}
         draft={state.draft}
         savedToDrafts={state.savedToDrafts}
+        {...(state.draftProvider ? { savedProvider: state.draftProvider } : {})}
+        {...(state.draftAccountLabel
+          ? { savedAccountLabel: state.draftAccountLabel }
+          : {})}
+        {...(state.unresolvedAttempt
+          ? { unresolvedAttempt: state.unresolvedAttempt }
+          : {})}
+        {...(state.handoffState
+          ? { initialHandoffState: state.handoffState }
+          : {})}
         onDraftChange={(draft) => {
           setState((current) =>
             current.kind === 'ready'
@@ -206,16 +263,48 @@ export function MeetingFollowUpPanel({
               : current
           );
         }}
+        onProviderSaveAttempt={async (attempt) => {
+          const result = await store.claimProviderSave(state.target, {
+            ...attempt.draft,
+            provider: attempt.provider,
+            account: attempt.account,
+            accountLabel: attempt.accountLabel,
+          });
+          if (result.kind !== 'acquired') {
+            throw new Error('Local provider-save receipt failed.');
+          }
+        }}
+        onProviderSaveUnresolved={async (attempt) => {
+          await store.save(state.target, {
+            ...attempt.draft,
+            state: 'provider-save-unknown',
+            draftProvider: attempt.provider,
+            draftAccount: attempt.account,
+            draftAccountLabel: attempt.accountLabel,
+          });
+        }}
         onDraftSaved={async (saved) => {
           const result = await store.save(state.target, {
             ...saved.draft,
             state: 'saved-to-drafts',
             outlookDraftId: saved.draftId,
+            draftProvider: saved.provider,
+            draftAccount: saved.account,
+            draftAccountLabel: saved.accountLabel,
           });
           if (result.kind !== 'ready') {
             throw new Error('Local meeting status update failed.');
           }
-          setState(stateFromRead(result, state.target));
+          const next = stateFromRead(result, state.target);
+          if (next.kind !== 'ready') {
+            throw new Error('Local meeting status update failed.');
+          }
+          setState({
+            ...next,
+            draftProvider: saved.provider,
+            draftAccountLabel: saved.accountLabel,
+            handoffState: saved.handoffState,
+          });
         }}
       />
     </section>
@@ -229,8 +318,9 @@ export function LiveMeetingFollowUpPanel({
   const meetings = useMeetingFoundationStore();
   const artifacts = useMeetingArtifactStore();
   const store = useMemo(
-    () => createMeetingFollowUpStore(meetings, artifacts),
-    [artifacts, meetings]
+    () =>
+      createMeetingFollowUpStore(meetings, artifacts, context.workspaceRoot),
+    [artifacts, context.workspaceRoot, meetings]
   );
   return <MeetingFollowUpPanel context={context} store={store} />;
 }

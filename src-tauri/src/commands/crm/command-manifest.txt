@@ -28,4 +28,5 @@ command 1700 crate::commands::crm::core_commands::crm_live_list
 command 1710 crate::commands::crm::search::crm_search
 command 1720 crate::commands::crm::migration_commands::crm_migration_import
 command 1730 crate::commands::crm::migration_commands::crm_migration_export
+command 3000 crate::commands::crm::core_commands::crm_claim_provider_follow_up_draft
 state 40 crate::commands::crm::commands::manage_state

@@ -130,6 +130,138 @@ describe('meeting follow-up exact-pair store', () => {
     expect(JSON.stringify(readB)).not.toContain('Private household A recap');
   });
 
+  it('locks a durable pending provider receipt to its original mailbox and refuses another attempt', async () => {
+    const lane = harness();
+    const store = createMeetingFollowUpStore(lane.meetings, lane.artifacts);
+    const edited = {
+      to: 'alpha@example.test',
+      subject: 'Alpha recap',
+      body: 'Private household A recap.',
+    };
+    await expect(
+      store.save(target(lane.householdA), { ...edited, state: 'edited' })
+    ).resolves.toMatchObject({ kind: 'ready' });
+    await expect(
+      store.save(target(lane.householdA), {
+        ...edited,
+        state: 'provider-save-pending',
+        draftProvider: 'm365',
+        draftAccount: 'advisor@firm.test',
+        draftAccountLabel: 'Advisor Outlook',
+      })
+    ).resolves.toMatchObject({
+      kind: 'ready',
+      recap: {
+        state: 'provider-save-pending',
+        draftProvider: 'm365',
+        draftAccount: 'advisor@firm.test',
+      },
+    });
+    await expect(
+      store.save(target(lane.householdA), {
+        ...edited,
+        state: 'provider-save-unknown',
+        draftProvider: 'gmail',
+        draftAccount: 'advisor@firm.test',
+        draftAccountLabel: 'Advisor Gmail',
+      })
+    ).resolves.toEqual({ kind: 'refused' });
+    await expect(
+      store.save(target(lane.householdA), {
+        ...edited,
+        state: 'provider-save-unknown',
+        draftProvider: 'm365',
+        draftAccount: 'advisor@firm.test',
+        draftAccountLabel: 'Advisor Outlook',
+      })
+    ).resolves.toMatchObject({ kind: 'ready' });
+    await expect(
+      store.save(target(lane.householdA), {
+        ...edited,
+        state: 'provider-save-pending',
+        draftProvider: 'm365',
+        draftAccount: 'second@firm.test',
+        draftAccountLabel: 'Second Outlook',
+      })
+    ).resolves.toEqual({ kind: 'refused' });
+  });
+
+  it('shows a fresh store the durable pending claim and never lets another household take it', async () => {
+    const lane = harness();
+    const claim = async (input: {
+      recapKey: string;
+      meetingId: string;
+      to: string;
+      subject: string;
+      body: string;
+      provider: 'm365' | 'gmail';
+      account: string;
+      accountLabel: string;
+    }) => {
+      await lane.artifacts.append({
+        meetingId: input.meetingId,
+        kind: 'follow-up-draft',
+        schemaVersion: 1,
+        producedAt: new Date().toISOString(),
+        sourceRefs: [],
+        provenance: 'local-entry',
+        payload: {
+          recapKey: input.recapKey,
+          to: input.to,
+          subject: input.subject,
+          body: input.body,
+          deliveryState: 'provider-save-pending',
+          draftProvider: input.provider,
+          draftAccount: input.account,
+          draftAccountLabel: input.accountLabel,
+        },
+      });
+      return { outcome: 'acquired' as const };
+    };
+    const first = createMeetingFollowUpStore(
+      lane.meetings,
+      lane.artifacts,
+      undefined,
+      claim
+    );
+    await first.start(target(lane.householdA));
+    await expect(
+      first.claimProviderSave(target(lane.householdA), {
+        to: 'alpha@example.test',
+        subject: 'Alpha recap',
+        body: 'Private household A recap.',
+        provider: 'm365',
+        account: 'advisor@firm.test',
+        accountLabel: 'Advisor Outlook',
+      })
+    ).resolves.toEqual({ kind: 'acquired' });
+
+    const fresh = createMeetingFollowUpStore(
+      lane.meetings,
+      lane.artifacts,
+      undefined,
+      claim
+    );
+    await expect(fresh.read(target(lane.householdA))).resolves.toMatchObject({
+      kind: 'ready',
+      recap: { state: 'provider-save-pending' },
+    });
+    lane.setActive(lane.householdB);
+    await expect(fresh.read(target(lane.householdB))).resolves.toEqual({
+      kind: 'not-produced',
+    });
+    await expect(
+      fresh.claimProviderSave(target(lane.householdB), {
+        to: 'beta@example.test',
+        subject: 'Beta recap',
+        body: 'Private household B recap.',
+        provider: 'm365',
+        account: 'advisor@firm.test',
+        accountLabel: 'Advisor Outlook',
+      })
+    ).resolves.toEqual({ kind: 'refused' });
+  });
+
   it('refuses missing runtime identity and ignores legacy records without the pair-derived key', async () => {
     const lane = harness();
     const store = createMeetingFollowUpStore(lane.meetings, lane.artifacts);

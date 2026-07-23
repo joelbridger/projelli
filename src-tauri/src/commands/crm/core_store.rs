@@ -3,6 +3,7 @@
 
 use anyhow::{bail, Context, Result};
 use rusqlite::{params, Connection, OptionalExtension};
+use serde_json::{json, Value};
 use std::{
     path::{Path, PathBuf},
     sync::Mutex,
@@ -46,8 +47,74 @@ pub struct NotificationEnvelopeRow {
     pub received_at: String,
 }
 
+/// The feature-owned, durable receipt that grants one provider Drafts save.
+/// Its id is derived from the opaque recap key, so independently opened app
+/// processes contend for the same SQLCipher document rather than a renderer
+/// lock or a best-effort read/append sequence.
+#[derive(Debug, Clone)]
+pub struct ProviderDraftClaim {
+    pub recap_key: String,
+    pub artifact_id: String,
+    pub meeting_id: String,
+    pub household_ref: String,
+    pub matter_id: String,
+    pub to: String,
+    pub subject: String,
+    pub body: String,
+    pub provider: String,
+    pub account: String,
+    pub account_label: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderDraftClaimOutcome {
+    Acquired,
+    AlreadyClaimed,
+}
+
 fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339()
+}
+
+fn nonempty_claim_field(value: &str, name: &str) -> Result<()> {
+    if value.trim().is_empty() {
+        bail!("provider draft claim {name} is required")
+    }
+    Ok(())
+}
+
+fn provider_draft_claim_id(recap_key: &str) -> Result<String> {
+    let hash = recap_key
+        .strip_prefix("meeting-follow-up-")
+        .filter(|hash| hash.len() == 64 && hash.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .context("provider draft claim recap key is invalid")?;
+    Ok(format!("meeting-follow-up-provider-claim-{hash}"))
+}
+
+fn validate_provider_draft_claim(claim: &ProviderDraftClaim) -> Result<()> {
+    for (value, name) in [
+        (&claim.recap_key, "recap key"),
+        (&claim.artifact_id, "artifact id"),
+        (&claim.meeting_id, "meeting id"),
+        (&claim.household_ref, "household"),
+        (&claim.matter_id, "matter"),
+        (&claim.account, "account"),
+        (&claim.account_label, "account label"),
+    ] {
+        nonempty_claim_field(value, name)?;
+    }
+    if !matches!(claim.provider.as_str(), "m365" | "gmail") {
+        bail!("provider draft claim provider is invalid")
+    }
+    if claim.to.len() > 8_000
+        || claim.subject.len() > 998
+        || claim.body.len() > 100_000
+        || claim.body.trim().is_empty()
+    {
+        bail!("provider draft claim draft is invalid")
+    }
+    provider_draft_claim_id(&claim.recap_key)?;
+    Ok(())
 }
 
 fn core_master_key() -> Result<[u8; KEY_LEN]> {
@@ -158,6 +225,137 @@ impl CrmCoreStore {
         let result = operation(&transaction)?;
         transaction.commit()?;
         Ok(result)
+    }
+
+    /// Atomically grant the one allowed provider Drafts save for an editable
+    /// follow-up. The pending receipt is itself a canonical follow-up artifact,
+    /// so a crash or missing provider response remains a durable retry lock.
+    pub fn claim_provider_follow_up_draft(
+        &self,
+        claim: &ProviderDraftClaim,
+    ) -> Result<ProviderDraftClaimOutcome> {
+        validate_provider_draft_claim(claim)?;
+        let claim_id = provider_draft_claim_id(&claim.recap_key)?;
+        self.with_immediate_transaction(|transaction| {
+            let records = transaction
+                .prepare(
+                    "SELECT yjs_state FROM crm_docs WHERE doc_id LIKE 'live:%' AND deleted=0",
+                )?
+                .query_map([], |row| row.get::<_, Vec<u8>>(0))?
+                .map(|row| {
+                    let bytes = row?;
+                    serde_json::from_slice::<Value>(&bytes)
+                        .context("decode CRM live record for provider draft claim")
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            if records.iter().any(|record| {
+                record.get("id").and_then(Value::as_str) == Some(claim_id.as_str())
+                    && record.get("kind").and_then(Value::as_str) == Some("meeting_artifact")
+            }) {
+                return Ok(ProviderDraftClaimOutcome::AlreadyClaimed);
+            }
+
+            let canonical_meetings = records
+                .iter()
+                .filter(|record| {
+                    record.get("kind").and_then(Value::as_str) == Some("meeting")
+                        && record.get("id").and_then(Value::as_str) == Some(claim.meeting_id.as_str())
+                })
+                .collect::<Vec<_>>();
+            if canonical_meetings.len() != 1
+                || canonical_meetings[0].get("householdRef").and_then(Value::as_str)
+                    != Some(claim.household_ref.as_str())
+                || canonical_meetings[0].get("matterId").and_then(Value::as_str)
+                    != Some(claim.matter_id.as_str())
+            {
+                bail!("provider draft claim requires one exact canonical meeting")
+            }
+
+            let editable = records
+                .iter()
+                .filter(|record| {
+                    record.get("kind").and_then(Value::as_str) == Some("meeting_artifact")
+                        && record.get("id").and_then(Value::as_str) == Some(claim.artifact_id.as_str())
+                        && record.get("meetingId").and_then(Value::as_str) == Some(claim.meeting_id.as_str())
+                        && record.get("householdRef").and_then(Value::as_str) == Some(claim.household_ref.as_str())
+                        && record.get("matterId").and_then(Value::as_str) == Some(claim.matter_id.as_str())
+                        && record.get("artifactKind").and_then(Value::as_str) == Some("follow-up-draft")
+                        && record.get("payload").and_then(Value::as_object).and_then(|payload| payload.get("recapKey")).and_then(Value::as_str) == Some(claim.recap_key.as_str())
+                })
+                .collect::<Vec<_>>();
+            if editable.len() != 1 {
+                bail!("provider draft claim requires one exact editable follow-up artifact")
+            }
+            let editable = editable[0];
+            let payload = editable
+                .get("payload")
+                .and_then(Value::as_object)
+                .context("provider draft claim follow-up payload is invalid")?;
+            if payload.get("deliveryState").and_then(Value::as_str) != Some("edited")
+                || payload.get("to").and_then(Value::as_str) != Some(claim.to.as_str())
+                || payload.get("subject").and_then(Value::as_str) != Some(claim.subject.as_str())
+                || payload.get("body").and_then(Value::as_str) != Some(claim.body.as_str())
+            {
+                bail!("provider draft claim follow-up changed before the provider save")
+            }
+            let mut meeting_visibility = editable
+                .get("meetingVisibility")
+                .cloned()
+                .context("provider draft claim follow-up visibility is missing")?;
+            let visibility = meeting_visibility
+                .as_object_mut()
+                .context("provider draft claim follow-up visibility is invalid")?;
+            if visibility.get("kind").and_then(Value::as_str) != Some("meeting-artifact")
+                || visibility.get("id").and_then(Value::as_str) != Some(claim.artifact_id.as_str())
+            {
+                bail!("provider draft claim follow-up visibility is invalid")
+            }
+            // Retain the source artifact's complete privacy lineage, but bind it
+            // to this new durable receipt so the normal artifact reader accepts
+            // it after the encrypted store is reopened.
+            visibility.insert("id".into(), Value::String(claim_id.clone()));
+            let created_at = now_iso();
+            let record = json!({
+                "id": claim_id,
+                "kind": "meeting_artifact",
+                "matterId": claim.matter_id,
+                "householdRef": claim.household_ref,
+                "createdAt": created_at,
+                "updatedAt": created_at,
+                "meetingId": claim.meeting_id,
+                "artifactKind": "follow-up-draft",
+                "schemaVersion": 1,
+                "producedAt": created_at,
+                "artifactState": "produced",
+                "sourceRefs": [],
+                "provenance": "local-entry",
+                "meetingVisibility": meeting_visibility,
+                "payload": {
+                    "recapKey": claim.recap_key,
+                    "to": claim.to,
+                    "subject": claim.subject,
+                    "body": claim.body,
+                    "deliveryState": "provider-save-pending",
+                    "draftProvider": claim.provider,
+                    "draftAccount": claim.account,
+                    "draftAccountLabel": claim.account_label,
+                },
+            });
+            let encoded = serde_json::to_vec(&record).context("encode provider draft claim")?;
+            transaction.execute(
+                "INSERT INTO crm_docs(doc_key,matter_id,doc_id,yjs_state,state_vector,updated_at,deleted) VALUES(?1,?2,?3,?4,?5,?6,0)",
+                params![
+                    format!("{}/live:{}", claim.matter_id, claim_id),
+                    claim.matter_id,
+                    format!("live:{claim_id}"),
+                    encoded,
+                    Vec::<u8>::new(),
+                    created_at,
+                ],
+            )?;
+            Ok(ProviderDraftClaimOutcome::Acquired)
+        })
     }
 
     /// Importer-only persistence boundary. Wealthbox ids are opaque source
@@ -280,20 +478,43 @@ impl CrmCoreStore {
     /// Records an authenticated CRDT blob and advances its relay cursor in one
     /// SQLCipher transaction. Replays are accepted only when their immutable
     /// blob identity matches; gaps are rejected before state can advance.
-    pub fn record_applied_cursor(&self, stream_key: &str, cursor: i64, blob_id: &str) -> Result<()> {
+    pub fn record_applied_cursor(
+        &self,
+        stream_key: &str,
+        cursor: i64,
+        blob_id: &str,
+    ) -> Result<()> {
         let mut conn = lock_unpoison(&self.conn);
         let tx = conn.transaction()?;
-        let current = tx.query_row("SELECT cursor FROM crm_sync_cursors WHERE stream_key=?1", [stream_key], |row| row.get::<_, i64>(0)).optional()?.unwrap_or(0);
+        let current = tx
+            .query_row(
+                "SELECT cursor FROM crm_sync_cursors WHERE stream_key=?1",
+                [stream_key],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?
+            .unwrap_or(0);
         if cursor <= current {
-            let existing: Option<String> = tx.query_row("SELECT blob_id FROM crm_sync_applied WHERE stream_key=?1 AND cursor=?2", params![stream_key, cursor], |row| row.get(0)).optional()?;
+            let existing: Option<String> = tx
+                .query_row(
+                    "SELECT blob_id FROM crm_sync_applied WHERE stream_key=?1 AND cursor=?2",
+                    params![stream_key, cursor],
+                    |row| row.get(0),
+                )
+                .optional()?;
             match existing {
                 Some(existing) if existing == blob_id => return Ok(()),
                 Some(_) => bail!("CRM relay blob identity mismatch"),
                 None => bail!("CRM relay cursor history is incomplete"),
             }
         }
-        if cursor != current + 1 { bail!("CRM relay cursor must stay contiguous") }
-        tx.execute("INSERT INTO crm_sync_applied(stream_key,cursor,blob_id) VALUES(?1,?2,?3)", params![stream_key,cursor,blob_id])?;
+        if cursor != current + 1 {
+            bail!("CRM relay cursor must stay contiguous")
+        }
+        tx.execute(
+            "INSERT INTO crm_sync_applied(stream_key,cursor,blob_id) VALUES(?1,?2,?3)",
+            params![stream_key, cursor, blob_id],
+        )?;
         tx.execute("INSERT INTO crm_sync_cursors(stream_key,cursor,key_epoch) VALUES(?1,?2,0) ON CONFLICT(stream_key) DO UPDATE SET cursor=excluded.cursor", params![stream_key,cursor])?;
         tx.commit()?;
         Ok(())
@@ -311,7 +532,9 @@ impl CrmCoreStore {
         activity_idempotency_key: &str,
         notification_rows: &[(String, String)],
     ) -> Result<()> {
-        if !matches!(kind, "apply" | "undo") { bail!("invalid propagation transaction kind") }
+        if !matches!(kind, "apply" | "undo") {
+            bail!("invalid propagation transaction kind")
+        }
         let mut conn = lock_unpoison(&self.conn);
         let tx = conn.transaction()?;
         tx.execute("INSERT OR IGNORE INTO crm_propagation_transactions(event_id,kind,instance_json,created_at) VALUES(?1,?2,?3,?4)", params![event_id,kind,instance_json,now_iso()])?;
@@ -577,6 +800,8 @@ mod tests {
     use crate::commands::crm::core_model::ActorRef;
     use anyhow::bail;
     use serde_json::Value;
+    use std::sync::{Arc, Barrier};
+    use std::thread;
     use tempfile::TempDir;
     fn store() -> (TempDir, CrmCoreStore) {
         let dir = TempDir::new().unwrap();
@@ -615,6 +840,222 @@ mod tests {
 
         let reopened = CrmCoreStore::open_with_key(directory.path(), &[7; 32]).unwrap();
         assert_eq!(reopened.list_live_records().unwrap(), vec![record]);
+    }
+
+    #[test]
+    fn provider_follow_up_claim_is_atomic_across_independently_opened_stores() {
+        let directory = TempDir::new().unwrap();
+        let first = CrmCoreStore::open_with_key(directory.path(), &[7; 32]).unwrap();
+        first
+            .upsert_live_record(&serde_json::json!({
+                "id": "meeting-1",
+                "kind": "meeting",
+                "matterId": "matter-1",
+                "householdRef": "household-1",
+                "updatedAt": "2026-07-23T00:00:00Z",
+            }))
+            .unwrap();
+        first
+            .upsert_live_record(&serde_json::json!({
+                "id": "follow-up-edited-1",
+                "kind": "meeting_artifact",
+                "matterId": "matter-1",
+                "householdRef": "household-1",
+                "meetingId": "meeting-1",
+                "artifactKind": "follow-up-draft",
+                "schemaVersion": 1,
+                "producedAt": "2026-07-23T00:00:00Z",
+                "artifactState": "produced",
+                "sourceRefs": [],
+                "provenance": "local-entry",
+                "meetingVisibility": {
+                    "kind": "meeting-artifact",
+                    "id": "follow-up-edited-1",
+                    "lineage": "derived",
+                    "parentRef": { "kind": "meeting-note", "id": "meeting-1" },
+                    "ownerRef": "advisor-1",
+                    "visibilityPolicyId": "policy-1",
+                },
+                "payload": {
+                    "recapKey": "meeting-follow-up-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "to": "client@example.test",
+                    "subject": "Review recap",
+                    "body": "Thank you for meeting today.",
+                    "deliveryState": "edited",
+                },
+                "updatedAt": "2026-07-23T00:00:00Z",
+            }))
+            .unwrap();
+        drop(first);
+
+        let claim = ProviderDraftClaim {
+            recap_key:
+                "meeting-follow-up-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    .into(),
+            artifact_id: "follow-up-edited-1".into(),
+            meeting_id: "meeting-1".into(),
+            household_ref: "household-1".into(),
+            matter_id: "matter-1".into(),
+            to: "client@example.test".into(),
+            subject: "Review recap".into(),
+            body: "Thank you for meeting today.".into(),
+            provider: "m365".into(),
+            account: "advisor@firm.test".into(),
+            account_label: "Advisor Outlook".into(),
+        };
+        let barrier = Arc::new(Barrier::new(2));
+        let threads = (0..2)
+            .map(|_| {
+                let workspace = directory.path().to_path_buf();
+                let barrier = Arc::clone(&barrier);
+                let claim = claim.clone();
+                thread::spawn(move || {
+                    let store = CrmCoreStore::open_with_key(&workspace, &[7; 32]).unwrap();
+                    barrier.wait();
+                    store.claim_provider_follow_up_draft(&claim).unwrap()
+                })
+            })
+            .collect::<Vec<_>>();
+        let outcomes = threads
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| **outcome == ProviderDraftClaimOutcome::Acquired)
+                .count(),
+            1
+        );
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| **outcome == ProviderDraftClaimOutcome::AlreadyClaimed)
+                .count(),
+            1
+        );
+
+        let claim_id = provider_draft_claim_id(&claim.recap_key).unwrap();
+        let reopened = CrmCoreStore::open_with_key(directory.path(), &[7; 32]).unwrap();
+        let records = reopened.list_live_records().unwrap();
+        let pending = records
+            .iter()
+            .filter(|record| {
+                record.get("id").and_then(Value::as_str) == Some(claim_id.as_str())
+                    && record.get("kind").and_then(Value::as_str) == Some("meeting_artifact")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(pending.len(), 1);
+        let pending = pending[0];
+        assert_eq!(
+            pending.get("meetingId").and_then(Value::as_str),
+            Some("meeting-1")
+        );
+        assert_eq!(
+            pending.get("householdRef").and_then(Value::as_str),
+            Some("household-1")
+        );
+        assert_eq!(
+            pending.get("matterId").and_then(Value::as_str),
+            Some("matter-1")
+        );
+        assert_eq!(
+            pending
+                .get("meetingVisibility")
+                .and_then(Value::as_object)
+                .and_then(|visibility| visibility.get("kind"))
+                .and_then(Value::as_str),
+            Some("meeting-artifact")
+        );
+        assert_eq!(
+            pending
+                .get("meetingVisibility")
+                .and_then(Value::as_object)
+                .and_then(|visibility| visibility.get("id"))
+                .and_then(Value::as_str),
+            Some(claim_id.as_str())
+        );
+        assert_eq!(
+            pending
+                .get("meetingVisibility")
+                .and_then(Value::as_object)
+                .and_then(|visibility| visibility.get("parentRef"))
+                .and_then(Value::as_object)
+                .and_then(|parent| parent.get("id"))
+                .and_then(Value::as_str),
+            Some("meeting-1")
+        );
+        assert!(records.iter().all(|record| {
+            record.get("id").and_then(Value::as_str) != Some(claim_id.as_str())
+                || (record.get("householdRef").and_then(Value::as_str) == Some("household-1")
+                    && record.get("matterId").and_then(Value::as_str) == Some("matter-1"))
+        }));
+
+        let invalid_directory = TempDir::new().unwrap();
+        let invalid = CrmCoreStore::open_with_key(invalid_directory.path(), &[8; 32]).unwrap();
+        invalid
+            .upsert_live_record(&serde_json::json!({
+                "id": "meeting-invalid",
+                "kind": "meeting",
+                "matterId": "matter-invalid",
+                "householdRef": "household-invalid",
+                "updatedAt": "2026-07-23T00:00:00Z",
+            }))
+            .unwrap();
+        invalid
+            .upsert_live_record(&serde_json::json!({
+                "id": "follow-up-invalid",
+                "kind": "meeting_artifact",
+                "matterId": "matter-invalid",
+                "householdRef": "household-invalid",
+                "meetingId": "meeting-invalid",
+                "artifactKind": "follow-up-draft",
+                "schemaVersion": 1,
+                "producedAt": "2026-07-23T00:00:00Z",
+                "artifactState": "produced",
+                "sourceRefs": [],
+                "provenance": "local-entry",
+                "meetingVisibility": {
+                    "kind": "meeting-artifact",
+                    "id": "different-artifact",
+                    "lineage": "legacy-unrestricted",
+                },
+                "payload": {
+                    "recapKey": "meeting-follow-up-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "to": "client@example.test",
+                    "subject": "Review recap",
+                    "body": "Thank you for meeting today.",
+                    "deliveryState": "edited",
+                },
+                "updatedAt": "2026-07-23T00:00:00Z",
+            }))
+            .unwrap();
+        let invalid_claim = ProviderDraftClaim {
+            recap_key:
+                "meeting-follow-up-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    .into(),
+            artifact_id: "follow-up-invalid".into(),
+            meeting_id: "meeting-invalid".into(),
+            household_ref: "household-invalid".into(),
+            matter_id: "matter-invalid".into(),
+            to: "client@example.test".into(),
+            subject: "Review recap".into(),
+            body: "Thank you for meeting today.".into(),
+            provider: "gmail".into(),
+            account: "advisor@firm.test".into(),
+            account_label: "Advisor Gmail".into(),
+        };
+        let invalid_claim_id = provider_draft_claim_id(&invalid_claim.recap_key).unwrap();
+        assert!(invalid
+            .claim_provider_follow_up_draft(&invalid_claim)
+            .is_err());
+        assert!(invalid
+            .list_live_records()
+            .unwrap()
+            .iter()
+            .all(|record| record.get("id").and_then(Value::as_str)
+                != Some(invalid_claim_id.as_str())));
     }
 
     #[test]
@@ -751,14 +1192,30 @@ mod tests {
     fn propagation_commit_persists_snapshot_operations_activity_and_notification_intent_together() {
         let (_d, s) = store();
         s.commit_propagation_transaction(
-            "apply", "event-1", r#"{"id":"instance-1"}"#,
-            &["op-1".into(), "op-2".into()], "activity:event-1",
+            "apply",
+            "event-1",
+            r#"{"id":"instance-1"}"#,
+            &["op-1".into(), "op-2".into()],
+            "activity:event-1",
             &[("org-1".into(), "envelope-1".into())],
-        ).unwrap();
+        )
+        .unwrap();
         let conn = lock_unpoison(&s.conn);
-        for table in ["crm_propagation_transactions", "crm_immutable_operations", "crm_activity_outbox", "crm_notification_outbox_intents"] {
-            let count: i64 = conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0)).unwrap();
-            assert!(count > 0, "{table} must be committed with the propagation event");
+        for table in [
+            "crm_propagation_transactions",
+            "crm_immutable_operations",
+            "crm_activity_outbox",
+            "crm_notification_outbox_intents",
+        ] {
+            let count: i64 = conn
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert!(
+                count > 0,
+                "{table} must be committed with the propagation event"
+            );
         }
     }
 }
