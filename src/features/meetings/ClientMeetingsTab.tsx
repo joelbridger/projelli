@@ -131,6 +131,31 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Workspace backends return list rows relative to the open workspace. When a
+ * client's authorized matter folder is the workspace root itself, its meeting
+ * rows therefore begin with `Meetings/` instead of a client-folder prefix.
+ * Rebuild the direct child from the already-authorized absolute parent rather
+ * than asking the later authority gate to infer that missing prefix.
+ */
+function canonicalDirectMeetingDirectory(
+  matterFolder: string,
+  childName: string
+): string {
+  if (
+    !childName ||
+    childName !== childName.trim() ||
+    childName === '.' ||
+    childName === '..' ||
+    childName.includes('/') ||
+    childName.includes('\\') ||
+    childName.includes('\0')
+  ) {
+    throw new Error('A listed meeting folder was not a direct child.');
+  }
+  return `${matterFolder}/Meetings/${childName}`;
+}
+
 /** Scans `<matterFolder>/Meetings/` for meeting folders, reading each one's
  *  `meeting.json` + checking for notes/audio/transcript presence. Returns
  *  newest-first. A genuinely absent Meetings folder yields an empty,
@@ -195,11 +220,12 @@ async function scanClientMeetingsFolder(
   const folders = entries.filter((e) => e.type === 'folder');
   const summaries = await Promise.all(
     folders.map(async (f): Promise<MeetingSummary | null> => {
-      const children = await ws.list(f.path).catch(() => []);
+      const meetingDir = canonicalDirectMeetingDirectory(matterFolder, f.name);
+      const children = await ws.list(meetingDir).catch(() => []);
       const names = new Set(children.map((c) => c.name));
       let meta: MeetingMeta | null = null;
       try {
-        meta = JSON.parse(await ws.readFile(`${f.path}/meeting.json`)) as MeetingMeta;
+        meta = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
       } catch {
         meta = null;
       }
@@ -221,7 +247,7 @@ async function scanClientMeetingsFolder(
           context: visibilityContext,
         });
       return {
-        dir: f.path,
+        dir: meetingDir,
         folderName: f.name,
         meta,
         hasNotes: names.has('notes.docx') && canSee('notes.docx'),
