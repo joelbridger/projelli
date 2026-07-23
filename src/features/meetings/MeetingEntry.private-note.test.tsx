@@ -67,7 +67,10 @@ function mintedBoundary(): SealedMeetingClientBoundary {
 
 const client = mintedBoundary();
 
-function signedIn(userId: string | null): void {
+function signedIn(
+  userId: string | null,
+  options: { liveCredential?: boolean; revoked?: boolean; loading?: boolean } = {}
+): void {
   useFirmStore.setState({
     session: userId
       ? {
@@ -83,6 +86,10 @@ function signedIn(userId: string | null): void {
           activated: false,
         }
       : null,
+    accessToken:
+      userId && options.liveCredential !== false ? `access-token-${userId}` : null,
+    serverVerdict: options.revoked ? 'revoked' : 'unknown',
+    isLoading: options.loading ?? false,
   });
 }
 
@@ -175,7 +182,7 @@ beforeEach(() => {
     } as Matter],
   });
   useWorkspaceStore.setState({ rootPath: '/workspace', rootGeneration: 1 });
-  signedIn('advisor-1');
+  signedIn(null);
 });
 
 afterEach(() => {
@@ -190,6 +197,7 @@ describe('MeetingEntry private note route', () => {
     const { adapter, files, manifest, workspace } = setup();
     setMeetingsWorkspaceService(workspace as never);
     const first = await renderMeeting(workspace, adapter);
+    signedIn('advisor-1');
 
     expect(await screen.findByTestId('meeting-private-note-action')).toBeEnabled();
     fireEvent.click(screen.getByTestId('meeting-private-note-action'));
@@ -221,14 +229,16 @@ describe('MeetingEntry private note route', () => {
     });
 
     first.unmount();
+    signedIn(null);
     await renderMeeting(workspace, adapter);
+    signedIn('advisor-1');
     expect(await screen.findByTestId('meeting-summary-text')).toHaveTextContent(
       'Private meeting summary.'
     );
     expect(screen.getByTestId('meeting-private-note-saved')).toBeInTheDocument();
   });
 
-  it('does not expose or mutate a private note for another or missing viewer', async () => {
+  it('does not trust remembered metadata to read or claim a private note', async () => {
     const { adapter, files, workspace } = setup({
       meetingFileVisibility: {
         version: 1,
@@ -254,8 +264,8 @@ describe('MeetingEntry private note route', () => {
       },
     });
     setMeetingsWorkspaceService(workspace as never);
-    signedIn('advisor-2');
     await renderMeeting(workspace, adapter);
+    signedIn('advisor-1', { liveCredential: false });
 
     await waitFor(() => {
       expect(screen.queryByTestId('meeting-summary-text')).toBeNull();
@@ -263,6 +273,11 @@ describe('MeetingEntry private note route', () => {
     expect(screen.queryByTestId('meeting-private-note-action')).toBeNull();
     expect(workspace.readFileBinary).not.toHaveBeenCalled();
     expect(workspace.writeFile).not.toHaveBeenCalled();
+
+    signedIn('advisor-2');
+    await waitFor(() => {
+      expect(screen.queryByTestId('meeting-private-note-action')).toBeNull();
+    });
 
     signedIn(null);
     await waitFor(() => {
@@ -272,10 +287,54 @@ describe('MeetingEntry private note route', () => {
     expect(files.get(`${meetingDir}/meeting.json`)).toContain('advisor-1');
   });
 
+  it.each([
+    [
+      'the live account is revoked',
+      () => useFirmStore.setState({ serverVerdict: 'revoked' }),
+    ],
+    [
+      'the live account changes',
+      () => {
+        signedIn('advisor-2');
+      },
+    ],
+  ])(
+    'rechecks live identity before the final private-note write when %s',
+    async (_reason, changeIdentity) => {
+      const { adapter, workspace } = setup();
+      setMeetingsWorkspaceService(workspace as never);
+      const readFile = workspace.readFile.getMockImplementation();
+      if (!readFile) throw new Error('expected workspace reader');
+      let armed = false;
+      let guardedMeetingReads = 0;
+      workspace.readFile.mockImplementation((path: string) => {
+        const result = readFile(path);
+        if (armed && path === `${meetingDir}/meeting.json`) {
+          guardedMeetingReads += 1;
+          if (guardedMeetingReads === 2) changeIdentity();
+        }
+        return result;
+      });
+
+      await renderMeeting(workspace, adapter);
+      signedIn('advisor-1');
+      expect(await screen.findByTestId('meeting-private-note-action')).toBeEnabled();
+      armed = true;
+      fireEvent.click(screen.getByTestId('meeting-private-note-action'));
+
+      expect(await screen.findByTestId('meeting-private-note-notice')).toHaveTextContent(
+        "couldn't be made private"
+      );
+      expect(guardedMeetingReads).toBeGreaterThanOrEqual(2);
+      expect(workspace.writeFile).not.toHaveBeenCalled();
+    }
+  );
+
   it('fails closed without a write for stale workspaces, malformed maps, or an incompatible restriction', async () => {
     const stale = setup();
     setMeetingsWorkspaceService(stale.workspace as never);
     const staleRender = await renderMeeting(stale.workspace, stale.adapter);
+    signedIn('advisor-1');
     expect(await screen.findByTestId('meeting-private-note-action')).toBeEnabled();
     useWorkspaceStore.setState({ rootPath: '/different-workspace', rootGeneration: 2 });
     fireEvent.click(screen.getByTestId('meeting-private-note-action'));

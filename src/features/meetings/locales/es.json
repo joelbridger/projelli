@@ -120,9 +120,9 @@
       "summary-empty": "Todavía no hay texto de resumen.",
       "summary-not-ready": "El resumen aún no está listo. La exportación se activa cuando haya texto real de notas.",
       "private-note": {
-        "action": "Mantener esta nota de reunión privada para mí",
+        "action": "Mantener esta nota privada para la cuenta con sesión iniciada",
         "saving": "Haciendo privada esta nota…",
-        "saved": "Esta nota de reunión es privada para usted.",
+        "saved": "Esta nota es privada para la cuenta que tiene la sesión iniciada.",
         "unavailable": "Esta nota no se puede hacer privada ahora. No se cambió nada.",
         "unavailable-identity": "Inicie sesión antes de hacer privada esta nota.",
         "unavailable-workspace": "Abra el espacio de trabajo de esta reunión antes de hacer privada esta nota.",

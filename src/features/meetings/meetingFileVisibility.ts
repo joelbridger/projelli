@@ -224,9 +224,27 @@ export async function resolveMeetingFilePathsVisibility(input: {
   return new Map(results);
 }
 
-export function readCurrentMeetingViewerId(): string | null {
-  const session = useFirmStore.getState().session;
-  return session ? exactText(session.userId) : null;
+/**
+ * Persisted session metadata is only a remembered label. A meeting note can
+ * use an owner identity only while the runtime has a live credential for that
+ * session and the firm has not revoked it. This deliberately treats keychain
+ * hydration and sign-in changes as no viewer until the runtime proves them.
+ */
+export function readCurrentMeetingViewerId(state: {
+  readonly session: { readonly userId: unknown } | null;
+  readonly accessToken: unknown;
+  readonly serverVerdict: 'valid' | 'revoked' | 'unknown';
+  readonly isLoading: boolean;
+} = useFirmStore.getState()): string | null {
+  const userId = state.session ? exactText(state.session.userId) : null;
+  if (
+    !userId ||
+    !exactText(state.accessToken) ||
+    state.isLoading ||
+    state.serverVerdict === 'revoked'
+  )
+    return null;
+  return userId;
 }
 
 /** Read current viewer + persisted policies. Malformed policy data is retained

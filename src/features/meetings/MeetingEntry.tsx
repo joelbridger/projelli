@@ -89,6 +89,7 @@ import {
   FILE_MEETING_OWNER_PRIVATE_POLICY_ID,
   meetingFileVisibilityContextIdentity,
   meetingFileVisibilityManifestFromMeta,
+  readCurrentMeetingViewerId,
   requireCurrentMeetingFileAccess,
   resolveMeetingFilePathVisibility,
   type MeetingFileVisibilityContext,
@@ -318,9 +319,7 @@ function MeetingEntryHost({
   useMeetingFollowUpCompatibility();
   const { t } = useTranslation();
   const firm = useFirm();
-  const currentViewerId = useFirmStore(
-    (state) => state.session?.userId ?? null
-  );
+  const currentViewerId = useFirmStore(readCurrentMeetingViewerId);
   const workspaceGeneration = useWorkspaceStore(
     (state) => state.rootGeneration
   );
@@ -1641,7 +1640,11 @@ function MeetingEntryHost({
                   data-testid="meeting-private-note-action"
                   disabled={savingPrivateNote}
                   onClick={() => {
-                    void handleKeepPrivateNote();
+                    void handleKeepPrivateNote().catch((error: unknown) => {
+                      setPrivateNoteNotice(
+                        error instanceof Error ? error.message : String(error)
+                      );
+                    });
                   }}
                   style={{
                     border: '1px solid var(--kp-divider)',

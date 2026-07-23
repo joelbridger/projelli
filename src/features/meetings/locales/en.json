@@ -118,9 +118,9 @@
       "summary-empty": "No summary text is available yet.",
       "summary-not-ready": "Summary is not ready yet.",
       "private-note": {
-        "action": "Keep this meeting note private to me",
+        "action": "Keep this note private to the signed-in account",
         "saving": "Making this note private…",
-        "saved": "This meeting note is private to you.",
+        "saved": "This note is private to the account currently signed in.",
         "unavailable": "This note can't be made private right now. Nothing changed.",
         "unavailable-identity": "Sign in before making this note private.",
         "unavailable-workspace": "Open this meeting's workspace before making this note private.",
