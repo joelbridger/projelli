@@ -17,6 +17,7 @@ const task: ExactMeetingTaskReviewItem = {
   dueDate: '2026-08-01',
   transcriptRef: 'meeting:meeting-1#12000',
   approvalState: 'proposed',
+  proposalRevision: 'proposal-1',
 };
 
 function repository(
@@ -43,6 +44,7 @@ function repository(
       })
     ),
     approve,
+    reject: vi.fn(() => Promise.resolve()),
   };
 }
 
@@ -97,17 +99,16 @@ describe('MeetingNotesReview', () => {
       )
       .mockResolvedValueOnce([task]);
     render(
-      <MeetingNotesReview
-        reviewKind="task"
-        repository={repository(list)}
-      />
+      <MeetingNotesReview reviewKind="task" repository={repository(list)} />
     );
-    expect(await screen.findByTestId('notes-review-task-error')).toHaveTextContent(
-      'Could not load the saved meeting proposals.'
-    );
+    expect(
+      await screen.findByTestId('notes-review-task-error')
+    ).toHaveTextContent('Could not load the saved meeting proposals.');
     expect(screen.queryByText(/Clients\/Webb/)).toBeNull();
     fireEvent.click(screen.getByTestId('notes-review-task-retry'));
-    expect(await screen.findByTestId('notes-review-approve-rollover')).toBeInTheDocument();
+    expect(
+      await screen.findByTestId('notes-review-approve-rollover')
+    ).toBeInTheDocument();
     expect(list).toHaveBeenCalledTimes(2);
   });
 });

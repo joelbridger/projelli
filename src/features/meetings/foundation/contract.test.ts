@@ -205,26 +205,50 @@ describe('meetings foundation contract', () => {
   it('rechecks the live firm viewer and freshly reloaded policy before artifact actions', async () => {
     const live = canonicalPort();
     await createMeetingFoundationPreferencesStore(live).save({
-      visibilityPolicies: [{
-        id: 'private-policy', mode: 'explicit-review',
-        includedMemberIds: ['member-2'], excludedMemberIds: [],
-      }],
+      visibilityPolicies: [
+        {
+          id: 'private-policy',
+          mode: 'explicit-review',
+          includedMemberIds: ['member-2'],
+          excludedMemberIds: [],
+        },
+      ],
       owners: [{ id: 'member-1', label: 'Owner' }],
       deferredDescriptors: [],
     });
     const sessionFor = (userId: string) => ({
-      userId, email: `${userId}@example.com`, role: 'member' as const,
-      org: null, seatId: 'seat-1', tier: 'practice' as const, packs: [],
-      seats: 1, lastValidatedAt: null, activated: true,
+      userId,
+      email: `${userId}@example.com`,
+      role: 'member' as const,
+      org: null,
+      seatId: 'seat-1',
+      tier: 'practice' as const,
+      packs: [],
+      seats: 1,
+      lastValidatedAt: null,
+      activated: true,
     });
     useFirmStore.setState({ session: sessionFor('member-2') });
-    const meetings = createMeetingStore({ ...live, records: live.readCanonical() });
-    const created = await meetings.createDraft({ ...draft, visibilityPolicyId: 'private-policy' });
-    const artifacts = createMeetingArtifactStore({ ...live, records: live.readCanonical() });
+    const meetings = createMeetingStore({
+      ...live,
+      records: live.readCanonical(),
+    });
+    const created = await meetings.createDraft({
+      ...draft,
+      visibilityPolicyId: 'private-policy',
+    });
+    const artifacts = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+    });
     const produced = await artifacts.append({
-      meetingId: created.id, kind: 'summary', schemaVersion: 1,
-      producedAt: '2026-07-20T10:00:00.000Z', sourceRefs: [],
-      provenance: 'local-processing', payload: { summary: 'private summary' },
+      meetingId: created.id,
+      kind: 'summary',
+      schemaVersion: 1,
+      producedAt: '2026-07-20T10:00:00.000Z',
+      sourceRefs: [],
+      provenance: 'local-processing',
+      payload: { summary: 'private summary' },
     });
     const reader = artifacts.readerFor(meetings, client, [
       { kind: 'summary', minimumSchemaVersion: 1 },
@@ -233,41 +257,64 @@ describe('meetings foundation contract', () => {
 
     useFirmStore.setState({ session: sessionFor('member-3') });
     expect(reader.get(produced.id)).toBeNull();
-    await expect(artifacts.approve(produced.id, {
-      from: 'produced', to: 'approved', at: '2026-07-20T10:01:00.000Z',
-    })).rejects.toThrow('unavailable');
+    await expect(
+      artifacts.approve(produced.id, {
+        from: 'produced',
+        to: 'approved',
+        at: '2026-07-20T10:01:00.000Z',
+      })
+    ).rejects.toThrow('unavailable');
 
     useFirmStore.setState({ session: sessionFor('member-2') });
-    live.replaceCanonical(live.readCanonical().map((record) =>
-      record.kind === 'meeting_foundation_preferences'
-        ? { ...record, visibilityPolicies: [{
-            id: 'private-policy', mode: 'explicit-review',
-            includedMemberIds: [], excludedMemberIds: ['member-2'],
-          }] }
-        : record
-    ));
+    live.replaceCanonical(
+      live.readCanonical().map((record) =>
+        record.kind === 'meeting_foundation_preferences'
+          ? {
+              ...record,
+              visibilityPolicies: [
+                {
+                  id: 'private-policy',
+                  mode: 'explicit-review',
+                  includedMemberIds: [],
+                  excludedMemberIds: ['member-2'],
+                },
+              ],
+            }
+          : record
+      )
+    );
     expect(reader.get(produced.id)).toBeNull();
     expect(reader.listForMeeting(created.id)).toEqual([]);
-    await expect(artifacts.approve(produced.id, {
-      from: 'produced', to: 'approved', at: '2026-07-20T10:01:00.000Z',
-    })).rejects.toThrow('unavailable');
+    await expect(
+      artifacts.approve(produced.id, {
+        from: 'produced',
+        to: 'approved',
+        at: '2026-07-20T10:01:00.000Z',
+      })
+    ).rejects.toThrow('unavailable');
   });
 
   it('persists exactly one visibility state for new and updated meetings', async () => {
     const live = canonicalPort();
     const store = createMeetingStore(live);
     const created = await store.createDraft(draft);
-    expect(live.readCanonical().find((record) => record.id === created.id)).toMatchObject({
+    expect(
+      live.readCanonical().find((record) => record.id === created.id)
+    ).toMatchObject({
       [MEETING_VISIBILITY_LINEAGE_FIELD]: MEETING_VISIBILITY_LEGACY_VALUE,
     });
 
     await store.update(created.id, { visibilityPolicyId: 'private-policy' });
-    const restricted = live.readCanonical().find((record) => record.id === created.id);
+    const restricted = live
+      .readCanonical()
+      .find((record) => record.id === created.id);
     expect(restricted).toMatchObject({ visibilityPolicyId: 'private-policy' });
     expect(restricted).not.toHaveProperty(MEETING_VISIBILITY_LINEAGE_FIELD);
 
     await store.update(created.id, { visibilityPolicyId: null });
-    const unrestricted = live.readCanonical().find((record) => record.id === created.id);
+    const unrestricted = live
+      .readCanonical()
+      .find((record) => record.id === created.id);
     expect(unrestricted).not.toHaveProperty('visibilityPolicyId');
     expect(unrestricted).toMatchObject({
       [MEETING_VISIBILITY_LINEAGE_FIELD]: MEETING_VISIBILITY_LEGACY_VALUE,
@@ -959,13 +1006,190 @@ describe('meetings foundation contract', () => {
       createMeetingArtifactStore({
         ...live,
         records: live.readCanonical(),
-        getActiveClientBoundary: () => sealedBoundary('household-1', 'matter-1'),
+        getActiveClientBoundary: () =>
+          sealedBoundary('household-1', 'matter-1'),
       }).approve(produced.id, {
         from: 'produced',
         to: 'approved',
         at: '2026-07-20T10:07:00.000Z',
       })
-    ).rejects.toThrow('refusing a stale approval');
+    ).rejects.toThrow('refusing a stale decision');
+  });
+
+  it('reconstructs exact decisions and delivery results without repeating a confirmed result', async () => {
+    const live = canonicalPort();
+    const client = sealedBoundary('household-1', 'matter-1');
+    const meetings = createMeetingStore({
+      ...live,
+      getActiveClientBoundary: () => client,
+    });
+    const meeting = await meetings.createDraft(draft);
+    let artifacts = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveClientBoundary: () => client,
+    });
+    const artifact = await artifacts.append({
+      meetingId: meeting.id,
+      kind: 'action-update-proposal',
+      schemaVersion: 2,
+      producedAt: '2026-07-20T10:00:00.000Z',
+      sourceRefs: ['meeting:source'],
+      provenance: 'local-processing',
+      payload: { proposal: { id: 'proposal-1', title: 'Old title' } },
+    });
+    if (!artifacts.decide || !artifacts.recordDelivery)
+      throw new Error('expected decision and delivery ledger');
+    await artifacts.decide(artifact.id, {
+      from: 'produced',
+      to: 'approved',
+      at: '2026-07-20T10:01:00.000Z',
+      decisionId: 'decision-1',
+      proposalRevision: 'revision-1',
+      exactProposal: { id: 'proposal-1', title: 'Advisor edited title' },
+    });
+    await artifacts.recordDelivery({
+      artifactId: artifact.id,
+      key: 'delivery-1',
+      status: 'pending',
+      at: '2026-07-20T10:02:00.000Z',
+      attempt: 1,
+    });
+    await artifacts.recordDelivery({
+      artifactId: artifact.id,
+      key: 'delivery-1',
+      status: 'retryable',
+      at: '2026-07-20T10:02:00.000Z',
+      attempt: 1,
+      message: 'Temporary failure',
+    });
+    artifacts = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveClientBoundary: () => client,
+    });
+    expect(
+      artifacts
+        .readerFor(meetings, client, [
+          { kind: 'action-update-proposal', minimumSchemaVersion: 2 },
+        ])
+        .get(artifact.id)
+    ).toMatchObject({
+      delivery: { key: 'delivery-1', status: 'retryable', attempt: 1 },
+    });
+    if (!artifacts.recordDelivery)
+      throw new Error('expected reconstructed delivery ledger');
+    await artifacts.recordDelivery({
+      artifactId: artifact.id,
+      key: 'delivery-1',
+      status: 'pending',
+      at: '2026-07-20T10:03:00.000Z',
+      attempt: 2,
+    });
+    await artifacts.recordDelivery({
+      artifactId: artifact.id,
+      key: 'delivery-1',
+      status: 'confirmed',
+      at: '2026-07-20T10:03:00.000Z',
+      attempt: 2,
+      receipt: { status: 'created', message: 'Task created.' },
+    });
+
+    artifacts = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveClientBoundary: () => client,
+    });
+    const reconstructed = artifacts
+      .readerFor(meetings, client, [
+        { kind: 'action-update-proposal', minimumSchemaVersion: 2 },
+      ])
+      .get(artifact.id);
+    expect(reconstructed).toMatchObject({
+      state: 'approved',
+      decision: {
+        id: 'decision-1',
+        proposalRevision: 'revision-1',
+        exactProposal: { title: 'Advisor edited title' },
+      },
+      delivery: {
+        key: 'delivery-1',
+        status: 'confirmed',
+        attempt: 2,
+        receipt: { status: 'created' },
+      },
+    });
+    const before = live
+      .readCanonical()
+      .filter((record) => record.kind === 'meeting_artifact_delivery').length;
+    if (!artifacts.recordDelivery) throw new Error('expected delivery ledger');
+    await artifacts.recordDelivery({
+      artifactId: artifact.id,
+      key: 'delivery-1',
+      status: 'confirmed',
+      at: '2026-07-20T10:04:00.000Z',
+      attempt: 3,
+      receipt: { status: 'created', message: 'Task created again.' },
+    });
+    expect(
+      live
+        .readCanonical()
+        .filter((record) => record.kind === 'meeting_artifact_delivery')
+    ).toHaveLength(before);
+
+    const failedArtifact = await artifacts.append({
+      meetingId: meeting.id,
+      kind: 'action-update-proposal',
+      schemaVersion: 2,
+      producedAt: '2026-07-20T11:00:00.000Z',
+      sourceRefs: ['meeting:source-2'],
+      provenance: 'local-processing',
+      payload: { proposal: { id: 'proposal-2', title: 'Second proposal' } },
+    });
+    if (!artifacts.decide || !artifacts.recordDelivery)
+      throw new Error('expected decision and delivery ledger');
+    await artifacts.decide(failedArtifact.id, {
+      from: 'produced',
+      to: 'approved',
+      at: '2026-07-20T11:01:00.000Z',
+      decisionId: 'decision-2',
+      proposalRevision: 'revision-2',
+      exactProposal: { id: 'proposal-2', title: 'Second proposal' },
+    });
+    await artifacts.recordDelivery({
+      artifactId: failedArtifact.id,
+      key: 'delivery-2',
+      status: 'pending',
+      at: '2026-07-20T11:02:00.000Z',
+      attempt: 1,
+    });
+    await artifacts.recordDelivery({
+      artifactId: failedArtifact.id,
+      key: 'delivery-2',
+      status: 'failed',
+      at: '2026-07-20T11:02:00.000Z',
+      attempt: 1,
+      message: 'Permanent destination refusal',
+    });
+    artifacts = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveClientBoundary: () => client,
+    });
+    expect(
+      artifacts
+        .readerFor(meetings, client, [
+          { kind: 'action-update-proposal', minimumSchemaVersion: 2 },
+        ])
+        .get(failedArtifact.id)
+    ).toMatchObject({
+      delivery: {
+        key: 'delivery-2',
+        status: 'failed',
+        attempt: 1,
+        message: 'Permanent destination refusal',
+      },
+    });
   });
 
   it('cannot construct a client-scoped store without a live resolver, and no-active-client fails closed', async () => {
@@ -1114,7 +1338,10 @@ describe('meetings foundation contract', () => {
     if (!grant) throw new Error('expected a genuine grant');
     await expect(
       createFirmMeetingDirectoryReader(reader, grant).list()
-    ).resolves.toMatchObject({ kind: 'ready', meetings: [{ matterId: 'matter-1' }] });
+    ).resolves.toMatchObject({
+      kind: 'ready',
+      meetings: [{ matterId: 'matter-1' }],
+    });
 
     // A grant that names a matter outside owner truth is refused (fail closed):
     // matter-1 is the only owner-truth matter, so asking for matter-2 is null.

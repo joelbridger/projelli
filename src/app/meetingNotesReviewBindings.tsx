@@ -49,6 +49,8 @@ function exactArtifact(artifact: MeetingArtifact): ExactMeetingReviewArtifact {
     state: artifact.state,
     producedAt: artifact.producedAt,
     payload: artifact.payload,
+    ...(artifact.decision ? { decision: artifact.decision } : {}),
+    ...(artifact.delivery ? { delivery: artifact.delivery } : {}),
     ...(artifact.meetingVisibility
       ? { meetingVisibility: artifact.meetingVisibility }
       : {}),
@@ -146,10 +148,19 @@ function ExactMeetingReviewPanel({
             .listForMeeting(meetingId, ['action-update-proposal'])
             .map(exactArtifact),
       },
-      approveArtifact: async (artifactId, transition) =>
-        exactArtifact(await artifacts.approve(artifactId, transition)),
+      decideArtifact: async (artifactId, transition) => {
+        if (!artifacts.decide)
+          throw new Error('The meeting decision ledger is unavailable.');
+        return exactArtifact(await artifacts.decide(artifactId, transition));
+      },
+      recordDelivery: async (input) => {
+        if (!artifacts.recordDelivery)
+          throw new Error('The meeting delivery ledger is unavailable.');
+        return exactArtifact(await artifacts.recordDelivery(input));
+      },
       taskDelivery: {
-        create: (input) => tasks.create(input),
+        create: ({ deliveryKey: _deliveryKey, ...input }) =>
+          tasks.create(input),
       },
       crmDelivery: productionMeetingNotesReviewCrmDelivery,
       canReadArtifact: (artifact) =>

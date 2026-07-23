@@ -57,6 +57,7 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
   state,
   onRetry,
   onApprove,
+  onReject,
 }: NotesReviewPanelProps<Client>) {
   const { t } = useTranslation();
   const [edits, setEdits] = useState<
@@ -72,7 +73,19 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (state.kind === 'populated') setReceipts({ ...(state.receipts ?? {}) });
+    if (state.kind === 'populated') {
+      setReceipts({ ...(state.receipts ?? {}) });
+      setEdits(
+        (current) =>
+          Object.fromEntries(
+            Object.entries(current).filter(([id]) =>
+              state.items.some(
+                (item) => item.id === id && item.approvalState === 'proposed'
+              )
+            )
+          ) as Record<string, ExactMeetingNotesReviewItem<Client>>
+      );
+    }
   }, [state]);
 
   const label = KIND_LABELS[reviewKind];
@@ -149,6 +162,25 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
     }
   };
 
+  const reject = async (source: ExactMeetingNotesReviewItem<Client>) => {
+    if (!onReject) return;
+    const item = edits[source.id] ?? source;
+    setApprovingId(source.id);
+    try {
+      await onReject(item);
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        [source.id]:
+          error instanceof Error
+            ? error.message
+            : 'Could not reject this item.',
+      }));
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
   const update = (
     source: ExactMeetingNotesReviewItem<Client>,
     change: Partial<ExactMeetingNotesReviewItem<Client>>
@@ -156,7 +188,10 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
     const current = edits[source.id] ?? source;
     setEdits((all) => ({
       ...all,
-      [source.id]: { ...current, ...change } as ExactMeetingNotesReviewItem<Client>,
+      [source.id]: {
+        ...current,
+        ...change,
+      } as ExactMeetingNotesReviewItem<Client>,
     }));
   };
 
@@ -182,7 +217,12 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
     >
       <div>
         <strong>{label}</strong>
-        <div style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
+        <div
+          style={{
+            color: 'var(--color-muted-foreground)',
+            fontSize: 'var(--kp-font-xs)',
+          }}
+        >
           {t('meetings.review.approve-description')}
         </div>
       </div>
@@ -194,6 +234,12 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
           Boolean(receipt) ||
           approvedAfterErrors[source.id] === true;
         const error = errors[source.id];
+        const rejected = source.approvalState === 'rejected';
+        const canRetryDelivery =
+          approved &&
+          (source.delivery?.status === 'failed' ||
+            source.delivery?.status === 'retryable' ||
+            approvedAfterErrors[source.id] === true);
         return (
           <article
             key={source.id}
@@ -205,14 +251,20 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
               background: 'var(--color-card)',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}
+            >
               <strong>{item.title}</strong>
               <Badge variant={approved ? 'success' : 'neutral'} size="sm">
-                {approved ? 'Approved' : 'Proposed'}
+                {rejected ? 'Rejected' : approved ? 'Approved' : 'Proposed'}
               </Badge>
             </div>
 
-            {!approved && item.kind === 'task' && (
+            {!approved && !rejected && item.kind === 'task' && (
               <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
                 <label>
                   Task
@@ -236,7 +288,13 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
                     style={{ ...inputStyle(), minHeight: 64 }}
                   />
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 8,
+                  }}
+                >
                   <label>
                     Owner
                     <input
@@ -268,13 +326,17 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
               </div>
             )}
 
-            {!approved && item.kind === 'crm-update' && (
+            {!approved && !rejected && item.kind === 'crm-update' && (
               <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
                 {item.fields.map((field, index) => (
                   <div
                     key={field.field}
                     data-testid={`notes-review-crm-field-${item.id}-${field.field}`}
-                    style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 8,
+                    }}
                   >
                     <label>
                       {field.label} before
@@ -317,27 +379,73 @@ export function NotesReviewPanel<Client extends NotesReviewClientPair>({
               </div>
             )}
 
-            <div style={{ marginTop: 8, color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
+            <div
+              style={{
+                marginTop: 8,
+                color: 'var(--color-muted-foreground)',
+                fontSize: 'var(--kp-font-xs)',
+              }}
+            >
               Transcript: {item.transcriptRef}
             </div>
-            {!approved && (
+            {!approved && !rejected && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <Button
+                  data-testid={`notes-review-approve-${item.id}`}
+                  size="sm"
+                variant="primary"
+                loading={approvingId === item.id}
+                  onClick={() => {
+                    void approve(source);
+                  }}
+                >
+                  Approve {item.kind === 'task' ? 'task' : 'CRM update'}
+                </Button>
+                {onReject && (
+                  <Button
+                    data-testid={`notes-review-reject-${item.id}`}
+                    size="sm"
+                    variant="secondary"
+                    disabled={approvingId === item.id}
+                    onClick={() => {
+                      void reject(source);
+                    }}
+                  >
+                    Reject
+                  </Button>
+                )}
+              </div>
+            )}
+            {approved && !canRetryDelivery && (
+              <div
+                data-testid={`notes-review-approved-${item.id}`}
+                role="status"
+              >
+                <CheckCircle2 size={14} aria-hidden="true" />{' '}
+                {receipt?.message ?? 'Approved earlier.'}
+              </div>
+            )}
+            {canRetryDelivery && (
               <Button
-                data-testid={`notes-review-approve-${item.id}`}
+                data-testid={`notes-review-retry-delivery-${item.id}`}
                 size="sm"
                 variant="primary"
                 loading={approvingId === item.id}
                 onClick={() => {
                   void approve(source);
                 }}
-                style={{ marginTop: 8 }}
               >
-                Approve {item.kind === 'task' ? 'task' : 'CRM update'}
+                Retry delivery
               </Button>
             )}
-            {approved && (
-              <div data-testid={`notes-review-approved-${item.id}`} role="status">
-                <CheckCircle2 size={14} aria-hidden="true" />{' '}
-                {receipt?.message ?? 'Approved earlier.'}
+            {rejected && (
+              <div
+                data-testid={`notes-review-rejected-${item.id}`}
+                role="status"
+              >
+                {/* eslint-disable lantern-i18n/no-hardcoded-string -- exact trust copy is intentionally fixed until the milestone's copy pass */}
+                Rejected. Nothing was sent.
+                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
               </div>
             )}
             {error && (

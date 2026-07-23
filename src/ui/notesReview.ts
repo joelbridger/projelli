@@ -12,11 +12,7 @@ export interface NotesReviewClientPair {
   readonly displayName?: string;
 }
 
-export type NotesReviewCrmFieldType =
-  | 'text'
-  | 'number'
-  | 'date'
-  | 'boolean';
+export type NotesReviewCrmFieldType = 'text' | 'number' | 'date' | 'boolean';
 
 export type NotesReviewCrmFieldValue = string | number | boolean | null;
 
@@ -41,7 +37,16 @@ interface ExactMeetingReviewItemBase<Client extends NotesReviewClientPair> {
   readonly detail: string;
   readonly transcriptRef: string;
   readonly sourceLabel?: string;
-  readonly approvalState: 'proposed' | 'approved';
+  readonly approvalState: 'proposed' | 'approved' | 'rejected';
+  /** Revision of the source proposal that was actually reviewed. */
+  readonly proposalRevision: string;
+  readonly delivery?: {
+    readonly key: string;
+    readonly status: 'pending' | 'confirmed' | 'failed' | 'retryable';
+    readonly attempt: number;
+    readonly message?: string;
+    readonly receipt?: NotesReviewReceipt;
+  };
 }
 
 export interface ExactMeetingTaskReviewItem<
@@ -69,14 +74,13 @@ export interface ExactMeetingCrmReviewItem<
  */
 export type ExactMeetingNotesReviewItem<
   Client extends NotesReviewClientPair = NotesReviewClientPair,
-> =
-  | ExactMeetingTaskReviewItem<Client>
-  | ExactMeetingCrmReviewItem<Client>;
+> = ExactMeetingTaskReviewItem<Client> | ExactMeetingCrmReviewItem<Client>;
 
 /** A truthful outcome from the layer that owns the actual save or write. */
 export interface NotesReviewReceipt {
   status: 'created' | 'saved' | 'sent' | 'recorded' | 'failed';
   message: string;
+  deliveryKey?: string;
 }
 
 export type NotesReviewPanelState<
@@ -105,6 +109,9 @@ export interface NotesReviewPanelProps<
   readonly onApprove: (
     item: ExactMeetingNotesReviewItem<Client>
   ) => Promise<NotesReviewReceipt>;
+  readonly onReject?: (
+    item: ExactMeetingNotesReviewItem<Client>
+  ) => Promise<void>;
 }
 
 // Compatibility types for the pre-foundation summary parser. New Tasks/CRM

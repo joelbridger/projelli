@@ -5,6 +5,7 @@ import {
   type ExactMeetingReviewArtifact,
   type ExactMeetingReviewArtifactReader,
   type ExactMeetingTaskDelivery,
+  type MakeExactMeetingNotesReviewRepositoryInput,
   type NotesReviewCrmDelivery,
 } from './notesReviewDelivery';
 import type { ExactMeetingTaskReviewItem } from '@/ui/notesReview';
@@ -95,7 +96,8 @@ function ports(
   canReadArtifact = true
 ) {
   const events: string[] = [];
-  const listForMeeting = vi.fn(() => records);
+  let durableRecords = [...records];
+  const listForMeeting = vi.fn(() => durableRecords);
   const reader: ExactMeetingReviewArtifactReader = {
     listForMeeting,
   };
@@ -128,15 +130,58 @@ function ports(
     prepareProposal: crmPrepareProposal,
     approveProposal: crmApproveProposal,
   };
-  const approveArtifact = vi.fn(() => {
-    events.push('artifact-approval');
-    return Promise.resolve(artifact({ state: 'approved' }));
+  type RepositoryInput = MakeExactMeetingNotesReviewRepositoryInput<
+    typeof client
+  >;
+  const decideArtifact = vi.fn<RepositoryInput['decideArtifact']>(
+    (artifactId, transition) => {
+      events.push('artifact-approval');
+      const current = durableRecords.find((record) => record.id === artifactId);
+      if (!current) return Promise.reject(new Error('missing artifact'));
+      const decided = {
+        ...current,
+        state: transition.to,
+        decision: {
+          id: transition.decisionId,
+          state: transition.to,
+          at: transition.at,
+          proposalRevision: transition.proposalRevision,
+          exactProposal: transition.exactProposal,
+        },
+      } as ExactMeetingReviewArtifact;
+      durableRecords = durableRecords.map((record) =>
+        record.id === artifactId ? decided : record
+      );
+      return Promise.resolve(decided);
+    }
+  );
+  const recordDelivery = vi.fn<RepositoryInput['recordDelivery']>((input) => {
+    const current = durableRecords.find(
+      (record) => record.id === input.artifactId
+    );
+    if (!current) return Promise.reject(new Error('missing artifact'));
+    const updated = {
+      ...current,
+      delivery: {
+        key: input.key,
+        status: input.status,
+        at: input.at,
+        attempt: input.attempt,
+        ...(input.receipt ? { receipt: input.receipt } : {}),
+        ...(input.message ? { message: input.message } : {}),
+      },
+    } as ExactMeetingReviewArtifact;
+    durableRecords = durableRecords.map((record) =>
+      record.id === input.artifactId ? updated : record
+    );
+    return Promise.resolve(updated);
   });
   const repository = makeExactMeetingNotesReviewRepository({
     meetingId: identity.meetingId,
     client: identity.client,
     artifacts: reader,
-    approveArtifact,
+    decideArtifact,
+    recordDelivery,
     taskDelivery: task,
     crmDelivery: crm,
     canReadArtifact: () => canReadArtifact,
@@ -150,7 +195,9 @@ function ports(
     crmSaveProposal,
     crmPrepareProposal,
     crmApproveProposal,
-    approveArtifact,
+    approveArtifact: decideArtifact,
+    decideArtifact,
+    recordDelivery,
     events,
   };
 }
@@ -167,6 +214,7 @@ const proposedTask: ExactMeetingTaskReviewItem<typeof client> = {
   dueDate: '2026-08-01',
   transcriptRef: 'meeting:meeting-a#42000',
   approvalState: 'proposed',
+  proposalRevision: 'proposal-test',
 };
 
 const incompleteIdentities = [
@@ -283,10 +331,19 @@ describe('exact meeting notes review reader', () => {
     });
 
     expect(lane.events).toEqual(['artifact-approval', 'task-write']);
-    expect(lane.approveArtifact).toHaveBeenCalledWith('artifact-a', {
+    const recordedDecision = lane.approveArtifact.mock.calls[0];
+    if (!recordedDecision) throw new Error('Expected one durable decision.');
+    expect(recordedDecision[0]).toBe('artifact-a');
+    expect(recordedDecision[1]).toMatchObject({
       from: 'produced',
       to: 'approved',
       at: '2026-07-20T10:05:00.000Z',
+    });
+    expect(recordedDecision[1].proposalRevision).toMatch(/^proposal-/);
+    expect(recordedDecision[1].exactProposal).toMatchObject({
+      title: 'Call the tax advisor',
+      ownerRef: 'advisor-b',
+      dueDate: '2026-08-05',
     });
     const createdTask = lane.taskCreate.mock.calls[0]?.[0];
     expect(createdTask).toMatchObject({
@@ -425,5 +482,73 @@ describe('exact meeting notes review reader', () => {
     });
     expect(lane.events).toEqual(['artifact-approval']);
     expect(lane.approveArtifact).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists the exact edited rejection and never touches a destination', async () => {
+    const lane = ports();
+    const item = (await lane.repository.list('task'))[0];
+    if (!item || item.kind !== 'task') throw new Error('expected task');
+
+    await lane.repository.reject({
+      ...item,
+      title: 'Do not call the CPA',
+      detail: 'Advisor rejected this after review.',
+    });
+
+    const afterRestart = (await lane.repository.list('task'))[0];
+    expect(afterRestart).toMatchObject({
+      approvalState: 'rejected',
+      title: 'Do not call the CPA',
+      detail: 'Advisor rejected this after review.',
+    });
+    expect(lane.taskCreate).not.toHaveBeenCalled();
+    expect(lane.crmSaveProposal).not.toHaveBeenCalled();
+    expect(lane.recordDelivery).not.toHaveBeenCalled();
+  });
+
+  it('survives a failed delivery and retries with one stable identity', async () => {
+    const lane = ports();
+    lane.taskCreate.mockRejectedValueOnce(new Error('Task store unavailable.'));
+    const item = (await lane.repository.list('task'))[0];
+    if (!item) throw new Error('expected task');
+
+    await expect(lane.repository.approve(item)).rejects.toMatchObject({
+      approvalRecorded: true,
+    });
+    const retryItem = (await lane.repository.list('task'))[0];
+    expect(retryItem).toMatchObject({
+      approvalState: 'approved',
+      delivery: { status: 'retryable', attempt: 1 },
+    });
+    if (!retryItem) throw new Error('expected retry item');
+    const receipt = await lane.repository.approve(retryItem);
+    const deliveryKeys = lane.taskCreate.mock.calls.map(
+      (call) => call[0].deliveryKey
+    );
+    expect(deliveryKeys).toHaveLength(2);
+    expect(new Set(deliveryKeys).size).toBe(1);
+    expect(receipt.deliveryKey).toBe(deliveryKeys[0]);
+    expect(lane.approveArtifact).toHaveBeenCalledTimes(1);
+
+    const confirmed = (await lane.repository.list('task'))[0];
+    if (!confirmed) throw new Error('expected confirmed item');
+    await expect(lane.repository.approve(confirmed)).resolves.toMatchObject({
+      status: 'created',
+      deliveryKey: deliveryKeys[0],
+    });
+    expect(lane.taskCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses a stale proposal revision before decision or delivery', async () => {
+    const lane = ports();
+    const item = (await lane.repository.list('task'))[0];
+    if (!item) throw new Error('expected task');
+
+    await expect(
+      lane.repository.approve({ ...item, proposalRevision: 'stale-revision' })
+    ).rejects.toThrow('changed while you were reviewing');
+    expect(lane.approveArtifact).not.toHaveBeenCalled();
+    expect(lane.recordDelivery).not.toHaveBeenCalled();
+    expect(lane.taskCreate).not.toHaveBeenCalled();
   });
 });

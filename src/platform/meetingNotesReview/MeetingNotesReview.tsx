@@ -52,6 +52,9 @@ export function MeetingNotesReview<Client extends NotesReviewClientPair>({
         onApprove={() =>
           Promise.reject(new Error('This meeting proposal review is blocked.'))
         }
+        onReject={() =>
+          Promise.reject(new Error('This meeting proposal review is blocked.'))
+        }
       />
     );
   }
@@ -65,16 +68,20 @@ export function MeetingNotesReview<Client extends NotesReviewClientPair>({
             'Open this meeting from a confirmed client before reviewing proposals.',
         }}
         onApprove={() =>
-          Promise.reject(new Error('This meeting proposal reader is unavailable.'))
+          Promise.reject(
+            new Error('This meeting proposal reader is unavailable.')
+          )
+        }
+        onReject={() =>
+          Promise.reject(
+            new Error('This meeting proposal reader is unavailable.')
+          )
         }
       />
     );
   }
   return (
-    <LoadedMeetingNotesReview
-      reviewKind={reviewKind}
-      repository={repository}
-    />
+    <LoadedMeetingNotesReview reviewKind={reviewKind} repository={repository} />
   );
 }
 
@@ -122,7 +129,25 @@ function LoadedMeetingNotesReview<Client extends NotesReviewClientPair>({
   const approve = async (
     item: ExactMeetingNotesReviewItem<Client>
   ): Promise<NotesReviewReceipt> => {
-    const receipt = await repository.approve(item);
+    let receipt: NotesReviewReceipt;
+    try {
+      receipt = await repository.approve(item);
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'approvalRecorded' in error &&
+        error.approvalRecorded === true
+      ) {
+        const items = await repository.list(reviewKind);
+        setState(
+          items.length === 0
+            ? { kind: 'empty', reason: 'not-produced' }
+            : { kind: 'populated', items }
+        );
+      }
+      throw error;
+    }
     setState((current) =>
       current.kind !== 'populated'
         ? current
@@ -139,12 +164,31 @@ function LoadedMeetingNotesReview<Client extends NotesReviewClientPair>({
     return receipt;
   };
 
+  const reject = async (
+    item: ExactMeetingNotesReviewItem<Client>
+  ): Promise<void> => {
+    await repository.reject(item);
+    setState((current) =>
+      current.kind !== 'populated'
+        ? current
+        : {
+            ...current,
+            items: current.items.map((candidate) =>
+              candidate.id === item.id
+                ? { ...candidate, approvalState: 'rejected' as const }
+                : candidate
+            ),
+          }
+    );
+  };
+
   return (
     <NotesReviewPanel
       reviewKind={reviewKind}
       state={state}
       onRetry={retry}
       onApprove={approve}
+      onReject={reject}
     />
   );
 }
