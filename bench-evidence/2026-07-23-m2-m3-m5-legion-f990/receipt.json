@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "lane": "phase1-m2-m3-m5-legion-f990",
+  "captured_utc": "2026-07-23T03:18:00.5096008Z",
+  "machine": {
+    "host": "Desklink129887",
+    "bench": "Legion",
+    "ssh": "james@100.127.67.22",
+    "desktop_helper": { "port": 8765, "status": "healthy", "proof_method": "OS-level logged-in interactive desktop" }
+  },
+  "source": {
+    "revision": "f990b5647784bc3c31fa716a56fa760de845ee2c",
+    "tree": "537c26d642bf2cdbca3ce0ae5f4e5d2a48535792",
+    "archive": {
+      "local_path": "/tmp/lantern-f990b564.tar",
+      "destination": "D:\\LanternM2Sources\\lantern-f990b564.tar",
+      "sha256": "3df3cb77bd362a1d931bab1b3df812439322792db05bcd567eb0ff57b7ef23cf",
+      "bytes": 247500800
+    },
+    "fresh_source": "C:\\Lantern-M2-M3-M5-f990b564\\source",
+    "sidecar_mirror": {
+      "status": "verified_hash_keyed_local_mirror",
+      "network_downloads": 0,
+      "voice_onnx_sha256": "b3a6e47b57b8c7fbe6a0ce2518161a50f59a9cdd8a50835c02cb02bdd6206c18",
+      "voice_json_sha256": "95a23eb4d42909d38df73bb9ac7f45f597dbfcde2d1bf9526fdeaf5466977d77"
+    }
+  },
+  "flags": {
+    "VITE_FLAG_SELECTION_AUTHORITY_BOOT_GATE": true,
+    "VITE_FLAG_MEETINGS_SHELL_V1": true,
+    "VITE_FLAG_SHARED_CLIENT_BAR": true,
+    "VITE_FLAG_V1_SHELL_FRAME": true
+  },
+  "profiles": {
+    "fresh_profile": "C:\\Lantern-M2-M3-M5-f990b564\\profile",
+    "fresh_workspace": "C:\\Lantern-M2-M3-M5-f990b564\\workspace\\Hendricks",
+    "whole_firm": "closed",
+    "local_only": true
+  },
+  "preflight": {
+    "captured_utc": "2026-07-23T02:49:00Z",
+    "logged_in_desktop_helper": true,
+    "active_cargo_rustc_link_processes": [],
+    "free_ram_bytes": 19796373504,
+    "c_free_bytes": 15283601408,
+    "d_free_bytes": 688427474944,
+    "existing_owner_process": {
+      "pid": 81432,
+      "path": "C:\\Lantern-M2-M3-51ee5bab\\package\\lantern.exe",
+      "action": "left running; not this lane's process"
+    },
+    "ports": { "desktop_helper": 8765, "old_app_cdp": 9223, "new_app_cdp": "not used" }
+  },
+  "build": {
+    "one_build_count": 1,
+    "marker": "C:\\Lantern-M2-M3-M5-f990b564\\ONE-RUST-PACKAGE-BUILD.marker",
+    "marker_utc": "2026-07-23T02:54:09.2600602Z",
+    "command": "npm run tauri:build",
+    "target": "D:\\Lantern-M2-Targets\\afcdae55-from-073556ba-partial",
+    "cargo_build_invocations": 1,
+    "second_build_ran": false,
+    "compile_finished": true,
+    "nsis_bundle_finished": true,
+    "native_exit_code": 1,
+    "package_status": "PACKAGE_PARTIAL_UNSIGNED_DEVELOPMENT",
+    "missing_updater_signing_key": true,
+    "release_verdict": "fail_missing_updater_private_key",
+    "marker_to_installer_seconds": 730.304,
+    "previous_cold_marker_to_artifact_seconds": 538.5,
+    "timing_comparison": "191.804 seconds slower than the prior cold marker; no cache speed claim"
+  },
+  "artifacts": {
+    "release_executable": {
+      "path": "D:\\Lantern-M2-Targets\\afcdae55-from-073556ba-partial\\release\\lantern.exe",
+      "bytes": 215610880,
+      "sha256": "c433062ad247d77cdd1d32e1ac47fc94a248886fe5d497cbd835d5e0e064e82b"
+    },
+    "installer": {
+      "path": "D:\\Lantern-M2-Targets\\afcdae55-from-073556ba-partial\\release\\bundle\\nsis\\Advisor Prep Hero_3.3.5_x64-setup.exe",
+      "bytes": 172326152,
+      "sha256": "dcf307e6d1989116a1332306ff8bfd90eb1663105060202ce56426e451ff3f20"
+    },
+    "packaged_executable": {
+      "path": "C:\\Lantern-M2-M3-M5-f990b564\\package\\lantern.exe",
+      "bytes": 215610880,
+      "sha256": "c433062ad247d77cdd1d32e1ac47fc94a248886fe5d497cbd835d5e0e064e82b",
+      "desktop_process_pid": 111900
+    },
+    "package_file_count": 796,
+    "package_bytes": 678303960
+  },
+  "cache": {
+    "tool": "sccache 0.16.0",
+    "path": "D:\\Lantern-sccache-cache",
+    "cap": "25 GiB",
+    "before": { "compile_requests": 0, "cache_hits": 0, "cache_misses": 0, "cache_errors": 0 },
+    "after": { "compile_requests": 0, "cache_hits": 0, "cache_misses": 0, "cache_errors": 0 },
+    "assessment": "configured but no visible requests or hits; cache is not provenance and no speed benefit was observed"
+  },
+  "resources_post": {
+    "free_ram_bytes": 18930700288,
+    "c_free_bytes": 18683686912,
+    "d_free_bytes": 688175583232,
+    "active_cargo_rustc_link_processes": []
+  },
+  "desktop_launch": {
+    "method": "logged-in interactive scheduled task",
+    "task": "LanternM2M3M5F990Launch",
+    "task_last_result": 0,
+    "new_process": { "pid": 111900, "path": "C:\\Lantern-M2-M3-M5-f990b564\\package\\lantern.exe" },
+    "old_process_preserved": { "pid": 81432, "path": "C:\\Lantern-M2-M3-51ee5bab\\package\\lantern.exe" }
+  },
+  "milestones": {
+    "M2": {
+      "verdict": "PARTIAL",
+      "assertions": [
+        {
+          "id": "M2.1",
+          "status": "PARTIAL",
+          "result": "Hendricks selected; Meetings opened; Upcoming and Past real views had no row. Past said 'No processed meetings yet', so the seeded annual-review detail and summary could not be opened.",
+          "fixture_observation": "The fresh workspace contained Meetings/2026-07-02-hendricks-annual-review/meeting.json, notes.docx, and transcript.json; no fixture content was modified.",
+          "screenshots": ["12-hendricks-selected.png", "14-meetings-list.png", "15-show-all-meetings.png", "17-hendricks-past-list.png"]
+        },
+        { "id": "M2.2", "status": "NOT_RUN", "reason": "M2.1 could not open the required meeting detail; no private-note control was reached." },
+        { "id": "M2.3", "status": "NOT_RUN", "reason": "M2.1 blocker." },
+        { "id": "M2.4", "status": "NOT_RUN", "reason": "M2.1 blocker; authentication state was not fabricated or changed." },
+        { "id": "M2.5", "status": "NOT_RUN", "reason": "M2.1 blocker; Send to team was not opened in this run." }
+      ]
+    },
+    "M3": { "verdict": "NOT_RUN", "reason": "M2 was not a full PASS; no review or approval write was attempted." },
+    "M5": { "verdict": "NOT_RUN", "reason": "M3 was not a full PASS; Ask was not attempted." }
+  },
+  "safety": {
+    "no_send_occurred": true,
+    "no_review_or_approval_write": true,
+    "no_retry_after_marker": true,
+    "fixture_data_modified": false,
+    "cloud_egress_enabled": false,
+    "whole_firm_enabled": false
+  },
+  "stop_point": {
+    "milestone": "M2",
+    "assertion": "M2.1",
+    "reason": "The required annual-review meeting files existed in the fresh workspace but did not appear in the real selected-client Meetings list; the Past view explicitly reported no processed meetings.",
+    "later_milestones_attempted": false
+  },
+  "screenshots": {
+    "00-post-launch.png": "38068fa231a560c124f245473d2bf7ebc87f424bf3c6d775e1c5f367a6964492",
+    "05-sample-firm-selected.png": "c39590aee64e46c1a423728d8dfb070744ee283f099e1ced42ec4b80e5a7848f",
+    "06-fresh-hendricks-workspace.png": "1c2a4848e84cd40a94143fb16680257bb5cd6ce73da94865747189c9ac1e9181",
+    "08-on-device-local-only.png": "f8cdd2b58a30c9b645f7afae4b9caecbd3a653a8790551d47aaefe0fe65f62d0",
+    "10-fresh-app-home.png": "408b6ad82e0df53c3914d0727d13ee1367d8a7079161be2457bf65d8a1b72884",
+    "11-client-chooser-hendricks.png": "908f190b208df3fe5aa5f08919f881770b6e2f54a90c56f2f567e1b08d15a04a",
+    "12-hendricks-selected.png": "0d09d7c9baacc8d5faf287daadb149dd0c7a5c19e3bf25cb755631888c4f752c",
+    "14-meetings-list.png": "66c5a8971f42a46cd77b0f8bd7f9e6e3b6f07bd812f9c622c011262bfc42dda0",
+    "15-show-all-meetings.png": "6de093bc3dd48167d1bbad5292d46ed9997cfb30edc61168e58f8dadc0d0fd60",
+    "17-hendricks-past-list.png": "bc60be171a21619f6b2166aaa89b5575907713076459757606012386ce2c0b78"
+  }
+}
