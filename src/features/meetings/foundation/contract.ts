@@ -3046,7 +3046,7 @@ function assertNextMeetingArtifactDelivery(
       next.status === 'failed' ||
       next.status === 'retryable');
   const startsRetry =
-    (previous.status === 'failed' || previous.status === 'retryable') &&
+    previous.status === 'retryable' &&
     next.status === 'pending' &&
     next.attempt === previous.attempt + 1;
   if (!completesAttempt && !startsRetry)

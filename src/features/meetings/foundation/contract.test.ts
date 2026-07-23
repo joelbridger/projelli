@@ -1146,11 +1146,9 @@ describe('meetings foundation contract', () => {
       provenance: 'local-processing',
       payload: { proposal: { id: 'proposal-2', title: 'Second proposal' } },
     });
-    const decideFailed = artifacts.decide;
-    const recordFailedDelivery = artifacts.recordDelivery;
-    if (!decideFailed || !recordFailedDelivery)
+    if (!artifacts.decide)
       throw new Error('expected decision and delivery ledger');
-    await decideFailed(failedArtifact.id, {
+    await artifacts.decide(failedArtifact.id, {
       from: 'produced',
       to: 'approved',
       at: '2026-07-20T11:01:00.000Z',
@@ -1158,14 +1156,14 @@ describe('meetings foundation contract', () => {
       proposalRevision: 'revision-2',
       exactProposal: { id: 'proposal-2', title: 'Second proposal' },
     });
-    await recordFailedDelivery({
+    await artifacts.recordDelivery({
       artifactId: failedArtifact.id,
       key: 'delivery-2',
       status: 'pending',
       at: '2026-07-20T11:02:00.000Z',
       attempt: 1,
     });
-    await recordFailedDelivery({
+    await artifacts.recordDelivery({
       artifactId: failedArtifact.id,
       key: 'delivery-2',
       status: 'failed',
@@ -1192,6 +1190,28 @@ describe('meetings foundation contract', () => {
         message: 'Permanent destination refusal',
       },
     });
+
+    if (!artifacts.recordDelivery)
+      throw new Error('expected reconstructed delivery ledger');
+    const deliveryRecordsBeforeRetry = live
+      .readCanonical()
+      .filter((record) => record.kind === 'meeting_artifact_delivery').length;
+    await expect(
+      artifacts.recordDelivery({
+        artifactId: failedArtifact.id,
+        key: 'delivery-2',
+        status: 'pending',
+        at: '2026-07-20T11:03:00.000Z',
+        attempt: 2,
+      })
+    ).rejects.toThrow(
+      'Artifact delivery history contains an illegal transition.'
+    );
+    expect(
+      live
+        .readCanonical()
+        .filter((record) => record.kind === 'meeting_artifact_delivery')
+    ).toHaveLength(deliveryRecordsBeforeRetry);
   });
 
   it('serializes simultaneous approve and reject decisions into one stable decision record', async () => {
