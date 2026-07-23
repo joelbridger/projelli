@@ -1,0 +1,72 @@
+{
+  "kind": "m3-foundation-a-readonly-crm-open-a2-verification",
+  "attempt": 2,
+  "contract_sha256": "8a43b1bb7e6b4571930d0d7ac25805118ff67d16551dcbc1bc487822344e9277",
+  "accepted_base": "443238e6b49b608bef88e2cd51c923b07a5a3a1e",
+  "candidate": "30cc6c2dfbacffe5f5f4cd4d8563b02b7f31ea12",
+  "contract_base_revision": "30cc6c2dfbacffe5f5f4cd4d8563b02b7f31ea12",
+  "candidate_outputs": {
+    "bench-evidence/2026-07-23-m3-readonly-crm-open/receipt.json": "c7328f40658802c9a0f8eee4e6f5eecfa050ccc9525cb0994fae9230b90dace2",
+    "scripts/verify-m3-readonly-crm-open.sh": "19c53db49cda53aa9805be6532cd0d1cea4545d226cc070b299d016be218c999",
+    "src-tauri/src/commands/crm/core_commands.rs": "2dde7318247d90a006567c8a010e9e49d5b49b53f3ee14670601dd236bedda3b",
+    "src-tauri/src/commands/crm/core_store.rs": "a9caaf186f64cc3beb6ebb58c75f60b3b40ad71cec9267efb5ef0f590854369a"
+  },
+  "candidate_remote": {
+    "remote": "https://github.com/lanternplatform/lantern.git",
+    "reference": "origin/product/m3-foundation-a-readonly-crm-open-20260723",
+    "revision": "30cc6c2dfbacffe5f5f4cd4d8563b02b7f31ea12",
+    "equal_to_candidate": true
+  },
+  "original_worktree": {
+    "path": "/home/jameson/lantern/app/integration",
+    "head": "443238e6b49b608bef88e2cd51c923b07a5a3a1e",
+    "remote": "https://github.com/lanternplatform/lantern.git",
+    "clean": true
+  },
+  "tests": [
+    {
+      "name": "Candidate parent and remote identity",
+      "command": "test \"$(git rev-parse HEAD^)\" = 30cc6c2dfbacffe5f5f4cd4d8563b02b7f31ea12 && test \"$(git rev-parse origin/product/m3-foundation-a-readonly-crm-open-20260723)\" = 30cc6c2dfbacffe5f5f4cd4d8563b02b7f31ea12",
+      "result": "passed"
+    },
+    {
+      "name": "Real SQLCipher foundation tests and native compile check",
+      "command": "bash scripts/verify-m3-readonly-crm-open.sh",
+      "result": "passed"
+    },
+    {
+      "name": "Owned Rust formatting",
+      "command": "rustfmt --edition 2021 --config skip_children=true --check src-tauri/src/commands/crm/core_store.rs src-tauri/src/commands/crm/core_commands.rs",
+      "result": "passed"
+    },
+    {
+      "name": "Read and write command routing guard",
+      "command": "python3 -B -c \"from pathlib import Path; p=Path('src-tauri/src/commands/crm/core_commands.rs').read_text(); order=['crm_core_cursor','crm_core_record_applied','crm_core_commit_propagation','crm_live_upsert','crm_live_upsert_many','crm_live_list']; blocks={n:p[p.index('pub async fn '+n):(p.index('pub async fn '+order[order.index(n)+1]) if order.index(n)+1<len(order) else len(p))] for n in order}; assert 'open_read_only' in blocks['crm_core_cursor'] and 'open_read_only' in blocks['crm_live_list']; assert all('open_read_only' not in blocks[n] for n in order if n not in ['crm_core_cursor','crm_live_list'])\"",
+      "result": "passed"
+    },
+    {
+      "name": "Temporary helper absence",
+      "command": "test ! -e src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -e src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "result": "passed"
+    },
+    {
+      "name": "Exact candidate bytes and scope",
+      "command": "python3 -B -c \"import hashlib,subprocess as s; c='30cc6c2dfbacffe5f5f4cd4d8563b02b7f31ea12'; expected={'bench-evidence/2026-07-23-m3-readonly-crm-open/receipt.json':'c7328f40658802c9a0f8eee4e6f5eecfa050ccc9525cb0994fae9230b90dace2','scripts/verify-m3-readonly-crm-open.sh':'19c53db49cda53aa9805be6532cd0d1cea4545d226cc070b299d016be218c999','src-tauri/src/commands/crm/core_commands.rs':'2dde7318247d90a006567c8a010e9e49d5b49b53f3ee14670601dd236bedda3b','src-tauri/src/commands/crm/core_store.rs':'a9caaf186f64cc3beb6ebb58c75f60b3b40ad71cec9267efb5ef0f590854369a'}; assert all(hashlib.sha256(s.check_output(['git','show',c+':'+p])).hexdigest()==h for p,h in expected.items()); assert sorted(s.check_output(['git','diff','--name-only','443238e6b49b608bef88e2cd51c923b07a5a3a1e',c],text=True).splitlines())==sorted(expected)\"",
+      "result": "passed"
+    }
+  ],
+  "canonical_helper_sources": {
+    "/home/jameson/lantern/app/integration/src-tauri/binaries/piper-x86_64-unknown-linux-gnu": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b",
+    "/home/jameson/lantern/app/integration/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77"
+  },
+  "temporary_helper_absence": {
+    "/home/jameson/lantern/app/integration/.worktrees/product/m3-foundation-a-readonly-crm-open-20260723": true,
+    "/home/jameson/lantern/app/integration/.worktrees/evidence/m3-foundation-a-readonly-crm-open-a2-20260723": true
+  },
+  "product_bytes_unchanged_by_evidence_lane": true,
+  "not_proven": [
+    "No Windows proof was run.",
+    "This receipt does not accept the product candidate.",
+    "This lane does not integrate the candidate."
+  ]
+}
