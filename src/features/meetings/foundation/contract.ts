@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   loadVisibleCrmRecordsForViewer,
   useLiveCrmRecords,
@@ -575,6 +575,8 @@ export interface FirmMeetingDirectoryReader {
 }
 
 export interface MeetingArtifactInput {
+  /** Reserved stable IDs are accepted only for sealed built-in capabilities. */
+  readonly id?: MeetingArtifactRef;
   readonly meetingId: MeetingRef;
   readonly kind: MeetingArtifactKind;
   readonly schemaVersion: number;
@@ -584,7 +586,8 @@ export interface MeetingArtifactInput {
   readonly provenance:
     | 'local-entry'
     | 'local-processing'
-    | 'attached-statement';
+    | 'attached-statement'
+    | 'hendricks-sample-capability';
   readonly payload: Readonly<Record<string, unknown>>;
 }
 
@@ -2513,10 +2516,6 @@ export async function migrateLegacyMeetingArtifactVisibility(
   return records;
 }
 
-const meetingArtifactVisibilityMigrations = new Map<
-  string,
-  Promise<readonly LiveCrmRecord[]>
->();
 const meetingArtifactDecisionLocks = new Map<string, Promise<void>>();
 
 async function serializeMeetingArtifactDecision<T>(
@@ -2536,21 +2535,6 @@ async function serializeMeetingArtifactDecision<T>(
     if (meetingArtifactDecisionLocks.get(key) === settled)
       meetingArtifactDecisionLocks.delete(key);
   }
-}
-
-function runMeetingArtifactVisibilityMigration(
-  port: ClientScopedLivePort
-): Promise<readonly LiveCrmRecord[]> {
-  const key = port.workspaceRoot;
-  if (!key) return migrateLegacyMeetingArtifactVisibility(port);
-  const existing = meetingArtifactVisibilityMigrations.get(key);
-  if (existing) return existing;
-  const running = migrateLegacyMeetingArtifactVisibility(port).finally(() => {
-    if (meetingArtifactVisibilityMigrations.get(key) === running)
-      meetingArtifactVisibilityMigrations.delete(key);
-  });
-  meetingArtifactVisibilityMigrations.set(key, running);
-  return running;
 }
 
 export function createMeetingArtifactStore(
@@ -2726,14 +2710,6 @@ export function createMeetingArtifactStore(
             { readonly kind: 'ready' }
           >
       > => {
-        try {
-          await ensureLegacyVisibilityMigrated();
-        } catch {
-          return refused(
-            'records-unavailable',
-            'Meeting artifacts are unavailable until records reload.'
-          );
-        }
         if (!port.getFirmSelectionError)
           return refused(
             'selection-blocked',
@@ -2912,7 +2888,6 @@ export function createMeetingArtifactStore(
     append: async (input) => {
       const expected = scope.requireCurrent('Meeting');
       requireAvailable(port);
-      await ensureLegacyVisibilityMigrated();
       const freshRecords = await port.reloadRecords();
       scope.assertStable(expected, 'Meeting artifact');
       raw = freshRecords ?? [];
@@ -2921,7 +2896,7 @@ export function createMeetingArtifactStore(
       if (!MEETING_ARTIFACT_KINDS.includes(input.kind))
         throw new Error('Meeting artifact kind is invalid.');
       if (
-        !['local-entry', 'local-processing', 'attached-statement'].includes(
+        !['local-entry', 'local-processing', 'attached-statement', 'hendricks-sample-capability'].includes(
           input.provenance
         )
       )
@@ -2942,7 +2917,21 @@ export function createMeetingArtifactStore(
       // Fail-closed write: an artifact can only be appended to a meeting owned
       // by the active client, so B cannot append onto A's meeting after a switch.
       scope.assertOwns(recordClientBoundary(parent), 'Meeting');
-      const id = recordId('meeting-artifact');
+      const id = input.id ?? recordId('meeting-artifact');
+      const existing = raw.find((candidate) => candidate.id === id);
+      if (existing) {
+        const projected = projectArtifact(existing, raw);
+        const same =
+          projected.meetingId === input.meetingId &&
+          projected.kind === input.kind &&
+          projected.schemaVersion === input.schemaVersion &&
+          projected.producedAt === producedAt &&
+          JSON.stringify(projected.sourceRefs) === JSON.stringify(input.sourceRefs) &&
+          projected.provenance === input.provenance &&
+          JSON.stringify(projected.payload) === JSON.stringify(input.payload);
+        if (!same) throw new Error('A sealed meeting artifact conflicts with its canonical content.');
+        return projected;
+      }
       const record: LiveCrmRecord = {
         id,
         kind: 'meeting_artifact',
@@ -2972,7 +2961,9 @@ export function createMeetingArtifactStore(
                 ownerRef: nonEmpty(parent['ownerRef'], 'Meeting owner'),
                 visibilityPolicyId: parent['visibilityPolicyId'],
               } satisfies MeetingVisibilitySubject)
-            : explicitLegacyMeetingVisibility('meeting-artifact', id),
+            : input.provenance === 'hendricks-sample-capability'
+              ? ({ kind: 'meeting-artifact', id, lineage: 'accountless-unrestricted' } satisfies MeetingVisibilitySubject)
+              : explicitLegacyMeetingVisibility('meeting-artifact', id),
       };
       const persisted = await persist(record, expected);
       if (!canReadArtifact(persisted, raw))
@@ -2997,7 +2988,6 @@ export function createMeetingArtifactStore(
     recordDelivery: async (input) => {
       const expected = scope.requireCurrent('Artifact');
       requireAvailable(port);
-      await ensureLegacyVisibilityMigrated();
       const fresh = await port.reloadRecords();
       scope.assertStable(expected, 'Meeting artifact');
       raw = fresh ?? [];
@@ -3069,7 +3059,6 @@ export function createMeetingArtifactStore(
   ): Promise<MeetingArtifact> {
     const expected = scope.requireCurrent('Artifact');
     requireAvailable(port);
-    await ensureLegacyVisibilityMigrated();
       const fresh = await port.reloadRecords();
       scope.assertStable(expected, 'Meeting artifact');
       raw = fresh ?? [];
@@ -3131,9 +3120,6 @@ export function createMeetingArtifactStore(
     return projectArtifact(reloadedBase, raw);
   }
 
-  async function ensureLegacyVisibilityMigrated(): Promise<void> {
-    raw = await runMeetingArtifactVisibilityMigration(port);
-  }
 }
 
 export function validateMeetingArtifactTransition(
@@ -4305,17 +4291,6 @@ export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
     getFirmSelectionError: readAuthoritativeFirmMeetingSelectionError,
     reloadRecords: live.reloadRecords,
   };
-  useEffect(() => {
-    if (!live.workspaceRoot || live.error) return;
-    void runMeetingArtifactVisibilityMigration(port).catch((error: unknown) => {
-      console.warn(
-        '[meetingArtifactStore] Legacy visibility migration will retry:',
-        error
-      );
-    });
-    // One attempt per opened workspace; the shared map prevents mount races.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live.workspaceRoot, live.error]);
   return createMeetingArtifactStore(port);
 }
 export function useMeetingTypeStore(): MeetingTypeStore {

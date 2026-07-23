@@ -10,10 +10,6 @@ import type {
 import { useBriefStore } from '@/features/meetings';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import {
-  decideMeetingFileVisibility,
-  FILE_MEETING_OWNER_PRIVATE_POLICY,
-} from '@/features/meetings/meetingFileVisibility';
 import type { Matter } from '@/platform/types/matter';
 import {
   SAMPLE_GOLDEN_PATH,
@@ -255,16 +251,6 @@ describe('seedSampleGoldenPath', () => {
     expect(manifest).toMatchObject({
       meetingSubject: { ownerRef: 'advisor-a' },
     });
-    expect(decideMeetingFileVisibility({
-      manifest,
-      fileName: 'notes.docx',
-      context: { viewerId: null, policies: [FILE_MEETING_OWNER_PRIVATE_POLICY] },
-    })).toBe(false);
-    expect(decideMeetingFileVisibility({
-      manifest,
-      fileName: 'notes.docx',
-      context: { viewerId: 'advisor-b', policies: [FILE_MEETING_OWNER_PRIVATE_POLICY] },
-    })).toBe(false);
   });
 
   it('writes no sample files when canonical creation fails', async () => {

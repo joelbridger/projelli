@@ -53,9 +53,10 @@ import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
 import {
   readActiveMeetingClientBoundary,
+  useMeetingArtifactStore,
   useMeetingPopulationService,
   type SealedMeetingClientBoundary,
-} from '@/features/meetings/foundation/contract';
+} from '@/features/meetings';
 import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
 import { AutoJoinMeetingsPanel } from '@/features/meetings/AutoJoinMeetingsPanel';
 import { LazyBoundary } from '@/ui/LazyBoundary';
@@ -312,6 +313,7 @@ function App() {
 function AppShell() {
   const { t } = useTranslation();
   const sampleMeetingPopulation = useMeetingPopulationService();
+  const sampleMeetingArtifacts = useMeetingArtifactStore();
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
     !IS_TEST_MODE && !IS_DEMO_MODE
   );
@@ -1342,6 +1344,7 @@ function AppShell() {
       pendingSampleMeetingSeed.matterId,
       sampleMeetingPopulation,
       pendingSampleMeetingSeed.boundary
+      , sampleMeetingArtifacts
     )
       .then(() => {
         setSampleMeetingSeedFailure(null);
@@ -1367,7 +1370,7 @@ function AppShell() {
             : pending
         );
       });
-  }, [pendingSampleMeetingSeed, rootPath, sampleMeetingPopulation]);
+  }, [pendingSampleMeetingSeed, rootPath, sampleMeetingPopulation, sampleMeetingArtifacts]);
 
   const retrySampleMeetingSeed = useCallback(() => {
     if (!sampleMeetingSeedFailure) return;

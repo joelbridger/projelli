@@ -593,6 +593,36 @@ function canonicalTask(
   } as LiveCrmRecord & Task;
 }
 
+/** A retry may recover only the same local task, never reuse its key for new text. */
+function sameMeetingDeliveryTask(
+  stored: LiveCrmRecord,
+  candidate: LiveCrmRecord
+): boolean {
+  return JSON.stringify({
+    id: stored.id,
+    key: stored['meetingDeliveryKey'],
+    title: stored['title'],
+    body: stored['body'],
+    householdRef: stored['householdRef'],
+    assigneeUserId: stored['assigneeUserId'],
+    status: stored['status'],
+    due: stored['due'],
+    priority: stored['priority'],
+    meetingVisibility: stored['meetingVisibility'],
+  }) === JSON.stringify({
+    id: candidate.id,
+    key: candidate['meetingDeliveryKey'],
+    title: candidate['title'],
+    body: candidate['body'],
+    householdRef: candidate['householdRef'],
+    assigneeUserId: candidate['assigneeUserId'],
+    status: candidate['status'],
+    due: candidate['due'],
+    priority: candidate['priority'],
+    meetingVisibility: candidate['meetingVisibility'],
+  });
+}
+
 function mergePatch(
   record: LiveCrmRecord,
   patch: UpdateTaskRecordPatch,
@@ -699,6 +729,8 @@ function createTaskRecordStore(
           !canReadTask(found, currentRecords(), viewerId)
         )
           throw new Error('This private meeting task is not available.');
+        if (!sameMeetingDeliveryTask(found, candidate))
+          throw new Error('Meeting task delivery identity conflicts with different content.');
         return toTaskRecord(found);
       }
       try {

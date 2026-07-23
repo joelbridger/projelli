@@ -2,7 +2,9 @@
 //! collection-document truth; every other CRM entity table is replaceable.
 
 use anyhow::{bail, Context, Result};
+use hmac::{Hmac, Mac};
 use rusqlite::{params, Connection, OptionalExtension};
+use sha2::Sha256;
 use std::{
     path::{Path, PathBuf},
     sync::Mutex,
@@ -84,8 +86,132 @@ fn core_master_key() -> Result<[u8; KEY_LEN]> {
     }
 }
 
+fn canonical_json_bytes(value: &serde_json::Value) -> Result<Vec<u8>> {
+    // serde_json maps preserve insertion order only when configured that way;
+    // this recursive form is stable across restarts and rejects non-finite data.
+    fn write(value: &serde_json::Value, out: &mut String) -> Result<()> {
+        match value {
+            serde_json::Value::Object(map) => {
+                out.push('{');
+                let mut keys = map.keys().collect::<Vec<_>>();
+                keys.sort();
+                for (index, key) in keys.iter().enumerate() {
+                    if index > 0 {
+                        out.push(',');
+                    }
+                    out.push_str(&serde_json::to_string(key)?);
+                    out.push(':');
+                    write(&map[*key], out)?;
+                }
+                out.push('}');
+            }
+            serde_json::Value::Array(items) => {
+                out.push('[');
+                for (index, item) in items.iter().enumerate() {
+                    if index > 0 {
+                        out.push(',');
+                    }
+                    write(item, out)?;
+                }
+                out.push(']');
+            }
+            _ => out.push_str(&serde_json::to_string(value)?),
+        }
+        Ok(())
+    }
+    let mut output = String::new();
+    write(value, &mut output)?;
+    Ok(output.into_bytes())
+}
+
+fn exact_text<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Result<&'a str> {
+    object
+        .get(key)
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("Hendricks capability {key} is missing"))
+}
+
+fn validate_hendricks_manifest(value: &serde_json::Value) -> Result<()> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("Hendricks capability must be an object"))?;
+    let expected = [
+        ("version", "hendricks-review-capability-v1"),
+        ("lineage", "hendricks-sample-capability"),
+        (
+            "staticDigest",
+            "e8d6c5e662def2548d39dc225e6f8beea47fc688da56860e50b3eefbc708fa3a",
+        ),
+        ("householdRef", "sample-hendricks-household"),
+        ("eventId", "sample-hendricks-annual-review"),
+        ("startedAt", "2026-07-02T14:00:00.000Z"),
+        ("endedAt", "2026-07-02T14:42:00.000Z"),
+    ];
+    for (key, expected) in expected {
+        if exact_text(object, key)? != expected {
+            bail!("Hendricks capability {key} conflicts with the built-in sample")
+        }
+    }
+    for key in ["workspaceRoot", "matterId", "meetingId"] {
+        exact_text(object, key)?;
+    }
+    if object
+        .get("workspaceGeneration")
+        .and_then(serde_json::Value::as_u64)
+        .filter(|value| *value > 0)
+        .is_none()
+    {
+        bail!("Hendricks capability workspace generation is invalid")
+    }
+    let proposals = object
+        .get("proposals")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("Hendricks capability proposals are missing"))?;
+    if proposals.len() != 2 {
+        bail!("Hendricks capability must contain exactly two proposals")
+    }
+    let task = proposals.iter().find(|proposal| {
+        proposal.get("id").and_then(serde_json::Value::as_str) == Some("hendricks-review-task-v1")
+    });
+    let crm = proposals.iter().find(|proposal| {
+        proposal.get("id").and_then(serde_json::Value::as_str) == Some("hendricks-review-crm-v1")
+    });
+    let task = task
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| anyhow::anyhow!("Hendricks task proposal is missing"))?;
+    if exact_text(task, "kind")? != "task"
+        || !task.get("ownerRef").is_some_and(serde_json::Value::is_null)
+    {
+        bail!("Hendricks task proposal is not the fixed unassigned local task")
+    }
+    let crm = crm
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| anyhow::anyhow!("Hendricks CRM proposal is missing"))?;
+    if exact_text(crm, "kind")? != "crm-update"
+        || exact_text(crm, "entityRef")? != "sample-hendricks-household"
+    {
+        bail!("Hendricks CRM proposal targets the wrong client")
+    }
+    let fields = crm
+        .get("fields")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| anyhow::anyhow!("Hendricks CRM fields are missing"))?;
+    if fields.len() != 1
+        || fields[0].get("field").and_then(serde_json::Value::as_str)
+            != Some("annualReviewFollowUp")
+    {
+        bail!("Hendricks CRM proposal must contain exactly one fixed field")
+    }
+    Ok(())
+}
+
 pub struct CrmCoreStore {
     conn: Mutex<Connection>,
+    signing_key: [u8; KEY_LEN],
     #[allow(dead_code)]
     workspace_root: PathBuf,
 }
@@ -109,6 +235,7 @@ impl CrmCoreStore {
         migrations::migrate(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
+            signing_key: *key,
             workspace_root: workspace_root.to_path_buf(),
         })
     }
@@ -238,6 +365,54 @@ impl CrmCoreStore {
             })
             .collect::<Result<Vec<_>>>()?;
         Ok(records)
+    }
+
+    /// Seal the one built-in Hendricks walkthrough capability in the existing
+    /// encrypted CRM core. The renderer may request it, but never chooses the
+    /// truth being signed: this boundary checks every fixed fact and both
+    /// complete proposals before deriving a domain-separated HMAC key.
+    pub fn seal_hendricks_review_capability(
+        &self,
+        manifest: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        validate_hendricks_manifest(manifest)?;
+        let bytes = canonical_json_bytes(manifest)?;
+        let mut derivation = Hmac::<Sha256>::new_from_slice(&self.signing_key)
+            .map_err(|_| anyhow::anyhow!("derive Hendricks capability key"))?;
+        derivation.update(b"lantern/hendricks-review-capability/v1");
+        let derived = derivation.finalize().into_bytes();
+        let mut signer = Hmac::<Sha256>::new_from_slice(&derived)
+            .map_err(|_| anyhow::anyhow!("sign Hendricks capability"))?;
+        signer.update(&bytes);
+        let signature = hex::encode(signer.finalize().into_bytes());
+        let envelope = serde_json::json!({"manifest": manifest, "signature": signature});
+        let encoded = serde_json::to_vec(&envelope)?;
+        self.with_immediate_transaction(|tx| {
+            let existing: Option<Vec<u8>> = tx.query_row(
+                "SELECT yjs_state FROM crm_docs WHERE doc_key='capability/hendricks-review-v1' AND deleted=0",
+                [], |row| row.get(0)
+            ).optional()?;
+            if let Some(existing) = existing {
+                let stored: serde_json::Value = serde_json::from_slice(&existing)
+                    .context("decode stored Hendricks capability")?;
+                let stored_manifest = stored.get("manifest").ok_or_else(|| anyhow::anyhow!("stored Hendricks capability is malformed"))?;
+                let stored_signature = stored.get("signature").and_then(serde_json::Value::as_str)
+                    .ok_or_else(|| anyhow::anyhow!("stored Hendricks capability signature is malformed"))?;
+                validate_hendricks_manifest(stored_manifest)?;
+                let mut verifier = Hmac::<Sha256>::new_from_slice(&derived)
+                    .map_err(|_| anyhow::anyhow!("verify Hendricks capability"))?;
+                verifier.update(&canonical_json_bytes(stored_manifest)?);
+                verifier.verify_slice(&hex::decode(stored_signature).context("decode Hendricks capability signature")?)
+                    .map_err(|_| anyhow::anyhow!("stored Hendricks capability signature does not verify"))?;
+                if stored_manifest != manifest { bail!("Hendricks capability conflicts with the existing encrypted manifest") }
+                return Ok(stored);
+            }
+            tx.execute(
+                "INSERT INTO crm_docs(doc_key,matter_id,doc_id,yjs_state,state_vector,updated_at,deleted) VALUES(?1,?2,?3,?4,?5,?6,0)",
+                params!["capability/hendricks-review-v1", manifest["matterId"].as_str().unwrap(), "capability:hendricks-review-v1", encoded, Vec::<u8>::new(), now_iso()],
+            )?;
+            Ok(envelope)
+        })
     }
     /// Soft deletion is a projected tombstone, never a physical erase of the
     /// collection document.  The allow-list prevents identifiers becoming SQL.

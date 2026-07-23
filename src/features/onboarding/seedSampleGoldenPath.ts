@@ -12,8 +12,8 @@ import {
   type ActiveClientMeetingPopulationOperation,
   type MeetingPopulationService,
   type SealedMeetingClientBoundary,
+  type MeetingArtifactStore,
 } from '@/features/meetings';
-import type { MeetingFileVisibilityManifest } from '@/features/meetings/meetingFileVisibility';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -24,6 +24,7 @@ import {
   SAMPLE_FILE_PLAN_SUMMARY,
   sampleFilePath,
 } from '@/platform/matter/samples/sampleMatterDemo';
+import { hendricksReviewArtifactInputs, sealHendricksReviewCapability } from '@/platform/samples/hendricksReviewCapability';
 
 const SAMPLE_MEETING_FOLDER = '2026-07-02-hendricks-annual-review';
 const SAMPLE_MEETING_EVENT_ID = 'sample-hendricks-annual-review';
@@ -320,9 +321,9 @@ function exactText(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value === value.trim();
 }
 
-function isOwnerPrivateManifest(value: unknown): value is MeetingFileVisibilityManifest {
+function isOwnerPrivateManifest(value: unknown): value is NonNullable<MeetingMeta['meetingFileVisibility']> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const manifest = value as MeetingFileVisibilityManifest;
+  const manifest = value as NonNullable<MeetingMeta['meetingFileVisibility']>;
   const root = manifest.meetingSubject;
   if (
     manifest.version !== 1 ||
@@ -347,9 +348,9 @@ function isOwnerPrivateManifest(value: unknown): value is MeetingFileVisibilityM
   );
 }
 
-function isExactAccountlessSampleManifest(value: unknown): value is MeetingFileVisibilityManifest {
+function isExactAccountlessSampleManifest(value: unknown): value is NonNullable<MeetingMeta['meetingFileVisibility']> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const manifest = value as MeetingFileVisibilityManifest;
+  const manifest = value as NonNullable<MeetingMeta['meetingFileVisibility']>;
   const rootId = `meeting-file:${SAMPLE_MEETING_EVENT_ID}`;
   if (
     manifest.version !== 1 ||
@@ -370,7 +371,7 @@ function isExactAccountlessSampleManifest(value: unknown): value is MeetingFileV
   });
 }
 
-function isPreservableSampleVisibility(value: unknown): value is MeetingFileVisibilityManifest {
+function isPreservableSampleVisibility(value: unknown): value is NonNullable<MeetingMeta['meetingFileVisibility']> {
   return isOwnerPrivateManifest(value) || isExactAccountlessSampleManifest(value);
 }
 
@@ -403,7 +404,8 @@ export async function seedSampleGoldenPath(
   workspaceRoot: string,
   matterId: string,
   population: MeetingPopulationService,
-  boundary: SealedMeetingClientBoundary
+  boundary: SealedMeetingClientBoundary,
+  artifacts?: MeetingArtifactStore
 ): Promise<void> {
   // The welcome action minted this exact boundary. Deferred work must verify
   // it, never capture whichever client happens to be selected later.
@@ -447,6 +449,20 @@ export async function seedSampleGoldenPath(
 
   operation.assertStable();
   await completeCanonicalSampleMeeting(operation, canonical);
+  await sealHendricksReviewCapability({
+    workspaceRoot,
+    workspaceGeneration: boundary.selectionGeneration,
+    matterId,
+    meetingId: canonical.id,
+  });
+  if (artifacts) {
+    for (const artifact of hendricksReviewArtifactInputs({
+      workspaceRoot,
+      workspaceGeneration: boundary.selectionGeneration,
+      matterId,
+      meetingId: canonical.id,
+    })) await artifacts.append(artifact);
+  }
   operation.assertStable();
   const sample = sampleBrief(workspaceRoot, matterId);
   useBriefStore.getState().upsert(sample.identity, sample.brief);

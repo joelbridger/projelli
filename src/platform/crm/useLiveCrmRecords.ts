@@ -23,7 +23,6 @@ import {
   publishLiveRecord,
 } from './liveRecordRelay';
 import { filterLiveCrmRecordsByMeetingVisibility } from './meetingVisibility';
-import { migrateCanonicalMeetingVisibility } from './meetingVisibilityMigration';
 import {
   canReadMeetingDerivedRecord as canReadMeetingDerivedRecordFromSnapshot,
   canReadMeetingVisibilitySubject as canReadMeetingVisibilitySubjectFromSnapshot,
@@ -120,31 +119,11 @@ const CRM_CLIENT_SELECTION_REQUEST = {
   requireFollowerAgreement: true,
 } as const;
 
-const visibilityMigrations = new Map<
-  string,
-  Promise<readonly LiveCrmRecord[]>
->();
-
-/** Load one visibility-ready raw snapshot, serializing concurrent mounts. */
+/** Ordinary reads never repair records. Legacy rows remain hidden until an explicit maintenance action repairs them. */
 async function loadVisibilityReadyCrmRecords(
   workspaceRoot: string
 ): Promise<readonly LiveCrmRecord[]> {
-  const active = visibilityMigrations.get(workspaceRoot);
-  if (active) return active;
-  const migration = Promise.resolve().then(async () => {
-    const loaded = await loadLiveCrmRecords(workspaceRoot);
-    return migrateCanonicalMeetingVisibility(loaded, (record) =>
-      saveLiveCrmRecord(workspaceRoot, record)
-    );
-  });
-  visibilityMigrations.set(workspaceRoot, migration);
-  try {
-    return await migration;
-  } finally {
-    if (visibilityMigrations.get(workspaceRoot) === migration) {
-      visibilityMigrations.delete(workspaceRoot);
-    }
-  }
+  return loadLiveCrmRecords(workspaceRoot);
 }
 
 /** One-shot visibility-filtered read for non-React feature consumers. */

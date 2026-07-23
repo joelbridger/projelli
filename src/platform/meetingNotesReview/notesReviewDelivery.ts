@@ -12,6 +12,7 @@ import type {
   NotesReviewReceipt,
 } from '@/ui/notesReview';
 import type { MeetingVisibilitySubject } from '@/platform/meeting-visibility';
+import { isHendricksReviewArtifact } from '@/platform/samples/hendricksReviewCapability';
 
 const STATE_FILE = 'notes-review.json';
 const SCHEMA_VERSION = 1 as const;
@@ -711,8 +712,8 @@ export function makeExactMeetingNotesReviewRepository<
         )
         .filter((artifact) => {
           const subject = artifactMeetingVisibility(artifact);
-          return subject.lineage === 'legacy-unrestricted'
-            ? true
+          return subject.lineage === 'accountless-unrestricted'
+            ? isHendricksReviewArtifact(artifact)
             : input.canReadArtifact?.(artifact) === true;
         });
       const items = exact.flatMap((artifact) =>
@@ -1224,7 +1225,10 @@ function artifactMeetingVisibility(
     );
   const subject = candidate as MeetingVisibilitySubject;
   const exactArtifact = subject.kind === 'meeting-artifact' && subject.id === artifact.id;
-  const exactLegacy = exactArtifact && subject.lineage === 'legacy-unrestricted';
+  const exactHendricksSample =
+    exactArtifact &&
+    subject.lineage === 'accountless-unrestricted' &&
+    isHendricksReviewArtifact(artifact);
   const exactDerived =
     exactArtifact &&
     subject.lineage === 'derived' &&
@@ -1234,7 +1238,7 @@ function artifactMeetingVisibility(
     Boolean(subject.ownerRef.trim()) &&
     typeof subject.visibilityPolicyId === 'string' &&
     Boolean(subject.visibilityPolicyId.trim());
-  if (!exactLegacy && !exactDerived)
+  if (!exactDerived && !exactHendricksSample)
     throw new Error(
       'The meeting proposal has conflicting private-note lineage. Nothing was shown or delivered.'
     );
