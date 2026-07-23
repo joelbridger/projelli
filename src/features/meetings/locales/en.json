@@ -117,6 +117,15 @@
       "summary-copied": "Summary copied",
       "summary-empty": "No summary text is available yet.",
       "summary-not-ready": "Summary is not ready yet.",
+      "private-note": {
+        "action": "Keep this meeting note private to me",
+        "saving": "Making this note private…",
+        "saved": "This meeting note is private to you.",
+        "unavailable": "This note can't be made private right now. Nothing changed.",
+        "unavailable-identity": "Sign in before making this note private.",
+        "unavailable-workspace": "Open this meeting's workspace before making this note private.",
+        "save-failed": "This note couldn't be made private. Nothing changed."
+      },
       "structured-summary-loading": "Loading this meeting's summary.",
       "structured-summary-read-error": "This meeting's summary couldn't be loaded. Your recording and transcript are safe.",
       "structured-summary-title": "Meeting summary",
