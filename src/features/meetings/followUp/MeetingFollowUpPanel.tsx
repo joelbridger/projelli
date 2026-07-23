@@ -264,14 +264,13 @@ export function MeetingFollowUpPanel({
           );
         }}
         onProviderSaveAttempt={async (attempt) => {
-          const result = await store.save(state.target, {
+          const result = await store.claimProviderSave(state.target, {
             ...attempt.draft,
-            state: 'provider-save-pending',
-            draftProvider: attempt.provider,
-            draftAccount: attempt.account,
-            draftAccountLabel: attempt.accountLabel,
+            provider: attempt.provider,
+            account: attempt.account,
+            accountLabel: attempt.accountLabel,
           });
-          if (result.kind !== 'ready') {
+          if (result.kind !== 'acquired') {
             throw new Error('Local provider-save receipt failed.');
           }
         }}
@@ -319,8 +318,9 @@ export function LiveMeetingFollowUpPanel({
   const meetings = useMeetingFoundationStore();
   const artifacts = useMeetingArtifactStore();
   const store = useMemo(
-    () => createMeetingFollowUpStore(meetings, artifacts),
-    [artifacts, meetings]
+    () =>
+      createMeetingFollowUpStore(meetings, artifacts, context.workspaceRoot),
+    [artifacts, context.workspaceRoot, meetings]
   );
   return <MeetingFollowUpPanel context={context} store={store} />;
 }

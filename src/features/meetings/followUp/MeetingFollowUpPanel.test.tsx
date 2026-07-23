@@ -24,6 +24,7 @@ import {
   type MeetingFollowUpRecap,
   type MeetingFollowUpStore,
   type MeetingFollowUpTarget,
+  type ProviderSaveClaim,
 } from './meetingFollowUpStore';
 
 const mail = vi.hoisted(() => ({
@@ -151,10 +152,12 @@ function receiptAwareSave(
         : {}),
     })
 ) {
-  return vi.fn<MeetingFollowUpStore['save']>(async (_target, input) => ({
-    kind: 'ready' as const,
-    recap: complete(input),
-  }));
+  return vi.fn<MeetingFollowUpStore['save']>((_target, input) =>
+    Promise.resolve({
+      kind: 'ready' as const,
+      recap: complete(input),
+    })
+  );
 }
 
 function productionStoreHarness() {
@@ -204,9 +207,33 @@ function productionStoreHarness() {
     meetingId: 'meeting-a',
     client,
   };
+  const defaultProviderSaveClaim: ProviderSaveClaim = async (claim) => {
+    await artifacts.append({
+      meetingId: claim.meetingId,
+      kind: 'follow-up-draft',
+      schemaVersion: 1,
+      producedAt: new Date().toISOString(),
+      sourceRefs: [],
+      provenance: 'local-entry',
+      payload: {
+        recapKey: claim.recapKey,
+        to: claim.to,
+        subject: claim.subject,
+        body: claim.body,
+        deliveryState: 'provider-save-pending',
+        draftProvider: claim.provider,
+        draftAccount: claim.account,
+        draftAccountLabel: claim.accountLabel,
+      },
+    });
+    return { outcome: 'acquired' };
+  };
+  const createStore = (claim = defaultProviderSaveClaim) =>
+    createMeetingFollowUpStore(meetings, artifacts, undefined, claim);
   return {
     records,
-    store: createMeetingFollowUpStore(meetings, artifacts),
+    store: createStore(),
+    createStore,
     target,
     failAppendAttempts(...attempts: number[]) {
       for (const attempt of attempts) failedAppendAttempts.add(attempt);
@@ -237,6 +264,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       read,
       start: vi.fn(),
       save: vi.fn(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     expect(screen.getByTestId('meeting-follow-up-loading')).toBeTruthy();
@@ -331,6 +359,58 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     });
   });
 
+  it('lets two separately created panels reach the provider save only once', async () => {
+    let arrived = 0;
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let acquired = false;
+    const sharedClaim = async (): Promise<{
+      outcome: 'acquired' | 'alreadyClaimed';
+    }> => {
+      arrived += 1;
+      if (arrived === 2) release();
+      await released;
+      if (acquired) return { outcome: 'alreadyClaimed' };
+      acquired = true;
+      return { outcome: 'acquired' };
+    };
+    const makeStore = (): MeetingFollowUpStore => ({
+      read: vi.fn<MeetingFollowUpStore['read']>(() =>
+        Promise.resolve({
+          kind: 'ready',
+          recap: recap({
+            to: 'client@example.test',
+            subject: 'Exact meeting recap',
+            body: 'One exact-meeting recap.',
+          }),
+        })
+      ),
+      start: vi.fn(),
+      save: receiptAwareSave(),
+      claimProviderSave: async () => {
+        const result = await sharedClaim();
+        return result.outcome === 'acquired'
+          ? { kind: 'acquired' as const }
+          : { kind: 'already-claimed' as const };
+      },
+    });
+    render(
+      <>
+        <MeetingFollowUpPanel context={context()} store={makeStore()} />
+        <MeetingFollowUpPanel context={context()} store={makeStore()} />
+      </>
+    );
+    for (const save of await screen.findAllByTestId('followup-drafts-save')) {
+      fireEvent.click(save);
+    }
+
+    await waitFor(() => {
+      expect(mail.saveDraft).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('keeps a local read failure generic and retries without exposing raw errors', async () => {
     const read = vi
       .fn<MeetingFollowUpStore['read']>()
@@ -340,6 +420,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       read,
       start: vi.fn(),
       save: vi.fn(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     expect(
@@ -392,6 +473,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       ),
       start: vi.fn(),
       save: receiptAwareSave(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     const account = await screen.findByTestId('followup-drafts-account');
@@ -446,6 +528,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       ),
       start: vi.fn(),
       save,
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     const body = await screen.findByTestId('followup-drafts-body');
@@ -466,8 +549,8 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       'Annual review recap',
       expect.stringContaining('Edited exact-meeting recap.')
     );
-    const savedTarget = save.mock.calls[1]?.[0];
-    const savedInput = save.mock.calls[1]?.[1];
+    const savedTarget = save.mock.calls[0]?.[0];
+    const savedInput = save.mock.calls[0]?.[1];
     expect(savedTarget?.meetingId).toBe('meeting-a');
     expect(savedTarget?.client.householdRef).toBe('household-a');
     expect(savedTarget?.client.matterId).toBe('matter-shared');
@@ -491,6 +574,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       ),
       start: vi.fn(),
       save: vi.fn(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     expect(
@@ -571,6 +655,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       ),
       start: vi.fn(),
       save: vi.fn(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
 
@@ -602,7 +687,9 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       await screen.findByTestId('meeting-follow-up-unresolved')
     ).toHaveTextContent('Do not save another provider draft');
     expect(mail.saveDraft).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(lane.records).toHaveLength(2));
+    await waitFor(() => {
+      expect(lane.records).toHaveLength(2);
+    });
     rendered.unmount();
     render(<MeetingFollowUpPanel context={context()} store={lane.store} />);
     expect(
@@ -627,6 +714,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       ),
       start: vi.fn(),
       save: receiptAwareSave(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     fireEvent.click(await screen.findByTestId('followup-drafts-save'));
@@ -647,6 +735,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       ),
       start: vi.fn(),
       save: receiptAwareSave(),
+      claimProviderSave: vi.fn().mockResolvedValue({ kind: 'acquired' }),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     fireEvent.click(await screen.findByTestId('followup-drafts-save'));

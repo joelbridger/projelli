@@ -1,11 +1,11 @@
 //! Narrow Tauri boundary for the CRM SQLCipher core. The renderer receives no
 //! database handle and cannot split a propagation commit into separate writes.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::State;
 
-use super::{commands::CrmState, core_store::CrmCoreStore, record_descriptors::valid_record_identifier};
+use super::{commands::CrmState, core_store::{CrmCoreStore, ProviderDraftClaim, ProviderDraftClaimOutcome}, record_descriptors::valid_record_identifier};
 
 async fn workspace(state: &CrmState) -> Result<std::path::PathBuf, String> {
     state.workspace.lock().await.clone().ok_or_else(|| "Open a workspace before using CRM data.".to_string())
@@ -117,4 +117,55 @@ pub async fn crm_live_list(state: State<'_, CrmState>) -> Result<Vec<Value>, Str
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || CrmCoreStore::open(&workspace)?.list_live_records())
         .await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderDraftClaimDto {
+    recap_key: String,
+    artifact_id: String,
+    meeting_id: String,
+    household_ref: String,
+    matter_id: String,
+    to: String,
+    subject: String,
+    body: String,
+    provider: String,
+    account: String,
+    account_label: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderDraftClaimResultDto {
+    outcome: &'static str,
+}
+
+/// Acquire the one durable, exact-meeting provider save receipt before any
+/// provider call. A second app process gets `alreadyClaimed` and must stop.
+#[tauri::command]
+pub async fn crm_claim_provider_follow_up_draft(state: State<'_, CrmState>, claim: ProviderDraftClaimDto) -> Result<ProviderDraftClaimResultDto, String> {
+    let workspace = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || {
+        let claim = ProviderDraftClaim {
+            recap_key: claim.recap_key,
+            artifact_id: claim.artifact_id,
+            meeting_id: claim.meeting_id,
+            household_ref: claim.household_ref,
+            matter_id: claim.matter_id,
+            to: claim.to,
+            subject: claim.subject,
+            body: claim.body,
+            provider: claim.provider,
+            account: claim.account,
+            account_label: claim.account_label,
+        };
+        let outcome = CrmCoreStore::open(&workspace)?.claim_provider_follow_up_draft(&claim)?;
+        Ok::<_, anyhow::Error>(ProviderDraftClaimResultDto {
+            outcome: match outcome {
+                ProviderDraftClaimOutcome::Acquired => "acquired",
+                ProviderDraftClaimOutcome::AlreadyClaimed => "alreadyClaimed",
+            },
+        })
+    }).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
 }

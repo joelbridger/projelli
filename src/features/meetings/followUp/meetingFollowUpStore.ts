@@ -1,5 +1,10 @@
 import { sha256Hex } from '@/lib/hash';
 import {
+  claimProviderFollowUpDraft,
+  type ProviderFollowUpDraftClaim,
+  type ProviderFollowUpDraftClaimResult,
+} from '@/platform/crm/liveRecords';
+import {
   meetingArtifactsForClient,
   type MeetingArtifact,
   type MeetingArtifactStore,
@@ -81,7 +86,24 @@ export interface MeetingFollowUpStore {
           }
       )
   ): Promise<MeetingFollowUpWriteResult>;
+  claimProviderSave(
+    target: MeetingFollowUpTarget,
+    input: MeetingFollowUpDraft & {
+      readonly provider: 'm365' | 'gmail';
+      readonly account: string;
+      readonly accountLabel: string;
+    }
+  ): Promise<
+    | { readonly kind: 'acquired' }
+    | { readonly kind: 'already-claimed' }
+    | { readonly kind: 'refused' }
+    | { readonly kind: 'error' }
+  >;
 }
+
+export type ProviderSaveClaim = (
+  claim: ProviderFollowUpDraftClaim
+) => Promise<ProviderFollowUpDraftClaimResult>;
 
 function cleanIdentity(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -309,7 +331,10 @@ function projectRecap(
  */
 export function createMeetingFollowUpStore(
   meetings: MeetingStore,
-  artifacts: MeetingArtifactStore
+  artifacts: MeetingArtifactStore,
+  workspaceRoot?: string | null,
+  providerSaveClaim: ProviderSaveClaim = (claim) =>
+    claimProviderFollowUpDraft(workspaceRoot, claim)
 ): MeetingFollowUpStore {
   const read = async (
     target: MeetingFollowUpTarget
@@ -409,6 +434,49 @@ export function createMeetingFollowUpStore(
     }
   };
 
+  const claimProviderSave: MeetingFollowUpStore['claimProviderSave'] = async (
+    target,
+    input
+  ) => {
+    if (
+      !hasCompleteTarget(target) ||
+      !ownsExactCanonicalMeeting(meetings, target) ||
+      !validOutlookDraft(input) ||
+      !validProviderSnapshot({
+        draftProvider: input.provider,
+        draftAccount: input.account,
+        draftAccountLabel: input.accountLabel,
+      })
+    ) {
+      return { kind: 'refused' };
+    }
+    try {
+      const recapKey = await deriveMeetingFollowUpRecapKey(target);
+      const current = await read(target);
+      if (current.kind !== 'ready' || current.recap.state !== 'edited') {
+        return { kind: 'refused' };
+      }
+      const result = await providerSaveClaim({
+        recapKey,
+        artifactId: current.recap.artifactId,
+        meetingId: target.meetingId,
+        householdRef: target.client.householdRef,
+        matterId: target.client.matterId,
+        to: input.to,
+        subject: input.subject,
+        body: input.body,
+        provider: input.provider,
+        account: input.account,
+        accountLabel: input.accountLabel,
+      });
+      return result.outcome === 'acquired'
+        ? { kind: 'acquired' }
+        : { kind: 'already-claimed' };
+    } catch {
+      return { kind: 'error' };
+    }
+  };
+
   return {
     read,
     start: async (target) => {
@@ -423,5 +491,6 @@ export function createMeetingFollowUpStore(
       });
     },
     save,
+    claimProviderSave,
   };
 }
