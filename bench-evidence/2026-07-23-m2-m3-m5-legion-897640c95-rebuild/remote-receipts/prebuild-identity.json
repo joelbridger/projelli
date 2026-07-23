@@ -1,0 +1,17 @@
+﻿{
+    "checked_utc":  "2026-07-23T06:35:21.2954067Z",
+    "archive_sha256":  "A7E856B35840AA40AA416558FF0D7927E167F94D6313B1464029F7BFDBD796F5",
+    "accepted_git_tree":  "163d6fe1a81941ba3023552130559a5949b95ee6",
+    "package_sha256":  "192F9B6E8237344FE730D4DCF058759BD3B0457664501F3FA1F0B351F380E012",
+    "tauri_config_sha256":  "6D270BB49CAEBBD0D685EFA9AC8FFBB4A74BD1EB8E4DA71D9767F0E699772608",
+    "new_task_exists":  false,
+    "direct_get_process":  [
+                               {
+                                   "ProcessName":  "powershell",
+                                   "Id":  148436,
+                                   "StartTime":  "\/Date(1784788519389)\/",
+                                   "Path":  "c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe"
+                               }
+                           ],
+    "accepted":  true
+}

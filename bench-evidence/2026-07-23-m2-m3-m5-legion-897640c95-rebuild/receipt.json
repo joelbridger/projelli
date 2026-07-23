@@ -1,0 +1,56 @@
+{
+  "schema": "lantern-corrective-windows-evidence-v1",
+  "launch_binding": {
+    "job_id": "20260723-062646-4ds5xxxx",
+    "contract_sha256": "43ff9baeca96fd0acef57f33516c79067462e1e70345718d647f812d7bc3b4b4",
+    "launch_record": "/home/jameson/.local/share/codex-fleet/20260723-062646-4ds5xxxx/launch-record.json",
+    "attempt": 2
+  },
+  "identity": {
+    "machine": "DESKLINK129887",
+    "windows_user": "DESKLINK129887\\james",
+    "root": "D:\\Lantern-M2-M3-M5-897640c95-R2",
+    "revision": "897640c95d50f14400fe0868904f5da3f11aa9fb",
+    "source_tree": "163d6fe1a81941ba3023552130559a5949b95ee6",
+    "archive_sha256": "a7e856b35840aa40aa416558ff0d7927e167f94d6313b1464029f7bfdbd796f5",
+    "package_json_sha256": "192f9b6e8237344fe730d4dcf058759bd3b0457664501f3fa1f0b351f380e012",
+    "tauri_config_sha256": "6d270bb49caebbd0d685efa9ac8ffbb4a74bd1eb8e4da71d9767f0e699772608"
+  },
+  "sidecars": {
+    "source": "verified hash-keyed local sidecar mirror",
+    "audit_sha256": "aab83181708e85d8877b86540f273f5e3bb8f5581ddb6dafb804772f1a81904b",
+    "files_verified": 446,
+    "downloads": false,
+    "cache_claim": "none"
+  },
+  "build": {
+    "count": 1,
+    "marker_utc": "2026-07-23T06:37:49.2891295Z",
+    "command": "npm run tauri:build",
+    "exit_code": 1,
+    "elapsed_seconds": 0.0262136,
+    "task_name": "LanternM2M3M5Build897640c95R2",
+    "task_final_state": "Ready",
+    "task_final_result": 1,
+    "build_log_exists": false,
+    "artifacts": {"executable": null, "installer": null},
+    "flags": {
+      "selection_authority_boot_gate": true,
+      "meetings_shell_v1": true,
+      "shared_client_bar": true,
+      "v1_shell_frame": true
+    },
+    "pre_resources": {"free_ram_bytes": 18098925568, "c_free_bytes": 18246782976, "d_free_bytes": 684030615552},
+    "first_blocker": "The marker-written package invocation returned 1 before Node, Cargo, or rustc appeared; no redirected build log or package artifact was created.",
+    "stop_point": "Before app launch and before M2 assertion 1."
+  },
+  "milestones": {
+    "M2": {"verdict": "NOT RUN", "reason": "No executable existed."},
+    "M3": {"verdict": "NOT RUN", "reason": "M2 did not pass and no executable existed."},
+    "M5": {"verdict": "NOT RUN", "reason": "M3 did not pass and no executable existed."}
+  },
+  "product": {"verdict": "NOT TESTED", "screenshots": [], "selected_workspace": null, "whole_firm_closed": "NOT RUN"},
+  "safety": {"no_retry": true, "no_send": true, "no_approval_write": true, "no_cloud_egress": true, "no_stop_scheduled_task": true, "no_stop_process": true, "no_task_deletion": true},
+  "attempt_one": {"verdict": "OPERATOR-ABORTED / PRODUCT-NOT-TESTED", "faulty_query_preserved": true, "false_conclusion_preserved": true, "historical_direct_get_process_capture": "not present in original log; consultant-approved corrective instruction records active Cargo and rustc"},
+  "evidence": {"remote_receipts": "remote-receipts/", "screenshots": []}
+}

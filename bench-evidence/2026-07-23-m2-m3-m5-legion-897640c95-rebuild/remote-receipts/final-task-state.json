@@ -1,0 +1,46 @@
+{
+    "utc":  "2026-07-23T06:39:29.4081253Z",
+    "task_state":  "Ready",
+    "task_result":  1,
+    "marker_exists":  true,
+    "build_receipt_exists":  true,
+    "build_log_exists":  false,
+    "direct_get_process":  [
+                               {
+                                   "ProcessName":  "powershell",
+                                   "Id":  149804,
+                                   "StartTime":  "\/Date(1784788767899)\/",
+                                   "Path":  "c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe"
+                               }
+                           ],
+    "root_files":  [
+                       {
+                           "Name":  "build-once.ps1",
+                           "Length":  4834,
+                           "LastWriteTimeUtc":  "\/Date(1784788519033)\/"
+                       },
+                       {
+                           "Name":  "npm-ci.log",
+                           "Length":  4032,
+                           "LastWriteTimeUtc":  "\/Date(1784788438591)\/"
+                       },
+                       {
+                           "Name":  "ONE-CORRECTIVE-RUST-PACKAGE-BUILD.marker",
+                           "Length":  92,
+                           "LastWriteTimeUtc":  "\/Date(1784788669293)\/"
+                       },
+                       {
+                           "Name":  "source.tar",
+                           "Length":  247562240,
+                           "LastWriteTimeUtc":  "\/Date(1784788286095)\/"
+                       },
+                       {
+                           "Name":  "stage-pinned-sidecars.ps1",
+                           "Length":  3878,
+                           "LastWriteTimeUtc":  "\/Date(1784788326609)\/"
+                       }
+                   ],
+    "package_files":  [
+
+                      ]
+}

@@ -1,0 +1,77 @@
+﻿{
+    "revision":  "897640c95d50f14400fe0868904f5da3f11aa9fb",
+    "build_count":  1,
+    "marker_path":  "D:\\Lantern-M2-M3-M5-897640c95-R2\\ONE-CORRECTIVE-RUST-PACKAGE-BUILD.marker",
+    "marker_utc":  "2026-07-23T06:37:49.2891295Z",
+    "command":  "npm run tauri:build",
+    "started_utc":  "2026-07-23T06:37:49.2931381Z",
+    "ended_utc":  "2026-07-23T06:37:49.3193517Z",
+    "elapsed_seconds":  0.0262136,
+    "exit_code":  1,
+    "flags":  {
+                  "selection_authority_boot_gate":  "true",
+                  "meetings_shell_v1":  "true",
+                  "shared_client_bar":  "true",
+                  "v1_shell_frame":  "true"
+              },
+    "pre":  {
+                "resources":  {
+                                  "free_ram_bytes":  18098925568,
+                                  "disks":  [
+                                                {
+                                                    "DeviceID":  "C:",
+                                                    "FreeSpace":  18246782976,
+                                                    "Size":  1021821579264
+                                                },
+                                                {
+                                                    "DeviceID":  "D:",
+                                                    "FreeSpace":  684030615552,
+                                                    "Size":  1000186310656
+                                                }
+                                            ]
+                              },
+                "direct_get_process":  [
+                                           {
+                                               "ProcessName":  "powershell",
+                                               "Id":  141156,
+                                               "StartTime":  null,
+                                               "Path":  null
+                                           },
+                                           {
+                                               "ProcessName":  "powershell",
+                                               "Id":  148432,
+                                               "StartTime":  "\/Date(1784788663289)\/",
+                                               "Path":  "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+                                           },
+                                           {
+                                               "ProcessName":  "powershell",
+                                               "Id":  150836,
+                                               "StartTime":  null,
+                                               "Path":  null
+                                           }
+                                       ]
+            },
+    "post":  {
+                 "direct_get_process":  [
+                                            {
+                                                "ProcessName":  "powershell",
+                                                "Id":  148432,
+                                                "StartTime":  "\/Date(1784788663289)\/",
+                                                "Path":  "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+                                            }
+                                        ]
+             },
+    "cache":  {
+                  "enabled":  true,
+                  "claim":  "none",
+                  "executable":  "C:\\Users\\james\\.cargo\\bin\\sccache.exe",
+                  "directory":  "D:\\Lantern-sccache-cache",
+                  "before":  "D:\\Lantern-M2-M3-M5-897640c95-R2\\evidence\\sccache-before.txt",
+                  "after":  "D:\\Lantern-M2-M3-M5-897640c95-R2\\evidence\\sccache-after.txt"
+              },
+    "artifacts":  {
+                      "executable":  null,
+                      "installer":  null
+                  },
+    "log_path":  "D:\\Lantern-M2-M3-M5-897640c95-R2\\build.log"
+}
