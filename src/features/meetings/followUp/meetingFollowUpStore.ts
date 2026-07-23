@@ -37,6 +37,8 @@ export interface MeetingFollowUpRecap extends MeetingFollowUpDraft {
   readonly producedAt: string;
   readonly state: 'edited' | 'saved-to-drafts';
   readonly outlookDraftId?: string;
+  /** Provider retained so a saved Gmail draft is never presented as Outlook. */
+  readonly draftProvider?: 'm365' | 'gmail';
 }
 
 export type MeetingFollowUpReadResult =
@@ -61,6 +63,7 @@ export interface MeetingFollowUpStore {
         | {
             readonly state: 'saved-to-drafts';
             readonly outlookDraftId: string;
+            readonly draftProvider: 'm365' | 'gmail';
           }
       )
   ): Promise<MeetingFollowUpWriteResult>;
@@ -215,6 +218,9 @@ function projectRecap(
   if (state === 'saved-to-drafts' && !validOutlookDraft(validatedDraft))
     return null;
   const outlookDraftId = cleanIdentity(artifact.payload['outlookDraftId']);
+  const rawProvider = artifact.payload['draftProvider'];
+  const draftProvider =
+    rawProvider === 'gmail' || rawProvider === 'm365' ? rawProvider : 'm365';
   if (state === 'saved-to-drafts' && !outlookDraftId) return null;
   if (state === 'edited' && outlookDraftId) return null;
   return Object.freeze({
@@ -229,6 +235,7 @@ function projectRecap(
     body: validatedDraft.body,
     state,
     ...(outlookDraftId ? { outlookDraftId } : {}),
+    ...(state === 'saved-to-drafts' ? { draftProvider } : {}),
   });
 }
 
@@ -287,7 +294,9 @@ export function createMeetingFollowUpStore(
       !ownsExactCanonicalMeeting(meetings, target) ||
       !validEditedDraft(input) ||
       (input.state === 'saved-to-drafts' &&
-        (!validOutlookDraft(input) || !cleanIdentity(input.outlookDraftId)))
+        (!validOutlookDraft(input) ||
+          !cleanIdentity(input.outlookDraftId) ||
+          (input.draftProvider !== 'm365' && input.draftProvider !== 'gmail')))
     ) {
       return { kind: 'refused' };
     }
@@ -308,6 +317,9 @@ export function createMeetingFollowUpStore(
           deliveryState: input.state,
           ...(input.state === 'saved-to-drafts'
             ? { outlookDraftId: input.outlookDraftId }
+            : {}),
+          ...(input.state === 'saved-to-drafts'
+            ? { draftProvider: input.draftProvider }
             : {}),
         },
       });

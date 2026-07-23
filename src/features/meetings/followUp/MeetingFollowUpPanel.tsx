@@ -31,6 +31,8 @@ type PanelState =
       readonly draft: MeetingFollowUpDraft;
       readonly savedToDrafts: boolean;
       readonly artifactId: string;
+      readonly draftProvider?: 'm365' | 'gmail';
+      readonly handoffState?: 'idle' | 'opened-drafts' | 'open-failed';
     };
 
 function stateFromRead(
@@ -48,6 +50,9 @@ function stateFromRead(
     },
     savedToDrafts: result.recap.state === 'saved-to-drafts',
     artifactId: result.recap.artifactId,
+    ...(result.recap.draftProvider
+      ? { draftProvider: result.recap.draftProvider }
+      : {}),
   };
 }
 
@@ -199,6 +204,12 @@ export function MeetingFollowUpPanel({
         matterId={state.target.client.matterId}
         draft={state.draft}
         savedToDrafts={state.savedToDrafts}
+        {...(state.draftProvider
+          ? { savedProvider: state.draftProvider }
+          : {})}
+        {...(state.handoffState
+          ? { initialHandoffState: state.handoffState }
+          : {})}
         onDraftChange={(draft) => {
           setState((current) =>
             current.kind === 'ready'
@@ -211,11 +222,20 @@ export function MeetingFollowUpPanel({
             ...saved.draft,
             state: 'saved-to-drafts',
             outlookDraftId: saved.draftId,
+            draftProvider: saved.provider,
           });
           if (result.kind !== 'ready') {
             throw new Error('Local meeting status update failed.');
           }
-          setState(stateFromRead(result, state.target));
+          const next = stateFromRead(result, state.target);
+          if (next.kind !== 'ready') {
+            throw new Error('Local meeting status update failed.');
+          }
+          setState({
+            ...next,
+            draftProvider: saved.provider,
+            handoffState: saved.handoffState,
+          });
         }}
       />
     </section>

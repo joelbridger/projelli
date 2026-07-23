@@ -4,24 +4,26 @@ import {
   type ConnectedAccount,
 } from '@/platform/utils/mail-commands';
 
-export interface OutlookDraftIdentity {
+export interface ProviderDraftIdentity {
   readonly meetingId: string;
   readonly householdRef: string;
   readonly matterId: string;
 }
 
-export interface OutlookFollowUpDraft {
+export interface ProviderFollowUpDraft {
   readonly to: string;
   readonly subject: string;
   readonly body: string;
 }
 
-export interface SaveOutlookFollowUpDraftInput extends OutlookDraftIdentity {
+export interface SaveProviderFollowUpDraftInput extends ProviderDraftIdentity {
   readonly account: ConnectedAccount;
-  readonly draft: OutlookFollowUpDraft;
+  readonly draft: ProviderFollowUpDraft;
 }
 
-function requiredIdentity(identity: OutlookDraftIdentity): boolean {
+export type FollowUpDraftProvider = 'm365' | 'gmail';
+
+function requiredIdentity(identity: ProviderDraftIdentity): boolean {
   return Boolean(
     identity.meetingId.trim() &&
     identity.householdRef.trim() &&
@@ -36,7 +38,7 @@ export function parseFollowUpRecipients(raw: string): string[] {
     .filter(Boolean);
 }
 
-/** Escape and paragraphize the advisor-edited plain text for Outlook. */
+/** Escape and paragraphize the advisor-edited plain text for a provider draft. */
 export function followUpDraftBodyToHtml(text: string): string {
   const escaped = text
     .replace(/&/g, '&amp;')
@@ -48,33 +50,51 @@ export function followUpDraftBodyToHtml(text: string): string {
     .join('\n');
 }
 
-/** Read mailbox identities only; no meeting or recap content is inspected. */
-export async function loadOutlookDraftAccounts(): Promise<ConnectedAccount[]> {
+/** Read usable mailbox identities only; no meeting or recap content is inspected. */
+export type ProviderDraftAccount = ConnectedAccount & {
+  readonly provider: FollowUpDraftProvider;
+};
+
+export async function loadProviderDraftAccounts(): Promise<ProviderDraftAccount[]> {
   const accounts = await mailConnectedAccounts();
-  return accounts.filter((account) => account.provider === 'm365');
+  return accounts.filter(
+    (account): account is ProviderDraftAccount =>
+      account.provider === 'm365' || account.provider === 'gmail'
+  );
 }
 
 /**
  * The only external capability granted to the meeting follow-up surface.
- * This adapter creates one Outlook draft and has no delivery or AI capability.
+ * This adapter creates one provider draft and has no delivery or AI capability.
  */
-export async function saveOutlookFollowUpDraft(
-  input: SaveOutlookFollowUpDraftInput
+export async function saveProviderFollowUpDraft(
+  input: SaveProviderFollowUpDraftInput
 ): Promise<string> {
   const recipients = parseFollowUpRecipients(input.draft.to);
   if (
     !requiredIdentity(input) ||
-    input.account.provider !== 'm365' ||
+    (input.account.provider !== 'm365' && input.account.provider !== 'gmail') ||
     recipients.length === 0 ||
     input.draft.body.trim() === ''
   ) {
-    throw new Error('A complete Outlook follow-up draft is required.');
+    throw new Error('A complete provider follow-up draft is required.');
   }
 
   return mailSaveDraft(
-    `m365:${input.account.account}`,
+    `${input.account.provider}:${input.account.account}`,
     recipients,
     input.draft.subject,
     followUpDraftBodyToHtml(input.draft.body)
   );
+}
+
+/**
+ * `mailSaveDraft` returns only an opaque provider id, never a browser-safe
+ * message URL. Open the provider's Drafts view rather than claiming an exact
+ * message was opened.
+ */
+export function providerDraftsUrl(provider: FollowUpDraftProvider): string {
+  return provider === 'gmail'
+    ? 'https://mail.google.com/mail/u/0/#drafts'
+    : 'https://outlook.office.com/mail/?path=/mail/drafts';
 }

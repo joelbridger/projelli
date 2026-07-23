@@ -13,6 +13,8 @@ const followUpProductionGraph = [
 
 const forbiddenEgressSymbols = [
   ['mail', 'Send'].join(''),
+  ['mail_', 'send'].join(''),
+  ['mail_', 'send_existing_draft'].join(''),
   ['sendPreparedStructuredWithEgress', 'Audit'].join(''),
 ] as const;
 
@@ -51,5 +53,12 @@ describe('meeting follow-up Drafts-only static egress boundary', () => {
       ['ConnectedAccount', 'mailConnectedAccounts', 'mailSaveDraft'].sort()
     );
     expect(adapterSource).toContain('return mailSaveDraft(');
+  });
+
+  it('has no unsafe exact-draft opening claim when the public result is only an id', () => {
+    expect(adapterSource).toContain('returns only an opaque provider id');
+    expect(adapterSource).toContain('providerDraftsUrl');
+    expect(editorSource).toContain('That folder is open');
+    expect(editorSource).not.toContain('exact draft was opened');
   });
 });

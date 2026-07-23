@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Loader2, Save } from 'lucide-react';
-import type { ConnectedAccount } from '@/platform/utils/mail-commands';
+import { openExternal } from '@/platform/utils/openExternal';
 import type { MeetingFollowUpDraft } from './meetingFollowUpStore';
 import {
-  loadOutlookDraftAccounts,
+  loadProviderDraftAccounts,
   parseFollowUpRecipients,
-  saveOutlookFollowUpDraft,
+  providerDraftsUrl,
+  saveProviderFollowUpDraft,
+  type ProviderDraftAccount,
 } from './followUpDraftsOnlyAdapter';
 
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 
 export interface FollowUpDraftsOnlySavedResult {
   readonly draftId: string;
+  readonly provider: 'm365' | 'gmail';
+  readonly handoffState: 'opened-drafts' | 'open-failed';
   readonly meetingId: string;
   readonly householdRef: string;
   readonly matterId: string;
@@ -24,6 +28,8 @@ export interface FollowUpDraftsOnlyEditorProps {
   readonly matterId: string;
   readonly draft: MeetingFollowUpDraft;
   readonly savedToDrafts?: boolean;
+  readonly savedProvider?: 'm365' | 'gmail';
+  readonly initialHandoffState?: 'idle' | 'opened-drafts' | 'open-failed';
   readonly onDraftChange?: (draft: MeetingFollowUpDraft) => void;
   readonly onDraftSaved?: (
     result: FollowUpDraftsOnlySavedResult
@@ -36,7 +42,8 @@ type EditorStatus =
   | 'saving'
   | 'saved'
   | 'load-error'
-  | 'save-error';
+  | 'save-error'
+  | 'local-save-error';
 
 const labelStyle: CSSProperties = {
   width: 60,
@@ -60,7 +67,7 @@ const inputStyle: CSSProperties = {
 };
 
 /**
- * Meeting follow-ups can only be edited and saved into Outlook Drafts.
+ * Meeting follow-ups can only be edited and saved into provider Drafts.
  * Its import graph intentionally contains no email-delivery or AI provider path.
  */
 export function FollowUpDraftsOnlyEditor({
@@ -69,29 +76,37 @@ export function FollowUpDraftsOnlyEditor({
   matterId,
   draft: initialDraft,
   savedToDrafts = false,
+  savedProvider,
+  initialHandoffState = 'idle',
   onDraftChange,
   onDraftSaved,
 }: FollowUpDraftsOnlyEditorProps) {
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
+  const [accounts, setAccounts] = useState<ProviderDraftAccount[]>([]);
   const [accountIndex, setAccountIndex] = useState(0);
   const [draft, setDraft] = useState<MeetingFollowUpDraft>(initialDraft);
   const [status, setStatus] = useState<EditorStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const savedAtMount = useRef(savedToDrafts);
+  const providerDraft = useRef<
+    Omit<FollowUpDraftsOnlySavedResult, 'handoffState'> | null
+  >(null);
+  const [handoffState, setHandoffState] = useState<
+    'idle' | 'opened-drafts' | 'open-failed'
+  >(initialHandoffState);
 
   useEffect(() => {
     const lifecycle = { cancelled: false };
-    void loadOutlookDraftAccounts()
-      .then((outlookAccounts) => {
+    void loadProviderDraftAccounts()
+      .then((providerAccounts) => {
         if (lifecycle.cancelled) return;
-        setAccounts(outlookAccounts);
+        setAccounts(providerAccounts);
         setStatus(savedAtMount.current ? 'saved' : 'idle');
       })
       .catch(() => {
         if (lifecycle.cancelled) return;
         setStatus('load-error');
-        setError('Outlook could not be checked. Try again.');
+        setError('Your draft accounts could not be checked. Try again.');
       });
     return () => {
       lifecycle.cancelled = true;
@@ -101,6 +116,8 @@ export function FollowUpDraftsOnlyEditor({
   const updateDraft = (next: Partial<MeetingFollowUpDraft>) => {
     const edited = { ...draft, ...next };
     setDraft(edited);
+    providerDraft.current = null;
+    setHandoffState('idle');
     setStatus('idle');
     setError(null);
     onDraftChange?.(edited);
@@ -111,13 +128,49 @@ export function FollowUpDraftsOnlyEditor({
     account != null &&
     parseFollowUpRecipients(draft.to).length > 0 &&
     draft.body.trim() !== '' &&
-    (status === 'idle' || status === 'save-error');
+    (status === 'idle' ||
+      status === 'save-error' ||
+      status === 'local-save-error');
+
+  const openDrafts = async (
+    saved: Omit<FollowUpDraftsOnlySavedResult, 'handoffState'>
+  ): Promise<'opened-drafts' | 'open-failed'> => {
+    try {
+      await openExternal(providerDraftsUrl(saved.provider));
+      setHandoffState('opened-drafts');
+      return 'opened-drafts';
+    } catch {
+      setHandoffState('open-failed');
+      return 'open-failed';
+    }
+  };
+
+  const recordSavedDraft = async (
+    saved: Omit<FollowUpDraftsOnlySavedResult, 'handoffState'>
+  ) => {
+    const nextHandoffState = await openDrafts(saved);
+    try {
+      await onDraftSaved?.({ ...saved, handoffState: nextHandoffState });
+      setStatus('saved');
+    } catch {
+      setStatus('local-save-error');
+      setError(
+        'The draft is saved, but Lantern could not update this meeting yet. Try again without creating another draft.'
+      );
+    }
+  };
 
   const saveToDrafts = () => {
     if (!account || !canSave) return;
+    if (providerDraft.current) {
+      setStatus('saving');
+      setError(null);
+      void recordSavedDraft(providerDraft.current);
+      return;
+    }
     setStatus('saving');
     setError(null);
-    void saveOutlookFollowUpDraft({
+    void saveProviderFollowUpDraft({
       account,
       meetingId,
       householdRef,
@@ -125,26 +178,21 @@ export function FollowUpDraftsOnlyEditor({
       draft,
     })
       .then(async (draftId) => {
-        try {
-          await onDraftSaved?.({
-            draftId,
-            meetingId,
-            householdRef,
-            matterId,
-            draft,
-          });
-          setStatus('saved');
-        } catch {
-          setStatus('saved');
-          setError(
-            'Saved to Outlook Drafts, but the local meeting status could not be updated.'
-          );
-        }
+        const saved = {
+          draftId,
+          provider: account.provider,
+          meetingId,
+          householdRef,
+          matterId,
+          draft,
+        } as const;
+        providerDraft.current = saved;
+        await recordSavedDraft(saved);
       })
       .catch(() => {
         setStatus('save-error');
         setError(
-          'The draft was not saved to Outlook. Check the connection and try again.'
+          `The draft was not saved to ${account.label}. Check the connection and try again.`
         );
       });
   };
@@ -152,7 +200,7 @@ export function FollowUpDraftsOnlyEditor({
   if (status === 'loading') {
     return (
       <div data-testid="followup-drafts-loading" aria-live="polite">
-        Checking Outlook.
+        Checking your draft accounts.
       </div>
     );
   }
@@ -186,7 +234,7 @@ export function FollowUpDraftsOnlyEditor({
   if (accounts.length === 0) {
     return (
       <div data-testid="meeting-follow-up-blocked">
-        Connect Outlook in Settings before saving this follow-up to Drafts.
+        Connect Outlook or Gmail in Settings before saving this follow-up to Drafts.
       </div>
     );
   }
@@ -194,7 +242,7 @@ export function FollowUpDraftsOnlyEditor({
   return (
     <div
       data-testid="follow-up-drafts-only-editor"
-      data-capability-mode="outlook-drafts-only"
+      data-capability-mode="provider-drafts-only"
       style={{
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
@@ -221,9 +269,12 @@ export function FollowUpDraftsOnlyEditor({
               }}
               style={inputStyle}
             >
-              {accounts.map((outlookAccount, index) => (
-                <option key={`m365:${outlookAccount.account}`} value={index}>
-                  {outlookAccount.label}
+              {accounts.map((providerAccount, index) => (
+                <option
+                  key={`${providerAccount.provider}:${providerAccount.account}`}
+                  value={index}
+                >
+                  {providerAccount.label}
                 </option>
               ))}
             </select>
@@ -252,8 +303,8 @@ export function FollowUpDraftsOnlyEditor({
               color: 'var(--color-muted-foreground)',
             }}
           >
-            Review the recipients before saving. Outlook will not send this
-            draft.
+            Review the recipients before saving. Your mail provider will not
+            send this draft.
           </div>
         </div>
 
@@ -313,10 +364,10 @@ export function FollowUpDraftsOnlyEditor({
               color: 'var(--color-muted-foreground)',
             }}
           >
-            Edited locally. Nothing has been saved to Outlook yet.
+            Edited locally. Nothing has been saved to a provider yet.
           </p>
         )}
-        {status === 'saved' && (
+        {(status === 'saved' || status === 'local-save-error') && (
           <p
             data-testid="meeting-follow-up-saved"
             style={{
@@ -324,8 +375,22 @@ export function FollowUpDraftsOnlyEditor({
               color: 'var(--kp-success)',
             }}
           >
-            Saved to Outlook Drafts. Nothing was sent.
+            {handoffState === 'opened-drafts'
+              ? `Saved to ${savedProvider === 'gmail' ? 'Gmail' : savedProvider === 'm365' ? 'Outlook' : account?.label ?? 'your provider'} Drafts. That folder is open; review and send it there. Nothing was sent.`
+              : handoffState === 'open-failed'
+                ? `Saved to ${savedProvider === 'gmail' ? 'Gmail' : savedProvider === 'm365' ? 'Outlook' : account?.label ?? 'your provider'} Drafts. Open that provider's Drafts folder to review and send it there. Nothing was sent.`
+                : `Saved to ${savedProvider === 'gmail' ? 'Gmail' : savedProvider === 'm365' ? 'Outlook' : account?.label ?? 'your provider'} Drafts. Nothing was sent.`}
           </p>
+        )}
+        {status === 'local-save-error' && (
+          <button
+            type="button"
+            data-testid="followup-drafts-retry-local-save"
+            onClick={saveToDrafts}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            Try updating this meeting again
+          </button>
         )}
       </div>
 
@@ -345,7 +410,8 @@ export function FollowUpDraftsOnlyEditor({
             color: 'var(--color-muted-foreground)',
           }}
         >
-          Saves as a draft in Outlook. You send it later from your own inbox.
+          Saves as a draft in your selected provider. You review and send it
+          later there.
         </span>
         <button
           type="button"
@@ -383,7 +449,9 @@ export function FollowUpDraftsOnlyEditor({
               }}
             />
           )}
-          Save to Outlook Drafts
+          {status === 'local-save-error'
+            ? 'Try updating meeting'
+            : `Save to ${account?.label ?? 'Drafts'}`}
         </button>
       </div>
     </div>
