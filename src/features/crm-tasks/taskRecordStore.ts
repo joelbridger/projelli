@@ -42,6 +42,8 @@ export interface TaskRecord {
   readonly contextRefs: readonly TaskContextRef[];
   /** Exact meeting lineage, retained by duplicates and recurring copies. */
   readonly meetingVisibility?: MeetingVisibilitySubject;
+  /** Stable key used to deduplicate one approved meeting delivery. */
+  readonly meetingDeliveryKey?: string;
 }
 
 export interface CreateTaskRecordInput {
@@ -59,6 +61,8 @@ export interface CreateTaskRecordInput {
   contextRefs?: readonly TaskContextRef[];
   /** Set only when this task is derived from an already-authoritative parent. */
   meetingVisibilityParent?: MeetingVisibilitySubject;
+  /** Allowed only for a meeting-derived task; retries return the first task. */
+  meetingDeliveryKey?: string;
 }
 
 /** `null` clears an optional value; omitted fields retain their current value. */
@@ -93,9 +97,15 @@ type LiveTaskPort = Pick<
   | 'error'
   | 'save'
   | 'reload'
-  | 'canReadMeetingDerivedRecord'
-  | 'canReadMeetingVisibilitySubject'
->;
+> & {
+  readonly canReadMeetingDerivedRecord?: ReturnType<
+    typeof useLiveCrmRecords
+  >['canReadMeetingDerivedRecord'];
+  readonly canReadMeetingVisibilitySubject?: ReturnType<
+    typeof useLiveCrmRecords
+  >['canReadMeetingVisibilitySubject'];
+  readonly getCurrentRecords?: () => readonly LiveCrmRecord[];
+};
 
 const TASK_STATUSES: readonly TaskStatus[] = [
   'open',
@@ -136,6 +146,12 @@ function timestamp(): string {
 
 function taskId(): string {
   return `task-${crypto.randomUUID()}`;
+}
+
+function cleanMeetingDeliveryKey(value: string): string {
+  if (!/^meeting-delivery-[a-z0-9]+$/.test(value))
+    throw new Error('Meeting task delivery identity is malformed.');
+  return value;
 }
 
 function derivedTaskVisibility(
@@ -522,6 +538,9 @@ function toTaskRecord(record: LiveCrmRecord): TaskRecord {
     tagIds: storedTagIds(record['tagIds']),
     contextRefs: storedContextRefs(record['contextRefs']),
     meetingVisibility: storedTaskVisibility(record),
+    ...(typeof record['meetingDeliveryKey'] === 'string'
+      ? { meetingDeliveryKey: record['meetingDeliveryKey'] }
+      : {}),
   };
 }
 
@@ -533,7 +552,12 @@ function canonicalTask(
   const dueTime = input.dueTime === undefined ? undefined : cleanDueTime(input.dueTime);
   const category = input.category === undefined ? undefined : cleanOptionalText(input.category);
   const householdRef = cleanHouseholdRef(input.householdRef ?? null);
-  const id = taskId();
+  const meetingDeliveryKey = input.meetingDeliveryKey
+    ? cleanMeetingDeliveryKey(input.meetingDeliveryKey)
+    : undefined;
+  if (meetingDeliveryKey && !input.meetingVisibilityParent)
+    throw new Error('Meeting task delivery identity requires private meeting lineage.');
+  const id = meetingDeliveryKey ? `task-${meetingDeliveryKey}` : taskId();
   const canonical: Task = {
     id,
     kind: 'task',
@@ -565,6 +589,7 @@ function canonicalTask(
     meetingVisibility: input.meetingVisibilityParent
       ? derivedTaskVisibility(id, input.meetingVisibilityParent)
       : { kind: 'task', id, lineage: 'legacy-unrestricted' },
+    ...(meetingDeliveryKey ? { meetingDeliveryKey } : {}),
   } as LiveCrmRecord & Task;
 }
 
@@ -653,7 +678,54 @@ function createTaskRecordStore(
             ))
       )
         throw new Error('This private meeting task is not available.');
-      return saveAndReload(canonicalTask(input, currentActor));
+      const candidate = canonicalTask(input, currentActor);
+      const key = candidate['meetingDeliveryKey'];
+      if (typeof key !== 'string') return saveAndReload(candidate);
+      const currentRecords = () => port.getCurrentRecords?.() ?? port.records;
+      const matching = () =>
+        currentRecords().filter(
+          (record) =>
+            record.kind === 'task' &&
+            record['meetingDeliveryKey'] === key
+        );
+      const existing = matching();
+      if (existing.length > 1)
+        throw new Error('Meeting task delivery identity is duplicated.');
+      if (existing.length === 1) {
+        const found = existing[0];
+        if (
+          !found ||
+          found.id !== candidate.id ||
+          !canReadTask(found, currentRecords(), viewerId)
+        )
+          throw new Error('This private meeting task is not available.');
+        return toTaskRecord(found);
+      }
+      try {
+        await port.save(candidate);
+      } catch (error) {
+        // A lost reply may arrive after the canonical upsert succeeded. Reload
+        // and recover only the one exact stable-key result.
+        await port.reload();
+        const recovered = matching();
+        if (
+          recovered.length === 1 &&
+          recovered[0]?.id === candidate.id &&
+          canReadTask(recovered[0], currentRecords(), viewerId)
+        )
+          return toTaskRecord(recovered[0]);
+        if (error instanceof Error) throw error;
+        throw new Error('The task could not be saved.');
+      }
+      await port.reload();
+      const persisted = matching();
+      if (
+        persisted.length !== 1 ||
+        persisted[0]?.id !== candidate.id ||
+        !canReadTask(persisted[0], currentRecords(), viewerId)
+      )
+        throw new Error('The saved meeting task could not be verified.');
+      return toTaskRecord(persisted[0]);
     },
     update: async (id, patch) => {
       requireAvailable(port);

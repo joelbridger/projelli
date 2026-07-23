@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   BLESSED_MEETING_PANEL_IDS,
   defaultMeetingPanelComposition,
@@ -6,11 +6,55 @@ import {
 } from '@/features/meetings';
 import {
   canReadExactMeetingReviewArtifact,
+  createExactMeetingTaskDelivery,
   hasMatchingCompleteMeetingReviewIdentity,
   registerMeetingNotesReviewCompatibilityPanels,
 } from './meetingNotesReviewBindings';
+import type { TaskRecordStore } from '@/features/crm-tasks';
 
 describe('meeting Tasks/CRM compatibility bindings', () => {
+  it('keeps the stable delivery key through a lost task-save reply and retry', async () => {
+    let savedId: string | null = null;
+    const create = vi.fn<TaskRecordStore['create']>((input) => {
+      expect(input.meetingDeliveryKey).toBe('meeting-delivery-abc123');
+      if (!savedId) {
+        savedId = 'task-meeting-delivery-abc123';
+        return Promise.reject(new Error('reply lost'));
+      }
+      return Promise.resolve({ id: savedId } as Awaited<
+        ReturnType<TaskRecordStore['create']>
+      >);
+    });
+    const delivery = createExactMeetingTaskDelivery({ create });
+    const request = {
+      deliveryKey: 'meeting-delivery-abc123',
+      title: 'Call the CPA',
+      body: 'Confirm taxes.',
+      householdRef: {
+        kind: 'household' as const,
+        id: 'household-a',
+        matterId: 'matter-a',
+      },
+      assigneeUserId: null,
+      status: 'open' as const,
+      priority: 'normal' as const,
+      contextRefs: [] as const,
+      meetingVisibilityParent: {
+        kind: 'meeting-artifact' as const,
+        id: 'artifact-a',
+        lineage: 'legacy-unrestricted' as const,
+      },
+    };
+    await expect(delivery.create(request)).rejects.toThrow('reply lost');
+    await expect(delivery.create(request)).resolves.toMatchObject({
+      id: 'task-meeting-delivery-abc123',
+    });
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create.mock.calls.map((call) => call[0].meetingDeliveryKey)).toEqual([
+      'meeting-delivery-abc123',
+      'meeting-delivery-abc123',
+    ]);
+  });
   it('never treats two missing or partial identities as a matching pair', () => {
     const cases = [
       [

@@ -9,16 +9,21 @@ import {
   type MeetingArtifact,
   type MeetingPanelContext,
 } from '@/features/meetings';
-import { useTaskRecordStore } from '@/features/crm-tasks';
+import {
+  useTaskRecordStore,
+  type TaskRecordStore,
+} from '@/features/crm-tasks';
 import {
   MeetingNotesReview,
   productionMeetingNotesReviewCrmDelivery,
 } from '@/platform/meetingNotesReview/MeetingNotesReview';
 import {
   EXACT_MEETING_REVIEW_SCHEMA_VERSION,
+  MeetingProposalEgressAuthorityError,
   hasCompleteExactMeetingReviewIdentity,
   makeExactMeetingNotesReviewRepository,
   type ExactMeetingReviewArtifact,
+  type ExactMeetingTaskDelivery,
 } from '@/platform/meetingNotesReview/notesReviewDelivery';
 import type { ExactMeetingReviewKind } from '@/ui/notesReview';
 import {
@@ -27,6 +32,15 @@ import {
   type MeetingVisibilitySubject,
 } from '@/platform/meeting-visibility';
 import { useFirmStore } from '@/platform/firm/firmStore';
+
+export function createExactMeetingTaskDelivery(
+  tasks: Pick<TaskRecordStore, 'create'>
+): ExactMeetingTaskDelivery {
+  return {
+    create: ({ deliveryKey, ...input }) =>
+      tasks.create({ ...input, meetingDeliveryKey: deliveryKey }),
+  };
+}
 
 // These values come from F2's sealed manifest. The guards make a reordered or
 // changed manifest fail loudly instead of letting F6 claim the wrong slot.
@@ -49,6 +63,8 @@ function exactArtifact(artifact: MeetingArtifact): ExactMeetingReviewArtifact {
     state: artifact.state,
     producedAt: artifact.producedAt,
     payload: artifact.payload,
+    ...(artifact.decision ? { decision: artifact.decision } : {}),
+    ...(artifact.delivery ? { delivery: artifact.delivery } : {}),
     ...(artifact.meetingVisibility
       ? { meetingVisibility: artifact.meetingVisibility }
       : {}),
@@ -146,11 +162,34 @@ function ExactMeetingReviewPanel({
             .listForMeeting(meetingId, ['action-update-proposal'])
             .map(exactArtifact),
       },
-      approveArtifact: async (artifactId, transition) =>
-        exactArtifact(await artifacts.approve(artifactId, transition)),
-      taskDelivery: {
-        create: (input) => tasks.create(input),
+      decideArtifact: async (artifactId, transition) => {
+        if (!artifacts.decide)
+          throw new Error('The meeting decision ledger is unavailable.');
+        return exactArtifact(await artifacts.decide(artifactId, transition));
       },
+      recordDelivery: async (input) => {
+        if (!artifacts.recordDelivery)
+          throw new Error('The meeting delivery ledger is unavailable.');
+        return exactArtifact(await artifacts.recordDelivery(input));
+      },
+      assertEgressAuthority: (expected) => {
+        const current = reader.get(expected.artifactId);
+        if (!current)
+          throw new MeetingProposalEgressAuthorityError(
+            'Client, workspace, membership, or private-note access changed. Nothing was sent.'
+          );
+        const exact = exactArtifact(current);
+        if (
+          exact.state !== 'approved' ||
+          exact.decision?.proposalRevision !== expected.proposalRevision ||
+          exact.delivery?.key !== expected.deliveryKey ||
+          exact.delivery.status !== 'pending'
+        )
+          throw new MeetingProposalEgressAuthorityError(
+            'The approved proposal changed before delivery. Nothing was sent.'
+          );
+      },
+      taskDelivery: createExactMeetingTaskDelivery(tasks),
       crmDelivery: productionMeetingNotesReviewCrmDelivery,
       canReadArtifact: (artifact) =>
         canReadExactMeetingReviewArtifact({

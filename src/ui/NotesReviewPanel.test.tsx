@@ -24,6 +24,7 @@ const task: ExactMeetingTaskReviewItem = {
   dueDate: '2026-08-01',
   transcriptRef: 'meeting:meeting-review#42000',
   approvalState: 'proposed',
+  proposalRevision: 'proposal-task',
 };
 const crm: ExactMeetingCrmReviewItem = {
   id: 'risk-update',
@@ -45,6 +46,7 @@ const crm: ExactMeetingCrmReviewItem = {
     },
   ],
   approvalState: 'proposed',
+  proposalRevision: 'proposal-crm',
 };
 
 describe('NotesReviewPanel exact-meeting states', () => {
@@ -203,7 +205,7 @@ describe('NotesReviewPanel item approval', () => {
   it('keeps a saved approval visible when later destination delivery fails', async () => {
     const failure = Object.assign(
       new Error('Approval was recorded, but delivery failed.'),
-      { approvalRecorded: true as const }
+      { approvalRecorded: true as const, retryable: true as const }
     );
     render(
       <NotesReviewPanel
@@ -213,12 +215,94 @@ describe('NotesReviewPanel item approval', () => {
       />
     );
     fireEvent.click(screen.getByTestId('notes-review-approve-call-cpa'));
-    expect(await screen.findByTestId('notes-review-approved-call-cpa')).toHaveTextContent(
-      'Approved earlier.'
-    );
+    expect(
+      await screen.findByTestId('notes-review-retry-delivery-call-cpa')
+    ).toHaveTextContent('Retry delivery');
     expect(screen.getByTestId('notes-review-error-call-cpa')).toHaveTextContent(
       'delivery failed'
     );
     expect(screen.queryByTestId('notes-review-approve-call-cpa')).toBeNull();
+  });
+
+  it('shows pending as outcome unknown and failed as terminal without action buttons', () => {
+    const { rerender } = render(
+      <NotesReviewPanel
+        reviewKind="task"
+        state={{
+          kind: 'populated',
+          items: [
+            {
+              ...task,
+              approvalState: 'approved',
+              delivery: {
+                key: 'meeting-delivery-a',
+                status: 'pending',
+                attempt: 1,
+              },
+            },
+          ],
+        }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByTestId('notes-review-outcome-unknown-call-cpa')
+    ).toHaveTextContent('Do not retry');
+    expect(screen.queryByTestId('notes-review-retry-delivery-call-cpa')).toBeNull();
+    expect(screen.queryByTestId('notes-review-reject-call-cpa')).toBeNull();
+
+    rerender(
+      <NotesReviewPanel
+        reviewKind="task"
+        state={{
+          kind: 'populated',
+          items: [
+            {
+              ...task,
+              approvalState: 'approved',
+              delivery: {
+                key: 'meeting-delivery-a',
+                status: 'failed',
+                attempt: 1,
+              },
+            },
+          ],
+        }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByTestId('notes-review-delivery-failed-call-cpa')
+    ).toHaveTextContent('cannot be retried');
+    expect(screen.queryByTestId('notes-review-retry-delivery-call-cpa')).toBeNull();
+  });
+
+  it('submits the exact local edit to rejection without approving or delivering it', async () => {
+    const approve = vi.fn();
+    const reject = vi.fn((_item: ExactMeetingNotesReviewItem) =>
+      Promise.resolve()
+    );
+    render(
+      <NotesReviewPanel
+        reviewKind="task"
+        state={{ kind: 'populated', items: [task] }}
+        onApprove={approve}
+        onReject={reject}
+      />
+    );
+    fireEvent.change(screen.getByTestId('notes-review-task-title-call-cpa'), {
+      target: { value: 'Do not call the CPA' },
+    });
+    fireEvent.click(screen.getByTestId('notes-review-reject-call-cpa'));
+    await waitFor(() => {
+      expect(reject).toHaveBeenCalledTimes(1);
+    });
+    expect(reject.mock.calls[0]?.[0]).toMatchObject({
+      title: 'Do not call the CPA',
+      proposalRevision: 'proposal-task',
+    });
+    expect(approve).not.toHaveBeenCalled();
   });
 });

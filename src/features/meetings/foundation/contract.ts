@@ -530,16 +530,44 @@ export interface MeetingArtifact extends MeetingArtifactInput {
   readonly kind: MeetingArtifactKind;
   readonly householdRef: string;
   readonly matterId: string;
-  readonly state: 'produced' | 'approved';
+  readonly state: 'produced' | 'approved' | 'rejected';
   readonly createdAt: string;
+  /** The exact edited proposal the advisor approved or rejected. */
+  readonly decision?: MeetingArtifactDecision;
+  /** Latest durable destination result, projected independently of decision. */
+  readonly delivery?: MeetingArtifactDelivery;
   /** Exact durable parent chain used by every meeting-derived read boundary. */
   readonly meetingVisibility?: MeetingVisibilitySubject;
 }
 
 export interface MeetingArtifactTransition {
-  readonly from: 'produced' | 'approved';
-  readonly to: 'approved';
+  readonly from: 'produced' | 'approved' | 'rejected';
+  readonly to: 'approved' | 'rejected';
   readonly at: string;
+  readonly decisionId?: string;
+  readonly proposalRevision?: string;
+  readonly exactProposal?: Readonly<Record<string, unknown>>;
+}
+
+export interface MeetingArtifactDecision {
+  readonly id: string;
+  readonly state: 'approved' | 'rejected';
+  readonly at: string;
+  readonly proposalRevision: string;
+  readonly exactProposal: Readonly<Record<string, unknown>>;
+}
+
+export interface MeetingArtifactDelivery {
+  readonly key: string;
+  readonly status: 'pending' | 'confirmed' | 'failed' | 'retryable';
+  readonly at: string;
+  readonly attempt: number;
+  readonly receipt?: Readonly<Record<string, unknown>>;
+  readonly message?: string;
+}
+
+export interface MeetingArtifactDeliveryInput extends MeetingArtifactDelivery {
+  readonly artifactId: MeetingArtifactRef;
 }
 
 export interface MeetingArtifactReader {
@@ -654,6 +682,13 @@ export interface MeetingArtifactStore {
   approve(
     id: MeetingArtifactRef,
     transition: MeetingArtifactTransition
+  ): Promise<MeetingArtifact>;
+  decide?(
+    id: MeetingArtifactRef,
+    transition: MeetingArtifactTransition
+  ): Promise<MeetingArtifact>;
+  recordDelivery?(
+    input: MeetingArtifactDeliveryInput
   ): Promise<MeetingArtifact>;
 }
 
@@ -815,9 +850,7 @@ export type ClientScopedLivePort = LivePort & {
     record: LiveCrmRecord,
     kind: Exclude<MeetingVisibilitySubjectKind, 'meeting-note'>
   ) => boolean;
-  readonly getActiveClientBoundary: () =>
-    | SealedMeetingClientBoundary
-    | null;
+  readonly getActiveClientBoundary: () => SealedMeetingClientBoundary | null;
   /** Production supplies the exact surfaced four-arm refusal. Test ports may omit it. */
   readonly getSelectionError?: () => string | null;
   /**
@@ -847,9 +880,12 @@ function sameClientBoundary(
   left: ClientBoundary | null | undefined,
   right: ClientBoundary | null | undefined
 ): boolean {
-  return !!left && !!right &&
+  return (
+    !!left &&
+    !!right &&
     left.householdRef === right.householdRef &&
-    left.matterId === right.matterId;
+    left.matterId === right.matterId
+  );
 }
 
 function clientScope(port: ClientScopedLivePort): ClientScope {
@@ -1228,9 +1264,7 @@ export async function validateLegacyMeetingLink(
 export async function resolveMeetingOpenTarget(
   store: MeetingStore,
   meetingId: MeetingRef,
-  getActiveClientBoundary: () =>
-    | SealedMeetingClientBoundary
-    | null
+  getActiveClientBoundary: () => SealedMeetingClientBoundary | null
 ): Promise<MeetingOpenTarget> {
   const expected = getActiveClientBoundary();
   if (!expected)
@@ -2044,7 +2078,7 @@ function projectArtifact(
   const state = record['artifactState'];
   if (state !== 'produced') throw new Error('Artifact state is invalid.');
   const producedAt = timestamp(record['producedAt'], 'Produced timestamp');
-  const approval = transitionRecords
+  const decisionRecord = transitionRecords
     .filter(
       (candidate) =>
         candidate.kind === 'meeting_artifact_transition' &&
@@ -2056,13 +2090,29 @@ function projectArtifact(
       String(left['transitionAt']).localeCompare(String(right['transitionAt']))
     )
     .at(-1);
-  const safeApprovedAt = approval
+  const decision = decisionRecord
     ? validateMeetingArtifactTransition({
-        from: approval['fromState'] as MeetingArtifactTransition['from'],
-        to: approval['toState'] as MeetingArtifactTransition['to'],
-        at: approval['transitionAt'] as string,
-      }).at
+        from: decisionRecord['fromState'] as MeetingArtifactTransition['from'],
+        to: decisionRecord['toState'] as MeetingArtifactTransition['to'],
+        at: decisionRecord['transitionAt'] as string,
+        ...(typeof decisionRecord['decisionId'] === 'string'
+          ? { decisionId: decisionRecord['decisionId'] }
+          : {}),
+        ...(typeof decisionRecord['proposalRevision'] === 'string'
+          ? { proposalRevision: decisionRecord['proposalRevision'] }
+          : {}),
+        ...(decisionRecord['exactProposal'] &&
+        typeof decisionRecord['exactProposal'] === 'object' &&
+        !Array.isArray(decisionRecord['exactProposal'])
+          ? {
+              exactProposal: decisionRecord['exactProposal'] as Readonly<
+                Record<string, unknown>
+              >,
+            }
+          : {}),
+      })
     : undefined;
+  const safeDecidedAt = decision?.at;
   const meetingVisibility = record['meetingVisibility'];
   if (
     !meetingVisibility ||
@@ -2081,9 +2131,46 @@ function projectArtifact(
         subject.parentRef.id === record['meetingId']
       ))
   )
-    throw new Error('Artifact visibility lineage conflicts with this artifact.');
-  if (safeApprovedAt && Date.parse(safeApprovedAt) < Date.parse(producedAt))
-    throw new Error('Artifact approval cannot predate production.');
+    throw new Error(
+      'Artifact visibility lineage conflicts with this artifact.'
+    );
+  if (safeDecidedAt && Date.parse(safeDecidedAt) < Date.parse(producedAt))
+    throw new Error('Artifact decision cannot predate production.');
+  const deliveryRecords = transitionRecords
+    .filter(
+      (candidate) =>
+        candidate.kind === 'meeting_artifact_delivery' &&
+        candidate['artifactId'] === record.id &&
+        candidate.matterId === record.matterId &&
+        candidate['householdRef'] === record['householdRef']
+    )
+    .sort(
+      (left, right) =>
+        Number(left['attempt']) - Number(right['attempt']) ||
+        deliveryStatusOrder(left['deliveryStatus']) -
+          deliveryStatusOrder(right['deliveryStatus']) ||
+        String(left['deliveryAt']).localeCompare(String(right['deliveryAt'])) ||
+        left.id.localeCompare(right.id)
+    );
+  let delivery: MeetingArtifactDelivery | undefined;
+  for (const candidate of deliveryRecords) {
+    const projected = validateMeetingArtifactDelivery({
+      key: candidate['deliveryKey'] as string,
+      status: candidate['deliveryStatus'] as MeetingArtifactDelivery['status'],
+      at: candidate['deliveryAt'] as string,
+      attempt: candidate['attempt'] as number,
+      ...(candidate['receipt'] &&
+      typeof candidate['receipt'] === 'object' &&
+      !Array.isArray(candidate['receipt'])
+        ? { receipt: candidate['receipt'] as Readonly<Record<string, unknown>> }
+        : {}),
+      ...(typeof candidate['deliveryMessage'] === 'string'
+        ? { message: candidate['deliveryMessage'] }
+        : {}),
+    });
+    if (delivery) assertNextMeetingArtifactDelivery(delivery, projected);
+    delivery = projected;
+  }
   return {
     id: nonEmpty(record.id, 'Artifact ID'),
     meetingId: nonEmpty(record['meetingId'], 'Meeting ID'),
@@ -2091,9 +2178,23 @@ function projectArtifact(
     matterId: nonEmpty(record.matterId, 'Matter'),
     kind,
     schemaVersion,
-    state: safeApprovedAt ? 'approved' : 'produced',
+    state: decision?.to ?? 'produced',
     producedAt,
-    ...(safeApprovedAt ? { approvedAt: safeApprovedAt } : {}),
+    ...(decision?.to === 'approved' ? { approvedAt: decision.at } : {}),
+    ...(decision?.decisionId &&
+    decision.proposalRevision &&
+    decision.exactProposal
+      ? {
+          decision: {
+            id: decision.decisionId,
+            state: decision.to,
+            at: decision.at,
+            proposalRevision: decision.proposalRevision,
+            exactProposal: decision.exactProposal,
+          },
+        }
+      : {}),
+    ...(delivery ? { delivery } : {}),
     sourceRefs: strings(record['sourceRefs'], 'Artifact source references'),
     provenance: provenance as MeetingArtifact['provenance'],
     payload: (record['payload'] && typeof record['payload'] === 'object'
@@ -2233,12 +2334,17 @@ export async function migrateLegacyMeetingArtifactVisibility(
     repairedIds.push(target.id);
     records = (await port.reloadRecords()) ?? [];
   }
-  if (!repairedIds.every((id) => {
-    const matches = records.filter((record) =>
-      record.kind === 'meeting_artifact' && record.id === id
-    );
-    return matches.length === 1 && matches[0]?.['meetingVisibility'] !== undefined;
-  })) throw new Error('Meeting artifact visibility migration did not persist.');
+  if (
+    !repairedIds.every((id) => {
+      const matches = records.filter(
+        (record) => record.kind === 'meeting_artifact' && record.id === id
+      );
+      return (
+        matches.length === 1 && matches[0]?.['meetingVisibility'] !== undefined
+      );
+    })
+  )
+    throw new Error('Meeting artifact visibility migration did not persist.');
   return records;
 }
 
@@ -2246,6 +2352,26 @@ const meetingArtifactVisibilityMigrations = new Map<
   string,
   Promise<readonly LiveCrmRecord[]>
 >();
+const meetingArtifactDecisionLocks = new Map<string, Promise<void>>();
+
+async function serializeMeetingArtifactDecision<T>(
+  key: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const prior = meetingArtifactDecisionLocks.get(key) ?? Promise.resolve();
+  const turn = prior.then(operation);
+  const settled = turn.then(
+    () => undefined,
+    () => undefined
+  );
+  meetingArtifactDecisionLocks.set(key, settled);
+  try {
+    return await turn;
+  } finally {
+    if (meetingArtifactDecisionLocks.get(key) === settled)
+      meetingArtifactDecisionLocks.delete(key);
+  }
+}
 
 function runMeetingArtifactVisibilityMigration(
   port: ClientScopedLivePort
@@ -2700,29 +2826,100 @@ export function createMeetingArtifactStore(
         : saved;
     },
     approve: async (id, transition) => {
+      return decide(id, transition);
+    },
+    decide,
+    recordDelivery: async (input) => {
       const expected = scope.requireCurrent('Artifact');
       requireAvailable(port);
       await ensureLegacyVisibilityMigrated();
       const fresh = await port.reloadRecords();
       scope.assertStable(expected, 'Meeting artifact');
       raw = fresh ?? [];
-      const current = raw.find((record) => record.id === id);
+      const current = raw.find((record) => record.id === input.artifactId);
       if (!current || !canReadArtifact(current, raw))
         throw new Error('That meeting artifact is unavailable.');
-      // Fail-closed: only the active client may approve, and the caller's stated
-      // `from` must match the stored state. This is the real transition contract
-      // — an approved -> approved (or stale produced -> approved) claim against a
-      // mismatched state is refused, never coerced to the stored state.
       scope.assertOwns(recordClientBoundary(current), 'Artifact');
       const projected = projectArtifact(current, raw);
-      const valid = validateMeetingArtifactTransition(transition);
-      if (valid.from !== projected.state)
+      if (projected.state !== 'approved' || !projected.decision)
         throw new Error(
-          `This artifact is ${projected.state}, not ${valid.from}; refusing a stale approval.`
+          'Delivery requires one durable, exact approval decision.'
         );
-      return approveArtifact(projected, valid, expected);
+      const valid = validateMeetingArtifactDelivery(input);
+      if (projected.delivery?.status === 'confirmed') {
+        if (projected.delivery.key !== valid.key)
+          throw new Error('The confirmed delivery identity cannot change.');
+        return projected;
+      }
+      if (projected.delivery && projected.delivery.key !== valid.key)
+        throw new Error('The delivery identity cannot change during retry.');
+      if (!projected.delivery && valid.status !== 'pending')
+        throw new Error('A delivery attempt must begin in pending state.');
+      if (projected.delivery)
+        assertNextMeetingArtifactDelivery(projected.delivery, valid);
+      await persist(
+        {
+          id: recordId('meeting-artifact-delivery'),
+          kind: 'meeting_artifact_delivery',
+          matterId: projected.matterId,
+          householdRef: projected.householdRef,
+          ...(typeof current['relayMatterId'] === 'string'
+            ? { relayMatterId: current['relayMatterId'] }
+            : {}),
+          createdAt: valid.at,
+          updatedAt: valid.at,
+          artifactId: projected.id,
+          deliveryKey: valid.key,
+          deliveryStatus: valid.status,
+          deliveryAt: valid.at,
+          attempt: valid.attempt,
+          ...(valid.receipt ? { receipt: valid.receipt } : {}),
+          ...(valid.message ? { deliveryMessage: valid.message } : {}),
+        },
+        expected
+      );
+      const reloaded = raw.find(
+        (candidate) =>
+          candidate.kind === 'meeting_artifact' && candidate.id === projected.id
+      );
+      if (!reloaded || !canReadArtifact(reloaded, raw))
+        throw new Error('The artifact disappeared after recording delivery.');
+      return projectArtifact(reloaded, raw);
     },
   };
+
+  async function decide(
+    id: MeetingArtifactRef,
+    transition: MeetingArtifactTransition
+  ): Promise<MeetingArtifact> {
+    return serializeMeetingArtifactDecision(
+      `${port.workspaceRoot ?? 'closed'}\u0000${id}`,
+      () => decideUnlocked(id, transition)
+    );
+  }
+
+  async function decideUnlocked(
+    id: MeetingArtifactRef,
+    transition: MeetingArtifactTransition
+  ): Promise<MeetingArtifact> {
+    const expected = scope.requireCurrent('Artifact');
+    requireAvailable(port);
+    await ensureLegacyVisibilityMigrated();
+      const fresh = await port.reloadRecords();
+      scope.assertStable(expected, 'Meeting artifact');
+      raw = fresh ?? [];
+    const current = raw.find((record) => record.id === id);
+    if (!current || !canReadArtifact(current, raw))
+      throw new Error('That meeting artifact is unavailable.');
+    scope.assertOwns(recordClientBoundary(current), 'Artifact');
+    const projected = projectArtifact(current, raw);
+    const valid = validateMeetingArtifactTransition(transition);
+    if (valid.from !== projected.state)
+      throw new Error(
+        `This artifact is ${projected.state}, not ${valid.from}; refusing a stale decision.`
+      );
+    return approveArtifact(projected, valid, expected);
+  }
 
   async function approveArtifact(
     artifact: MeetingArtifact,
@@ -2739,7 +2936,7 @@ export function createMeetingArtifactStore(
     if (!base) throw new Error('The artifact disappeared before approval.');
     await persist(
       {
-        id: recordId('meeting-artifact-transition'),
+        id: `meeting-artifact-decision-${artifact.id}`,
         kind: 'meeting_artifact_transition',
         matterId: artifact.matterId,
         householdRef: artifact.householdRef,
@@ -2752,6 +2949,11 @@ export function createMeetingArtifactStore(
         fromState: valid.from,
         toState: valid.to,
         transitionAt: valid.at,
+        ...(valid.decisionId ? { decisionId: valid.decisionId } : {}),
+        ...(valid.proposalRevision
+          ? { proposalRevision: valid.proposalRevision }
+          : {}),
+        ...(valid.exactProposal ? { exactProposal: valid.exactProposal } : {}),
       },
       expected
     );
@@ -2773,11 +2975,82 @@ export function validateMeetingArtifactTransition(
   transition: MeetingArtifactTransition
 ): MeetingArtifactTransition {
   const runtime = transition as { from: unknown; to: unknown; at: unknown };
-  if (runtime.from !== 'produced' || runtime.to !== 'approved')
+  if (
+    runtime.from !== 'produced' ||
+    (runtime.to !== 'approved' && runtime.to !== 'rejected')
+  )
     throw new Error(
       `Illegal meeting artifact transition: ${transition.from} to ${transition.to}.`
     );
-  return { ...transition, at: timestamp(transition.at, 'Approval timestamp') };
+  const at = timestamp(transition.at, 'Decision timestamp');
+  const hasLedgerFields =
+    transition.decisionId !== undefined ||
+    transition.proposalRevision !== undefined ||
+    transition.exactProposal !== undefined;
+  if (hasLedgerFields) {
+    if (
+      typeof transition.decisionId !== 'string' ||
+      !transition.decisionId.trim() ||
+      typeof transition.proposalRevision !== 'string' ||
+      !transition.proposalRevision.trim() ||
+      !transition.exactProposal ||
+      typeof transition.exactProposal !== 'object' ||
+      Array.isArray(transition.exactProposal)
+    )
+      throw new Error(
+        'A meeting artifact decision must save its exact proposal revision.'
+      );
+  }
+  return { ...transition, at };
+}
+
+export function validateMeetingArtifactDelivery(
+  delivery: MeetingArtifactDelivery
+): MeetingArtifactDelivery {
+  if (typeof delivery.key !== 'string' || !delivery.key.trim())
+    throw new Error('Artifact delivery identity is required.');
+  if (
+    !['pending', 'confirmed', 'failed', 'retryable'].includes(delivery.status)
+  )
+    throw new Error('Artifact delivery status is invalid.');
+  if (!Number.isInteger(delivery.attempt) || delivery.attempt < 1)
+    throw new Error('Artifact delivery attempt must be positive.');
+  if (delivery.status === 'confirmed' && !delivery.receipt)
+    throw new Error('A confirmed delivery requires its exact receipt.');
+  return {
+    ...delivery,
+    key: delivery.key.trim(),
+    at: timestamp(delivery.at, 'Delivery timestamp'),
+  };
+}
+
+function deliveryStatusOrder(value: unknown): number {
+  if (value === 'pending') return 0;
+  if (value === 'failed' || value === 'retryable') return 1;
+  if (value === 'confirmed') return 2;
+  return 99;
+}
+
+function assertNextMeetingArtifactDelivery(
+  previous: MeetingArtifactDelivery,
+  next: MeetingArtifactDelivery
+): void {
+  if (next.key !== previous.key)
+    throw new Error('Artifact delivery identity changed.');
+  if (next.at < previous.at)
+    throw new Error('Artifact delivery history is out of order.');
+  const completesAttempt =
+    previous.status === 'pending' &&
+    next.attempt === previous.attempt &&
+    (next.status === 'confirmed' ||
+      next.status === 'failed' ||
+      next.status === 'retryable');
+  const startsRetry =
+    previous.status === 'retryable' &&
+    next.status === 'pending' &&
+    next.attempt === previous.attempt + 1;
+  if (!completesAttempt && !startsRetry)
+    throw new Error('Artifact delivery history contains an illegal transition.');
 }
 
 function artifactMinimumVersions(
@@ -2908,14 +3181,14 @@ export interface DirectClientMeetingTarget {
 }
 
 export interface PairBoundDirectClientMeeting<
-  Row extends DirectClientMeetingDescriptor
+  Row extends DirectClientMeetingDescriptor,
 > {
   readonly meeting: Row;
   readonly target: DirectClientMeetingTarget;
 }
 
 export type DirectClientMeetingsReadResult<
-  Row extends DirectClientMeetingDescriptor
+  Row extends DirectClientMeetingDescriptor,
 > =
   | { readonly kind: 'loading' }
   | {
@@ -2926,7 +3199,7 @@ export type DirectClientMeetingsReadResult<
   | { readonly kind: 'error'; readonly message: string };
 
 export interface DirectClientMeetingsAdapter<
-  Row extends DirectClientMeetingDescriptor
+  Row extends DirectClientMeetingDescriptor,
 > {
   list(): Promise<DirectClientMeetingsReadResult<Row>>;
   resolveTarget(
@@ -3006,12 +3279,10 @@ function authorizedDirectClientFolder(
  * asynchronous scan before returning any row or target.
  */
 export function createDirectClientMeetingsAdapter<
-  Row extends DirectClientMeetingDescriptor
+  Row extends DirectClientMeetingDescriptor,
 >(input: {
   readonly client: SealedMeetingClientBoundary;
-  readonly getActiveClientBoundary: () =>
-    | SealedMeetingClientBoundary
-    | null;
+  readonly getActiveClientBoundary: () => SealedMeetingClientBoundary | null;
   readonly matterFolder: string;
   readonly scan: (authorizedMatterFolder: string) => Promise<{
     readonly meetings: readonly Row[];
@@ -3034,7 +3305,10 @@ export function createDirectClientMeetingsAdapter<
         kind: 'refused',
         message: 'This client meeting folder is not authorized.',
       };
-    let scanned: { readonly meetings: readonly Row[]; readonly scanFailed: boolean };
+    let scanned: {
+      readonly meetings: readonly Row[];
+      readonly scanFailed: boolean;
+    };
     try {
       scanned =
         folderBefore === NO_DIRECT_CLIENT_FOLDER
@@ -3054,13 +3328,19 @@ export function createDirectClientMeetingsAdapter<
     const bounded: PairBoundDirectClientMeeting<Row>[] = [];
     for (const meeting of scanned.meetings) {
       if (folderAfter === NO_DIRECT_CLIENT_FOLDER)
-        return { kind: 'error', message: 'A client meeting folder was invalid.' };
+        return {
+          kind: 'error',
+          message: 'A client meeting folder was invalid.',
+        };
       const meetingDir = validatedMeetingDirectoryIdentity(
         meeting.dir,
         folderAfter
       );
       if (!meetingDir)
-        return { kind: 'error', message: 'A client meeting folder was invalid.' };
+        return {
+          kind: 'error',
+          message: 'A client meeting folder was invalid.',
+        };
       const target = deepFreezeAuthority({
         kind: 'direct-client-meeting',
         client: input.client,
@@ -3097,9 +3377,11 @@ export function verifyDirectClientMeetingTarget(
   target: DirectClientMeetingTarget | null | undefined,
   active: SealedMeetingClientBoundary | null | undefined
 ): boolean {
-  return !!target &&
+  return (
+    !!target &&
     sealedDirectClientMeetingTargets.has(target) &&
-    sameClientBoundary(target.client, active);
+    sameClientBoundary(target.client, active)
+  );
 }
 
 export type MeetingPlatform =
@@ -3227,13 +3509,19 @@ function meetingRelativeContext(
   const start = Date.parse(meeting.scheduledStartUtc);
   const end = Date.parse(meeting.scheduledEndUtc);
   if (nowMs < start)
-    return { kind: 'starts-in', minutes: Math.max(0, Math.ceil((start - nowMs) / 60_000)) };
+    return {
+      kind: 'starts-in',
+      minutes: Math.max(0, Math.ceil((start - nowMs) / 60_000)),
+    };
   if (nowMs < end)
     return {
       kind: 'in-progress',
       minutesRemaining: Math.max(0, Math.ceil((end - nowMs) / 60_000)),
     };
-  return { kind: 'ended-ago', minutes: Math.max(0, Math.floor((nowMs - end) / 60_000)) };
+  return {
+    kind: 'ended-ago',
+    minutes: Math.max(0, Math.floor((nowMs - end) / 60_000)),
+  };
 }
 
 /**
