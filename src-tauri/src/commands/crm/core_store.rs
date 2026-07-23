@@ -117,6 +117,33 @@ fn validate_provider_draft_claim(claim: &ProviderDraftClaim) -> Result<()> {
     Ok(())
 }
 
+/// A pending provider receipt inherits the source artifact's private meeting
+/// lineage.  Accept only the current derived shape: legacy/unrestricted (or
+/// incomplete) labels must never be copied into a new durable artifact.
+fn provider_draft_source_visibility(
+    source: &Value,
+    artifact_id: &str,
+    meeting_id: &str,
+) -> Result<serde_json::Map<String, Value>> {
+    let visibility = source
+        .as_object()
+        .context("provider draft claim follow-up visibility is invalid")?;
+    let parent = visibility
+        .get("parentRef")
+        .and_then(Value::as_object)
+        .context("provider draft claim follow-up visibility parent is invalid")?;
+    if visibility.get("kind").and_then(Value::as_str) != Some("meeting-artifact")
+        || visibility.get("id").and_then(Value::as_str) != Some(artifact_id)
+        || visibility.get("lineage").and_then(Value::as_str) != Some("derived")
+        || parent.len() != 2
+        || parent.get("kind").and_then(Value::as_str) != Some("meeting-note")
+        || parent.get("id").and_then(Value::as_str) != Some(meeting_id)
+    {
+        bail!("provider draft claim follow-up visibility is invalid")
+    }
+    Ok(visibility.clone())
+}
+
 fn core_master_key() -> Result<[u8; KEY_LEN]> {
     if let Ok(hex) = std::env::var("LANTERN_HEADLESS_TEST_CRM_CORE_MASTER_KEY_HEX") {
         let bytes = hex::decode(hex.trim()).context("decode CRM core test master key")?;
@@ -303,18 +330,16 @@ impl CrmCoreStore {
                 .get("meetingVisibility")
                 .cloned()
                 .context("provider draft claim follow-up visibility is missing")?;
-            let visibility = meeting_visibility
-                .as_object_mut()
-                .context("provider draft claim follow-up visibility is invalid")?;
-            if visibility.get("kind").and_then(Value::as_str) != Some("meeting-artifact")
-                || visibility.get("id").and_then(Value::as_str) != Some(claim.artifact_id.as_str())
-            {
-                bail!("provider draft claim follow-up visibility is invalid")
-            }
+            let mut visibility = provider_draft_source_visibility(
+                &meeting_visibility,
+                &claim.artifact_id,
+                &claim.meeting_id,
+            )?;
             // Retain the source artifact's complete privacy lineage, but bind it
             // to this new durable receipt so the normal artifact reader accepts
             // it after the encrypted store is reopened.
             visibility.insert("id".into(), Value::String(claim_id.clone()));
+            meeting_visibility = Value::Object(visibility);
             let created_at = now_iso();
             let record = json!({
                 "id": claim_id,
@@ -808,6 +833,78 @@ mod tests {
         let store = CrmCoreStore::open_with_key(dir.path(), &[7; 32]).unwrap();
         (dir, store)
     }
+
+    fn provider_claim(recap_seed: char) -> ProviderDraftClaim {
+        ProviderDraftClaim {
+            recap_key: format!("meeting-follow-up-{}", recap_seed.to_string().repeat(64)),
+            artifact_id: "follow-up-edited-1".into(),
+            meeting_id: "meeting-1".into(),
+            household_ref: "household-1".into(),
+            matter_id: "matter-1".into(),
+            to: "client@example.test".into(),
+            subject: "Review recap".into(),
+            body: "Thank you for meeting today.".into(),
+            provider: "m365".into(),
+            account: "advisor@firm.test".into(),
+            account_label: "Advisor Outlook".into(),
+        }
+    }
+
+    fn seed_provider_claim_source(
+        store: &CrmCoreStore,
+        claim: &ProviderDraftClaim,
+        meeting_visibility: Value,
+    ) {
+        store
+            .upsert_live_record(&serde_json::json!({
+                "id": claim.meeting_id,
+                "kind": "meeting",
+                "matterId": claim.matter_id,
+                "householdRef": claim.household_ref,
+                "updatedAt": "2026-07-23T00:00:00Z",
+            }))
+            .unwrap();
+        store
+            .upsert_live_record(&serde_json::json!({
+                "id": claim.artifact_id,
+                "kind": "meeting_artifact",
+                "matterId": claim.matter_id,
+                "householdRef": claim.household_ref,
+                "meetingId": claim.meeting_id,
+                "artifactKind": "follow-up-draft",
+                "schemaVersion": 1,
+                "producedAt": "2026-07-23T00:00:00Z",
+                "artifactState": "produced",
+                "sourceRefs": [],
+                "provenance": "local-entry",
+                "meetingVisibility": meeting_visibility,
+                "payload": {
+                    "recapKey": claim.recap_key,
+                    "to": claim.to,
+                    "subject": claim.subject,
+                    "body": claim.body,
+                    "deliveryState": "edited",
+                },
+                "updatedAt": "2026-07-23T00:00:00Z",
+            }))
+            .unwrap();
+    }
+
+    fn assert_invalid_provider_source_visibility(meeting_visibility: Value) {
+        let (directory, store) = store();
+        let claim = provider_claim('b');
+        seed_provider_claim_source(&store, &claim, meeting_visibility);
+        let claim_id = provider_draft_claim_id(&claim.recap_key).unwrap();
+
+        assert!(store.claim_provider_follow_up_draft(&claim).is_err());
+        drop(store);
+        assert!(CrmCoreStore::open_with_key(directory.path(), &[7; 32])
+            .unwrap()
+            .list_live_records()
+            .unwrap()
+            .iter()
+            .all(|record| record.get("id").and_then(Value::as_str) != Some(claim_id.as_str())));
+    }
     #[test]
     fn document_and_cursor_round_trip() {
         let (_d, s) = store();
@@ -846,63 +943,23 @@ mod tests {
     fn provider_follow_up_claim_is_atomic_across_independently_opened_stores() {
         let directory = TempDir::new().unwrap();
         let first = CrmCoreStore::open_with_key(directory.path(), &[7; 32]).unwrap();
-        first
-            .upsert_live_record(&serde_json::json!({
-                "id": "meeting-1",
-                "kind": "meeting",
-                "matterId": "matter-1",
-                "householdRef": "household-1",
-                "updatedAt": "2026-07-23T00:00:00Z",
-            }))
-            .unwrap();
-        first
-            .upsert_live_record(&serde_json::json!({
+        let claim = provider_claim('a');
+        seed_provider_claim_source(
+            &first,
+            &claim,
+            serde_json::json!({
+                "kind": "meeting-artifact",
                 "id": "follow-up-edited-1",
-                "kind": "meeting_artifact",
-                "matterId": "matter-1",
+                "lineage": "derived",
+                "parentRef": { "kind": "meeting-note", "id": "meeting-1" },
+                "ownerRef": "advisor-1",
+                "visibilityPolicyId": "policy-1",
                 "householdRef": "household-1",
-                "meetingId": "meeting-1",
-                "artifactKind": "follow-up-draft",
-                "schemaVersion": 1,
-                "producedAt": "2026-07-23T00:00:00Z",
-                "artifactState": "produced",
-                "sourceRefs": [],
-                "provenance": "local-entry",
-                "meetingVisibility": {
-                    "kind": "meeting-artifact",
-                    "id": "follow-up-edited-1",
-                    "lineage": "derived",
-                    "parentRef": { "kind": "meeting-note", "id": "meeting-1" },
-                    "ownerRef": "advisor-1",
-                    "visibilityPolicyId": "policy-1",
-                },
-                "payload": {
-                    "recapKey": "meeting-follow-up-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                    "to": "client@example.test",
-                    "subject": "Review recap",
-                    "body": "Thank you for meeting today.",
-                    "deliveryState": "edited",
-                },
-                "updatedAt": "2026-07-23T00:00:00Z",
-            }))
-            .unwrap();
+                "matterId": "matter-1",
+            }),
+        );
         drop(first);
 
-        let claim = ProviderDraftClaim {
-            recap_key:
-                "meeting-follow-up-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                    .into(),
-            artifact_id: "follow-up-edited-1".into(),
-            meeting_id: "meeting-1".into(),
-            household_ref: "household-1".into(),
-            matter_id: "matter-1".into(),
-            to: "client@example.test".into(),
-            subject: "Review recap".into(),
-            body: "Thank you for meeting today.".into(),
-            provider: "m365".into(),
-            account: "advisor@firm.test".into(),
-            account_label: "Advisor Outlook".into(),
-        };
         let barrier = Arc::new(Barrier::new(2));
         let threads = (0..2)
             .map(|_| {
@@ -986,76 +1043,101 @@ mod tests {
                 .and_then(Value::as_str),
             Some("meeting-1")
         );
+        assert_eq!(
+            pending
+                .get("meetingVisibility")
+                .and_then(Value::as_object)
+                .and_then(|visibility| visibility.get("ownerRef"))
+                .and_then(Value::as_str),
+            Some("advisor-1")
+        );
+        assert_eq!(
+            pending
+                .get("meetingVisibility")
+                .and_then(Value::as_object)
+                .and_then(|visibility| visibility.get("householdRef"))
+                .and_then(Value::as_str),
+            Some("household-1")
+        );
+        assert_eq!(
+            pending
+                .get("meetingVisibility")
+                .and_then(Value::as_object)
+                .and_then(|visibility| visibility.get("matterId"))
+                .and_then(Value::as_str),
+            Some("matter-1")
+        );
         assert!(records.iter().all(|record| {
             record.get("id").and_then(Value::as_str) != Some(claim_id.as_str())
                 || (record.get("householdRef").and_then(Value::as_str) == Some("household-1")
                     && record.get("matterId").and_then(Value::as_str) == Some("matter-1"))
         }));
+    }
 
-        let invalid_directory = TempDir::new().unwrap();
-        let invalid = CrmCoreStore::open_with_key(invalid_directory.path(), &[8; 32]).unwrap();
-        invalid
-            .upsert_live_record(&serde_json::json!({
-                "id": "meeting-invalid",
-                "kind": "meeting",
-                "matterId": "matter-invalid",
-                "householdRef": "household-invalid",
-                "updatedAt": "2026-07-23T00:00:00Z",
-            }))
-            .unwrap();
-        invalid
-            .upsert_live_record(&serde_json::json!({
-                "id": "follow-up-invalid",
-                "kind": "meeting_artifact",
-                "matterId": "matter-invalid",
-                "householdRef": "household-invalid",
-                "meetingId": "meeting-invalid",
-                "artifactKind": "follow-up-draft",
-                "schemaVersion": 1,
-                "producedAt": "2026-07-23T00:00:00Z",
-                "artifactState": "produced",
-                "sourceRefs": [],
-                "provenance": "local-entry",
-                "meetingVisibility": {
-                    "kind": "meeting-artifact",
-                    "id": "different-artifact",
-                    "lineage": "legacy-unrestricted",
-                },
-                "payload": {
-                    "recapKey": "meeting-follow-up-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-                    "to": "client@example.test",
-                    "subject": "Review recap",
-                    "body": "Thank you for meeting today.",
-                    "deliveryState": "edited",
-                },
-                "updatedAt": "2026-07-23T00:00:00Z",
-            }))
-            .unwrap();
-        let invalid_claim = ProviderDraftClaim {
-            recap_key:
-                "meeting-follow-up-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-                    .into(),
-            artifact_id: "follow-up-invalid".into(),
-            meeting_id: "meeting-invalid".into(),
-            household_ref: "household-invalid".into(),
-            matter_id: "matter-invalid".into(),
-            to: "client@example.test".into(),
-            subject: "Review recap".into(),
-            body: "Thank you for meeting today.".into(),
-            provider: "gmail".into(),
-            account: "advisor@firm.test".into(),
-            account_label: "Advisor Gmail".into(),
-        };
-        let invalid_claim_id = provider_draft_claim_id(&invalid_claim.recap_key).unwrap();
-        assert!(invalid
-            .claim_provider_follow_up_draft(&invalid_claim)
-            .is_err());
-        assert!(invalid
+    #[test]
+    fn provider_follow_up_claim_rejects_legacy_visibility_before_insertion() {
+        assert_invalid_provider_source_visibility(serde_json::json!({
+            "kind": "meeting-artifact",
+            "id": "follow-up-edited-1",
+            "lineage": "legacy-unrestricted",
+            "parentRef": { "kind": "meeting-note", "id": "meeting-1" },
+        }));
+    }
+
+    #[test]
+    fn provider_follow_up_claim_rejects_visibility_without_parent_before_insertion() {
+        assert_invalid_provider_source_visibility(serde_json::json!({
+            "kind": "meeting-artifact",
+            "id": "follow-up-edited-1",
+            "lineage": "derived",
+        }));
+    }
+
+    #[test]
+    fn provider_follow_up_claim_rejects_visibility_for_a_different_parent_before_insertion() {
+        assert_invalid_provider_source_visibility(serde_json::json!({
+            "kind": "meeting-artifact",
+            "id": "follow-up-edited-1",
+            "lineage": "derived",
+            "parentRef": { "kind": "meeting-note", "id": "meeting-other" },
+        }));
+    }
+
+    #[test]
+    fn provider_follow_up_claim_stays_in_its_explicit_store_when_another_workspace_is_open() {
+        let target_directory = TempDir::new().unwrap();
+        let alternate_directory = TempDir::new().unwrap();
+        let target = CrmCoreStore::open_with_key(target_directory.path(), &[7; 32]).unwrap();
+        let alternate =
+            CrmCoreStore::open_with_key(alternate_directory.path(), &[7; 32]).unwrap();
+        let claim = provider_claim('c');
+        let visibility = serde_json::json!({
+            "kind": "meeting-artifact",
+            "id": "follow-up-edited-1",
+            "lineage": "derived",
+            "parentRef": { "kind": "meeting-note", "id": "meeting-1" },
+        });
+        seed_provider_claim_source(&target, &claim, visibility.clone());
+        seed_provider_claim_source(&alternate, &claim, visibility);
+
+        // Another workspace is open after the intended store. The claim is a
+        // method on the explicitly opened target store, so it cannot insert
+        // into the alternate database.
+        assert_eq!(
+            target.claim_provider_follow_up_draft(&claim).unwrap(),
+            ProviderDraftClaimOutcome::Acquired
+        );
+        let claim_id = provider_draft_claim_id(&claim.recap_key).unwrap();
+        assert!(target
             .list_live_records()
             .unwrap()
             .iter()
-            .all(|record| record.get("id").and_then(Value::as_str)
-                != Some(invalid_claim_id.as_str())));
+            .any(|record| record.get("id").and_then(Value::as_str) == Some(claim_id.as_str())));
+        assert!(alternate
+            .list_live_records()
+            .unwrap()
+            .iter()
+            .all(|record| record.get("id").and_then(Value::as_str) != Some(claim_id.as_str())));
     }
 
     #[test]

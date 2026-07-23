@@ -158,11 +158,9 @@ export async function claimProviderFollowUpDraft(
     throw new Error('Provider draft claims can only run in the desktop app.');
   if (!workspaceRoot)
     throw new Error('Open a workspace before saving a provider draft.');
-  return inCrmWorkspace(workspaceRoot, () =>
-    invoke<ProviderFollowUpDraftClaimResult>(
-      'crm_claim_provider_follow_up_draft',
-      { claim }
-    )
+  return invoke<ProviderFollowUpDraftClaimResult>(
+    'crm_claim_provider_follow_up_draft',
+    { workspaceRoot, claim }
   );
 }
 

@@ -122,6 +122,7 @@ pub async fn crm_live_list(state: State<'_, CrmState>) -> Result<Vec<Value>, Str
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderDraftClaimDto {
+    workspace_root: String,
     recap_key: String,
     artifact_id: String,
     meeting_id: String,
@@ -142,10 +143,14 @@ pub struct ProviderDraftClaimResultDto {
 }
 
 /// Acquire the one durable, exact-meeting provider save receipt before any
-/// provider call. A second app process gets `alreadyClaimed` and must stop.
+/// provider call. The renderer pins its intended workspace in this one native
+/// operation, so a later global CRM workspace switch cannot retarget it.
 #[tauri::command]
-pub async fn crm_claim_provider_follow_up_draft(state: State<'_, CrmState>, claim: ProviderDraftClaimDto) -> Result<ProviderDraftClaimResultDto, String> {
-    let workspace = workspace(&state).await?;
+pub async fn crm_claim_provider_follow_up_draft(claim: ProviderDraftClaimDto) -> Result<ProviderDraftClaimResultDto, String> {
+    if claim.workspace_root.trim().is_empty() {
+        return Err("Open a workspace before saving a provider draft.".to_string());
+    }
+    let workspace = std::path::PathBuf::from(&claim.workspace_root);
     tokio::task::spawn_blocking(move || {
         let claim = ProviderDraftClaim {
             recap_key: claim.recap_key,
