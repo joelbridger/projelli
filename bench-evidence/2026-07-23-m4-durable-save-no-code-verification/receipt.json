@@ -5,7 +5,7 @@
   "timestamp_utc": "2026-07-23T18:35:57Z",
   "frozen_candidate": "7d5fbf00051bebb5f2c98c3d652b6ec1516345dc",
   "accepted_base": "7d5fbf00051bebb5f2c98c3d652b6ec1516345dc",
-  "evidence_commit": "PENDING_COMMIT",
+  "initial_evidence_commit": "4d8093dd0dfdc5495a59dd8e6846c605ea7912bc",
   "contract": {
     "sha256": "3dd4d97341801f9a2eedeb90518fbeffbdb45be0551f5ccf6a34461002f8e67f",
     "job_id": "20260723-183329-kntqxxxx",
@@ -53,5 +53,19 @@
     {"name": "Production remains default off", "command": "rg -n '^const M4_MICROSOFT_DRAFT_SAVE_ENABLED: bool = false;$' src-tauri/src/commands/mail/m4_microsoft_adapter.rs", "observed_result": "PASS: exit 0; matched line 21"},
     {"name": "Exact product bytes unchanged", "command": "git diff --exit-code 7d5fbf00051bebb5f2c98c3d652b6ec1516345dc -- src-tauri/src/commands/mail/verified_mailbox.rs src-tauri/src/commands/mail/m4_microsoft_adapter.rs src-tauri/src/commands/mail/m4_microsoft_sealed_transport.rs src-tauri/src/commands/mail/mod.rs src-tauri/src/commands/crm/migrations/v0007_m4_provider_draft_receipts.rs src-tauri/src/commands/crm/migrations/mod.rs", "observed_result": "PASS: exit 0; no differences"}
   ],
-  "post_commit_revalidation": "PENDING: the same contract checks will be rerun against the committed evidence head while the verified temporary helpers exist, then the links will be verified, removed, and proved absent."
+  "post_commit_revalidation": {
+    "committed_head": "4d8093dd0dfdc5495a59dd8e6846c605ea7912bc",
+    "result": "PASS",
+    "commands": [
+      {"name": "Owned Rust formatting on committed candidate", "observed_result": "PASS: exit 0; no output"},
+      {"name": "Durable Microsoft draft authority tests", "observed_result": "PASS: exit 0; 10 passed, 0 failed"},
+      {"name": "Draft claim state and recovery tests", "observed_result": "PASS: exit 0; 2 passed, 0 failed"},
+      {"name": "Migration registry and receipt tests", "observed_result": "PASS: exit 0; 6 passed, 0 failed"},
+      {"name": "Native library check", "observed_result": "PASS: exit 0; completed with the same 5 unused-code warnings"},
+      {"name": "No-provider structural guard", "observed_result": "PASS: exit 0; no matches"},
+      {"name": "Production remains default off", "observed_result": "PASS: exit 0; matched line 21"},
+      {"name": "Exact product bytes unchanged", "observed_result": "PASS: exit 0; no differences"},
+      {"name": "Temporary helpers removed", "observed_result": "PASS: before removal both symlinks resolved to their canonical sources; after removal the exact absence command exited 0"}
+    ]
+  }
 }
