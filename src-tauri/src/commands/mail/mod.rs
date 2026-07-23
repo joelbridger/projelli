@@ -11,6 +11,7 @@ pub mod store;
 pub mod sync;
 pub mod view;
 
+mod m4_dark_draft_handoff;
 mod m4_gmail_adapter;
 mod m4_microsoft_adapter;
 mod verified_draft_claim;
@@ -28,8 +29,11 @@ pub(crate) const M4_MICROSOFT_DRAFT_SCOPE: &str = "openid offline_access User.Re
 
 /// Gmail's compose permission can technically send, so later sealed transport
 /// remains the no-send wall for the M4 draft-handoff flow.
-pub(crate) const M4_GMAIL_DRAFT_SCOPE: &str =
-    concat!("openid email ", "https", "://www.googleapis.com/auth/gmail.compose");
+pub(crate) const M4_GMAIL_DRAFT_SCOPE: &str = concat!(
+    "openid email ",
+    "https",
+    "://www.googleapis.com/auth/gmail.compose"
+);
 
 /// The single private provider seam. Shared orchestration can pass sealed
 /// context and an approved draft view here without learning provider-specific
