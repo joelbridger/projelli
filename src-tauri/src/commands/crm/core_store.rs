@@ -160,6 +160,17 @@ impl CrmCoreStore {
         Ok(result)
     }
 
+    /// The sealed Hendricks capability may use the existing encrypted core and
+    /// derived key without exposing either to the renderer.
+    pub fn hendricks_review_transaction<T>(
+        &self,
+        operation: impl FnOnce(&rusqlite::Transaction<'_>, &str, &[u8; KEY_LEN]) -> Result<T>,
+    ) -> Result<T> {
+        let key = core_master_key()?;
+        let workspace = self.workspace_root.to_string_lossy().into_owned();
+        self.with_immediate_transaction(|tx| operation(tx, &workspace, &key))
+    }
+
     /// Narrow transaction boundary reserved for the sealed M4 mailbox
     /// foundation. It keeps its truth in this existing SQLCipher store.
     #[allow(dead_code)]

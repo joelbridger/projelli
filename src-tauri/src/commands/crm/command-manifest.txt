@@ -25,6 +25,11 @@ command 1670 crate::commands::crm::core_commands::crm_core_commit_propagation
 command 1680 crate::commands::crm::core_commands::crm_live_upsert
 command 1690 crate::commands::crm::core_commands::crm_live_upsert_many
 command 1700 crate::commands::crm::core_commands::crm_live_list
+command 1705 crate::commands::crm::core_commands::crm_hendricks_review_seed
+command 1706 crate::commands::crm::core_commands::crm_hendricks_review_view
+command 1707 crate::commands::crm::core_commands::crm_hendricks_review_approve
+command 1708 crate::commands::crm::core_commands::crm_hendricks_review_deliver_task
+command 1709 crate::commands::crm::core_commands::crm_hendricks_review_deliver_crm
 command 1710 crate::commands::crm::search::crm_search
 command 1720 crate::commands::crm::migration_commands::crm_migration_import
 command 1730 crate::commands::crm::migration_commands::crm_migration_export

@@ -56,6 +56,11 @@ export interface AccountlessUnrestrictedMeetingVisibilitySubject extends Meeting
   readonly lineage: 'accountless-unrestricted';
 }
 
+/** A marker for the one sealed walkthrough.  Generic visibility never grants it. */
+export interface HendricksSampleCapabilityMeetingVisibilitySubject extends MeetingVisibilitySubjectBase {
+  readonly lineage: 'hendricks-sample-capability';
+}
+
 /** A canonical meeting note, which is the root of an inheritance chain. */
 export interface RootMeetingVisibilitySubject extends MeetingVisibilitySubjectBase {
   readonly kind: 'meeting-note';
@@ -76,6 +81,7 @@ export interface DerivedMeetingVisibilitySubject extends MeetingVisibilitySubjec
 export type MeetingVisibilitySubject =
   | LegacyUnrestrictedMeetingVisibilitySubject
   | AccountlessUnrestrictedMeetingVisibilitySubject
+  | HendricksSampleCapabilityMeetingVisibilitySubject
   | RootMeetingVisibilitySubject
   | DerivedMeetingVisibilitySubject;
 
@@ -288,6 +294,12 @@ function parseSubject(value: unknown): ParsedSubject {
     return { ...base, lineage: 'accountless-unrestricted' };
   }
 
+  if (record['lineage'] === 'hendricks-sample-capability') {
+    if (owns(record, 'ownerRef') || owns(record, 'visibilityPolicyId') || owns(record, 'parentRef'))
+      throw new Error('Hendricks sample visibility cannot claim owner, policy, or parent.');
+    return { ...base, lineage: 'hendricks-sample-capability' };
+  }
+
   if (record['lineage'] === 'root') {
     if (kind !== 'meeting-note' || owns(record, 'parentRef') || !base.ownerRef)
       throw new Error('Meeting visibility root is invalid.');
@@ -370,6 +382,11 @@ export function resolveMeetingVisibility(
   const requestedLegacyUnrestricted = current.lineage === 'legacy-unrestricted';
   const requestedAccountlessUnrestricted =
     current.lineage === 'accountless-unrestricted';
+
+  // Only the native capability can turn this sealed marker into a client
+  // grant. Persisted lookalikes remain invisible everywhere else.
+  if (current.lineage === 'hendricks-sample-capability')
+    return hidden('malformed-subject');
 
   let ownerRef: string | undefined;
   let policyId: string | undefined;

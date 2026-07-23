@@ -13,13 +13,14 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import {
   decideMeetingFileVisibility,
   FILE_MEETING_OWNER_PRIVATE_POLICY,
-} from '@/features/meetings/meetingFileVisibility';
+} from '@/features/meetings';
 import type { Matter } from '@/platform/types/matter';
 import {
   SAMPLE_GOLDEN_PATH,
   ensureSampleHendricksCrmLink,
   seedSampleGoldenPath,
 } from './seedSampleGoldenPath';
+import { HENDRICKS_SAMPLE_MATTER_ID } from '@/platform/samples/hendricksReviewCapability';
 
 class InMemoryWorkspace {
   readonly textFiles = new Map<string, string>();
@@ -40,7 +41,7 @@ class InMemoryWorkspace {
   }
 }
 
-const matterId = 'matter-hendricks';
+const matterId = HENDRICKS_SAMPLE_MATTER_ID;
 const workspaceRoot = '/temporary-hendricks-workspace';
 const sampleBoundary = {
   householdRef: SAMPLE_GOLDEN_PATH.crmHouseholdKey,
@@ -146,6 +147,9 @@ beforeEach(() => {
 });
 
 describe('seedSampleGoldenPath', () => {
+  it('keeps the native capability tied to the canonical sample matter', () => {
+    expect(HENDRICKS_SAMPLE_MATTER_ID).toBe('matter_sample_garcia_v_meridian');
+  });
   it('uses one canonical Hendricks meeting across the sample proof', async () => {
     const workspace = new InMemoryWorkspace();
     const population = samplePopulation();

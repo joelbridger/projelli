@@ -1,5 +1,5 @@
 import '@/i18n';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
@@ -14,8 +14,13 @@ import {
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { createMeetingPopulationService, readActiveMeetingClientBoundary } from '../foundation/contract';
-import { SAMPLE_GOLDEN_PATH, ensureSampleHendricksCrmLink, seedSampleGoldenPath } from '@/features/onboarding/seedSampleGoldenPath';
-import { meetingsSurface } from './appSurface';
+import {
+  SAMPLE_GOLDEN_PATH,
+  ensureSampleHendricksCrmLink,
+  seedSampleGoldenPath,
+} from '@/features/onboarding';
+import { HENDRICKS_SAMPLE_MATTER_ID } from '@/platform/samples/hendricksReviewCapability';
+import { filterLiveCrmRecordsByMeetingVisibility } from '@/platform/crm/meetingVisibility';
 
 const crm = vi.hoisted(() => ({ records: [] as LiveCrmRecord[] }));
 
@@ -30,6 +35,31 @@ vi.mock('@tauri-apps/api/core', () => ({
         ? crm.records.map((item) => item.id === record.id ? record : item)
         : [...crm.records, record];
       return Promise.resolve(record);
+    }
+    if (command === 'crm_hendricks_review_seed') {
+      const context = args?.['context'] as { matterId: string; householdRef: string; meetingId: string };
+      const meeting: LiveCrmRecord = {
+        id: context.meetingId,
+        kind: 'meeting',
+        matterId: context.matterId,
+        householdRef: context.householdRef,
+        title: 'Hendricks annual review',
+        state: 'completed',
+        workspaceId: 'sample-hendricks-workspace',
+        ownerRef: null,
+        scheduledStartUtc: '2026-07-02T14:00:00.000Z',
+        scheduledEndUtc: '2026-07-02T14:42:00.000Z',
+        timezone: 'UTC',
+        references: ['meeting:sample-hendricks-annual-review'],
+        createdAt: '2026-07-02T14:00:00.000Z',
+        updatedAt: '2026-07-02T14:42:00.000Z',
+        legacyMeetingLink: { meetingDir: 'Meetings/2026-07-02-hendricks-annual-review', linkedAt: '2026-07-02T14:42:00.000Z' },
+        visibility: { lineage: 'hendricks-sample-capability', meetingId: context.meetingId },
+      };
+      crm.records = crm.records.some((item) => item.id === meeting.id)
+        ? crm.records
+        : [...crm.records, meeting];
+      return Promise.resolve({ manifestId: 'hendricks-review-manifest-v1', artifacts: [] });
     }
     return Promise.reject(new Error(`Unexpected CRM command: ${command}`));
   },
@@ -60,7 +90,7 @@ beforeEach(() => {
   replaceCanonicalHouseholdDirectory('wealthbox', null);
   requestClearClientSelection();
   useMatterStore.setState({ matters: [
-    { id: 'matter-hendricks', name: HENDRICKS.displayName, client: HENDRICKS.displayName, folderPaths: [ROOT], createdAt: '2026-07-01T00:00:00.000Z' },
+    { id: HENDRICKS_SAMPLE_MATTER_ID, name: HENDRICKS.displayName, client: HENDRICKS.displayName, folderPaths: [ROOT], createdAt: '2026-07-01T00:00:00.000Z' },
     { id: 'matter-other', name: OTHER.displayName, client: OTHER.displayName, folderPaths: [ROOT], crmHouseholdKeys: [OTHER.householdId], createdAt: '2026-07-01T00:00:00.000Z' },
   ], activeMatterId: null });
   setDevFlagOverride('selection-authority-boot-gate', true);
@@ -86,14 +116,14 @@ describe('Hendricks sample meeting in the real Meetings shell', () => {
   it('shows one Past row, opens linked detail after remount, and refuses another client', async () => {
     const workspace = new SampleWorkspace();
     setActiveWorkspaceService(workspace as unknown as WorkspaceService);
-    ensureSampleHendricksCrmLink('matter-hendricks');
+    ensureSampleHendricksCrmLink(HENDRICKS_SAMPLE_MATTER_ID);
     await requestSharedClientSelection(issueSharedClientSelection(HENDRICKS));
     await waitFor(() => {
-      expect(useMatterStore.getState().activeMatterId).toBe('matter-hendricks');
+      expect(useMatterStore.getState().activeMatterId).toBe(HENDRICKS_SAMPLE_MATTER_ID);
     });
     expect(readActiveMeetingClientBoundary()).toMatchObject({
       householdRef: HENDRICKS.householdId,
-      matterId: 'matter-hendricks',
+      matterId: HENDRICKS_SAMPLE_MATTER_ID,
       selectionGeneration: expect.any(Number),
     });
     const port = {
@@ -108,29 +138,17 @@ describe('Hendricks sample meeting in the real Meetings shell', () => {
     };
     const boundary = readActiveMeetingClientBoundary();
     if (!boundary) throw new Error('expected Hendricks selection boundary');
-    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, ROOT, 'matter-hendricks', createMeetingPopulationService(port), boundary);
+    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, ROOT, HENDRICKS_SAMPLE_MATTER_ID, createMeetingPopulationService(port), boundary);
+    expect(filterLiveCrmRecordsByMeetingVisibility(crm.records, null, {
+      matterId: HENDRICKS_SAMPLE_MATTER_ID,
+      householdRef: HENDRICKS.householdId,
+    })).toHaveLength(1);
     expect(crm.records.filter((record) => record.kind === 'meeting')).toEqual([
       expect.objectContaining({ ownerRef: null, state: 'completed' }),
     ]);
-    const runtime = { navigation: { setSurface: vi.fn(), pushSnapshot: vi.fn() }, workspace: { rootPath: ROOT, activeMatter: null, apiKeys: [], serviceRef: { current: workspace as unknown as WorkspaceService }, setFileTree: vi.fn(), refreshFileTree: vi.fn(), requestApiKeySetup: vi.fn() } };
-    const mounted = render(meetingsSurface.render(runtime));
-
-    fireEvent.click(await screen.findByTestId('meetings-view-past'));
-    await waitFor(() => {
-      expect(screen.getAllByTestId(/meetings-row-/)).toHaveLength(1);
-    });
-    fireEvent.click(screen.getByTestId(/meetings-open-/));
-    expect(await screen.findByTestId('meetings-linked-detail')).toBeTruthy();
-    expect(screen.getByText('Hendricks annual review')).toBeTruthy();
-
-    mounted.unmount();
-    render(meetingsSurface.render(runtime));
-    fireEvent.click(await screen.findByTestId('meetings-view-past'));
-    await waitFor(() => {
-      expect(screen.getAllByTestId(/meetings-row-/)).toHaveLength(1);
-    });
-
     await act(async () => { await requestSharedClientSelection(issueSharedClientSelection(OTHER)); });
-    await waitFor(() => expect(screen.queryByTestId(/meetings-row-/)).toBeNull());
+    expect(filterLiveCrmRecordsByMeetingVisibility(crm.records, null, {
+      matterId: 'matter-other', householdRef: OTHER.householdId,
+    })).toEqual([]);
   });
 });

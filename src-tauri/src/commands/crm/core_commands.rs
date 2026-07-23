@@ -5,7 +5,12 @@ use serde::Deserialize;
 use serde_json::Value;
 use tauri::State;
 
-use super::{commands::CrmState, core_store::CrmCoreStore, record_descriptors::valid_record_identifier};
+use super::{
+    commands::CrmState,
+    core_store::CrmCoreStore,
+    hendricks_review::{self, HendricksContext, HendricksView},
+    record_descriptors::valid_record_identifier,
+};
 
 async fn workspace(state: &CrmState) -> Result<std::path::PathBuf, String> {
     state.workspace.lock().await.clone().ok_or_else(|| "Open a workspace before using CRM data.".to_string())
@@ -117,4 +122,49 @@ pub async fn crm_live_list(state: State<'_, CrmState>) -> Result<Vec<Value>, Str
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || CrmCoreStore::open(&workspace)?.list_live_records())
         .await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn crm_hendricks_review_seed(state: State<'_, CrmState>, context: HendricksContext) -> Result<HendricksView, String> {
+    let workspace = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || {
+        let store = CrmCoreStore::open(&workspace)?;
+        store.hendricks_review_transaction(|tx, root, key| hendricks_review::ensure(tx, &context, root, key))
+    }).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn crm_hendricks_review_view(state: State<'_, CrmState>, context: HendricksContext) -> Result<HendricksView, String> {
+    let workspace = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || {
+        let store = CrmCoreStore::open(&workspace)?;
+        store.hendricks_review_transaction(|tx, root, key| hendricks_review::view(tx, &context, root, key))
+    }).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn crm_hendricks_review_approve(state: State<'_, CrmState>, context: HendricksContext, artifact_id: String) -> Result<HendricksView, String> {
+    let workspace = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || {
+        let store = CrmCoreStore::open(&workspace)?;
+        store.hendricks_review_transaction(|tx, root, key| hendricks_review::approve(tx, &context, root, key, &artifact_id))
+    }).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn crm_hendricks_review_deliver_task(state: State<'_, CrmState>, context: HendricksContext) -> Result<Value, String> {
+    let workspace = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || {
+        let store = CrmCoreStore::open(&workspace)?;
+        store.hendricks_review_transaction(|tx, root, key| hendricks_review::deliver_task(tx, &context, root, key))
+    }).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn crm_hendricks_review_deliver_crm(state: State<'_, CrmState>, context: HendricksContext) -> Result<Value, String> {
+    let workspace = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || {
+        let store = CrmCoreStore::open(&workspace)?;
+        store.hendricks_review_transaction(|tx, root, key| hendricks_review::deliver_crm(tx, &context, root, key))
+    }).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
 }

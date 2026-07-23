@@ -8,12 +8,11 @@ import {
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
 import type { MeetingBriefBullet } from '@/features/meetings/generateBrief';
 import {
-  createAccountlessUnrestrictedMeetingFileVisibilityManifest,
   type ActiveClientMeetingPopulationOperation,
+  type MeetingFileVisibilityManifest,
   type MeetingPopulationService,
   type SealedMeetingClientBoundary,
 } from '@/features/meetings';
-import type { MeetingFileVisibilityManifest } from '@/features/meetings/meetingFileVisibility';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -24,14 +23,23 @@ import {
   SAMPLE_FILE_PLAN_SUMMARY,
   sampleFilePath,
 } from '@/platform/matter/samples/sampleMatterDemo';
+import {
+  HENDRICKS_HOUSEHOLD_REF,
+  HENDRICKS_MEETING_ID,
+  HENDRICKS_REVIEW_CAPABILITY,
+  HENDRICKS_REVIEW_LINEAGE,
+  HENDRICKS_SAMPLE_MATTER_ID,
+} from '@/platform/samples/hendricksReviewCapability';
+import { seedNativeHendricksReview } from '@/platform/crm/liveRecords';
+import { isTauri } from '@tauri-apps/api/core';
 
 const SAMPLE_MEETING_FOLDER = '2026-07-02-hendricks-annual-review';
-const SAMPLE_MEETING_EVENT_ID = 'sample-hendricks-annual-review';
+const SAMPLE_MEETING_EVENT_ID = HENDRICKS_MEETING_ID;
 const SAMPLE_MEETING_EVENT_TITLE = 'Hendricks annual review';
 const SAMPLE_MEETING_STARTED_AT = '2026-07-02T14:00:00.000Z';
 const SAMPLE_MEETING_ENDED_AT = '2026-07-02T14:42:00.000Z';
 const SAMPLE_CRM_SOURCE_REF = `meeting:${SAMPLE_MEETING_EVENT_ID}`;
-const SAMPLE_CRM_HOUSEHOLD_KEY = 'sample-hendricks-household';
+const SAMPLE_CRM_HOUSEHOLD_KEY = HENDRICKS_HOUSEHOLD_REF;
 const SAMPLE_MEETING_FILE_NAMES = [
   'meeting.json',
   'transcript.json',
@@ -77,12 +85,7 @@ function sampleMeetingMeta(
         { name: 'Susan Hendricks', email: 'susan.hendricks@email.com' },
       ],
     },
-    meetingFileVisibility:
-      preservedVisibility ??
-      createAccountlessUnrestrictedMeetingFileVisibilityManifest({
-        meetingSubjectId: `meeting-file:${SAMPLE_MEETING_EVENT_ID}`,
-        fileNames: SAMPLE_MEETING_FILE_NAMES,
-      }),
+    meetingFileVisibility: preservedVisibility ?? strictSampleManifest(),
   };
 }
 
@@ -347,31 +350,26 @@ function isOwnerPrivateManifest(value: unknown): value is MeetingFileVisibilityM
   );
 }
 
-function isExactAccountlessSampleManifest(value: unknown): value is MeetingFileVisibilityManifest {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const manifest = value as MeetingFileVisibilityManifest;
+function strictSampleManifest(): MeetingFileVisibilityManifest {
   const rootId = `meeting-file:${SAMPLE_MEETING_EVENT_ID}`;
-  if (
-    manifest.version !== 1 ||
-    manifest.meetingSubject?.id !== rootId ||
-    manifest.meetingSubject.kind !== 'meeting-note' ||
-    manifest.meetingSubject.lineage !== 'accountless-unrestricted'
-  ) return false;
-  const names = Object.keys(manifest.files ?? {}).sort();
-  if (names.join('\u0000') !== [...SAMPLE_MEETING_FILE_NAMES].sort().join('\u0000'))
-    return false;
-  return names.every((name) => {
-    const subject = manifest.files[name];
-    return (
-      subject?.kind === 'file-reference' &&
-      subject.lineage === 'accountless-unrestricted' &&
-      subject.id === `${rootId}:file:${encodeURIComponent(name)}`
-    );
-  });
+  return {
+    version: 1,
+    meetingSubject: { id: rootId, kind: 'meeting-note', lineage: HENDRICKS_REVIEW_LINEAGE },
+    files: Object.fromEntries(SAMPLE_MEETING_FILE_NAMES.map((name) => [name, {
+      id: `${rootId}:file:${encodeURIComponent(name)}`,
+      kind: 'file-reference',
+      lineage: HENDRICKS_REVIEW_LINEAGE,
+    }])) as MeetingFileVisibilityManifest['files'],
+  } as MeetingFileVisibilityManifest;
+}
+
+function isExactStrictSampleManifest(value: unknown): value is MeetingFileVisibilityManifest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return JSON.stringify(value) === JSON.stringify(strictSampleManifest());
 }
 
 function isPreservableSampleVisibility(value: unknown): value is MeetingFileVisibilityManifest {
-  return isOwnerPrivateManifest(value) || isExactAccountlessSampleManifest(value);
+  return isOwnerPrivateManifest(value) || isExactStrictSampleManifest(value);
 }
 
 async function completeCanonicalSampleMeeting(
@@ -409,6 +407,7 @@ export async function seedSampleGoldenPath(
   // it, never capture whichever client happens to be selected later.
   if (
     boundary.matterId !== matterId ||
+    matterId !== HENDRICKS_SAMPLE_MATTER_ID ||
     boundary.householdRef !== SAMPLE_CRM_HOUSEHOLD_KEY
   ) {
     throw new Error('The Hendricks sample client changed before setup began.');
@@ -420,10 +419,14 @@ export async function seedSampleGoldenPath(
     `${meetingDir}/meeting.json`
   );
   operation.assertStable();
-  // Create the canonical record before any workspace file. A failed create
-  // therefore cannot leave sample material in the previously open workspace.
-  const canonical = await ensureCanonicalSampleMeeting(operation, workspaceRoot);
-  if (!canonical) throw new Error('The canonical Hendricks meeting could not be found.');
+  // Browser fixtures retain the normal population adapter. In the actual
+  // desktop app native code seeds the encrypted set only after source files
+  // exist and verifies them in its own transaction.
+  const canonical = isTauri()
+    ? null
+    : await ensureCanonicalSampleMeeting(operation, workspaceRoot);
+  if (!isTauri() && !canonical)
+    throw new Error('The canonical Hendricks meeting could not be found.');
   operation.assertStable();
   await workspace.writeFile(
     `${meetingDir}/meeting.json`,
@@ -445,8 +448,18 @@ export async function seedSampleGoldenPath(
     exactBuffer(notesBytes)
   );
 
+  if (isTauri()) {
+    await seedNativeHendricksReview({
+      matterId,
+      householdRef: boundary.householdRef,
+      meetingId: SAMPLE_MEETING_EVENT_ID,
+      workspaceRoot,
+      workspaceGeneration: boundary.selectionGeneration,
+    }, HENDRICKS_REVIEW_CAPABILITY);
+  }
+
   operation.assertStable();
-  await completeCanonicalSampleMeeting(operation, canonical);
+  if (canonical) await completeCanonicalSampleMeeting(operation, canonical);
   operation.assertStable();
   const sample = sampleBrief(workspaceRoot, matterId);
   useBriefStore.getState().upsert(sample.identity, sample.brief);

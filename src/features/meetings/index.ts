@@ -51,10 +51,12 @@ export {
 export { ClientMeetingsTab, listClientMeetings } from './ClientMeetingsTab';
 export type { MeetingSummary } from './ClientMeetingsTab';
 export {
-  createAccountlessUnrestrictedMeetingFileVisibilityManifest,
+  decideMeetingFileVisibility,
+  FILE_MEETING_OWNER_PRIVATE_POLICY,
   createLegacyUnrestrictedMeetingFileVisibilityManifest,
   migrateLegacyMeetingFileVisibility,
 } from './meetingFileVisibility';
+export type { MeetingFileVisibilityManifest } from './meetingFileVisibility';
 export { MeetingEntry } from './MeetingEntry';
 export {
   meetingEntryHostIdentity,

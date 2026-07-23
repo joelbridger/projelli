@@ -50,12 +50,12 @@ import type { AppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRunti
 import { getAppSurfaceDescriptor } from '@/app/shell/registry/appSurfaceRegistry';
 import { V1ShellFrameFlagGate } from '@/app/shell/v1-frame/V1ShellFrame';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
-import { RecordPill } from '@/features/meetings/RecordPill';
 import {
+  RecordPill,
   readActiveMeetingClientBoundary,
   useMeetingPopulationService,
   type SealedMeetingClientBoundary,
-} from '@/features/meetings/foundation/contract';
+} from '@/features/meetings';
 import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
 import { AutoJoinMeetingsPanel } from '@/features/meetings/AutoJoinMeetingsPanel';
 import { LazyBoundary } from '@/ui/LazyBoundary';
@@ -122,7 +122,7 @@ import { seedSampleClientMap } from '@/platform/matter/samples/sampleClientMap';
 import {
   ensureSampleHendricksCrmLink,
   seedSampleGoldenPath,
-} from '@/features/onboarding/seedSampleGoldenPath';
+} from '@/features/onboarding';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 import type {
   OnboardingStartMode,

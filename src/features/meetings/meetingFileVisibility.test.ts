@@ -18,6 +18,7 @@ import {
 } from './meetingFileVisibility';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { HENDRICKS_REVIEW_LINEAGE } from '@/platform/samples/hendricksReviewCapability';
 
 const { loadMeetingVisibilityPoliciesMock } = vi.hoisted(() => ({
   loadMeetingVisibilityPoliciesMock: vi.fn(),
@@ -44,6 +45,9 @@ function manifest(): MeetingFileVisibilityManifest {
 }
 
 describe('file-backed meeting visibility', () => {
+  it('does not treat the sealed sample marker as broad accountless visibility', () => {
+    expect(HENDRICKS_REVIEW_LINEAGE).not.toBe('accountless-unrestricted');
+  });
   it('gives the same authority identity to semantically identical policy objects', () => {
     expect(
       meetingFileVisibilityContextIdentity({

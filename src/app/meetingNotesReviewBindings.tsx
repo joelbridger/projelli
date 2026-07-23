@@ -21,10 +21,19 @@ import {
   EXACT_MEETING_REVIEW_SCHEMA_VERSION,
   MeetingProposalEgressAuthorityError,
   hasCompleteExactMeetingReviewIdentity,
+  makeNativeHendricksReviewRepository,
   makeExactMeetingNotesReviewRepository,
   type ExactMeetingReviewArtifact,
   type ExactMeetingTaskDelivery,
 } from '@/platform/meetingNotesReview/notesReviewDelivery';
+import {
+  approveNativeHendricksReview,
+  deliverNativeHendricksCrm,
+  deliverNativeHendricksTask,
+  viewNativeHendricksReview,
+} from '@/platform/crm/liveRecords';
+import { isHendricksReviewIdentity } from '@/platform/samples/hendricksReviewCapability';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { ExactMeetingReviewKind } from '@/ui/notesReview';
 import {
   resolveMeetingVisibility,
@@ -139,6 +148,8 @@ function ExactMeetingReviewPanel({
   const artifacts = useMeetingArtifactStore();
   const tasks = useTaskRecordStore();
   const viewerId = useFirmStore((state) => state.session?.userId ?? null);
+  const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
+  const workspaceGeneration = useWorkspaceStore((state) => state.rootGeneration);
   const meeting = context.canonicalMeeting ?? null;
   const client = context.clientBoundary ?? null;
   const identityMatches = hasMatchingCompleteMeetingReviewIdentity(
@@ -147,6 +158,29 @@ function ExactMeetingReviewPanel({
   );
   const repository = useMemo(() => {
     if (!meeting || !client || !identityMatches) return null;
+    const nativeContext = {
+      matterId: client.matterId,
+      householdRef: client.householdRef,
+      meetingId: meeting.id,
+      workspaceRoot: workspaceRoot ?? '',
+      workspaceGeneration,
+    };
+    if (
+      workspaceRoot &&
+      Number.isSafeInteger(workspaceGeneration) &&
+      isHendricksReviewIdentity(nativeContext)
+    ) {
+      return makeNativeHendricksReviewRepository({
+        meetingId: meeting.id,
+        client,
+        port: {
+          view: () => viewNativeHendricksReview(nativeContext),
+          approve: (artifactId) => approveNativeHendricksReview(nativeContext, artifactId),
+          deliverTask: () => deliverNativeHendricksTask(nativeContext),
+          deliverCrm: () => deliverNativeHendricksCrm(nativeContext),
+        },
+      });
+    }
     const reader = artifacts.readerFor(meetings, client, [
       {
         kind: 'action-update-proposal',
@@ -208,6 +242,8 @@ function ExactMeetingReviewPanel({
     preferences.visibilityPolicies,
     tasks,
     viewerId,
+    workspaceGeneration,
+    workspaceRoot,
   ]);
 
   const identityBlock = identityMatches

@@ -11,6 +11,12 @@ import {
   MEETING_VISIBILITY_LEGACY_VALUE,
   MEETING_VISIBILITY_LINEAGE_FIELD,
 } from './meetingVisibilityMigration';
+import {
+  HENDRICKS_HOUSEHOLD_REF,
+  HENDRICKS_MEETING_ID,
+  HENDRICKS_REVIEW_LINEAGE,
+  HENDRICKS_SAMPLE_MATTER_ID,
+} from '@/platform/samples/hendricksReviewCapability';
 
 const PREFERENCES_KIND = 'meeting_foundation_preferences';
 
@@ -355,12 +361,32 @@ function visibilityPolicies(
 /** Apply the accepted meeting visibility rule at the CRM read boundary. */
 export function filterLiveCrmRecordsByMeetingVisibility(
   records: readonly LiveCrmRecord[],
-  viewerId: string | null | undefined
+  viewerId: string | null | undefined,
+  activeClient?: { readonly matterId: string; readonly householdRef: string }
 ): readonly LiveCrmRecord[] {
   const byRef = recordsByVisibilityRef(records);
   const policies = visibilityPolicies(records);
   return records.filter((record) => {
     if (isMeetingVisibilityControlRecord(record)) return false;
+    // The sealed walkthrough remains closed to generic reads. It becomes
+    // visible only for its one current client pair; native verification is
+    // still required before proposal content is returned or written.
+    const nativeVisibility = record['visibility'];
+    if (
+      nativeVisibility &&
+      typeof nativeVisibility === 'object' &&
+      !Array.isArray(nativeVisibility) &&
+      (nativeVisibility as Record<string, unknown>)['lineage'] === HENDRICKS_REVIEW_LINEAGE
+    ) {
+      return Boolean(
+        activeClient &&
+          record.id === HENDRICKS_MEETING_ID &&
+          record.matterId === HENDRICKS_SAMPLE_MATTER_ID &&
+          record['householdRef'] === HENDRICKS_HOUSEHOLD_REF &&
+          activeClient.matterId === HENDRICKS_SAMPLE_MATTER_ID &&
+          activeClient.householdRef === HENDRICKS_HOUSEHOLD_REF
+      );
+    }
     const subject = subjectForRecord(record, byRef);
     return resolveMeetingVisibility({
       subject,

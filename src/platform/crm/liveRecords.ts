@@ -4,6 +4,7 @@
  */
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
+import type { HendricksReviewCapability } from '@/platform/samples/hendricksReviewCapability';
 
 export type LiveCrmRecord = {
   id: string;
@@ -13,6 +14,19 @@ export type LiveCrmRecord = {
   updatedAt?: string;
   [key: string]: unknown;
 };
+
+export interface HendricksReviewContext {
+  readonly matterId: string;
+  readonly householdRef: string;
+  readonly meetingId: string;
+  readonly workspaceRoot: string;
+  readonly workspaceGeneration: number;
+}
+
+export interface HendricksReviewView {
+  manifestId: string;
+  artifacts: LiveCrmRecord[];
+}
 
 function sameRecordValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
@@ -124,6 +138,76 @@ export async function saveLiveCrmRecord(
     throw new Error('Open a workspace before saving CRM data.');
   return inCrmWorkspace(workspaceRoot, () =>
     invoke<LiveCrmRecord>('crm_live_upsert', { record })
+  );
+}
+
+function requireNativeHendricksContext(
+  context: HendricksReviewContext
+): void {
+  if (
+    !context.workspaceRoot ||
+    !Number.isSafeInteger(context.workspaceGeneration) ||
+    context.workspaceGeneration < 0
+  )
+    throw new Error('The active client workspace is unavailable.');
+}
+
+/** The renderer never verifies, signs, or delivers this capability itself. */
+export async function seedNativeHendricksReview(
+  context: HendricksReviewContext,
+  capability: HendricksReviewCapability
+): Promise<HendricksReviewView> {
+  if (!isTauri()) throw new Error('Hendricks review seeding requires the desktop app.');
+  if (
+    capability.matterId !== context.matterId ||
+    capability.householdRef !== context.householdRef ||
+    capability.meeting.id !== context.meetingId
+  )
+    throw new Error('The Hendricks capability does not match the active client.');
+  requireNativeHendricksContext(context);
+  return inCrmWorkspace(context.workspaceRoot, () =>
+    invoke<HendricksReviewView>('crm_hendricks_review_seed', { context })
+  );
+}
+
+export async function viewNativeHendricksReview(
+  context: HendricksReviewContext
+): Promise<HendricksReviewView> {
+  if (!isTauri()) throw new Error('Hendricks review requires the desktop app.');
+  requireNativeHendricksContext(context);
+  return inCrmWorkspace(context.workspaceRoot, () =>
+    invoke<HendricksReviewView>('crm_hendricks_review_view', { context })
+  );
+}
+
+export async function approveNativeHendricksReview(
+  context: HendricksReviewContext,
+  artifactId: string
+): Promise<HendricksReviewView> {
+  if (!isTauri()) throw new Error('Hendricks review requires the desktop app.');
+  requireNativeHendricksContext(context);
+  return inCrmWorkspace(context.workspaceRoot, () =>
+    invoke<HendricksReviewView>('crm_hendricks_review_approve', { context, artifactId })
+  );
+}
+
+export async function deliverNativeHendricksTask(
+  context: HendricksReviewContext
+): Promise<LiveCrmRecord> {
+  if (!isTauri()) throw new Error('Hendricks review requires the desktop app.');
+  requireNativeHendricksContext(context);
+  return inCrmWorkspace(context.workspaceRoot, () =>
+    invoke<LiveCrmRecord>('crm_hendricks_review_deliver_task', { context })
+  );
+}
+
+export async function deliverNativeHendricksCrm(
+  context: HendricksReviewContext
+): Promise<LiveCrmRecord> {
+  if (!isTauri()) throw new Error('Hendricks review requires the desktop app.');
+  requireNativeHendricksContext(context);
+  return inCrmWorkspace(context.workspaceRoot, () =>
+    invoke<LiveCrmRecord>('crm_hendricks_review_deliver_crm', { context })
   );
 }
 

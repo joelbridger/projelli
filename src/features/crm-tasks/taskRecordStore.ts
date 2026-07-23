@@ -699,6 +699,19 @@ function createTaskRecordStore(
           !canReadTask(found, currentRecords(), viewerId)
         )
           throw new Error('This private meeting task is not available.');
+        // A delivery key is a receipt, never a loose de-duplication hint.
+        // Returning a differently shaped task here would silently accept a
+        // changed proposal after approval.
+        if (
+          found['title'] !== candidate['title'] ||
+          found['body'] !== candidate['body'] ||
+          JSON.stringify(found['householdRef']) !==
+            JSON.stringify(candidate['householdRef']) ||
+          found['assigneeUserId'] !== candidate['assigneeUserId'] ||
+          JSON.stringify(found['meetingVisibility']) !==
+            JSON.stringify(candidate['meetingVisibility'])
+        )
+          throw new Error('Meeting task delivery identity conflicts with different content.');
         return toTaskRecord(found);
       }
       try {

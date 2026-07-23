@@ -11,6 +11,7 @@ pub mod core_model;
 pub mod core_commands;
 pub mod core_schema;
 pub mod core_store;
+pub mod hendricks_review;
 pub mod commands;
 pub mod engine;
 pub mod features;

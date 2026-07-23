@@ -10,3 +10,8 @@ export {
 } from './ApiKeySetupCard';
 export { ApiKeyWizard, type ApiKeyWizardProps, type WizardProvider } from './ApiKeyWizard';
 export { AiSetupReminder, type AiSetupReminderProps } from './AiSetupReminder';
+export {
+  ensureSampleHendricksCrmLink,
+  seedSampleGoldenPath,
+  SAMPLE_GOLDEN_PATH,
+} from './seedSampleGoldenPath';

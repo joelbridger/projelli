@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   loadVisibleCrmRecordsForViewer,
   useLiveCrmRecords,
@@ -2159,12 +2159,13 @@ export function createFirmMeetingDirectoryReader(
     return result;
   };
   const read = async (): Promise<FirmMeetingDirectoryReadResult> => {
-    if (!port.getFirmSelectionError)
+    const selectionErrorReader = port.getFirmSelectionError;
+    if (!selectionErrorReader)
       return refused(
         'selection-blocked',
         'The firm meeting selection is unavailable.'
       );
-    const selectionError = port.getFirmSelectionError();
+    const selectionError = selectionErrorReader();
     if (selectionError)
       return refused('selection-blocked', selectionError);
     if (!port.workspaceRoot || port.error)
@@ -2186,7 +2187,7 @@ export function createFirmMeetingDirectoryReader(
     }
     // Check BOTH gates after the asynchronous reload. A selection change or a
     // permission revoke while the read is in flight must not leak loaded rows.
-    const freshSelectionError = port.getFirmSelectionError();
+    const freshSelectionError = selectionErrorReader();
     if (freshSelectionError)
       return refused('selection-blocked', freshSelectionError);
     const stillAllowed = permitted();
@@ -2513,10 +2514,6 @@ export async function migrateLegacyMeetingArtifactVisibility(
   return records;
 }
 
-const meetingArtifactVisibilityMigrations = new Map<
-  string,
-  Promise<readonly LiveCrmRecord[]>
->();
 const meetingArtifactDecisionLocks = new Map<string, Promise<void>>();
 
 async function serializeMeetingArtifactDecision<T>(
@@ -2538,20 +2535,6 @@ async function serializeMeetingArtifactDecision<T>(
   }
 }
 
-function runMeetingArtifactVisibilityMigration(
-  port: ClientScopedLivePort
-): Promise<readonly LiveCrmRecord[]> {
-  const key = port.workspaceRoot;
-  if (!key) return migrateLegacyMeetingArtifactVisibility(port);
-  const existing = meetingArtifactVisibilityMigrations.get(key);
-  if (existing) return existing;
-  const running = migrateLegacyMeetingArtifactVisibility(port).finally(() => {
-    if (meetingArtifactVisibilityMigrations.get(key) === running)
-      meetingArtifactVisibilityMigrations.delete(key);
-  });
-  meetingArtifactVisibilityMigrations.set(key, running);
-  return running;
-}
 
 export function createMeetingArtifactStore(
   port: ClientScopedLivePort
@@ -2726,14 +2709,6 @@ export function createMeetingArtifactStore(
             { readonly kind: 'ready' }
           >
       > => {
-        try {
-          await ensureLegacyVisibilityMigrated();
-        } catch {
-          return refused(
-            'records-unavailable',
-            'Meeting artifacts are unavailable until records reload.'
-          );
-        }
         if (!port.getFirmSelectionError)
           return refused(
             'selection-blocked',
@@ -2912,7 +2887,6 @@ export function createMeetingArtifactStore(
     append: async (input) => {
       const expected = scope.requireCurrent('Meeting');
       requireAvailable(port);
-      await ensureLegacyVisibilityMigrated();
       const freshRecords = await port.reloadRecords();
       scope.assertStable(expected, 'Meeting artifact');
       raw = freshRecords ?? [];
@@ -2997,7 +2971,6 @@ export function createMeetingArtifactStore(
     recordDelivery: async (input) => {
       const expected = scope.requireCurrent('Artifact');
       requireAvailable(port);
-      await ensureLegacyVisibilityMigrated();
       const fresh = await port.reloadRecords();
       scope.assertStable(expected, 'Meeting artifact');
       raw = fresh ?? [];
@@ -3069,8 +3042,7 @@ export function createMeetingArtifactStore(
   ): Promise<MeetingArtifact> {
     const expected = scope.requireCurrent('Artifact');
     requireAvailable(port);
-    await ensureLegacyVisibilityMigrated();
-      const fresh = await port.reloadRecords();
+    const fresh = await port.reloadRecords();
       scope.assertStable(expected, 'Meeting artifact');
       raw = fresh ?? [];
     const current = raw.find((record) => record.id === id);
@@ -3131,9 +3103,6 @@ export function createMeetingArtifactStore(
     return projectArtifact(reloadedBase, raw);
   }
 
-  async function ensureLegacyVisibilityMigrated(): Promise<void> {
-    raw = await runMeetingArtifactVisibilityMigration(port);
-  }
 }
 
 export function validateMeetingArtifactTransition(
@@ -4305,17 +4274,8 @@ export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
     getFirmSelectionError: readAuthoritativeFirmMeetingSelectionError,
     reloadRecords: live.reloadRecords,
   };
-  useEffect(() => {
-    if (!live.workspaceRoot || live.error) return;
-    void runMeetingArtifactVisibilityMigration(port).catch((error: unknown) => {
-      console.warn(
-        '[meetingArtifactStore] Legacy visibility migration will retry:',
-        error
-      );
-    });
-    // One attempt per opened workspace; the shared map prevents mount races.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live.workspaceRoot, live.error]);
+  // Ordinary read paths stay pure. Explicit maintenance owns legacy repair;
+  // old or broad artifacts remain closed until that deliberate write occurs.
   return createMeetingArtifactStore(port);
 }
 export function useMeetingTypeStore(): MeetingTypeStore {

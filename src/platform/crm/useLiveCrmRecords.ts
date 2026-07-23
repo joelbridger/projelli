@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   readSelectionOperationDecision,
   useSelectionOperationDecision,
+  useClientContextStore,
 } from '@/platform/client-context';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import {
   getCrmEngineFreshness,
   subscribeCrmEngineFreshness,
@@ -23,7 +25,6 @@ import {
   publishLiveRecord,
 } from './liveRecordRelay';
 import { filterLiveCrmRecordsByMeetingVisibility } from './meetingVisibility';
-import { migrateCanonicalMeetingVisibility } from './meetingVisibilityMigration';
 import {
   canReadMeetingDerivedRecord as canReadMeetingDerivedRecordFromSnapshot,
   canReadMeetingVisibilitySubject as canReadMeetingVisibilitySubjectFromSnapshot,
@@ -120,31 +121,11 @@ const CRM_CLIENT_SELECTION_REQUEST = {
   requireFollowerAgreement: true,
 } as const;
 
-const visibilityMigrations = new Map<
-  string,
-  Promise<readonly LiveCrmRecord[]>
->();
-
-/** Load one visibility-ready raw snapshot, serializing concurrent mounts. */
+/** Ordinary reads never migrate or repair encrypted records. */
 async function loadVisibilityReadyCrmRecords(
   workspaceRoot: string
 ): Promise<readonly LiveCrmRecord[]> {
-  const active = visibilityMigrations.get(workspaceRoot);
-  if (active) return active;
-  const migration = Promise.resolve().then(async () => {
-    const loaded = await loadLiveCrmRecords(workspaceRoot);
-    return migrateCanonicalMeetingVisibility(loaded, (record) =>
-      saveLiveCrmRecord(workspaceRoot, record)
-    );
-  });
-  visibilityMigrations.set(workspaceRoot, migration);
-  try {
-    return await migration;
-  } finally {
-    if (visibilityMigrations.get(workspaceRoot) === migration) {
-      visibilityMigrations.delete(workspaceRoot);
-    }
-  }
+  return loadLiveCrmRecords(workspaceRoot);
 }
 
 /** One-shot visibility-filtered read for non-React feature consumers. */
@@ -196,6 +177,16 @@ export function useLiveCrmRecords() {
     clientSelection.matter.firmMatterId
       ? clientSelection.matter.id
       : null;
+  const activeHendricksMatterId = useMatterStore((state) => state.activeMatterId);
+  const activeHendricksHouseholdRef = useClientContextStore(
+    (state) => state.client?.householdId ?? null
+  );
+  const activeHendricksClient = useMemo(
+    () => activeHendricksMatterId && activeHendricksHouseholdRef
+      ? { matterId: activeHendricksMatterId, householdRef: activeHendricksHouseholdRef }
+      : undefined,
+    [activeHendricksHouseholdRef, activeHendricksMatterId]
+  );
   const [records, setRecords] = useState<readonly LiveCrmRecord[]>([]);
   const currentRecordsRef = useRef<{
     workspaceRoot: typeof workspaceRoot;
@@ -250,10 +241,11 @@ export function useLiveCrmRecords() {
     return loaded
       ? filterLiveCrmRecordsByMeetingVisibility(
           loaded,
-          useFirmStore.getState().session?.userId ?? null
+          useFirmStore.getState().session?.userId ?? null,
+          activeHendricksClient
         )
       : undefined;
-  }, [reloadUnfilteredRecordsForInternalMeetingPreferences]);
+  }, [activeHendricksClient, reloadUnfilteredRecordsForInternalMeetingPreferences]);
   const reload = useCallback(async (): Promise<void> => {
     await reloadRecords();
   }, [reloadRecords]);
@@ -433,7 +425,7 @@ export function useLiveCrmRecords() {
     sharedMatterId && workspaceRoot ? freshness : { kind: 'idle' };
   const currentRecords =
     recordsWorkspaceRoot === workspaceRoot
-      ? filterLiveCrmRecordsByMeetingVisibility(records, viewerId)
+      ? filterLiveCrmRecordsByMeetingVisibility(records, viewerId, activeHendricksClient)
       : [];
   const unfilteredRecordsForInternalMeetingPreferences =
     recordsWorkspaceRoot === workspaceRoot ? records : [];
@@ -469,7 +461,8 @@ export function useLiveCrmRecords() {
       const current = currentRawRecords();
       return filterLiveCrmRecordsByMeetingVisibility(
         current,
-        useFirmStore.getState().session?.userId ?? null
+        useFirmStore.getState().session?.userId ?? null,
+        activeHendricksClient
       );
     },
     /**

@@ -600,6 +600,137 @@ export interface ExactMeetingNotesReviewRepository<
   reject(item: ExactMeetingNotesReviewItem<Client>): Promise<void>;
 }
 
+/**
+ * The native capability is intentionally a separate repository.  It does not
+ * reuse the provider-oriented approval ledger, local Maps, or renderer-side
+ * proposal predicates: every list, approval, and delivery starts with a fresh
+ * native verification of raw encrypted records.
+ */
+export interface NativeHendricksReviewPort {
+  view(): Promise<{ readonly artifacts: readonly Record<string, unknown>[] }>;
+  approve(artifactId: string): Promise<{ readonly artifacts: readonly Record<string, unknown>[] }>;
+  deliverTask(): Promise<{ readonly id: string }>;
+  deliverCrm(): Promise<{ readonly id: string }>;
+}
+
+export function makeNativeHendricksReviewRepository<
+  Client extends NotesReviewClientPair,
+>(input: {
+  readonly meetingId: string;
+  readonly client: Client;
+  readonly port: NativeHendricksReviewPort;
+}): ExactMeetingNotesReviewRepository<Client> {
+  async function items(): Promise<readonly ExactMeetingNotesReviewItem<Client>[]> {
+    const view = await input.port.view();
+    const values = view.artifacts.map((artifact) => nativeItem(artifact, input.meetingId, input.client));
+    if (values.length !== 2 || new Set(values.map((item) => item.id)).size !== 2)
+      throw new Error('The verified Hendricks proposal set is incomplete.');
+    const task = values.filter((item) => item.kind === 'task');
+    const crm = values.filter((item) => item.kind === 'crm-update');
+    if (task.length !== 1 || crm.length !== 1)
+      throw new Error('The verified Hendricks proposal set is not exact.');
+    return values;
+  }
+
+  async function readFacts(): Promise<ExactMeetingReviewFacts<Client>> {
+    const all = await items();
+    const tasks = all.filter((item): item is ExactMeetingTaskReviewItem<Client> => item.kind === 'task');
+    const crmUpdates = all.filter((item): item is ExactMeetingCrmReviewItem<Client> => item.kind === 'crm-update');
+    return {
+      meetingId: input.meetingId,
+      client: input.client,
+      tasks,
+      crmUpdates,
+      proposedCount: all.filter((item) => item.approvalState === 'proposed').length,
+      approvedCount: all.filter((item) => item.approvalState === 'approved').length,
+    };
+  }
+
+  return {
+    readFacts,
+    async list(kind) {
+      const facts = await readFacts();
+      return kind === 'task' ? facts.tasks : facts.crmUpdates;
+    },
+    async approve(edited) {
+      const before = await items();
+      const source = before.find((item) => item.id === edited.id);
+      // Edited fields are not a second proposal authority. The native payload
+      // is the only allowed payload, so a changed renderer copy cannot write.
+      if (!source || JSON.stringify(source) !== JSON.stringify(edited))
+        throw new Error('The verified proposal changed. Refresh before approving.');
+      if (source.approvalState === 'rejected')
+        throw new Error('This proposal was rejected.');
+      if (source.approvalState === 'proposed') await input.port.approve(source.artifactId);
+      const approved = (await items()).find((item) => item.id === source.id);
+      if (!approved || approved.approvalState !== 'approved' || JSON.stringify(approved) !== JSON.stringify({ ...source, approvalState: 'approved' }))
+        throw new Error('Native approval could not be confirmed.');
+      const result = approved.kind === 'task'
+        ? await input.port.deliverTask()
+        : await input.port.deliverCrm();
+      return {
+        status: approved.kind === 'task' ? 'created' : 'saved',
+        message: approved.kind === 'task' ? 'Saved to local Tasks.' : 'Saved to the local CRM record.',
+        deliveryKey: result.id,
+      };
+    },
+    async reject() {
+      throw new Error('This sealed walkthrough proposal cannot be changed in the renderer.');
+    },
+  };
+}
+
+function nativeItem<Client extends NotesReviewClientPair>(
+  artifact: Record<string, unknown>,
+  meetingId: string,
+  client: Client
+): ExactMeetingNotesReviewItem<Client> {
+  const payload = record(artifact['payload'], 'Native Hendricks proposal');
+  if (
+    artifact['kind'] !== 'meeting_artifact' ||
+    artifact['meetingId'] !== meetingId ||
+    artifact['householdRef'] !== client.householdRef ||
+    artifact['matterId'] !== client.matterId ||
+    (artifact['state'] !== 'produced' && artifact['state'] !== 'approved')
+  )
+    throw new Error('The native Hendricks proposal did not match this meeting.');
+  const common = {
+    id: requiredText(payload['id'], 'Native proposal ID'),
+    artifactId: requiredText(artifact['id'], 'Native artifact ID'),
+    meetingId,
+    client,
+    title: requiredText(payload['title'], 'Native proposal title'),
+    detail: requiredText(payload['detail'], 'Native proposal detail'),
+    transcriptRef: requiredText(payload['transcriptRef'], 'Native transcript reference'),
+    sourceLabel: requiredText(payload['sourceLabel'], 'Native source label'),
+    approvalState: artifact['state'] === 'approved' ? ('approved' as const) : ('proposed' as const),
+    proposalRevision: stableProposalRevision(payload),
+  };
+  if (payload['kind'] === 'task') {
+    return {
+      ...common,
+      kind: 'task',
+      ownerRef: nullableText(payload['ownerRef'], 'Native task owner'),
+      dueDate: nullableDate(payload['dueDate']),
+    };
+  }
+  if (payload['kind'] === 'crm-update') {
+    return {
+      ...common,
+      kind: 'crm-update',
+      entityRef: requiredText(payload['entityRef'], 'Native CRM entity'),
+      fields: [{
+        field: requiredText(payload['field'], 'Native CRM field'),
+        label: requiredText(payload['field'], 'Native CRM field'),
+        valueType: payload['valueType'] === 'text' ? 'text' : (() => { throw new Error('Native CRM value type is invalid.'); })(),
+        before: crmValue(payload['before'], 'text'),
+        proposed: crmValue(payload['proposed'], 'text'),
+      }],
+    };
+  }
+  throw new Error('Native proposal kind is invalid.');
+}
+
 export interface MakeExactMeetingNotesReviewRepositoryInput<
   Client extends NotesReviewClientPair,
 > {
