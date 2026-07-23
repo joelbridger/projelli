@@ -24,6 +24,12 @@ impl VerifiedWorkspaceAuthority {
     pub(super) fn generation(&self) -> u64 {
         self.generation
     }
+
+    /// Lets sealed native consumers reject malformed carried authority without
+    /// offering any constructor or renderer-derived replacement path.
+    pub(super) fn is_well_formed(&self) -> bool {
+        !self.native_handle.trim().is_empty() && self.generation != 0
+    }
 }
 
 /// State held by the native workspace lifecycle, never renderer or path input.
