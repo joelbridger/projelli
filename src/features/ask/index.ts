@@ -1,5 +1,6 @@
 export { AIChatViewer } from './AIChatViewer';
 export { Ask } from './Ask';
+export { useAsk } from './useAsk';
 export {
   askSharedClientContextAdapter,
   type AskSharedClientContext,
@@ -31,3 +32,4 @@ export type {
   AskSourceId,
 } from './public';
 export { registerAskSendContextProvider } from './public';
+export { getAskSource, openAskSource } from './registry/askRegistries';

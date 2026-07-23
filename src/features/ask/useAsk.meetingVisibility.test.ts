@@ -87,6 +87,8 @@ import {
 } from './useAsk';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import { setDevFlagOverride } from '@/platform/flags/router';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -101,6 +103,12 @@ beforeEach(() => {
   localStorage.setItem(SK_ASK_FILES_ONLY, '0');
   useAIChatStore.getState().clearAllSessions();
   useFirmStore.setState({ session: null });
+  useMatterStore.setState({
+    matters: [],
+    activeMatterId: null,
+    clientMapHubId: null,
+  });
+  setDevFlagOverride('selection-authority-boot-gate', true);
   policyState.version = 1;
   policyState.listeners.clear();
   visibilityState.allowed = true;
@@ -135,6 +143,18 @@ function signInAsAdvisorOne(): void {
       activated: true,
     },
   });
+}
+
+/** The compatibility screen still visibly owns one client while its writer is dark. */
+function selectVisibleMatterForAsk(): void {
+  setDevFlagOverride('selection-authority-boot-gate', false);
+  const matter = useMatterStore.getState().createMatter({
+    id: 'matter-1',
+    name: 'Visible client',
+    client: 'Visible client',
+    folderPaths: [],
+  });
+  useMatterStore.setState({ activeMatterId: matter.id });
 }
 
 describe('Ask meeting visibility backstop', () => {
@@ -317,6 +337,7 @@ describe('Ask meeting visibility backstop', () => {
       model: 'test-local',
     });
     signInAsAdvisorOne();
+    selectVisibleMatterForAsk();
 
     const { result } = renderHook(() => useAsk({}));
     act(() => {
@@ -388,6 +409,7 @@ describe('Ask meeting visibility backstop', () => {
       model: 'test-local',
     });
     signInAsAdvisorOne();
+    selectVisibleMatterForAsk();
 
     const { result } = renderHook(() => useAsk({}));
     act(() => {
