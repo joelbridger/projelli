@@ -1,0 +1,55 @@
+{
+  "lane": "m3-foundation-c-local-task-20260723",
+  "attempt": 1,
+  "contractSha256": "a25177e197f36b7ab4a5e56dfbd25c45050577e93ff829bd10fdfb82f3c8d659",
+  "baseRevision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+  "finalPaths": [
+    "bench-evidence/2026-07-23-m3-foundation-c-local-task/receipt.json",
+    "scripts/verify-m3-foundation-c-local-task.sh",
+    "src-tauri/src/commands/crm/features/local_task/command-manifest.txt",
+    "src-tauri/src/commands/crm/features/local_task/commands.rs",
+    "src-tauri/src/commands/crm/features/local_task/mod.rs",
+    "src-tauri/src/commands/crm/features/mod.rs",
+    "src-tauri/src/commands/crm/migrations/mod.rs",
+    "src-tauri/src/commands/crm/migrations/v0008_local_task_delivery_receipts.rs",
+    "src/features/crm-tasks/testing/roundTripTaskRecord.test.tsx",
+    "src/platform/crm/localMeetingTaskTransport.test.ts",
+    "src/platform/crm/localMeetingTaskTransport.ts"
+  ],
+  "privateBoundary": {
+    "rendererInput": ["artifactId", "proposalRevision"],
+    "nativeAuthority": "The native command reloads the unique artifact, approval transition, and parent meeting from encrypted crm_docs, derives the pair and Task content there, captures the private exact-client lease with that pair, and rechecks it immediately before the SQLCipher immediate transaction.",
+    "nonExposure": "The public result contains only artifact ID, proposal revision, derived delivery key, derived Task ID, and created or replayed. It does not carry a lease, household, matter, Task content, provider, mail, network, Windows, or external-delivery claim."
+  },
+  "replay": {
+    "deliveryIdentity": "meeting-delivery- plus the existing UTF-16 FNV-1a/base-36 identity derived from artifact ID and approved proposal revision",
+    "created": "No receipt writes one encrypted live Task and one receipt in one immediate transaction.",
+    "replayed": "Only an exact receipt, task ID, durable Task content hash, and current derived content returns replayed.",
+    "refusal": "Changed receipt/content identity and an orphan Task without its receipt refuse rather than adopt or write again."
+  },
+  "tests": {
+    "realSqlcipher": "6 passed; 0 failed; 1624 filtered out",
+    "typescript": "2 files passed; 3 tests passed",
+    "typecheck": "npm run typecheck passed",
+    "nativeContract": "node scripts/check-tauri-contracts.mjs passed with existing repository warnings only",
+    "formatAndSyntax": "owned Rust rustfmt check and verifier bash syntax passed",
+    "temporaryHelpers": "The verifier checked the exact package and helper SHA-256 values, linked only the canonical paths, removed only those exact links, and proved all three worktree targets absent."
+  },
+  "hashes": {
+    "packageJson": "192f9b6e8237344fe730d4dcf058759bd3b0457664501f3fa1f0b351f380e012",
+    "packageLockJson": "ce074d4be9d8fa7bd1ae9454692d74e7376fbf819a6f9b9d1e473dbb1f38c4ae",
+    "piper": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b",
+    "llamaServer": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77"
+  },
+  "exclusions": [
+    "No UI or meeting-review binding",
+    "No provider, mail, connector, network, Windows, Whole Firm, staff permission, or outbound work",
+    "No legacy CRM facade, browser Task creation, second Task store, or Foundation B.1 change"
+  ],
+  "unproven": [
+    "Windows proof",
+    "Visible Hendricks M3 journey",
+    "Provider, mail, network, or external delivery"
+  ],
+  "status": "Completed code-level local persistence proof only. This receipt does not claim acceptance."
+}

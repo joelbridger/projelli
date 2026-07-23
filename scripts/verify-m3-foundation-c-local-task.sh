@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Focused proof for the dark local meeting Task doorway. The only temporary
+# dependencies are exact links to the canonical accepted helpers below.
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source_root="/home/jameson/lantern/app/integration"
+node_modules_source="$source_root/node_modules"
+node_modules_target="$repo_root/node_modules"
+piper_source="$source_root/src-tauri/binaries/piper-x86_64-unknown-linux-gnu"
+llama_source="$source_root/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu"
+piper_target="$repo_root/src-tauri/binaries/piper-x86_64-unknown-linux-gnu"
+llama_target="$repo_root/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu"
+package_sha256="192f9b6e8237344fe730d4dcf058759bd3b0457664501f3fa1f0b351f380e012"
+package_lock_sha256="ce074d4be9d8fa7bd1ae9454692d74e7376fbf819a6f9b9d1e473dbb1f38c4ae"
+piper_sha256="12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b"
+llama_sha256="64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77"
+
+remove_exact_link() {
+  local link="$1" source="$2"
+  if test -L "$link"; then
+    test "$(readlink "$link")" = "$source"
+    rm "$link"
+  else
+    test ! -e "$link"
+  fi
+}
+
+cleanup() {
+  remove_exact_link "$node_modules_target" "$node_modules_source"
+  remove_exact_link "$piper_target" "$piper_source"
+  remove_exact_link "$llama_target" "$llama_source"
+}
+
+# Arm cleanup before any target can exist.
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# Refuse every target, including an unexpected symlink.
+test ! -e "$node_modules_target" && test ! -L "$node_modules_target"
+test ! -e "$piper_target" && test ! -L "$piper_target"
+test ! -e "$llama_target" && test ! -L "$llama_target"
+
+# Do not use npm/npx until the exact lockfiles and canonical directory pass.
+test "$(sha256sum "$repo_root/package.json" | awk '{print $1}')" = "$package_sha256"
+test "$(sha256sum "$repo_root/package-lock.json" | awk '{print $1}')" = "$package_lock_sha256"
+test -d "$node_modules_source" && test ! -L "$node_modules_source"
+test "$(sha256sum "$piper_source" | awk '{print $1}')" = "$piper_sha256"
+test "$(sha256sum "$llama_source" | awk '{print $1}')" = "$llama_sha256"
+
+ln -s "$node_modules_source" "$node_modules_target"
+ln -s "$piper_source" "$piper_target"
+ln -s "$llama_source" "$llama_target"
+
+# One Cargo operation only. These are real SQLCipher tests of the native seam.
+(cd "$repo_root/src-tauri" && cargo test --lib commands::crm::features::local_task::commands::tests)
+
+python3 -B - "$repo_root" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+native = (root / 'src-tauri/src/commands/crm/features/local_task/commands.rs').read_text()
+transport = (root / 'src/platform/crm/localMeetingTaskTransport.ts').read_text()
+assert 'pub async fn crm_local_meeting_task_create' in native
+assert 'capture_active_client_lease_for(&state, &approved.household_id, &approved.matter_id)' in native
+assert 'require_active_client_lease(&state, &lease).await?' in native
+assert 'with_immediate_transaction' in native
+assert 'local_task_delivery_receipts' in native
+assert 'serde_json::to_vec(&task)' in native
+assert 'INSERT INTO crm_docs' in native
+forbidden_native_paths = ('commands::mail', 'commands::provider', 'reqwest', 'http://', 'https://')
+assert not any(token in native for token in forbidden_native_paths)
+call = transport[transport.index('createLocalMeetingTask'):]
+assert 'title' not in call.split('invoke', 1)[0]
+assert 'artifactId' in transport and 'proposalRevision' in transport
+assert 'householdId' not in call and 'deliveryKey' not in call
+PY
+
+(cd "$repo_root" && npx vitest run \
+  src/platform/crm/localMeetingTaskTransport.test.ts \
+  src/features/crm-tasks/testing/roundTripTaskRecord.test.tsx)
+
+(cd "$repo_root" && npm run typecheck && node scripts/check-tauri-contracts.mjs)
+
+# Remove only the exact links created above and prove every target is absent.
+cleanup
+trap - EXIT
+test ! -e "$node_modules_target" && test ! -L "$node_modules_target"
+test ! -e "$piper_target" && test ! -L "$piper_target"
+test ! -e "$llama_target" && test ! -L "$llama_target"
