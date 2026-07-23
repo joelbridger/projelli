@@ -11,6 +11,18 @@ pub mod store;
 pub mod sync;
 pub mod view;
 
+mod verified_m4_credentials;
+mod verified_workspace_authority;
+
+/// M4's Microsoft draft-handoff consent is intentionally separate from the
+/// legacy connector's send-capable scopes.
+pub(crate) const M4_MICROSOFT_DRAFT_SCOPE: &str = "openid offline_access User.Read Mail.ReadWrite";
+
+/// Gmail's compose permission can technically send, so later sealed transport
+/// remains the no-send wall for the M4 draft-handoff flow.
+pub(crate) const M4_GMAIL_DRAFT_SCOPE: &str =
+    "openid email https://www.googleapis.com/auth/gmail.compose";
+
 mod backfill;
 mod connect;
 mod matter;

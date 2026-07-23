@@ -120,6 +120,9 @@ const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // this connector was missing from both denylists, letting any renderer
     // code read Calendly credentials directly through the generic bridge.
     identity::CALENDLY_SERVICE_PREFIX,
+    // M4 draft-handoff credentials are native-owned. Deny the whole exact
+    // namespace before any OS keychain operation, including future children.
+    identity::M4_MAIL_KEYCHAIN_SERVICE_PREFIX,
 ];
 
 /// Structured error returned to the frontend. Separating "not found" from
@@ -486,6 +489,52 @@ mod tests {
             );
             assert!(validate_renderer_service_access(svc).is_ok());
         }
+    }
+
+    #[test]
+    fn m4_foundation_exact_namespace_and_descendants_are_denied() {
+        let exact = identity::M4_MAIL_KEYCHAIN_SERVICE_PREFIX;
+        let descendant = format!("{exact}microsoft-workspace-a-generation-1");
+
+        for service in [exact, descendant.as_str()] {
+            assert!(is_internal_service(service), "{service:?} must be internal");
+            assert!(matches!(
+                validate_renderer_service_access(service),
+                Err(KeychainError::Denied(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn m4_foundation_padded_and_control_bearing_namespace_variants_are_denied() {
+        let prefix = identity::M4_MAIL_KEYCHAIN_SERVICE_PREFIX;
+        let padded = format!("  {prefix}microsoft-workspace-a-generation-1  ");
+        let control_bearing = format!("{prefix}microsoft\0workspace-a-generation-1");
+
+        for service in [padded.as_str(), control_bearing.as_str()] {
+            assert!(is_internal_service(service), "{service:?} must be internal");
+            assert!(matches!(
+                validate_renderer_service_access(service),
+                Err(KeychainError::Denied(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn m4_foundation_similar_but_unrelated_namespace_remains_allowed() {
+        let unrelated = "lantern-m4-mails-microsoft-workspace-a-generation-1";
+        assert!(!is_internal_service(unrelated));
+        assert!(validate_renderer_service_access(unrelated).is_ok());
+    }
+
+    #[test]
+    fn m4_foundation_real_builder_output_is_denied() {
+        let service = crate::commands::mail::verified_m4_credentials::test_only_service_name();
+        assert!(is_internal_service(&service));
+        assert!(matches!(
+            validate_renderer_service_access(&service),
+            Err(KeychainError::Denied(_))
+        ));
     }
 
     #[test]

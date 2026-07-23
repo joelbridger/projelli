@@ -98,6 +98,16 @@ fn assert_frozen(label: &str, shipped: &str, approved: &[&str]) {
 const COVERED: &[(&str, &str, &str)] = &[
     ("mail (Microsoft)", "src/commands/mail/oauth.rs", "SCOPES"),
     ("mail (Gmail)", "src/commands/mail/gmail/oauth.rs", "SCOPE"),
+    (
+        "M4 draft handoff (Microsoft)",
+        "src/commands/mail/mod.rs",
+        "M4_MICROSOFT_DRAFT_SCOPE",
+    ),
+    (
+        "M4 draft handoff (Gmail)",
+        "src/commands/mail/mod.rs",
+        "M4_GMAIL_DRAFT_SCOPE",
+    ),
     ("onedrive", "src/commands/onedrive/oauth.rs", "SCOPES"),
     ("calendar (Microsoft)", "src/commands/calendar/oauth.rs", "MS_SCOPES"),
     ("calendar (Google)", "src/commands/calendar/oauth.rs", "GOOGLE_SCOPE"),
@@ -158,6 +168,24 @@ mod tests {
                 "email",
                 "https://www.googleapis.com/auth/gmail.readonly",
                 "https://www.googleapis.com/auth/gmail.send",
+                "https://www.googleapis.com/auth/gmail.compose",
+            ],
+        );
+    }
+
+    #[test]
+    fn m4_foundation_draft_only_scopes_are_frozen_in_both_directions() {
+        assert_frozen(
+            "M4 draft handoff (Microsoft)",
+            crate::commands::mail::M4_MICROSOFT_DRAFT_SCOPE,
+            &["openid", "offline_access", "User.Read", "Mail.ReadWrite"],
+        );
+        assert_frozen(
+            "M4 draft handoff (Gmail)",
+            crate::commands::mail::M4_GMAIL_DRAFT_SCOPE,
+            &[
+                "openid",
+                "email",
                 "https://www.googleapis.com/auth/gmail.compose",
             ],
         );

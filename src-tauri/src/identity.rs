@@ -58,6 +58,10 @@ pub const MAIL_IMAP_SERVICE: &str = concat!(app_ns!(), "-mail-imap");
 /// Gmail connector OAuth token service.
 pub const MAIL_GMAIL_SERVICE: &str = concat!(app_ns!(), "-mail-gmail");
 
+/// M4 draft-handoff credential namespace. Every service under this exact
+/// prefix is native-owned and must stay inaccessible to the renderer bridge.
+pub const M4_MAIL_KEYCHAIN_SERVICE_PREFIX: &str = concat!(app_ns!(), "-m4-mail-");
+
 /// OneDrive / SharePoint Microsoft OAuth refresh token service.
 pub const DOCS_MS_SERVICE: &str = concat!(app_ns!(), "-docs-ms");
 
