@@ -162,6 +162,97 @@ fn decode_claim(row: &rusqlite::Row<'_>) -> rusqlite::Result<ApprovedDraftClaimR
     })
 }
 
+/// The dark handoff boundary derives its key outcome only from encrypted claim
+/// rows. Callers cannot choose a freshness or history classification.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum DarkClaimHistory {
+    CurrentApproved(ApprovedDraftClaimRecord),
+    DuplicateKey,
+    ConflictingKey,
+    IndeterminateKey,
+    Missing,
+    Malformed,
+    NotApproved,
+}
+
+fn claim_has_complete_fields(claim: &ApprovedDraftClaimRecord) -> bool {
+    [
+        &claim.claim_handle,
+        &claim.mailbox_handle,
+        &claim.workspace_handle,
+        &claim.provider,
+        &claim.client_context,
+        &claim.meeting_context,
+        &claim.recipients_json,
+        &claim.draft_subject,
+        &claim.body,
+        &claim.content_hash,
+        &claim.approval_receipt,
+        &claim.idempotency_key,
+        &claim.status,
+    ]
+    .iter()
+    .all(|value| !value.trim().is_empty())
+        && claim.mailbox_version != 0
+        && claim.workspace_generation != 0
+        && claim.credential_generation != 0
+        && claim.version != 0
+}
+
+fn claim_matches_current_bindings(
+    claim: &ApprovedDraftClaimRecord,
+    workspace: &VerifiedWorkspaceAuthority,
+    credential: &VerifiedCredentialBinding,
+    mailbox: &VerifiedMailboxRecord,
+) -> bool {
+    claim.mailbox_handle == mailbox.handle()
+        && claim.mailbox_version == mailbox.version()
+        && claim.workspace_handle == workspace.native_handle()
+        && claim.provider == credential.provider().as_db()
+        && claim.workspace_generation == workspace.generation()
+        && claim.credential_generation == credential.generation().value()
+}
+
+/// Reload one persisted claim key inside the caller's existing SQLCipher
+/// IMMEDIATE transaction. Every outcome is derived from the row itself and
+/// refuses to turn a caller-provided status into authority.
+pub(super) fn reload_dark_handoff_claim_history(
+    transaction: &Transaction<'_>,
+    workspace: &VerifiedWorkspaceAuthority,
+    credential: &VerifiedCredentialBinding,
+    mailbox: &VerifiedMailboxRecord,
+    expected: &ApprovedDraftClaimRecord,
+) -> Result<DarkClaimHistory> {
+    let current = transaction
+        .query_row(
+            "SELECT claim_handle,mailbox_handle,mailbox_version,workspace_handle,provider,workspace_generation,credential_generation,client_context,meeting_context,recipients_json,draft_subject,body,content_hash,approval_receipt,idempotency_key,version,status FROM verified_draft_claims WHERE workspace_handle=?1 AND provider=?2 AND idempotency_key=?3",
+            params![workspace.native_handle(), credential.provider().as_db(), expected.idempotency_key],
+            decode_claim,
+        )
+        .optional()
+        .context("load dark handoff claim history")?;
+    let Some(current) = current else {
+        return Ok(DarkClaimHistory::Missing);
+    };
+    if !claim_has_complete_fields(&current) || DraftClaimState::from_db(&current.status).is_err() {
+        return Ok(DarkClaimHistory::Malformed);
+    }
+    if !claim_matches_current_bindings(&current, workspace, credential, mailbox) {
+        return Ok(DarkClaimHistory::ConflictingKey);
+    }
+    match DraftClaimState::from_db(&current.status)? {
+        DraftClaimState::Approved if current == *expected => {
+            Ok(DarkClaimHistory::CurrentApproved(current))
+        }
+        DraftClaimState::Approved => Ok(DarkClaimHistory::ConflictingKey),
+        DraftClaimState::Unknown => Ok(DarkClaimHistory::IndeterminateKey),
+        DraftClaimState::Claimed | DraftClaimState::Saving | DraftClaimState::Saved => {
+            Ok(DarkClaimHistory::DuplicateKey)
+        }
+        _ => Ok(DarkClaimHistory::NotApproved),
+    }
+}
+
 fn claim_handle(input: &ApprovedDraftClaimInput, mailbox: &VerifiedMailboxRecord) -> String {
     use sha2::{Digest, Sha256};
     let mut digest = Sha256::new();
@@ -255,6 +346,24 @@ pub(super) fn test_only_approved_draft_payload() -> ApprovedDraftPayloadView {
         draft_subject: "Advisor follow-up".into(),
         body: "Approved body".into(),
     }
+}
+
+#[cfg(test)]
+pub(super) fn test_only_create_approved_claim(
+    store: &CrmCoreStore,
+    workspace: &VerifiedWorkspaceAuthority,
+    credential: &VerifiedCredentialBinding,
+    mailbox: &VerifiedMailboxRecord,
+    key: &str,
+) -> Result<ApprovedDraftClaimRecord> {
+    create_approved_draft_claim(
+        store,
+        workspace,
+        credential,
+        mailbox,
+        "ada@example.com",
+        &test_input(key),
+    )
 }
 
 #[cfg(test)]

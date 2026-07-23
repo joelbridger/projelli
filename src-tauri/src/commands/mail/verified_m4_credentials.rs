@@ -63,6 +63,13 @@ pub(super) struct VerifiedCredentialLease {
     binding: VerifiedCredentialBinding,
 }
 
+/// Native-only holder for the one current credential lease. It keeps test
+/// rechecks on the same sealed-owner shape that production will use later.
+#[derive(Debug)]
+pub(super) struct NativeM4CredentialLifecycle {
+    current: Option<VerifiedCredentialLease>,
+}
+
 impl VerifiedCredentialLease {
     pub(super) fn binding_for(
         &self,
@@ -139,6 +146,31 @@ fn lease_from_native_credential_state(
     Ok(VerifiedCredentialLease {
         binding: mint_from_native_credential_state(provider, provider_subject, generation)?,
     })
+}
+
+#[cfg(test)]
+pub(super) fn test_only_native_credential_lifecycle(
+    provider: M4CredentialProvider,
+    subject: &str,
+    generation: u64,
+) -> Result<NativeM4CredentialLifecycle> {
+    Ok(NativeM4CredentialLifecycle {
+        current: Some(lease_from_native_credential_state(
+            provider,
+            subject.to_string(),
+            generation,
+        )?),
+    })
+}
+
+#[cfg(test)]
+pub(super) fn load_current_credential_from_native_owner(
+    lifecycle: &NativeM4CredentialLifecycle,
+) -> Result<&VerifiedCredentialLease> {
+    lifecycle
+        .current
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("no current native M4 credential"))
 }
 
 #[cfg(test)]

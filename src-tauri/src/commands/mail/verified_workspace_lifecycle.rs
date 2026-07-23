@@ -61,17 +61,32 @@ impl NativeWorkspaceLifecycle {
 }
 
 #[cfg(test)]
-pub(crate) fn test_only_current_workspace_authority(
+pub(super) fn test_only_native_workspace_lifecycle(
     native_handle: &str,
     generation: u64,
-) -> VerifiedWorkspaceAuthority {
-    let lifecycle = NativeWorkspaceLifecycle {
+) -> NativeWorkspaceLifecycle {
+    NativeWorkspaceLifecycle {
         current: Some(CurrentNativeWorkspaceState {
             native_handle: native_handle.to_string(),
             generation,
         }),
-    };
-    lifecycle.authority_for_current_workspace().unwrap()
+    }
+}
+
+#[cfg(test)]
+pub(super) fn load_current_workspace_from_native_owner(
+    lifecycle: &NativeWorkspaceLifecycle,
+) -> Result<VerifiedWorkspaceAuthority> {
+    lifecycle.authority_for_current_workspace()
+}
+
+#[cfg(test)]
+pub(crate) fn test_only_current_workspace_authority(
+    native_handle: &str,
+    generation: u64,
+) -> VerifiedWorkspaceAuthority {
+    let lifecycle = test_only_native_workspace_lifecycle(native_handle, generation);
+    load_current_workspace_from_native_owner(&lifecycle).unwrap()
 }
 
 #[cfg(test)]

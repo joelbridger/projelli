@@ -148,6 +148,20 @@ impl VerifiedMailboxRecord {
     ) -> bool {
         self == expected && self.matches_context(workspace, credential, address)
     }
+
+    fn exactly_matches_current_context(
+        &self,
+        expected: &Self,
+        workspace: &VerifiedWorkspaceAuthority,
+        credential: &VerifiedCredentialBinding,
+    ) -> bool {
+        self.exactly_matches(
+            expected,
+            workspace,
+            credential,
+            &expected.0.canonical_address,
+        )
+    }
 }
 
 /// The only proof a future adapter may accept after the final SQLCipher reload.
@@ -374,6 +388,24 @@ pub(super) fn reload_exact_current_mailbox(
     let current = current_mailbox(transaction, workspace, credential.provider())?
         .ok_or_else(|| anyhow::anyhow!("verified mailbox is absent"))?;
     if !current.exactly_matches(expected, workspace, credential, resolved_address) {
+        bail!("verified mailbox binding is no longer current")
+    }
+    Ok(current)
+}
+
+/// Transaction-local recheck for the dark boundary. The expected encrypted
+/// record supplies its own sealed address binding; this accepts no address
+/// from a caller and follows the same exact-current comparison as the final
+/// mailbox guard.
+pub(super) fn reload_exact_current_mailbox_for_expected(
+    transaction: &Transaction<'_>,
+    workspace: &VerifiedWorkspaceAuthority,
+    credential: &VerifiedCredentialBinding,
+    expected: &VerifiedMailboxRecord,
+) -> Result<VerifiedMailboxRecord> {
+    let current = current_mailbox(transaction, workspace, credential.provider())?
+        .ok_or_else(|| anyhow::anyhow!("verified mailbox is absent"))?;
+    if !current.exactly_matches_current_context(expected, workspace, credential) {
         bail!("verified mailbox binding is no longer current")
     }
     Ok(current)
