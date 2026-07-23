@@ -40,7 +40,7 @@ describe('ensureNoticeVerified', () => {
       { startMs: 14000, text: "Quick note — I'm recording this meeting for my notes, that alright?" },
     ]);
     const { deps, recorded } = makeDeps(t);
-    await ensureNoticeVerified(DIR, deps);
+    await expect(ensureNoticeVerified(DIR, deps)).resolves.toBe(true);
     expect(recorded).toHaveLength(1);
     const e = recorded[0];
     expect(e?.kind).toBe('verbal-notice-verified');
@@ -68,8 +68,8 @@ describe('ensureNoticeVerified', () => {
   it('is idempotent — a second call does not append again', async () => {
     const t = transcript([{ startMs: 5000, text: "I'm recording this for my notes." }]);
     const { deps, recorded } = makeDeps(t);
-    await ensureNoticeVerified(DIR, deps);
-    await ensureNoticeVerified(DIR, deps);
+    await expect(ensureNoticeVerified(DIR, deps)).resolves.toBe(true);
+    await expect(ensureNoticeVerified(DIR, deps)).resolves.toBe(false);
     expect(recorded).toHaveLength(1);
   });
 
@@ -80,7 +80,7 @@ describe('ensureNoticeVerified', () => {
       { startMs: 8000, text: 'Sounds good, how have you been?', channel: 'mic' },
     ]);
     const { deps, recorded } = makeDeps(t);
-    await ensureNoticeVerified(DIR, deps);
+    await expect(ensureNoticeVerified(DIR, deps)).resolves.toBe(true);
     expect(recorded[0]?.kind).toBe('verbal-notice-not-detected');
   });
 
@@ -96,7 +96,7 @@ describe('ensureNoticeVerified', () => {
 
   it('does nothing when the transcript is not available yet', async () => {
     const { deps, recorded } = makeDeps(null);
-    await ensureNoticeVerified(DIR, deps);
+    await expect(ensureNoticeVerified(DIR, deps)).resolves.toBe(false);
     expect(recorded).toHaveLength(0);
   });
 

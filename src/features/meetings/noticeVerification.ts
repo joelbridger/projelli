@@ -38,21 +38,22 @@ export interface NoticeVerificationDeps {
 
 /**
  * Verify (once) whether the recording notice was spoken in this meeting, and
- * record the outcome to the ledger. Returns nothing — callers just fire it.
- * Never throws to its caller path (the store wraps it best-effort too).
+ * record the outcome to the ledger. Returns true only when this call appended
+ * the durable verification entry. Never throws to its caller path (the store
+ * wraps it best-effort too).
  */
-export async function ensureNoticeVerified(meetingDir: string, deps: NoticeVerificationDeps): Promise<void> {
+export async function ensureNoticeVerified(meetingDir: string, deps: NoticeVerificationDeps): Promise<boolean> {
   // Idempotency: if we've already recorded a verbal-notice check for this
   // meeting, do nothing — the ledger is append-only and this must not
   // double-append on a re-open or a retry.
-  if (await deps.ledger.hasVerbalNoticeCheck(meetingDir)) return;
+  if (await deps.ledger.hasVerbalNoticeCheck(meetingDir)) return false;
 
   const transcript = await deps.readTranscript();
-  if (!transcript) return; // not transcribed yet — try again later.
+  if (!transcript) return false; // not transcribed yet — try again later.
 
   // A dictated note has no meeting audio and therefore no spoken notice to
   // verify — never flag it as "notice missing".
-  if (transcript.meta.dictation) return;
+  if (transcript.meta.dictation) return false;
 
   // The notice must be the ADVISOR's spoken words, not a participant's. The
   // advisor speaks on the 'mic' channel; 'sys' is remote/system audio. We scan
@@ -87,7 +88,7 @@ export async function ensureNoticeVerified(meetingDir: string, deps: NoticeVerif
   // open) passed the fast-path check above at the same time, only one entry is
   // ever written (codex-review R5).
   if (match) {
-    await deps.ledger.recordVerbalNoticeIfAbsent({
+    return deps.ledger.recordVerbalNoticeIfAbsent({
       kind: 'verbal-notice-verified',
       meetingDir,
       at: now(),
@@ -96,7 +97,7 @@ export async function ensureNoticeVerified(meetingDir: string, deps: NoticeVerif
       confidence: match.confidence,
     });
   } else {
-    await deps.ledger.recordVerbalNoticeIfAbsent({
+    return deps.ledger.recordVerbalNoticeIfAbsent({
       kind: 'verbal-notice-not-detected',
       meetingDir,
       at: now(),

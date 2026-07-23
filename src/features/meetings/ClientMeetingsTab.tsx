@@ -391,6 +391,7 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
   >(null);
   const refreshGenerationRef = useRef(0);
   const selectionScopeIdentityRef = useRef(selectionScopeIdentity);
+  const visibilityIdentityRef = useRef(visibilityIdentity);
   const skipMeetingRenameBlurRef = useRef(false);
   // Manual paste fallback when calendar sync found no online meeting: lets the
   // advisor add the card to a non-calendar (or not-yet-synced) Teams/Zoom call.
@@ -495,13 +496,20 @@ export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, mat
   const busy = recording || processing;
   useEffect(() => {
     const generation = ++refreshGenerationRef.current;
-    // A changed viewer/policy invalidates every prior list/detail immediately.
-    // `resolvedVisibilityIdentity` also makes render hide the detail on this
-    // same identity change, before the replacement scan resolves.
-    setResolvedVisibilityIdentity(null);
-    setMeetings([]);
-    setDirectRead({ kind: 'loading' });
-    if (selectionScopeIdentityRef.current !== selectionScopeIdentity) {
+    const selectionScopeChanged =
+      selectionScopeIdentityRef.current !== selectionScopeIdentity;
+    const visibilityChanged = visibilityIdentityRef.current !== visibilityIdentity;
+    visibilityIdentityRef.current = visibilityIdentity;
+    // A changed client or viewer/policy invalidates every prior list/detail
+    // immediately. An ordinary refresh keeps the already-authorized detail
+    // mounted while the same meeting is rescanned, preventing a child change
+    // notification from turning into an unmount/remount loop.
+    if (selectionScopeChanged || visibilityChanged) {
+      setResolvedVisibilityIdentity(null);
+      setMeetings([]);
+      setDirectRead({ kind: 'loading' });
+    }
+    if (selectionScopeChanged) {
       selectionScopeIdentityRef.current = selectionScopeIdentity;
       setSelectedMeetingTargetKey(null);
       setDirectOpenMeeting(null);
