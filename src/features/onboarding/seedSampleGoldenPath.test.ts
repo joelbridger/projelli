@@ -98,6 +98,7 @@ function samplePopulation(): MeetingPopulationService {
       return next;
     },
     openTarget: async () => { throw new Error('Not needed.'); },
+    captureActiveClientOperation: () => { throw new Error('Not needed.'); },
     captureActiveClientOperationForBoundary: () => ({
       assertStable: () => undefined,
       createForActiveClient: async (draft) => {
