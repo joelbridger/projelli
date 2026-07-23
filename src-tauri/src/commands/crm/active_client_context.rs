@@ -29,11 +29,6 @@ struct ActiveClientSelection {
     selection_revision: u64,
 }
 
-/// Deliberately private native authority. It is neither serializable nor a
-/// Tauri DTO, and no command accepts one as input.
-#[derive(Clone)]
-pub(crate) struct ActiveClientLease(ActiveClientSelection);
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActiveClientContextReceipt {
@@ -44,6 +39,11 @@ pub struct ActiveClientContextReceipt {
     pub workspace_revision: u64,
     pub selection_revision: u64,
 }
+
+/// Deliberately private native authority. It is neither serializable nor a
+/// Tauri DTO, and no command accepts one as input.
+#[derive(Clone)]
+pub(crate) struct ActiveClientLease(ActiveClientSelection);
 
 impl ActiveClientContextState {
     pub(crate) fn handoff_workspace(&mut self, workspace: PathBuf) {
@@ -87,6 +87,35 @@ impl ActiveClientContextState {
 /// execution; it is invalid after any selection or workspace transition.
 pub(crate) async fn capture_active_client_lease(state: &CrmState) -> Option<ActiveClientLease> {
     state.active_client_context.lock().await.capture()
+}
+
+/// Capture a native-only approval lease only for the current exact private
+/// household and matter selection. The supplied identifiers never leave this
+/// lock or become part of the lease's public surface.
+pub(crate) async fn capture_active_client_lease_for(
+    state: &CrmState,
+    household_id: &str,
+    matter_id: &str,
+) -> Result<ActiveClientLease, String> {
+    let context = state.active_client_context.lock().await;
+    let Some(selection) = context.selection.as_ref() else {
+        return Err("No active client is selected.".to_string());
+    };
+
+    if household_id.is_empty()
+        || matter_id.is_empty()
+        || selection.household_id.is_empty()
+        || selection.matter_id.is_empty()
+        || context.workspace.is_none()
+        || selection.workspace_revision != context.workspace_revision
+        || selection.selection_revision != context.selection_revision
+        || selection.household_id != household_id
+        || selection.matter_id != matter_id
+    {
+        return Err("The requested client is not the active client.".to_string());
+    }
+
+    Ok(ActiveClientLease(selection.clone()))
 }
 
 /// Native-only execution gate for future protected local actions.
@@ -246,6 +275,29 @@ mod tests {
         }
     }
 
+    fn storage_evidence(workspace: &TempDir) -> (Vec<serde_json::Value>, Vec<(String, Vec<u8>)>) {
+        let reader = CrmCoreStore::open_read_only_with_key(workspace.path(), &KEY).unwrap();
+        let records = reader.list_live_records().unwrap();
+        drop(reader);
+
+        let storage_dir = CrmCoreStore::db_path(workspace.path())
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let mut files = std::fs::read_dir(storage_dir)
+            .unwrap()
+            .map(|entry| {
+                let path = entry.unwrap().path();
+                (
+                    path.file_name().unwrap().to_string_lossy().into_owned(),
+                    std::fs::read(path).unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        files.sort_by(|left, right| left.0.cmp(&right.0));
+        (records, files)
+    }
+
     async fn request(
         state: &CrmState,
         household_id: &str,
@@ -265,15 +317,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn exact_live_pair_issues_a_private_lease_and_consumes_it() {
+    async fn exact_live_pair_captures_a_target_bound_private_lease_and_consumes_it() {
         let workspace = TempDir::new().unwrap();
         seed(&workspace, &[record("household-a", "matter-a")]);
         let state = state_at(&workspace).await;
 
         assert!(request(&state, "household-a", "matter-a").await.activated);
-        let lease = capture_active_client_lease(&state)
+        let lease = capture_active_client_lease_for(&state, "household-a", "matter-a")
             .await
-            .expect("private lease");
+            .expect("target-bound private lease");
+        require_active_client_lease(&state, &lease).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn target_mismatch_refuses_without_clearing_the_active_pair() {
+        let workspace = TempDir::new().unwrap();
+        seed(
+            &workspace,
+            &[
+                record("household-a", "matter-a"),
+                record("household-b", "matter-b"),
+            ],
+        );
+        let state = state_at(&workspace).await;
+
+        assert!(request(&state, "household-a", "matter-a").await.activated);
+        assert!(capture_active_client_lease_for(&state, "", "matter-a")
+            .await
+            .is_err());
+        assert!(capture_active_client_lease_for(&state, "household-a", "")
+            .await
+            .is_err());
+        assert!(
+            capture_active_client_lease_for(&state, "household-b", "matter-a")
+                .await
+                .is_err()
+        );
+        assert!(
+            capture_active_client_lease_for(&state, "household-a", "matter-b")
+                .await
+                .is_err()
+        );
+
+        let lease = capture_active_client_lease_for(&state, "household-a", "matter-a")
+            .await
+            .expect("A remains the active private pair");
         require_active_client_lease(&state, &lease).await.unwrap();
     }
 
@@ -331,7 +419,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn client_switch_replaces_pair_and_invalidates_the_old_lease() {
+    async fn client_switch_replaces_pair_and_invalidates_the_old_target_bound_lease() {
         let workspace = TempDir::new().unwrap();
         seed(
             &workspace,
@@ -342,29 +430,31 @@ mod tests {
         );
         let state = state_at(&workspace).await;
         let first = request(&state, "household-a", "matter-a").await;
-        let old_lease = capture_active_client_lease(&state).await.unwrap();
+        let old_lease = capture_active_client_lease_for(&state, "household-a", "matter-a")
+            .await
+            .unwrap();
         let second = request(&state, "household-b", "matter-b").await;
         assert!(second.selection_revision > first.selection_revision);
         assert!(require_active_client_lease(&state, &old_lease)
             .await
             .is_err());
-        assert!(require_active_client_lease(
-            &state,
-            &capture_active_client_lease(&state).await.unwrap()
-        )
-        .await
-        .is_ok());
+        let current = capture_active_client_lease_for(&state, "household-b", "matter-b")
+            .await
+            .unwrap();
+        assert!(require_active_client_lease(&state, &current).await.is_ok());
     }
 
     #[tokio::test]
-    async fn workspace_handoffs_never_revive_a_selection() {
+    async fn workspace_handoffs_never_revive_or_preserve_a_target_bound_lease() {
         let a = TempDir::new().unwrap();
         let b = TempDir::new().unwrap();
         seed(&a, &[record("household-a", "matter-a")]);
         seed(&b, &[record("household-b", "matter-b")]);
         let state = state_at(&a).await;
         let first = request(&state, "household-a", "matter-a").await;
-        let lease = capture_active_client_lease(&state).await.unwrap();
+        let lease = capture_active_client_lease_for(&state, "household-a", "matter-a")
+            .await
+            .unwrap();
         state.service().set_workspace(b.path().to_path_buf()).await;
         state.service().set_workspace(a.path().to_path_buf()).await;
         let after_return = state
@@ -375,6 +465,11 @@ mod tests {
         assert!(after_return.workspace_revision > first.workspace_revision);
         assert!(capture_active_client_lease(&state).await.is_none());
         assert!(require_active_client_lease(&state, &lease).await.is_err());
+
+        assert!(request(&state, "household-a", "matter-a").await.activated);
+        let same_path_lease = capture_active_client_lease_for(&state, "household-a", "matter-a")
+            .await
+            .unwrap();
         let before_same_path_handoff = after_return.workspace_revision;
         state.service().set_workspace(a.path().to_path_buf()).await;
         let after_same_path_handoff = state
@@ -387,12 +482,20 @@ mod tests {
             "a same-path handoff must advance the native workspace revision"
         );
         assert!(capture_active_client_lease(&state).await.is_none());
+        assert!(require_active_client_lease(&state, &same_path_lease)
+            .await
+            .is_err());
     }
 
     #[tokio::test]
     async fn clear_and_default_states_have_no_lease() {
         let state = CrmState::default();
         assert!(capture_active_client_lease(&state).await.is_none());
+        assert!(
+            capture_active_client_lease_for(&state, "household-a", "matter-a")
+                .await
+                .is_err()
+        );
 
         let workspace = TempDir::new().unwrap();
         seed(&workspace, &[record("household-a", "matter-a")]);
@@ -408,9 +511,65 @@ mod tests {
         };
         assert!(!receipt.activated);
         assert!(capture_active_client_lease(&state).await.is_none());
+        assert!(
+            capture_active_client_lease_for(&state, "household-a", "matter-a")
+                .await
+                .is_err()
+        );
         assert!(require_active_client_lease(&state, &live_lease)
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn target_bound_capture_and_mismatch_leave_real_sqlcipher_storage_unchanged() {
+        let workspace = TempDir::new().unwrap();
+        seed(
+            &workspace,
+            &[
+                record("household-a", "matter-a"),
+                record("household-b", "matter-b"),
+            ],
+        );
+        let state = state_at(&workspace).await;
+        assert!(request(&state, "household-a", "matter-a").await.activated);
+        let before = storage_evidence(&workspace);
+
+        assert!(
+            capture_active_client_lease_for(&state, "household-b", "matter-b")
+                .await
+                .is_err()
+        );
+        let lease = capture_active_client_lease_for(&state, "household-a", "matter-a")
+            .await
+            .unwrap();
+        require_active_client_lease(&state, &lease).await.unwrap();
+
+        let after = storage_evidence(&workspace);
+        assert_eq!(after.0, before.0, "CRM live records must not change");
+        assert_eq!(after.1, before.1, "SQLCipher storage bytes must not change");
+    }
+
+    #[test]
+    fn target_bound_helper_has_no_serialized_command_or_lease_field_surface() {
+        let source = include_str!("active_client_context.rs");
+        let lease_surface = &source[source.find("pub(crate) struct ActiveClientLease").unwrap()
+            ..source.find("impl ActiveClientContextState").unwrap()];
+        let helper = &source[source
+            .find("pub(crate) async fn capture_active_client_lease_for")
+            .unwrap()
+            ..source
+                .find("pub(crate) async fn require_active_client_lease")
+                .unwrap()];
+
+        assert!(!lease_surface.contains("Serialize"));
+        assert!(!lease_surface.contains("impl ActiveClientLease"));
+        assert!(!lease_surface.contains("household_id(&self"));
+        assert!(!lease_surface.contains("matter_id(&self"));
+        assert!(!helper.contains("#[tauri::command]"));
+        assert!(!helper.contains("State<'"));
+        assert!(!helper.contains("ActiveClientContextReceipt"));
+        assert!(!helper.contains("pub async"));
     }
 
     #[tokio::test]
