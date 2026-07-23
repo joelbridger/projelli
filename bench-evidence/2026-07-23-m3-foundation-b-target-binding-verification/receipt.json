@@ -1,0 +1,126 @@
+{
+  "kind": "m3-foundation-b-target-binding-independent-verification",
+  "date": "2026-07-23",
+  "review_status": "CODE_READY means ready for independent privacy review only; it is not product acceptance or integration approval.",
+  "contract": {
+    "sha256": "647555d15094a96039f8d131e17f653a9ac419cbd36e853659618d043da6c4a3",
+    "attempt": 2,
+    "job_id": "20260723-230412-jkz5xxxx",
+    "lane_id": "m3-foundation-b-target-binding-evidence-20260723",
+    "launch_record": "/home/jameson/.local/share/codex-fleet/20260723-230412-jkz5xxxx/launch-record.json",
+    "launch_record_sha256": "5b242c03cf7f5d9acee4afa257533d1b696f0b2b337e75fd80b835baa926e7fe"
+  },
+  "candidate": {
+    "revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "parent": "ad64804f4ea28f62908e65334c3ca825a588b30c",
+    "subject": "feat(crm): bind private lease to active client",
+    "repository": "/home/jameson/lantern/app/integration",
+    "worktree": "/home/jameson/lantern/app/integration/.worktrees/evidence/m3-foundation-b-target-binding-20260723",
+    "branch": "evidence/m3-foundation-b-target-binding-20260723",
+    "origin": "https://github.com/lanternplatform/lantern.git",
+    "remote_candidate_ref": "origin/product/m3-foundation-b-target-binding-20260723",
+    "remote_candidate_revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef"
+  },
+  "frozen_change_from_ad64804f4ea28f62908e65334c3ca825a588b30c": [
+    {
+      "path": "bench-evidence/2026-07-23-m3-native-active-client-context/receipt.json",
+      "status": "modified",
+      "candidate_git_blob": "9a496044b7e36530bd2715b148502ad85efc9c7b",
+      "candidate_sha256": "6c52e60350654efec7e9333e2c27b12d27b295c05f41c14d0e5beb18f424ff3c"
+    },
+    {
+      "path": "scripts/verify-m3-native-active-client-context.sh",
+      "status": "modified",
+      "mode": "100755",
+      "candidate_git_blob": "b1a0916f177dc82bcc97a67d9a9469736ed59d1e",
+      "candidate_sha256": "945dac2f9942907a3137ec4565efb3282bd5f08747a9205080972e8e7dc03e52"
+    },
+    {
+      "path": "src-tauri/src/commands/crm/active_client_context.rs",
+      "status": "modified",
+      "mode": "100644",
+      "candidate_git_blob": "790684c39a26ee09ea6b4f54ba254781deaa5455",
+      "candidate_sha256": "ad622e0b4283f05c329380302840eb42f78011871c05469ffc929e15b7cd7188"
+    }
+  ],
+  "dependency_staging": {
+    "worktree_package_json_sha256": "192f9b6e8237344fe730d4dcf058759bd3b0457664501f3fa1f0b351f380e012",
+    "worktree_package_lock_json_sha256": "ce074d4be9d8fa7bd1ae9454692d74e7376fbf819a6f9b9d1e473dbb1f38c4ae",
+    "canonical_node_modules": "/home/jameson/lantern/app/integration/node_modules",
+    "canonical_node_modules_was_real_directory_not_symlink": true,
+    "worktree_node_modules_was_absent_before_verifier": true,
+    "verifier_behavior": "Before npx use it rechecked both lockfile hashes and the canonical real directory, armed EXIT cleanup, refused any existing worktree node_modules target, created only a symlink to the exact canonical path, removed only that exact symlink, and proved it absent before returning.",
+    "worktree_node_modules_absent_after_verifier": true
+  },
+  "rust_helper_staging": {
+    "canonical_helpers": [
+      {
+        "source": "/home/jameson/lantern/app/integration/src-tauri/binaries/piper-x86_64-unknown-linux-gnu",
+        "sha256": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b",
+        "temporary_target": "src-tauri/binaries/piper-x86_64-unknown-linux-gnu"
+      },
+      {
+        "source": "/home/jameson/lantern/app/integration/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+        "sha256": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77",
+        "temporary_target": "src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu"
+      }
+    ],
+    "verifier_behavior": "The committed verifier verified both canonical hashes before linking, removed only those two exact symlinks through its cleanup function, and proved both targets absent before success.",
+    "both_temporary_targets_absent_after_verifier": true
+  },
+  "commands": [
+    {
+      "command": "git rev-parse HEAD && git remote get-url origin && git rev-parse origin/product/m3-foundation-b-target-binding-20260723",
+      "exit_code": 0,
+      "complete_output": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef\nhttps://github.com/lanternplatform/lantern.git\n5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef"
+    },
+    {
+      "command": "bash scripts/verify-m3-native-active-client-context.sh",
+      "exit_code": 0,
+      "complete_output": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.61s\n     Running unittests src/lib.rs (/mnt/devcache/cargo-target/debug/deps/lantern_lib-c979c374c66d4e34)\n\nrunning 9 tests\ntest commands::crm::active_client_context::tests::target_bound_helper_has_no_serialized_command_or_lease_field_surface ... ok\ntest commands::crm::active_client_context::tests::clear_and_default_states_have_no_lease ... ok\ntest commands::crm::active_client_context::tests::exact_live_pair_captures_a_target_bound_private_lease_and_consumes_it ... ok\ntest commands::crm::active_client_context::tests::fabricated_renderer_receipts_and_revisions_cannot_consume_a_live_lease ... ok\ntest commands::crm::active_client_context::tests::client_switch_replaces_pair_and_invalidates_the_old_target_bound_lease ... ok\ntest commands::crm::active_client_context::tests::target_bound_capture_and_mismatch_leave_real_sqlcipher_storage_unchanged ... ok\ntest commands::crm::active_client_context::tests::target_mismatch_refuses_without_clearing_the_active_pair ... ok\ntest commands::crm::active_client_context::tests::workspace_handoffs_never_revive_or_preserve_a_target_bound_lease ... ok\ntest commands::crm::active_client_context::tests::missing_deleted_duplicate_and_disagreeing_records_refuse_and_clear ... ok\n\ntest result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 1614 filtered out; finished in 4.66s\n\n\n RUN  v4.1.10 /home/jameson/lantern/app/integration/.worktrees/evidence/m3-foundation-b-target-binding-20260723\n\n\n Test Files  2 passed (2)\n      Tests  28 passed (28)\n   Start at  23:05:11\n   Duration  2.17s (transform 713ms, setup 744ms, import 726ms, tests 1.23s, environment 541ms)"
+    },
+    {
+      "command": "rustfmt --edition 2021 --config skip_children=true --check src-tauri/src/commands/crm/active_client_context.rs && bash -n scripts/verify-m3-native-active-client-context.sh",
+      "exit_code": 0,
+      "complete_output": ""
+    },
+    {
+      "command": "test ! -e node_modules && test ! -L node_modules && test ! -e src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -e src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "exit_code": 0,
+      "complete_output": ""
+    }
+  ],
+  "test_totals": {
+    "cargo": "9 passed; 0 failed; 0 ignored; 0 measured; 1614 filtered out",
+    "vitest": "2 test files passed; 28 tests passed"
+  },
+  "privacy_boundaries_verified": [
+    "The native target-bound helper is tested to accept only the exact active household and matter pair.",
+    "Wrong household or matter attempts refuse without clearing the current pair.",
+    "Default, clear, stale, missing, deleted, duplicate, and disagreeing states refuse.",
+    "A captured lease is invalid after client switch and workspace handoffs, including same-path handoff.",
+    "Tests cover unchanged real SQLCipher storage after target mismatch and capture.",
+    "The verifier source guards reject serialization, lease-field getters, Tauri command exposure, renderer state input, public async exposure, and receipt exposure for the private lease."
+  ],
+  "explicit_exclusions": [
+    "No product, test, script, configuration, package manifest, lockfile, or existing receipt byte was changed by this evidence lane.",
+    "No Task command or local Task doorway was added.",
+    "No UI, renderer DTO, Tauri command, migration, provider, mail, permissions, Whole Firm, or storage feature was added.",
+    "No npm install, package update, or other npm writer was run during verification.",
+    "This evidence receipt is not product code and must not be integrated as product code."
+  ],
+  "prior_launcher_refusal": {
+    "job_id": "20260723-224654-zs3mxxxx",
+    "text": "The preceding launcher job 20260723-224654-zs3mxxxx is refused because its lane result used an obsolete, invalid result shape.",
+    "mechanical_key_comparison_against_valid_job_20260723-222502-03ubxxxx": {
+      "obsolete_only_keys": ["acceptance_claimed", "commit", "pushed", "summary", "worktree_clean"],
+      "missing_valid_keys": ["actual_files", "attempt", "expected_remote", "head", "job_id", "lane_id", "launch_record_sha256", "outputs", "prompt_sha256", "repository", "tests", "worktree"]
+    }
+  },
+  "unproven": [
+    "Windows behavior has not been proven.",
+    "Full M3 proposal, approval, and delivery behavior has not been proven.",
+    "Foundation C local Task doorway has not been built or proven.",
+    "Independent privacy review is still required."
+  ]
+}
