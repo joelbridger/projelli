@@ -7,13 +7,25 @@ import {
   createAccountlessUnrestrictedMeetingFileVisibilityManifest,
   createMeetingFileVisibilityManifest,
   decideMeetingFileVisibility,
+  MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE,
+  MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS,
   meetingFileVisibilityContextIdentity,
   migrateLegacyMeetingFileVisibility,
   readCurrentMeetingViewerId,
+  requireCurrentMeetingFileAccess,
   resolveMeetingFilePathVisibility,
   type MeetingFileVisibilityManifest,
 } from './meetingFileVisibility';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+
+const { loadMeetingVisibilityPoliciesMock } = vi.hoisted(() => ({
+  loadMeetingVisibilityPoliciesMock: vi.fn(),
+}));
+
+vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
+  loadMeetingVisibilityPoliciesForFileAccess: loadMeetingVisibilityPoliciesMock,
+}));
 
 const policy: MeetingVisibilityPolicy = {
   id: 'policy-one-meeting',
@@ -202,6 +214,61 @@ describe('file-backed meeting visibility', () => {
     });
     expect(readCurrentMeetingViewerId()).toBe('firm-member-1');
     useFirmStore.setState({ session: null });
+  });
+
+  it('fails closed with a stable error when the current policy read never settles', async () => {
+    vi.useFakeTimers();
+    try {
+      useWorkspaceStore.setState({ rootPath: '/client', rootGeneration: 17 });
+      useFirmStore.setState({
+        session: {
+          userId: 'owner',
+          email: 'owner@example.com',
+          role: 'member',
+          org: null,
+          seatId: null,
+          tier: null,
+          packs: [],
+          seats: 0,
+          lastValidatedAt: null,
+          activated: false,
+        },
+      });
+      loadMeetingVisibilityPoliciesMock.mockImplementation(
+        () => new Promise<readonly unknown[]>(() => {})
+      );
+      const meeting = createMeetingFileVisibilityManifest({
+        ownerRef: 'owner',
+        meetingSubjectId: 'meeting-file:timeout',
+        fileNames: ['meeting.json'],
+      });
+      const workspace = {
+        readFile: vi.fn(async () => JSON.stringify({ meetingFileVisibility: meeting })),
+        writeFile: vi.fn(),
+      };
+
+      const access = requireCurrentMeetingFileAccess({
+        path: '/client/Meetings/one/meeting.json',
+        workspace,
+        workspaceRoot: '/client',
+        workspaceGeneration: 17,
+      });
+      const assertion = expect(access).rejects.toThrow(
+        MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE
+      );
+
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS);
+      await assertion;
+
+      expect(loadMeetingVisibilityPoliciesMock).toHaveBeenCalledWith('/client');
+      expect(workspace.writeFile).not.toHaveBeenCalled();
+    } finally {
+      loadMeetingVisibilityPoliciesMock.mockReset();
+      useFirmStore.setState({ session: null });
+      useWorkspaceStore.setState({ rootPath: null, rootGeneration: 0 });
+      vi.useRealTimers();
+    }
   });
 
   it('migrates only exact children, records mismatches, and then keeps missing manifests hidden', async () => {

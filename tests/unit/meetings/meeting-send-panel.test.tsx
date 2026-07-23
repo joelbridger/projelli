@@ -2,6 +2,10 @@ import { act, render, screen, fireEvent, waitFor, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { brandText } from '@/config/brandText';
 import { MeetingSendPanel } from '@/features/meetings/MeetingSendPanel';
+import {
+  MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE,
+  MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS,
+} from '@/features/meetings/meetingFileVisibility';
 import { emptyMeetingRecipientArtifacts, type MeetingDeliveryPlan } from '@/features/meetings/meetingRecipientPlan';
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
 import type { Matter } from '@/platform/types/matter';
@@ -327,6 +331,45 @@ describe('MeetingSendPanel (merged send surface)', () => {
 
       expect(requireFileAccessMock).toHaveBeenCalledTimes(2);
       expect(ws.writeFile).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leaves Saving with the explicit fail-closed error when the access check times out', async () => {
+    vi.useFakeTimers();
+    try {
+      const ws = makeWorkspace();
+      const onChanged = vi.fn();
+      requireFileAccessMock.mockImplementation(
+        () => new Promise<void>((_resolve, reject) => {
+          setTimeout(
+            () => reject(new Error(MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE)),
+            MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS
+          );
+        })
+      );
+      renderPanel({ ws, onChanged });
+
+      fireEvent.change(screen.getByTestId('meeting-recipient-input-person'), {
+        target: { value: 'uncertain@example.com' },
+      });
+      fireEvent.click(screen.getByTestId('meeting-recipient-add-person'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600);
+      });
+      expect(screen.getByTestId('meeting-recipients-status')).toHaveTextContent(/Saving/);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS);
+      });
+
+      expect(screen.getByTestId('meeting-recipients-status')).toHaveTextContent(
+        MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE
+      );
+      expect(ws.writeFile).not.toHaveBeenCalled();
+      expect(onChanged).not.toHaveBeenCalled();
+      expect(sendArtifactsMock).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
