@@ -14,6 +14,7 @@ pub mod view;
 mod m4_dark_draft_handoff;
 mod m4_gmail_adapter;
 mod m4_microsoft_adapter;
+mod m4_microsoft_sealed_transport;
 mod verified_draft_claim;
 #[cfg(test)]
 pub(crate) mod verified_m4_credentials;

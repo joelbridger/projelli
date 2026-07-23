@@ -10,6 +10,7 @@ mod v0003_teams_roles;
 mod v0004_merge_receipts;
 mod v0005_team_activity;
 mod v0006_verified_mailbox;
+mod v0007_m4_provider_draft_receipts;
 
 #[cfg(test)]
 mod v0002_test_dummy;
@@ -34,6 +35,7 @@ pub const CRM_MIGRATIONS: &[Migration] = &[
     v0004_merge_receipts::MIGRATION,
     v0005_team_activity::MIGRATION,
     v0006_verified_mailbox::MIGRATION,
+    v0007_m4_provider_draft_receipts::MIGRATION,
 ];
 
 const CREATE_MIGRATIONS_TABLE: &str = r#"
@@ -268,6 +270,29 @@ mod tests {
             .unwrap();
         assert_eq!(count, 1);
         assert_eq!(table_exists, 1);
+    }
+
+    #[test]
+    fn provider_draft_receipt_migration_is_registered_and_creates_the_encrypted_ledger() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+
+        let applied: String = conn
+            .query_row("SELECT id FROM crm_migrations WHERE version=7", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(applied, "0007_m4_provider_draft_receipts");
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(m4_provider_draft_receipts)")
+            .unwrap()
+            .query_map([], |row| row.get(1))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert!(columns.contains(&"claim_handle".to_string()));
+        assert!(columns.contains(&"provider_draft_id".to_string()));
+        assert!(columns.contains(&"safe_metadata".to_string()));
     }
 
     #[test]
