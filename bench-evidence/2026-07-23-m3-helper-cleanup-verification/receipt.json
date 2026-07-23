@@ -1,0 +1,54 @@
+{
+  "kind": "no-code-cleanup-verification",
+  "status": "verified_cleanup_only_not_candidate_acceptance",
+  "frozen_candidate": "7ab048cda8d3f1377ec9a6535cf725b61ad732fd",
+  "original_job": "20260723-200939-21p5xxxx",
+  "original_candidate_worktree": "/home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723",
+  "evidence_worktree": "/home/jameson/lantern/app/integration/.worktrees/evidence/m3-helper-cleanup-verification-20260723",
+  "contract": {"job_id": "20260723-204246-nia9xxxx", "attempt": 1, "sha256": "9ad70ee096198ca054069ddbf9f71f3cf6180522b112c1de61968e30dd1ee294", "path": "/home/jameson/.local/share/codex-fleet/20260723-204246-nia9xxxx/contract.9ad70ee096198ca054069ddbf9f71f3cf6180522b112c1de61968e30dd1ee294.json", "launch_record": "/home/jameson/.local/share/codex-fleet/20260723-204246-nia9xxxx/launch-record.json"},
+  "canonical_helpers": [
+    {"path": "/home/jameson/lantern/app/integration/src-tauri/binaries/piper-x86_64-unknown-linux-gnu", "expected_sha256": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b", "observed_sha256": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b"},
+    {"path": "/home/jameson/lantern/app/integration/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu", "expected_sha256": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77", "observed_sha256": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77"}
+  ],
+  "original_candidate_helper_targets": [
+    {"path": "/home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/piper-x86_64-unknown-linux-gnu", "verified_absent": true},
+    {"path": "/home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu", "verified_absent": true}
+  ],
+  "evidence_worktree_helper_targets": [
+    {"path": "src-tauri/binaries/piper-x86_64-unknown-linux-gnu", "verified_absent": true},
+    {"path": "src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu", "verified_absent": true}
+  ],
+  "prior_claim": {"statement": "The saved version is now on the shared remote, and the nine required checks have all passed on that exact saved version. I’m clearing the temporary test helpers and doing one last clean-state check.", "source": "/home/jameson/.local/share/codex-fleet/20260723-200939-21p5xxxx/log:263794", "classification": "false prior claim", "basis": "The immediately following cleanup command exited 1 before the removal chain completed; coordinator intake later removed only the two verified helper links."},
+  "candidate_identity": {"head": "7ab048cda8d3f1377ec9a6535cf725b61ad732fd", "remote_name": "origin", "remote_url": "https://github.com/lanternplatform/lantern.git", "remote_revision": "7ab048cda8d3f1377ec9a6535cf725b61ad732fd"},
+  "original_candidate_outputs": [
+    {"path":"src/platform/samples/hendricksReviewCapability.ts","sha256":"2cab918f2af2f882d1ee0984a48976b19e00c764cd207acabd59de269bf726fb"},
+    {"path":"src/platform/samples/hendricksReviewCapability.test.ts","sha256":"c7361c203d183313382dda96ce922f0411211e852728964f78bd1fc0f825cada"},
+    {"path":"src/features/onboarding/seedSampleGoldenPath.ts","sha256":"96067bba69cc9b4ea55038ec9e4bd8d216abfaf94cd298d08f67df6d8e2360e1"},
+    {"path":"src/features/meetings/foundation/contract.ts","sha256":"f1ccdd03f57c5b7f2e705b9822bac8df76eb5b5279b7361683c66879e3f2b32f"},
+    {"path":"src/features/meetings/foundation/contract.hendricks-review.test.ts","sha256":"addc8a3d88c2460fe62c5d8df5b68950864fbedb47b11ddf11ab1c510b36c852"},
+    {"path":"src/platform/meeting-visibility/visibilityPolicy.ts","sha256":"cc957cf536fe3e480e3498ce282b5752d319bfe3785a0807d246e0a0a2bc18d6"},
+    {"path":"src/platform/crm/useLiveCrmRecords.ts","sha256":"cc8d243454e1e086e4b6bd50523dc490d2ceaa2e41d259013ebce19329ac745f"},
+    {"path":"src/platform/crm/liveRecords.hendricks.test.ts","sha256":"244bc686570eca13db58d9faccb1ef466f4f423669b5c74886f4df3a48a457c6"},
+    {"path":"src/features/crm-tasks/taskRecordStore.ts","sha256":"ca1a377c6dd020f2d366159e55e8ee024dae64bfadc4cc842a6e239f75eb2eec"},
+    {"path":"src/features/crm-tasks/taskRecordStore.hendricks.live.test.tsx","sha256":"2ace81ff4f24c3b07078536d23b7d6d4e1a1a0b7b172679cc8e9ab80804d22f8"},
+    {"path":"src/platform/meetingNotesReview/notesReviewDelivery.ts","sha256":"42c3a138d79050c1a490e2b683d877e6a3f1862116e9fd237b8a784fa2e2137a"},
+    {"path":"src/platform/meetingNotesReview/notesReviewDelivery.hendricks.test.ts","sha256":"322a423cf507ea48e3eb0a89a5c189ad879bd24e4ec773fd6fc27da1ac9319df"},
+    {"path":"src/app/meetingNotesReviewBindings.tsx","sha256":"21500e68bb513dbf5748f12386ea1f2b3a4f0cb3b300b927d6583b8c59b5f75d"},
+    {"path":"src-tauri/src/commands/crm/core_store.rs","sha256":"8b12554081240e4d0429bcd4b01d8811ead77f5ce5942ff909ff7cff11478e6b"},
+    {"path":"src-tauri/src/commands/crm/core_commands.rs","sha256":"31b99d0bb40279bf62911be1073c7f768c33478a40fcd755c48c7dea03f5ec3a"},
+    {"path":"src-tauri/src/commands/crm/hendricks_review.rs","sha256":"8e9b8a657e8b0fefae0d474e593c3c3ad2cf7ae45d54e1c86c675aeee2d5c91c"},
+    {"path":"src-tauri/src/commands/crm/mod.rs","sha256":"4ba53d1652d21813caa02f8dc68c2d7cf0b9ba7b308304562210de322b7f2cab"},
+    {"path":"src-tauri/src/commands/crm/command-manifest.txt","sha256":"c55eddb89949f8b26693b95c724d3abaf4c05b394826cee297aff1f171f9b649"},
+    {"path":"src-tauri/tests/hendricks_review_delivery.rs","sha256":"c9d530fda12c801a3b46943fe072d61415b46b75c8d07dbcd9c8dd66a0b3f6a1"},
+    {"path":"tests/desktop/specs/21-hendricks-review.mjs","sha256":"f66f6eb8377e25c67badf57eb554e187c7747eb7d5d8deb108fe6ee395c78db9"}
+  ],
+  "contract_checks": [
+    {"name":"Canonical helper source fingerprints","command":"test \"$(sha256sum /home/jameson/lantern/app/integration/src-tauri/binaries/piper-x86_64-unknown-linux-gnu | awk '{print $1}')\" = 12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b && test \"$(sha256sum /home/jameson/lantern/app/integration/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu | awk '{print $1}')\" = 64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77","exit_code":0,"observed_stdout":""},
+    {"name":"Original candidate helper paths absent","command":"test ! -e /home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -L /home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -e /home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu && test ! -L /home/jameson/lantern/app/integration/.worktrees/product/m3-hendricks-fresh-capability-a2-20260723/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu","exit_code":0,"observed_stdout":""},
+    {"name":"Evidence worktree helper paths absent","command":"test ! -e src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -e src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu","exit_code":0,"observed_stdout":""},
+    {"name":"Candidate output hashes unchanged","command":"python3 -B -c \"import hashlib,json,pathlib; r=json.load(open('/home/jameson/.local/share/codex-fleet/20260723-200939-21p5xxxx/lane-result.json')); assert r['head']=='7ab048cda8d3f1377ec9a6535cf725b61ad732fd'; assert all(hashlib.sha256(pathlib.Path(x['path']).read_bytes()).hexdigest()==x['sha256'] for x in r['outputs'])\"","exit_code":0,"observed_stdout":""},
+    {"name":"Candidate identity and remote unchanged","command":"test \"$(git rev-parse 7ab048cda8d3f1377ec9a6535cf725b61ad732fd)\" = 7ab048cda8d3f1377ec9a6535cf725b61ad732fd && test \"$(git rev-parse origin/product/m3-hendricks-fresh-capability-a2-20260723)\" = 7ab048cda8d3f1377ec9a6535cf725b61ad732fd","exit_code":0,"observed_stdout":""},
+    {"name":"Evidence diff hygiene","command":"git diff --check 7ab048cda8d3f1377ec9a6535cf725b61ad732fd..HEAD","exit_code":0,"observed_stdout":""}
+  ],
+  "disclaimers": {"no_code": "No product code, test, Cargo, script, or coordination file was edited.", "no_cargo": "Cargo was not run.", "no_windows": "No Windows system or application was run.", "no_provider": "No provider or network service was used.", "no_acceptance": "This is no-code cleanup evidence only; it neither accepts the candidate nor proves product acceptance."}
+}
