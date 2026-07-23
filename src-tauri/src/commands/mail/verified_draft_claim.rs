@@ -258,6 +258,35 @@ pub(super) fn test_only_approved_draft_payload() -> ApprovedDraftPayloadView {
 }
 
 #[cfg(test)]
+pub(super) fn test_only_approved_draft_claim(
+    workspace: &VerifiedWorkspaceAuthority,
+    credential: &VerifiedCredentialBinding,
+    mailbox: &VerifiedMailboxRecord,
+    idempotency_key: &str,
+) -> ApprovedDraftClaimRecord {
+    let input = test_input(idempotency_key);
+    ApprovedDraftClaimRecord {
+        claim_handle: claim_handle(&input, mailbox),
+        mailbox_handle: mailbox.handle().to_string(),
+        mailbox_version: mailbox.version(),
+        workspace_handle: workspace.native_handle().to_string(),
+        provider: credential.provider().as_db().to_string(),
+        workspace_generation: workspace.generation(),
+        credential_generation: credential.generation().value(),
+        client_context: input.client_context,
+        meeting_context: input.meeting_context,
+        recipients_json: input.recipients_json,
+        draft_subject: input.draft_subject,
+        body: input.body,
+        content_hash: input.content_hash,
+        approval_receipt: input.approval_receipt,
+        idempotency_key: input.idempotency_key,
+        version: 1,
+        status: DraftClaimState::Approved.as_db().to_string(),
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::commands::mail::{

@@ -11,6 +11,7 @@ pub mod store;
 pub mod sync;
 pub mod view;
 
+mod m4_draft_handoff;
 mod m4_gmail_adapter;
 mod m4_microsoft_adapter;
 mod verified_draft_claim;

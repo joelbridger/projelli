@@ -89,6 +89,21 @@ impl VerifiedCredentialBinding {
     pub(super) fn generation(&self) -> CredentialGeneration {
         self.generation
     }
+
+    /// Recreates only the opaque mailbox binding used by the encrypted
+    /// mailbox foundation. It lets the dark lifecycle reject a different
+    /// account without exposing the provider subject to a caller.
+    pub(super) fn expected_mailbox_handle(&self, workspace: &VerifiedWorkspaceAuthority) -> String {
+        use sha2::{Digest, Sha256};
+
+        let mut digest = Sha256::new();
+        digest.update(workspace.native_handle().as_bytes());
+        digest.update([0]);
+        digest.update(self.provider.as_db().as_bytes());
+        digest.update([0]);
+        digest.update(self.subject.as_str().as_bytes());
+        format!("m4-mailbox-{}", &hex::encode(digest.finalize())[..24])
+    }
 }
 
 pub(super) fn m4_keychain_service_name(
