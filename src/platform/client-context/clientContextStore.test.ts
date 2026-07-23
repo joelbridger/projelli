@@ -60,7 +60,9 @@ function seed(matters: Matter[], activeMatterId: string | null = null): void {
   useMatterStore.setState({ matters, activeMatterId });
 }
 
-function publish(...clients: Array<typeof clientA | typeof clientB | typeof clientWrong>): void {
+function publish(
+  ...clients: Array<typeof clientA | typeof clientB | typeof clientWrong>
+): void {
   replaceCanonicalHouseholdDirectory('wealthbox', clients);
 }
 
@@ -68,7 +70,9 @@ async function selectMatter(matterId: string) {
   return requestMatterScopeSelection(issueMatterScopeSelection(matterId));
 }
 
-async function selectClient(client: typeof clientA | typeof clientB | typeof clientWrong) {
+async function selectClient(
+  client: typeof clientA | typeof clientB | typeof clientWrong
+) {
   return requestSharedClientSelection(issueSharedClientSelection(client));
 }
 
@@ -105,46 +109,57 @@ afterEach(() => {
 
 describe('total selection classifiers', () => {
   it('publishes a local sample only into an unavailable directory and never replaces a connected firm', () => {
-    seed([matter('matter-a', ['household-a']), matter('matter-b', ['household-b'])]);
+    seed([
+      matter('matter-a', ['household-a']),
+      matter('matter-b', ['household-b']),
+    ]);
     replaceCanonicalHouseholdDirectory('wealthbox', null);
     expect(publishLocalSampleHousehold(clientA)).toBe(true);
-    expect(resolveCanonicalHouseholdClassification(clientA).kind).toBe('exactly-one-live');
+    expect(resolveCanonicalHouseholdClassification(clientA).kind).toBe(
+      'exactly-one-live'
+    );
 
     publish(clientB);
     expect(publishLocalSampleHousehold(clientA)).toBe(false);
-    expect(resolveCanonicalHouseholdClassification(clientB).kind).toBe('exactly-one-live');
-    expect(resolveCanonicalHouseholdClassification(clientA).kind).toBe('invalid-household');
+    expect(resolveCanonicalHouseholdClassification(clientB).kind).toBe(
+      'exactly-one-live'
+    );
+    expect(resolveCanonicalHouseholdClassification(clientA).kind).toBe(
+      'invalid-household'
+    );
   });
 
   it('classifies provider-qualified liveness and every matter topology deterministically', () => {
     const live = matter('matter-live', ['household-a']);
-    const archived = matter('matter-archived', ['household-a'], { archived: true });
+    const archived = matter('matter-archived', ['household-a'], {
+      archived: true,
+    });
     publish(clientA);
 
+    expect(resolveCanonicalHouseholdClassification(clientA, [live]).kind).toBe(
+      'exactly-one-live'
+    );
+    expect(resolveCanonicalHouseholdClassification(clientA, []).kind).toBe(
+      'zero-live'
+    );
     expect(
-      resolveCanonicalHouseholdClassification(clientA, [live]).kind
-    ).toBe('exactly-one-live');
-    expect(
-      resolveCanonicalHouseholdClassification(clientA, []).kind
-    ).toBe('zero-live');
-    expect(
-      resolveCanonicalHouseholdClassification(clientA, [live, matter('two', ['household-a'])]).kind
+      resolveCanonicalHouseholdClassification(clientA, [
+        live,
+        matter('two', ['household-a']),
+      ]).kind
     ).toBe('ambiguous-live');
     expect(
       resolveCanonicalHouseholdClassification(clientA, [archived]).kind
     ).toBe('archived-only');
 
     replaceCanonicalHouseholdDirectory('wealthbox', null);
-    expect(
-      resolveCanonicalHouseholdClassification(clientA, [live]).kind
-    ).toBe('invalid-household');
+    expect(resolveCanonicalHouseholdClassification(clientA, [live]).kind).toBe(
+      'invalid-household'
+    );
   });
 
   it('returns a sealed classification for blank, missing, archived, and live matter inputs', () => {
-    seed([
-      matter('live'),
-      matter('archived', [], { archived: true }),
-    ]);
+    seed([matter('live'), matter('archived', [], { archived: true })]);
     for (const input of ['', '   ', 'missing', 'archived', 'live']) {
       const request = issueMatterScopeSelection(input);
       expect(request).toBeTruthy();
@@ -169,7 +184,9 @@ describe('total selection classifiers', () => {
     ).toThrow(/runtime-only/);
 
     await expect(
-      requestMatterScopeSelection(Object.freeze({}) as SealedMatterScopeSelection)
+      requestMatterScopeSelection(
+        Object.freeze({}) as SealedMatterScopeSelection
+      )
     ).resolves.toEqual({
       kind: 'refused',
       reason: 'unsealed-matter-scope-request',
@@ -402,13 +419,17 @@ describe('client selection, clear, lifecycle, and follower ownership', () => {
     await waitForFollower('matter-a');
 
     useMatterStore.getState().setMatterArchived('matter-a', true);
-    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'blocked-unresolved',
+    });
 
     seed([matter('matter-b')]);
     await selectMatter('matter-b');
     await waitForFollower('matter-b');
     useMatterStore.getState().deleteMatter('matter-b');
-    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'blocked-unresolved',
+    });
   });
 
   it('retries one throwing follower from the source-owned projection writer', async () => {
@@ -472,7 +493,9 @@ describe('authority is re-derived across every restart', () => {
   it('keeps blocked blocked, drops stale optional All client, and blocks corrupt versions', () => {
     publish(clientA);
     restartFrom({ version: 1, source: 'blocked/refused', client: clientA });
-    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'blocked-unresolved',
+    });
 
     restartFrom({
       version: 1,
@@ -486,7 +509,12 @@ describe('authority is re-derived across every restart', () => {
       scope: { kind: 'all-matters' },
     });
 
-    for (const corrupt of [null, {}, { version: 999 }, { version: 1, source: 'made-up' }]) {
+    for (const corrupt of [
+      null,
+      {},
+      { version: 999 },
+      { version: 1, source: 'made-up' },
+    ]) {
       restartFrom(corrupt);
       expect(readAuthoritativeMatterScope()).toEqual({
         kind: 'blocked-unresolved',
@@ -621,10 +649,14 @@ describe('authority is re-derived across every restart', () => {
         const result = await requestRehydratedSelection(request);
         expect(result.kind).toBe('selected');
         const state = useClientContextStore.getState();
-        expect(['matter', 'matter-only', 'all-matters', 'blocked-unresolved']).toContain(
-          state.scope.kind
-        );
-        if (arm === 'blocked') expect(state.scope.kind).toBe('blocked-unresolved');
+        expect([
+          'matter',
+          'matter-only',
+          'all-matters',
+          'blocked-unresolved',
+        ]).toContain(state.scope.kind);
+        if (arm === 'blocked')
+          expect(state.scope.kind).toBe('blocked-unresolved');
         if (arm === 'matter-only') expect(state.scope.kind).not.toBe('matter');
         if (arm === 'all-matters') expect(state.scope.kind).toBe('all-matters');
         if (state.scope.kind === 'matter') expect(state.client).not.toBeNull();
@@ -646,7 +678,9 @@ describe('authority is re-derived across every restart', () => {
       { kind: 'legacy-follower', activeMatterId: 42 },
     ];
     for (const input of inputs) {
-      const result = await requestRehydratedSelection(issueRehydratedSelection(input));
+      const result = await requestRehydratedSelection(
+        issueRehydratedSelection(input)
+      );
       expect(result).toMatchObject({
         kind: 'selected',
         client: null,

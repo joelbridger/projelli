@@ -1,4 +1,9 @@
 export {
+  installNativeActiveClientContextBridge,
+  type NativeActiveClientContextReceipt,
+  type NativeActiveClientContextStore,
+} from './nativeActiveClientContext';
+export {
   bootstrapSelectionAuthorityFromPersistedFollower,
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,

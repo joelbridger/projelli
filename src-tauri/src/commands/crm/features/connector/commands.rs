@@ -2843,19 +2843,20 @@ mod tests {
     fn verify_crm_proposal_hash_binds_structured_meeting_visibility() {
         let mut proposal = test_pending_crm_proposal();
         proposal.meeting_visibility_json = Some(
-            r#"{"kind":"proposal","id":"proposal-1","lineage":"legacy-unrestricted"}"#
-                .to_string(),
+            r#"{"kind":"proposal","id":"proposal-1","lineage":"legacy-unrestricted"}"#.to_string(),
         );
         proposal.content_hash = crm_proposal_content_hash(&proposal);
         verify_crm_proposal(&proposal).expect("structured visibility must verify");
 
         proposal.meeting_visibility_json = Some(
-            r#"{"kind":"proposal","id":"different","lineage":"legacy-unrestricted"}"#
-                .to_string(),
+            r#"{"kind":"proposal","id":"different","lineage":"legacy-unrestricted"}"#.to_string(),
         );
         let error = verify_crm_proposal(&proposal)
             .expect_err("changed visibility must invalidate approval hash");
-        assert_eq!(error, "CRM proposal no longer matches its saved approval hash");
+        assert_eq!(
+            error,
+            "CRM proposal no longer matches its saved approval hash"
+        );
     }
 
     #[test]
@@ -2889,6 +2890,9 @@ mod tests {
     fn test_state(is_syncing: bool) -> CrmState {
         CrmState {
             workspace: tokio::sync::Mutex::new(None),
+            active_client_context: tokio::sync::Mutex::new(
+                crate::commands::crm::active_client_context::ActiveClientContextState::default(),
+            ),
             is_syncing: Arc::new(AtomicBool::new(is_syncing)),
             cancel: Arc::new(AtomicBool::new(false)),
             last_report: tokio::sync::Mutex::new(None),

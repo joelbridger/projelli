@@ -6,12 +6,13 @@
 //! phases add the Wealthbox client, the durable object store, and the
 //! object-level sync engine.
 
+pub mod active_client_context;
 pub mod client;
-pub mod core_model;
+pub mod commands;
 pub mod core_commands;
+pub mod core_model;
 pub mod core_schema;
 pub mod core_store;
-pub mod commands;
 pub mod engine;
 pub mod features;
 pub mod importer;
@@ -22,8 +23,8 @@ pub mod provider;
 pub mod record_descriptors;
 pub mod redtail;
 pub mod render;
-pub mod search;
 pub mod salesforce;
+pub mod search;
 pub mod source;
 pub mod store;
 pub mod write;

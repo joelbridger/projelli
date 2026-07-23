@@ -21,6 +21,8 @@ pub use super::features::connector::commands::*;
 /// workspace access instead of coupling to connector lifecycle internals.
 pub struct CrmState {
     pub workspace: tokio::sync::Mutex<Option<PathBuf>>,
+    pub(crate) active_client_context:
+        tokio::sync::Mutex<super::active_client_context::ActiveClientContextState>,
     pub is_syncing: Arc<AtomicBool>,
     pub cancel: Arc<AtomicBool>,
     pub last_report: tokio::sync::Mutex<Option<CrmSyncReportDto>>,
@@ -37,6 +39,9 @@ impl Default for CrmState {
     fn default() -> Self {
         Self {
             workspace: tokio::sync::Mutex::new(None),
+            active_client_context: tokio::sync::Mutex::new(
+                super::active_client_context::ActiveClientContextState::default(),
+            ),
             is_syncing: Arc::new(AtomicBool::new(false)),
             cancel: Arc::new(AtomicBool::new(false)),
             last_report: tokio::sync::Mutex::new(None),
@@ -80,6 +85,14 @@ impl CrmService<'_> {
     }
 
     pub async fn set_workspace(&self, workspace: PathBuf) {
+        // Every handoff is an authority boundary, including the same path.
+        // Clearing before publishing the compatibility workspace field means
+        // an old client lease never survives A → B → A.
+        self.state
+            .active_client_context
+            .lock()
+            .await
+            .handoff_workspace(workspace.clone());
         *self.state.workspace.lock().await = Some(workspace);
     }
 }

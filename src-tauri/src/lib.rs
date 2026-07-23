@@ -85,8 +85,13 @@ pub fn run() {
             // Start closed before any connector state or webview work exists.
             // App.tsx explicitly sends the current privacy choice after its
             // saved settings load; until then every native CRM request fails.
-            let policy_data_dir = crate::app_data::resolve_lantern_app_data_dir()
-                .ok_or_else(|| format!("could not resolve {} app data directory", generated_brand::PRODUCT_NAME))?;
+            let policy_data_dir =
+                crate::app_data::resolve_lantern_app_data_dir().ok_or_else(|| {
+                    format!(
+                        "could not resolve {} app data directory",
+                        generated_brand::PRODUCT_NAME
+                    )
+                })?;
             app.manage(network_policy::NetworkPolicy::load_from_app_data_dir(
                 &policy_data_dir,
             ));

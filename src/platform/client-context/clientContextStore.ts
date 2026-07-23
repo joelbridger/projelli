@@ -6,6 +6,7 @@ import {
   registerSelectionWriterBridge,
   rehydrateSelectionFromData,
 } from './selectionWriterBridge';
+import { installNativeActiveClientContextBridge } from './nativeActiveClientContext';
 import type {
   CanonicalHouseholdRef,
   CrmProviderId,
@@ -80,7 +81,10 @@ export type RehydrationRefusalReason =
 
 export type SelectionResult =
   | { readonly kind: 'selected'; readonly client: SharedClientIdentity | null }
-  | { readonly kind: 'routed-dark'; readonly client: SharedClientIdentity | null }
+  | {
+      readonly kind: 'routed-dark';
+      readonly client: SharedClientIdentity | null;
+    }
   | { readonly kind: 'refused'; readonly reason: SelectionRefusalReason };
 
 export type MatterScopeSelectionResult =
@@ -217,9 +221,12 @@ function normalizeClientInput(value: unknown): SharedClientIdentity | null {
   });
 }
 
-function normalizeLegacyClient(client: SharedClientIdentity): SharedClientIdentity {
+function normalizeLegacyClient(
+  client: SharedClientIdentity
+): SharedClientIdentity {
   const householdId = client.householdId.trim();
-  if (!householdId) throw new Error('Shared client context requires a household id.');
+  if (!householdId)
+    throw new Error('Shared client context requires a household id.');
   return {
     provider: client.provider,
     householdId,
@@ -377,9 +384,15 @@ function providerQualifiedMatterKey(ref: CanonicalHouseholdRef): string {
 const householdMatterMatchers = {
   wealthbox: (matter: Matter, householdId: string): boolean =>
     (matter.crmHouseholdKeys ?? []).some((key) => key.trim() === householdId),
-} satisfies Record<CrmProviderId, (matter: Matter, householdId: string) => boolean>;
+} satisfies Record<
+  CrmProviderId,
+  (matter: Matter, householdId: string) => boolean
+>;
 
-function matterMatchesHousehold(matter: Matter, ref: CanonicalHouseholdRef): boolean {
+function matterMatchesHousehold(
+  matter: Matter,
+  ref: CanonicalHouseholdRef
+): boolean {
   return householdMatterMatchers[ref.provider](matter, ref.householdId);
 }
 
@@ -393,15 +406,13 @@ export function resolveCanonicalHouseholdClassification(
     readonly householdId?: unknown;
   };
   const provider = normalizeProvider(untrustedRef.provider);
-  const householdId = normalizeHouseholdId(
-    untrustedRef.householdId
-  );
+  const householdId = normalizeHouseholdId(untrustedRef.householdId);
   const normalizedRef =
     provider && householdId ? Object.freeze({ provider, householdId }) : null;
   const directory = provider ? currentProviderDirectory(provider) : null;
   const client =
     normalizedRef && directory?.available
-      ? directory.households.get(normalizedRef.householdId) ?? null
+      ? (directory.households.get(normalizedRef.householdId) ?? null)
       : null;
   const matching = normalizedRef
     ? snapshot.filter((matter) => matterMatchesHousehold(matter, normalizedRef))
@@ -472,7 +483,10 @@ type MatterClassification =
     }
   | {
       readonly kind: 'pre-seal-failure';
-      readonly reason: 'missing-matter' | 'archived-matter' | 'invalid-matter-input';
+      readonly reason:
+        | 'missing-matter'
+        | 'archived-matter'
+        | 'invalid-matter-input';
       readonly fingerprint: string;
     };
 
@@ -505,11 +519,14 @@ function liveMatter(matterId: string): Matter | null {
   return (
     useMatterStore
       .getState()
-      .matters.find((matter) => matter.id === matterId && !matter.archived) ?? null
+      .matters.find((matter) => matter.id === matterId && !matter.archived) ??
+    null
   );
 }
 
-function classifyMatterSelection(input: MatterSelectionInput): MatterClassification {
+function classifyMatterSelection(
+  input: MatterSelectionInput
+): MatterClassification {
   const matterId = normalizeHouseholdId(input.matterId);
   if (!matterId) {
     return Object.freeze({
@@ -518,7 +535,9 @@ function classifyMatterSelection(input: MatterSelectionInput): MatterClassificat
       fingerprint: JSON.stringify({ input: typeof input.matterId }),
     });
   }
-  const exact = useMatterStore.getState().matters.find((matter) => matter.id === matterId);
+  const exact = useMatterStore
+    .getState()
+    .matters.find((matter) => matter.id === matterId);
   if (!exact) {
     return Object.freeze({
       kind: 'pre-seal-failure',
@@ -738,7 +757,9 @@ function createOpaqueSeal<Seal extends object>(handle: Seal): Seal {
   Object.defineProperty(handle, 'toJSON', {
     enumerable: false,
     value: () => {
-      throw new Error('Selection authority seals are runtime-only and cannot be serialized.');
+      throw new Error(
+        'Selection authority seals are runtime-only and cannot be serialized.'
+      );
     },
   });
   return Object.freeze(handle);
@@ -769,7 +790,8 @@ function projectedFollowerValue(scope: MatterScopeSelection): string | null {
 }
 
 function followerStatusFor(scope: MatterScopeSelection): FollowerStatus {
-  return useMatterStore.getState().activeMatterId === projectedFollowerValue(scope)
+  return useMatterStore.getState().activeMatterId ===
+    projectedFollowerValue(scope)
     ? 'converged'
     : 'stale';
 }
@@ -840,7 +862,11 @@ function scheduleFollowerReconciliation(delayMs = 0): void {
 function hintForSelection(
   client: SharedClientIdentity | null,
   scope: MatterScopeSelection,
-  source: 'specific-matter' | 'shared-client' | 'explicit-all-matters' | 'blocked/refused'
+  source:
+    | 'specific-matter'
+    | 'shared-client'
+    | 'explicit-all-matters'
+    | 'blocked/refused'
 ): PersistedSelectionHint {
   switch (source) {
     case 'specific-matter':
@@ -886,7 +912,8 @@ const bootHint = hintForSelection(null, bootScope, 'explicit-all-matters');
 
 const clientContextStore = create<ClientContextState>()((set) => {
   writeSourceSelection = (client, scope, hint, basisFingerprint) => {
-    if (scope.kind === 'blocked-unresolved' && !selectionAuthorityEnabled()) return;
+    if (scope.kind === 'blocked-unresolved' && !selectionAuthorityEnabled())
+      return;
     const nextScope = freezeScope(scope);
     sourceBasisFingerprint = basisFingerprint;
     failedReconciliationAttempts = 0;
@@ -932,7 +959,9 @@ export const useClientContextStore = Object.assign(
   }
 );
 
-function writeBlockedSourceSelection(client: SharedClientIdentity | null): void {
+function writeBlockedSourceSelection(
+  client: SharedClientIdentity | null
+): void {
   if (!selectionAuthorityEnabled()) return;
   const scope = freezeScope({ kind: 'blocked-unresolved' });
   writeSourceSelection(
@@ -960,7 +989,10 @@ function decodePersistedHint(value: unknown): PersistedSelectionHint | null {
   if (source === 'specific-matter') {
     const matterId = normalizeHouseholdId(value['matterId']);
     if (!matterId) return null;
-    const client = value['client'] === undefined ? null : normalizeClientInput(value['client']);
+    const client =
+      value['client'] === undefined
+        ? null
+        : normalizeClientInput(value['client']);
     if (value['client'] !== undefined && !client) return null;
     return Object.freeze({
       version: 1,
@@ -974,15 +1006,22 @@ function decodePersistedHint(value: unknown): PersistedSelectionHint | null {
     return client ? Object.freeze({ version: 1, source, client }) : null;
   }
   if (source === 'explicit-all-matters') {
-    const client = value['client'] === undefined ? null : normalizeClientInput(value['client']);
+    const client =
+      value['client'] === undefined
+        ? null
+        : normalizeClientInput(value['client']);
     if (value['client'] !== undefined && !client) return null;
     return Object.freeze({ version: 1, source, ...(client ? { client } : {}) });
   }
   if (source === 'blocked/refused') {
-    const matterId = value['matterId'] === undefined
-      ? null
-      : normalizeHouseholdId(value['matterId']);
-    const client = value['client'] === undefined ? null : normalizeClientInput(value['client']);
+    const matterId =
+      value['matterId'] === undefined
+        ? null
+        : normalizeHouseholdId(value['matterId']);
+    const client =
+      value['client'] === undefined
+        ? null
+        : normalizeClientInput(value['client']);
     if (value['matterId'] !== undefined && !matterId) return null;
     if (value['client'] !== undefined && !client) return null;
     return Object.freeze({
@@ -1000,7 +1039,10 @@ function blockedRehydrationHint(): PersistedSelectionHint {
 }
 
 function classifyRehydration(input: unknown): RehydratedClassification {
-  if (!isRecord(input) || (input['kind'] !== 'legacy-follower' && input['kind'] !== 'persisted-hint')) {
+  if (
+    !isRecord(input) ||
+    (input['kind'] !== 'legacy-follower' && input['kind'] !== 'persisted-hint')
+  ) {
     return Object.freeze({
       kind: 'blocked-unresolved',
       client: null,
@@ -1020,7 +1062,10 @@ function classifyRehydration(input: unknown): RehydratedClassification {
           kind: 'all-matters',
           client: null,
           hint,
-          fingerprint: JSON.stringify({ source: 'legacy-follower', value: null }),
+          fingerprint: JSON.stringify({
+            source: 'legacy-follower',
+            value: null,
+          }),
         });
       }
       const matterId = normalizeHouseholdId(normalizedInput.activeMatterId);
@@ -1042,7 +1087,10 @@ function classifyRehydration(input: unknown): RehydratedClassification {
         kind: 'blocked-unresolved',
         client: null,
         hint: blockedRehydrationHint(),
-        fingerprint: JSON.stringify({ source: 'legacy-follower', state: 'invalid' }),
+        fingerprint: JSON.stringify({
+          source: 'legacy-follower',
+          state: 'invalid',
+        }),
       });
     }
     case 'persisted-hint': {
@@ -1052,7 +1100,10 @@ function classifyRehydration(input: unknown): RehydratedClassification {
           kind: 'blocked-unresolved',
           client: null,
           hint: blockedRehydrationHint(),
-          fingerprint: JSON.stringify({ source: 'persisted-hint', state: 'corrupt' }),
+          fingerprint: JSON.stringify({
+            source: 'persisted-hint',
+            state: 'corrupt',
+          }),
         });
       }
       switch (hint.source) {
@@ -1066,7 +1117,10 @@ function classifyRehydration(input: unknown): RehydratedClassification {
               fingerprint: JSON.stringify({ hint, state: 'matter-invalid' }),
             });
           }
-          if (hint.client && !providerDirectoryAvailable(hint.client.provider)) {
+          if (
+            hint.client &&
+            !providerDirectoryAvailable(hint.client.provider)
+          ) {
             return Object.freeze({
               kind: 'blocked-unresolved',
               client: null,
@@ -1135,7 +1189,10 @@ function classifyRehydration(input: unknown): RehydratedClassification {
           });
         }
         case 'explicit-all-matters': {
-          if (hint.client && !providerDirectoryAvailable(hint.client.provider)) {
+          if (
+            hint.client &&
+            !providerDirectoryAvailable(hint.client.provider)
+          ) {
             return Object.freeze({
               kind: 'all-matters',
               client: null,
@@ -1146,7 +1203,8 @@ function classifyRehydration(input: unknown): RehydratedClassification {
               }),
             });
           }
-          const client = hint.client && isClientLive(hint.client) ? hint.client : null;
+          const client =
+            hint.client && isClientLive(hint.client) ? hint.client : null;
           return Object.freeze({
             kind: 'all-matters',
             client,
@@ -1159,7 +1217,8 @@ function classifyRehydration(input: unknown): RehydratedClassification {
           });
         }
         case 'blocked/refused': {
-          const client = hint.client && isClientLive(hint.client) ? hint.client : null;
+          const client =
+            hint.client && isClientLive(hint.client) ? hint.client : null;
           return Object.freeze({
             kind: 'blocked-unresolved',
             client,
@@ -1185,7 +1244,9 @@ function sameClassificationFingerprint(
 }
 
 /** Total issuer: every specific-matter value returns one opaque sealed classification. */
-export function issueMatterScopeSelection(matterId: string): SealedMatterScopeSelection {
+export function issueMatterScopeSelection(
+  matterId: string
+): SealedMatterScopeSelection {
   ensureAuthorityBootValidated();
   const input = Object.freeze({ matterId });
   const classification = classifyMatterSelection(input);
@@ -1196,7 +1257,8 @@ export function issueMatterScopeSelection(matterId: string): SealedMatterScopeSe
       intent: 'specific-matter',
       input,
       classification,
-      issuedAtSelectionRevision: useClientContextStore.getState().selectionRevision,
+      issuedAtSelectionRevision:
+        useClientContextStore.getState().selectionRevision,
     })
   );
   return request;
@@ -1209,7 +1271,8 @@ export function issueAllMattersScopeSelection(): SealedMatterScopeSelection {
     request,
     Object.freeze({
       intent: 'explicit-all-matters',
-      issuedAtSelectionRevision: useClientContextStore.getState().selectionRevision,
+      issuedAtSelectionRevision:
+        useClientContextStore.getState().selectionRevision,
     })
   );
   return request;
@@ -1236,7 +1299,8 @@ export function issueSharedClientSelection(
     Object.freeze({
       input,
       classification,
-      issuedAtSelectionRevision: useClientContextStore.getState().selectionRevision,
+      issuedAtSelectionRevision:
+        useClientContextStore.getState().selectionRevision,
     })
   );
   return request;
@@ -1258,24 +1322,32 @@ export function issueRehydratedSelection(
   input: RehydratedSelectionInput
 ): SealedRehydratedSelectionClassification {
   const classification = classifyRehydration(input);
-  const request = createOpaqueSeal({} as SealedRehydratedSelectionClassification);
+  const request = createOpaqueSeal(
+    {} as SealedRehydratedSelectionClassification
+  );
   sealedRehydratedSelections.set(
     request,
     Object.freeze({
       input,
       classification,
-      issuedAtSelectionRevision: useClientContextStore.getState().selectionRevision,
+      issuedAtSelectionRevision:
+        useClientContextStore.getState().selectionRevision,
     })
   );
   return request;
 }
 
-function routeDarkMatterSelection(classification: MatterClassification): MatterScopeSelectionResult {
+function routeDarkMatterSelection(
+  classification: MatterClassification
+): MatterScopeSelectionResult {
   switch (classification.kind) {
     case 'full-pair':
     case 'matter-only':
       applyFollowerProjection(classification.matterId);
-      return { kind: 'routed-dark', projectedMatterId: classification.matterId };
+      return {
+        kind: 'routed-dark',
+        projectedMatterId: classification.matterId,
+      };
     case 'pre-seal-failure':
       return { kind: 'refused', reason: classification.reason };
   }
@@ -1295,7 +1367,8 @@ function consumeMatterScopeSelection(
       return { kind: 'routed-dark', projectedMatterId: null };
     }
     if (
-      sealed.issuedAtSelectionRevision !== useClientContextStore.getState().selectionRevision
+      sealed.issuedAtSelectionRevision !==
+      useClientContextStore.getState().selectionRevision
     ) {
       writeBlockedSourceSelection(useClientContextStore.getState().client);
       return { kind: 'refused', reason: 'stale-matter-scope-request' };
@@ -1310,10 +1383,13 @@ function consumeMatterScopeSelection(
     );
     return { kind: 'selected', client, scope };
   }
-  const current = classifyMatterSelection(sealed.input ?? { matterId: undefined });
+  const current = classifyMatterSelection(
+    sealed.input ?? { matterId: undefined }
+  );
   if (
     !sealed.classification ||
-    sealed.issuedAtSelectionRevision !== useClientContextStore.getState().selectionRevision ||
+    sealed.issuedAtSelectionRevision !==
+      useClientContextStore.getState().selectionRevision ||
     !sameClassificationFingerprint(sealed.classification, current)
   ) {
     writeBlockedSourceSelection(useClientContextStore.getState().client);
@@ -1335,7 +1411,10 @@ function consumeMatterScopeSelection(
       return { kind: 'selected', client: current.client, scope };
     }
     case 'matter-only': {
-      const scope = freezeScope({ kind: 'matter-only', matterId: current.matterId });
+      const scope = freezeScope({
+        kind: 'matter-only',
+        matterId: current.matterId,
+      });
       writeSourceSelection(
         null,
         scope,
@@ -1353,7 +1432,9 @@ export function requestMatterScopeSelection(
   try {
     return Promise.resolve(consumeMatterScopeSelection(request));
   } catch (error) {
-    return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    return Promise.reject(
+      error instanceof Error ? error : new Error(String(error))
+    );
   }
 }
 
@@ -1367,7 +1448,8 @@ function consumeSharedClientSelection(
   }
   const current = classifyClientSelection(sealed.input);
   if (
-    sealed.issuedAtSelectionRevision !== useClientContextStore.getState().selectionRevision ||
+    sealed.issuedAtSelectionRevision !==
+      useClientContextStore.getState().selectionRevision ||
     !sameClassificationFingerprint(sealed.classification, current)
   ) {
     writeBlockedSourceSelection(useClientContextStore.getState().client);
@@ -1404,7 +1486,9 @@ export function requestSharedClientSelection(
   try {
     return Promise.resolve(consumeSharedClientSelection(request));
   } catch (error) {
-    return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    return Promise.reject(
+      error instanceof Error ? error : new Error(String(error))
+    );
   }
 }
 
@@ -1438,7 +1522,8 @@ function consumeRehydratedSelection(
   }
   const current = classifyRehydration(sealed.input);
   if (
-    sealed.issuedAtSelectionRevision !== useClientContextStore.getState().selectionRevision ||
+    sealed.issuedAtSelectionRevision !==
+      useClientContextStore.getState().selectionRevision ||
     !sameClassificationFingerprint(sealed.classification, current)
   ) {
     writeBlockedSourceSelection(null);
@@ -1448,22 +1533,40 @@ function consumeRehydratedSelection(
   switch (current.kind) {
     case 'full-pair': {
       const scope = freezeScope({ kind: 'matter', matterId: current.matterId });
-      writeSourceSelection(current.client, scope, current.hint, current.fingerprint);
+      writeSourceSelection(
+        current.client,
+        scope,
+        current.hint,
+        current.fingerprint
+      );
       return { kind: 'selected', client: current.client, scope };
     }
     case 'matter-only': {
-      const scope = freezeScope({ kind: 'matter-only', matterId: current.matterId });
+      const scope = freezeScope({
+        kind: 'matter-only',
+        matterId: current.matterId,
+      });
       writeSourceSelection(null, scope, current.hint, current.fingerprint);
       return { kind: 'selected', client: null, scope };
     }
     case 'all-matters': {
       const scope = freezeScope({ kind: 'all-matters' });
-      writeSourceSelection(current.client, scope, current.hint, current.fingerprint);
+      writeSourceSelection(
+        current.client,
+        scope,
+        current.hint,
+        current.fingerprint
+      );
       return { kind: 'selected', client: current.client, scope };
     }
     case 'blocked-unresolved': {
       const scope = freezeScope({ kind: 'blocked-unresolved' });
-      writeSourceSelection(current.client, scope, current.hint, current.fingerprint);
+      writeSourceSelection(
+        current.client,
+        scope,
+        current.hint,
+        current.fingerprint
+      );
       return { kind: 'selected', client: current.client, scope };
     }
   }
@@ -1475,7 +1578,9 @@ export function requestRehydratedSelection(
   try {
     return Promise.resolve(consumeRehydratedSelection(request));
   } catch (error) {
-    return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    return Promise.reject(
+      error instanceof Error ? error : new Error(String(error))
+    );
   }
 }
 
@@ -1495,7 +1600,8 @@ function revalidateCurrentSelection(): void {
   switch (source.scope.kind) {
     case 'matter': {
       if (!source.client) {
-        if (!liveMatter(source.scope.matterId)) writeBlockedSourceSelection(null);
+        if (!liveMatter(source.scope.matterId))
+          writeBlockedSourceSelection(null);
         return;
       }
       const pair = resolveCanonicalHouseholdClassification(source.client);
@@ -1508,7 +1614,9 @@ function revalidateCurrentSelection(): void {
       return;
     }
     case 'matter-only': {
-      const current = classifyMatterSelection({ matterId: source.scope.matterId });
+      const current = classifyMatterSelection({
+        matterId: source.scope.matterId,
+      });
       if (
         current.kind !== 'matter-only' ||
         sourceBasisFingerprint === null ||
@@ -1593,6 +1701,16 @@ registerSelectionWriterBridge({
     consumeRehydratedSelection(issueRehydratedSelection(input));
   },
   readPersistenceHint: () => useClientContextStore.getState().persistenceHint,
+});
+
+// This is presentation synchronization only. Native Rust validates every pair
+// against SQLCipher and keeps the actual lease private.
+installNativeActiveClientContextBridge({
+  getState: useClientContextStore.getState,
+  subscribe: useClientContextStore.subscribe,
+  clearBrowserSelection: () => {
+    requestClearClientSelection();
+  },
 });
 
 export function bootstrapSelectionAuthorityFromPersistedFollower(): MatterScopeSelection {
