@@ -1,0 +1,103 @@
+{
+  "kind": "independent-privacy-verification-evidence",
+  "status": "CODE_READY_FOR_INDEPENDENT_PRIVACY_REVIEW_ONLY",
+  "scope": {
+    "candidate": "ad64804f4ea28f62908e65334c3ca825a588b30c",
+    "candidate_parent": "7c45f4d49683f9696a2d3731829346b1b86b1193",
+    "repository": "/home/jameson/lantern/app/integration",
+    "remote": "https://github.com/lanternplatform/lantern.git",
+    "remote_candidate_branch": "origin/product/m3-foundation-b-native-active-client-context-20260723",
+    "remote_candidate_revision": "ad64804f4ea28f62908e65334c3ca825a588b30c",
+    "contract_sha256": "246334332e50a421a767dd9e3be1fcbe37682acba61db2ef43af1d8734f1acf2",
+    "job_id": "20260723-222502-03ubxxxx",
+    "attempt": 1
+  },
+  "prior_refusal": {
+    "job_id": "20260723-221401-uc94xxxx",
+    "text": "lane-result: REFUSED — result schema violation at <root>: Additional properties are not allowed ('prior_review_verdict', 'summary' were unexpected)",
+    "validator_exit_code": 2,
+    "disposition": "The prior job-folder receipts were not edited or reused, and the refused result is not accepted."
+  },
+  "candidate_files": [
+    {"path": "bench-evidence/2026-07-23-m3-native-active-client-context/receipt.json", "sha256": "bc82e0632b5460db0c7debd4de3b3bdd28da3f8bcf57bb87eb894fed5adba29d"},
+    {"path": "scripts/verify-m3-native-active-client-context.sh", "sha256": "e49ba381a0c45480d7bae913aa3c45fb8125f97cc590c08cb586b11bd89ffd8f"},
+    {"path": "src-tauri/src/commands/crm/active_client_context.rs", "sha256": "c1c0f2acb461fc88e257ec4f9ab86986dfcf4830ced2b3dd3e9b84e804a2e3ac"},
+    {"path": "src-tauri/src/commands/crm/command-manifest.txt", "sha256": "3dfb13913056990a0fe92cc3c86fce7274f3bc0ea1d8c7db316cb62d42f13e3a"},
+    {"path": "src-tauri/src/commands/crm/commands.rs", "sha256": "6a4be6b54abd4c07d273a0f3fb99e2f6fa1c299b005acac23ca259f4cbeaf9c8"},
+    {"path": "src-tauri/src/commands/crm/features/connector/commands.rs", "sha256": "b9b880379a8830cb1ed9bf54d9db87583a496564deba5ff9b15cfad9652e1356"},
+    {"path": "src-tauri/src/commands/crm/mod.rs", "sha256": "ead30c53fb84b3e6ca849d0a670eaf4acd87993d2fd284bf590b66786ce952c1"},
+    {"path": "src-tauri/src/lib.rs", "sha256": "f6401836a78bc65b1bad6faec7bbe5d317cd622464ac42c765263524fb877e69"},
+    {"path": "src/platform/client-context/clientContextStore.test.ts", "sha256": "5e3d572676770d09aa4b343331a5dad3077bde924b0cbdfdb26f7416f2946aaf"},
+    {"path": "src/platform/client-context/clientContextStore.ts", "sha256": "bb3366c1a3804f757bf798968fe9a53f3b5fdb6762766bd3081521f991d39b98"},
+    {"path": "src/platform/client-context/index.ts", "sha256": "eaafd996edc0214547fffa6bd3229d587f543a0838f1dbaf9dd395d784a2e9d9"},
+    {"path": "src/platform/client-context/nativeActiveClientContext.test.ts", "sha256": "5866b70bbdfa1b85c3ffbd2ab5d8bb94bcae5e43d811b9c77d40d92dfa2b568a"},
+    {"path": "src/platform/client-context/nativeActiveClientContext.ts", "sha256": "ccfb63ef6b65d118da97e5996ba85f401ba6f1518d518400959a380ef8db5d9b"}
+  ],
+  "exact_amendment_from_7c45f4d49683f9696a2d3731829346b1b86b1193": [
+    {"status": "M", "path": "bench-evidence/2026-07-23-m3-native-active-client-context/receipt.json", "sha256": "bc82e0632b5460db0c7debd4de3b3bdd28da3f8bcf57bb87eb894fed5adba29d"},
+    {"status": "M", "path": "src-tauri/src/commands/crm/active_client_context.rs", "sha256": "c1c0f2acb461fc88e257ec4f9ab86986dfcf4830ced2b3dd3e9b84e804a2e3ac"},
+    {"status": "M", "path": "src/platform/client-context/nativeActiveClientContext.test.ts", "sha256": "5866b70bbdfa1b85c3ffbd2ab5d8bb94bcae5e43d811b9c77d40d92dfa2b568a"}
+  ],
+  "staging_and_cleanup": {
+    "package_json_sha256": "192f9b6e8237344fe730d4dcf058759bd3b0457664501f3fa1f0b351f380e012",
+    "package_lock_json_sha256": "ce074d4be9d8fa7bd1ae9454692d74e7376fbf819a6f9b9d1e473dbb1f38c4ae",
+    "canonical_node_modules": "/home/jameson/lantern/app/integration/node_modules",
+    "canonical_node_modules_real_directory": true,
+    "worktree_node_modules_absent_before_staging": true,
+    "temporary_symlink_target_verified": "/home/jameson/lantern/app/integration/node_modules",
+    "cleanup_trap_installed_before_symlink": true,
+    "worktree_node_modules_absent_after_checks": true,
+    "verification_script": {
+      "path": "scripts/verify-m3-native-active-client-context.sh",
+      "sha256": "e49ba381a0c45480d7bae913aa3c45fb8125f97cc590c08cb586b11bd89ffd8f",
+      "only_temporary_helpers": [
+        {"target": "src-tauri/binaries/piper-x86_64-unknown-linux-gnu", "canonical_source": "/home/jameson/lantern/app/integration/src-tauri/binaries/piper-x86_64-unknown-linux-gnu", "canonical_sha256": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b"},
+        {"target": "src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu", "canonical_source": "/home/jameson/lantern/app/integration/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu", "canonical_sha256": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77"}
+      ],
+      "both_helpers_absent_after_checks": true
+    }
+  },
+  "checks": [
+    {
+      "name": "Candidate parent and remote identity",
+      "command": "test \"$(git rev-parse HEAD^)\" = ad64804f4ea28f62908e65334c3ca825a588b30c && test \"$(git rev-parse origin/product/m3-foundation-b-native-active-client-context-20260723)\" = ad64804f4ea28f62908e65334c3ca825a588b30c",
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "name": "Full Foundation B verification",
+      "command": "bash scripts/verify-m3-native-active-client-context.sh",
+      "exit_code": 0,
+      "output": "Finished `test` profile [unoptimized + debuginfo] target(s) in 0.35s\nRunning unittests src/lib.rs (/mnt/devcache/cargo-target/debug/deps/lantern_lib-c979c374c66d4e34)\n\nrunning 6 tests\ntest commands::crm::active_client_context::tests::clear_and_default_states_have_no_lease ... ok\ntest commands::crm::active_client_context::tests::exact_live_pair_issues_a_private_lease_and_consumes_it ... ok\ntest commands::crm::active_client_context::tests::fabricated_renderer_receipts_and_revisions_cannot_consume_a_live_lease ... ok\ntest commands::crm::active_client_context::tests::client_switch_replaces_pair_and_invalidates_the_old_lease ... ok\ntest commands::crm::active_client_context::tests::workspace_handoffs_never_revive_a_selection ... ok\ntest commands::crm::active_client_context::tests::missing_deleted_duplicate_and_disagreeing_records_refuse_and_clear ... ok\n\ntest result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1614 filtered out; finished in 0.68s\n\nRUN  v4.1.3 /home/jameson/lantern/app/integration/.worktrees/evidence/m3-foundation-b-native-active-client-context-a2-20260723\n\nTest Files  2 passed (2)\nTests  28 passed (28)\nStart at  22:28:38\nDuration  1.95s (transform 701ms, setup 744ms, import 715ms, tests 1.05s, environment 521ms)"
+    },
+    {
+      "name": "Formatting type and command contracts",
+      "command": "rustfmt --edition 2021 --config skip_children=true --check src-tauri/src/commands/crm/active_client_context.rs && npx prettier --check src/platform/client-context/nativeActiveClientContext.test.ts && npm run typecheck && node scripts/check-tauri-contracts.mjs",
+      "exit_code": 0,
+      "output": "Checking formatting...\nAll matched files use Prettier code style!\n\n> advisor-prep-hero@3.3.5 typecheck\n> tsc --noEmit\n\nTauri contract warnings:\n  - capture_find_orphans: registered Rust command has no non-test TS invoke call yet\n  - capture_recover: registered Rust command has no non-test TS invoke call yet\n  - crm_approve_write_proposal: registered Rust command has no non-test TS invoke call yet\n  - crm_connect: registered Rust command has no non-test TS invoke call yet\n  - crm_create_note: registered Rust command has no non-test TS invoke call yet\n  - crm_create_task: registered Rust command has no non-test TS invoke call yet\n  - crm_list_households: registered Rust command has no non-test TS invoke call yet\n  - crm_live_upsert_many: registered Rust command has no non-test TS invoke call yet\n  - crm_migration_import: registered Rust command has no non-test TS invoke call yet\n  - crm_oauth_connect: registered Rust command has no non-test TS invoke call yet\n  - crm_sync_all: registered Rust command has no non-test TS invoke call yet\n  - crm_teams_roles_assign_member: registered Rust command has no non-test TS invoke call yet\n  - crm_teams_roles_create_role: registered Rust command has no non-test TS invoke call yet\n  - crm_teams_roles_create_team: registered Rust command has no non-test TS invoke call yet\n  - crm_teams_roles_delete_role: registered Rust command has no non-test TS invoke call yet\n  - crm_teams_roles_delete_team: registered Rust command has no non-test TS invoke call yet\n  - crm_teams_roles_get: registered Rust command has no non-test TS invoke call yet\n  - crm_teams_roles_update_role: registered Rust command has no non-test TS invoke call yet\n  - crm_teams_roles_update_team: registered Rust command has no non-test TS invoke call yet\n  - crm_update_field: registered Rust command has no non-test TS invoke call yet\n\nTauri contract check passed: 79 TS invokes, 90 target registered Rust commands checked (304 total manifest commands)."
+    },
+    {
+      "name": "Temporary dependency and helper absence",
+      "command": "test ! -e node_modules && test ! -L node_modules && test ! -e src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -e src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "name": "Evidence-only diff hygiene",
+      "command": "git diff --check ad64804f4ea28f62908e65334c3ca825a588b30c..HEAD && test \"$(git diff --name-only ad64804f4ea28f62908e65334c3ca825a588b30c..HEAD)\" = bench-evidence/2026-07-23-m3-native-active-client-context-a2-verification/receipt.json",
+      "exit_code": 0,
+      "output": ""
+    }
+  ],
+  "test_totals": {"rust": {"passed": 6, "failed": 0, "filtered_out": 1614}, "vitest": {"files_passed": 2, "tests_passed": 28}, "typecheck": {"exit_code": 0}, "tauri_contracts": {"exit_code": 0, "ts_invokes": 79, "target_registered_rust_commands_checked": 90, "total_manifest_commands": 304}},
+  "privacy_boundaries_observed": [
+    "The focused native tests passed for default and clear states, exact live-pair lease consumption, fabricated renderer receipts and revisions, client-switch invalidation, workspace handoffs, and missing, deleted, duplicate, and disagreeing records.",
+    "This receipt records verification only. It changes no candidate product, test, script, configuration, or existing receipt bytes."
+  ],
+  "exclusions_and_unproven_status": [
+    "No Windows packaged-app run was performed; Windows proof remains unproven.",
+    "No full-M3 end-to-end proof was performed; full M3 remains unproven.",
+    "No external provider, mailbox, send, deploy, integration, or product-code acceptance is claimed.",
+    "CODE_READY means ready for an independent privacy review only, not accepted product code."
+  ]
+}
