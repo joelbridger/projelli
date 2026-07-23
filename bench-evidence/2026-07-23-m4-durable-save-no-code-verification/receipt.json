@@ -1,0 +1,57 @@
+{
+  "receipt_version": 1,
+  "purpose": "Honest replacement verification evidence for the frozen M4 durable-save candidate; this receipt does not repair or legitimize the prior false receipt.",
+  "false_prior_receipt_disclaimer": "The content-and-receipt review 20260723-182456-nqs2xxxx found SOUND CONTENT / FALSE RECEIPT. This receipt is new evidence collected against the exact frozen candidate and makes no claim that the prior receipt was valid.",
+  "timestamp_utc": "2026-07-23T18:35:57Z",
+  "frozen_candidate": "7d5fbf00051bebb5f2c98c3d652b6ec1516345dc",
+  "accepted_base": "7d5fbf00051bebb5f2c98c3d652b6ec1516345dc",
+  "evidence_commit": "PENDING_COMMIT",
+  "contract": {
+    "sha256": "3dd4d97341801f9a2eedeb90518fbeffbdb45be0551f5ccf6a34461002f8e67f",
+    "job_id": "20260723-183329-kntqxxxx",
+    "attempt": 1,
+    "branch": "evidence/m4-durable-save-verification-20260724"
+  },
+  "scope_disclaimers": {
+    "no_code_statement": "No product, test, Cargo, capability, frontend, backend, launcher, or coordination file was edited. The only tracked change is this verification receipt.",
+    "no_provider_no_windows_no_live_mailbox": "No provider was called, no credentials were used, no Windows system was operated, and no live mailbox was accessed or changed.",
+    "temporary_helpers": "The two helpers below are hash-verified temporary symlinks for local Rust verification only. They are not copied or committed and will be removed before final validation."
+  },
+  "frozen_product_files": [
+    {"path": "src-tauri/src/commands/mail/verified_mailbox.rs", "sha256": "2b61816579cd7dbef8d4f658b652d46b570c8eea13c95daadf24fc885778f7fd"},
+    {"path": "src-tauri/src/commands/mail/m4_microsoft_adapter.rs", "sha256": "2b2bdfba18c2430a468783c1afc31ba6bac5fd3d91652b6dcd467dd07140d1a2"},
+    {"path": "src-tauri/src/commands/mail/m4_microsoft_sealed_transport.rs", "sha256": "e12dc449d6286d0fdb1f572cfa9dc973fbb74cd624c238c668b09e5af2259236"},
+    {"path": "src-tauri/src/commands/mail/mod.rs", "sha256": "684b5b833f9c2f73a1106cf7975b5bc223f08767d343eca3fc4f670f05d2c5c4"},
+    {"path": "src-tauri/src/commands/crm/migrations/v0007_m4_provider_draft_receipts.rs", "sha256": "3973e89f2d083565f5b8d80d4b85172008d4d0bd1cbefc9915e22582bae8fb6e"},
+    {"path": "src-tauri/src/commands/crm/migrations/mod.rs", "sha256": "7416c0bae43ad266564faa25b4fd2aa497351ec71f3bc26bba265e38fd0f2d6d"}
+  ],
+  "helpers": {
+    "piper": {
+      "source_path": "/home/jameson/lantern/app/integration/src-tauri/binaries/piper-x86_64-unknown-linux-gnu",
+      "target_path": "/home/jameson/lantern/app/integration/.worktrees/evidence/m4-durable-save-verification-20260724/src-tauri/binaries/piper-x86_64-unknown-linux-gnu",
+      "expected_sha256": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b",
+      "observed_sha256": "12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b"
+    },
+    "llama": {
+      "source_path": "/home/jameson/lantern/app/integration/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "target_path": "/home/jameson/lantern/app/integration/.worktrees/evidence/m4-durable-save-verification-20260724/src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "expected_sha256": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77",
+      "observed_sha256": "64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77"
+    }
+  },
+  "commands": [
+    {"name": "preliminary exact base", "command": "git rev-parse HEAD", "observed_result": "PASS: 7d5fbf00051bebb5f2c98c3d652b6ec1516345dc"},
+    {"name": "preliminary clean tree", "command": "git status --porcelain", "observed_result": "PASS: no output"},
+    {"name": "preliminary remote", "command": "git remote get-url origin", "observed_result": "PASS: https://github.com/lanternplatform/lantern.git"},
+    {"name": "required helper staging", "command": "exact launcher-supplied helper staging block", "observed_result": "PASS: both canonical executable sources were regular files, both targets were absent, both expected hashes matched observed hashes, and both temporary symlinks were created"},
+    {"name": "Owned Rust formatting on committed candidate", "command": "rustfmt --edition 2021 --config skip_children=true --check src-tauri/src/commands/mail/verified_mailbox.rs src-tauri/src/commands/mail/m4_microsoft_adapter.rs src-tauri/src/commands/mail/m4_microsoft_sealed_transport.rs src-tauri/src/commands/mail/mod.rs src-tauri/src/commands/crm/migrations/v0007_m4_provider_draft_receipts.rs src-tauri/src/commands/crm/migrations/mod.rs", "observed_result": "PASS: exit 0; no output"},
+    {"name": "Durable Microsoft draft authority tests", "command": "CARGO_TARGET_DIR=/mnt/devcache/cargo-target-m4-foundation cargo test --manifest-path src-tauri/Cargo.toml -p lantern --lib commands::mail::m4_microsoft_adapter::tests", "observed_result": "PASS: exit 0; 10 passed, 0 failed"},
+    {"name": "Draft claim state and recovery tests", "command": "CARGO_TARGET_DIR=/mnt/devcache/cargo-target-m4-foundation cargo test --manifest-path src-tauri/Cargo.toml -p lantern --lib commands::mail::verified_draft_claim::tests", "observed_result": "PASS: exit 0; 2 passed, 0 failed"},
+    {"name": "Migration registry and receipt tests", "command": "CARGO_TARGET_DIR=/mnt/devcache/cargo-target-m4-foundation cargo test --manifest-path src-tauri/Cargo.toml -p lantern --lib commands::crm::migrations::tests", "observed_result": "PASS: exit 0; 6 passed, 0 failed"},
+    {"name": "Native library check", "command": "CARGO_TARGET_DIR=/mnt/devcache/cargo-target-m4-foundation cargo check --manifest-path src-tauri/Cargo.toml -p lantern --lib", "observed_result": "PASS: exit 0; completed with 5 pre-existing unused-code warnings"},
+    {"name": "No-provider structural guard", "command": "! rg -n 'GraphClient|send_message|sendMail|reqwest|gmail|imap|mail_save_draft|tauri::command|invoke_handler' src-tauri/src/commands/mail/m4_microsoft_sealed_transport.rs src-tauri/src/commands/mail/m4_microsoft_adapter.rs", "observed_result": "PASS: exit 0; no matches"},
+    {"name": "Production remains default off", "command": "rg -n '^const M4_MICROSOFT_DRAFT_SAVE_ENABLED: bool = false;$' src-tauri/src/commands/mail/m4_microsoft_adapter.rs", "observed_result": "PASS: exit 0; matched line 21"},
+    {"name": "Exact product bytes unchanged", "command": "git diff --exit-code 7d5fbf00051bebb5f2c98c3d652b6ec1516345dc -- src-tauri/src/commands/mail/verified_mailbox.rs src-tauri/src/commands/mail/m4_microsoft_adapter.rs src-tauri/src/commands/mail/m4_microsoft_sealed_transport.rs src-tauri/src/commands/mail/mod.rs src-tauri/src/commands/crm/migrations/v0007_m4_provider_draft_receipts.rs src-tauri/src/commands/crm/migrations/mod.rs", "observed_result": "PASS: exit 0; no differences"}
+  ],
+  "post_commit_revalidation": "PENDING: the same contract checks will be rerun against the committed evidence head while the verified temporary helpers exist, then the links will be verified, removed, and proved absent."
+}
