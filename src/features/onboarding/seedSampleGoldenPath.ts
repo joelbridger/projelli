@@ -402,11 +402,18 @@ export async function seedSampleGoldenPath(
   workspace: WorkspaceService,
   workspaceRoot: string,
   matterId: string,
-  population: MeetingPopulationService
+  population: MeetingPopulationService,
+  boundary: SealedMeetingClientBoundary
 ): Promise<void> {
-  // Capture once from the existing authority. The operation keeps this exact
-  // generation private and rejects a selection change before every later write.
-  const operation = population.captureActiveClientOperation();
+  // The welcome action minted this exact boundary. Deferred work must verify
+  // it, never capture whichever client happens to be selected later.
+  if (
+    boundary.matterId !== matterId ||
+    boundary.householdRef !== SAMPLE_CRM_HOUSEHOLD_KEY
+  ) {
+    throw new Error('The Hendricks sample client changed before setup began.');
+  }
+  const operation = population.captureActiveClientOperationForBoundary(boundary);
   const meetingDir = `${workspaceRoot.replace(/[\\/]+$/, '')}/Meetings/${SAMPLE_MEETING_FOLDER}`;
   const visibility = await preservedMeetingVisibility(
     workspace,

@@ -106,7 +106,9 @@ describe('Hendricks sample meeting in the real Meetings shell', () => {
       },
       reloadRecords: async () => structuredClone(crm.records),
     };
-    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, ROOT, 'matter-hendricks', createMeetingPopulationService(port));
+    const boundary = readActiveMeetingClientBoundary();
+    if (!boundary) throw new Error('expected Hendricks selection boundary');
+    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, ROOT, 'matter-hendricks', createMeetingPopulationService(port), boundary);
     expect(crm.records.filter((record) => record.kind === 'meeting')).toEqual([
       expect.objectContaining({ ownerRef: null, state: 'completed' }),
     ]);

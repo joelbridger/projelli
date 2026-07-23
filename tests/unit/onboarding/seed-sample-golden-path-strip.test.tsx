@@ -28,6 +28,12 @@ function makeWorkspace() {
   };
 }
 
+const sampleBoundary = {
+  householdRef: SAMPLE_GOLDEN_PATH.crmHouseholdKey,
+  matterId: 'sample-matter',
+  selectionGeneration: 1,
+} as never;
+
 function makeSamplePopulation() {
   let record: {
     id: string;
@@ -35,7 +41,7 @@ function makeSamplePopulation() {
     references: readonly string[];
   } | undefined;
   return {
-    captureActiveClientOperation: () => ({
+    captureActiveClientOperationForBoundary: () => ({
       assertStable: () => undefined,
       findByReference: async (reference: string) =>
         record?.references.includes(reference) ? record : undefined,
@@ -99,7 +105,8 @@ describe('seedSampleGoldenPath BeforeYouMeetStrip behavior', () => {
       makeWorkspace() as never,
       '/workspace',
       'sample-matter',
-      makeSamplePopulation() as never
+      makeSamplePopulation() as never,
+      sampleBoundary
     );
 
     vi.setSystemTime(new Date('2026-07-10T12:00:00.000Z'));

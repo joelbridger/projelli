@@ -37,10 +37,16 @@ type SampleRecord = {
   references: readonly string[];
 };
 
+const sampleBoundary = {
+  householdRef: SAMPLE_GOLDEN_PATH.crmHouseholdKey,
+  matterId: 'sample-matter',
+  selectionGeneration: 1,
+} as never;
+
 function makeSamplePopulation() {
   let record: SampleRecord | undefined;
   return {
-    captureActiveClientOperation: () => ({
+    captureActiveClientOperationForBoundary: () => ({
       assertStable: () => undefined,
       findByReference: async (reference: string) =>
         record?.references.includes(reference) ? record : undefined,
@@ -99,7 +105,8 @@ describe('seedSampleGoldenPath', () => {
       service as never,
       '/workspace',
       'sample-matter',
-      makeSamplePopulation() as never
+      makeSamplePopulation() as never,
+      sampleBoundary
     );
 
     const meetingPath = `/workspace/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}/meeting.json`;
@@ -154,13 +161,15 @@ describe('seedSampleGoldenPath', () => {
       first.service as never,
       '/workspace',
       'sample-matter',
-      population as never
+      population as never,
+      sampleBoundary
     );
     await seedSampleGoldenPath(
       second.service as never,
       '/workspace',
       'sample-matter',
-      population as never
+      population as never,
+      sampleBoundary
     );
 
     expect(useCrmWriteQueueStore.getState().items).toHaveLength(1);

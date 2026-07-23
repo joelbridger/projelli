@@ -282,6 +282,27 @@ describe('meetings foundation contract', () => {
     expect(live.commands).toEqual([]);
   });
 
+  it('refuses a deferred population boundary after A-to-B-to-A without recapturing A', () => {
+    const live = canonicalPort();
+    let generation = 1;
+    const activeBoundary = () =>
+      sealedBoundary('household-1', 'matter-1', generation);
+    const service = createMeetingPopulationService({
+      ...live,
+      getActiveClientBoundary: activeBoundary,
+    });
+    const welcomeBoundary = activeBoundary();
+
+    // The visible pair returns to A, but its authority generation is new.
+    generation = 2;
+    generation = 3;
+
+    expect(() =>
+      service.captureActiveClientOperationForBoundary(welcomeBoundary)
+    ).toThrow('client changed');
+    expect(live.commands).toEqual([]);
+  });
+
   it('rechecks the live firm viewer and freshly reloaded policy before artifact actions', async () => {
     const live = canonicalPort();
     await createMeetingFoundationPreferencesStore(live).save({

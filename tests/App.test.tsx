@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const seedControl = vi.hoisted(() => ({
   crmReady: false,
+  pauseFind: false,
+  findStarted: undefined as (() => void) | undefined,
+  releaseFind: undefined as (() => void) | undefined,
+  capturedBoundary: undefined as
+    | { householdRef: string; matterId: string; selectionGeneration: number }
+    | undefined,
   creates: 0,
   transitions: 0,
   meeting: undefined as
@@ -68,15 +74,41 @@ vi.mock('@/features/meetings/foundation/contract', async (importOriginal) => {
   return {
     ...actual,
     useMeetingPopulationService: () => ({
-      captureActiveClientOperation: () => ({
-        assertStable: () => undefined,
+      captureActiveClientOperationForBoundary: (boundary: {
+        householdRef: string;
+        matterId: string;
+        selectionGeneration: number;
+      }) => {
+        seedControl.capturedBoundary = boundary;
+        const assertStable = () => {
+          const current = actual.readActiveMeetingClientBoundary();
+          if (
+            !current ||
+            current.householdRef !== boundary.householdRef ||
+            current.matterId !== boundary.matterId ||
+            current.selectionGeneration !== boundary.selectionGeneration
+          ) {
+            throw new Error('Meeting client changed while sample setup was queued.');
+          }
+        };
+        return {
+        assertStable,
         findByReference: async (reference: string) => {
+          assertStable();
           if (!seedControl.crmReady) throw new Error('CRM is still loading.');
+          seedControl.findStarted?.();
+          if (seedControl.pauseFind) {
+            await new Promise<void>((resolve) => {
+              seedControl.releaseFind = resolve;
+            });
+          }
+          assertStable();
           return seedControl.meeting?.references.includes(reference)
             ? seedControl.meeting
             : undefined;
         },
         createForActiveClient: async () => {
+          assertStable();
           seedControl.creates += 1;
           seedControl.meeting = {
             id: 'app-hendricks-meeting',
@@ -86,6 +118,7 @@ vi.mock('@/features/meetings/foundation/contract', async (importOriginal) => {
           return seedControl.meeting;
         },
         linkLegacy: async () => {
+          assertStable();
           if (!seedControl.meeting) throw new Error('Missing canonical sample meeting.');
           return seedControl.meeting;
         },
@@ -96,13 +129,15 @@ vi.mock('@/features/meetings/foundation/contract', async (importOriginal) => {
             to: 'scheduled' | 'in-progress' | 'completed';
           }
         ) => {
+          assertStable();
           seedControl.transitions += 1;
           if (!seedControl.meeting || seedControl.meeting.state !== transition.from)
             throw new Error('Illegal sample transition.');
           seedControl.meeting = { ...seedControl.meeting, state: transition.to };
           return seedControl.meeting;
         },
-      }),
+      };
+      },
     }),
   };
 });
@@ -119,6 +154,7 @@ import {
 import { setDevFlagOverride } from '@/platform/flags/router';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 
 async function openSampleStart(): Promise<void> {
   render(<App />);
@@ -146,6 +182,10 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   seedControl.crmReady = false;
+  seedControl.pauseFind = false;
+  seedControl.findStarted = undefined;
+  seedControl.releaseFind = undefined;
+  seedControl.capturedBoundary = undefined;
   seedControl.creates = 0;
   seedControl.transitions = 0;
   seedControl.meeting = undefined;
@@ -244,5 +284,101 @@ describe('App', () => {
       }),
     ).toMatchObject({ kind: 'refused', reason: 'blocked-unresolved' });
     expect(seedControl.creates).toBe(1);
+  });
+
+  it('refuses a queued Hendricks seed after Hendricks-to-other-to-Hendricks and only retries with a new boundary', async () => {
+    seedControl.crmReady = true;
+    seedControl.pauseFind = true;
+    const findStarted = new Promise<void>((resolve) => {
+      seedControl.findStarted = resolve;
+    });
+
+    await openSampleStart();
+    await finishOnboarding();
+    await findStarted;
+
+    const welcomeBoundary = seedControl.capturedBoundary;
+    expect(welcomeBoundary).toMatchObject({
+      householdRef: 'sample-hendricks-household',
+      matterId: expect.any(String),
+      selectionGeneration: expect.any(Number),
+    });
+    fakeWorkspaceService.writeFile.mockClear();
+    fakeWorkspaceService.writeFileBinary.mockClear();
+
+    const hendricksMatter = useMatterStore.getState().matters.find(
+      (matter) => matter.id === welcomeBoundary?.matterId,
+    );
+    if (!hendricksMatter) throw new Error('expected Hendricks sample matter');
+    useMatterStore.setState({
+      matters: [
+        ...useMatterStore.getState().matters,
+        {
+          id: 'other-matter',
+          name: 'Other household',
+          client: 'Other household',
+          folderPaths: ['/app-sample/Other household'],
+          crmHouseholdKeys: ['other-household'],
+          createdAt: '2026-07-23T00:00:00.000Z',
+        },
+      ],
+    });
+    replaceCanonicalHouseholdDirectory('wealthbox', [
+      {
+        provider: 'wealthbox',
+        householdId: 'sample-hendricks-household',
+        displayName: 'The Hendricks Household',
+      },
+      {
+        provider: 'wealthbox',
+        householdId: 'other-household',
+        displayName: 'Other household',
+      },
+    ]);
+    await requestSharedClientSelection(
+      issueSharedClientSelection({
+        provider: 'wealthbox',
+        householdId: 'other-household',
+        displayName: 'Other household',
+      }),
+    );
+    await requestSharedClientSelection(
+      issueSharedClientSelection({
+        provider: 'wealthbox',
+        householdId: 'sample-hendricks-household',
+        displayName: 'The Hendricks Household',
+      }),
+    );
+
+    await act(async () => {
+      seedControl.releaseFind?.();
+    });
+    expect(await screen.findByTestId('sample-meeting-seed-error')).toHaveTextContent(
+      'client changed',
+    );
+    expect(seedControl.creates).toBe(0);
+    expect(
+      fakeWorkspaceService.writeFile.mock.calls.filter(([path]) =>
+        String(path).includes('/Meetings/'),
+      ),
+    ).toEqual([]);
+    expect(
+      fakeWorkspaceService.writeFileBinary.mock.calls.filter(([path]) =>
+        String(path).includes('/Meetings/'),
+      ),
+    ).toEqual([]);
+    expect(useCrmWriteQueueStore.getState().items).toEqual([]);
+
+    seedControl.pauseFind = false;
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('sample-meeting-seed-retry'));
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId('sample-meeting-seed-error')).toBeNull();
+    });
+    expect(seedControl.creates).toBe(1);
+    expect(seedControl.capturedBoundary?.selectionGeneration).not.toBe(
+      welcomeBoundary?.selectionGeneration,
+    );
   });
 });

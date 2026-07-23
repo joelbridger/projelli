@@ -51,7 +51,11 @@ import { getAppSurfaceDescriptor } from '@/app/shell/registry/appSurfaceRegistry
 import { V1ShellFrameFlagGate } from '@/app/shell/v1-frame/V1ShellFrame';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
-import { useMeetingPopulationService } from '@/features/meetings/foundation/contract';
+import {
+  readActiveMeetingClientBoundary,
+  useMeetingPopulationService,
+  type SealedMeetingClientBoundary,
+} from '@/features/meetings/foundation/contract';
 import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
 import { AutoJoinMeetingsPanel } from '@/features/meetings/AutoJoinMeetingsPanel';
 import { LazyBoundary } from '@/ui/LazyBoundary';
@@ -316,11 +320,13 @@ function AppShell() {
     readonly matterId: string;
     readonly root: string;
     readonly service: WorkspaceService;
+    readonly boundary: SealedMeetingClientBoundary;
   } | null>(null);
   const [sampleMeetingSeedFailure, setSampleMeetingSeedFailure] = useState<{
     readonly matterId: string;
     readonly root: string;
     readonly service: WorkspaceService;
+    readonly boundary: SealedMeetingClientBoundary;
     readonly message: string;
   } | null>(null);
   const sampleMeetingSeedInFlight = useRef<string | null>(null);
@@ -1324,7 +1330,7 @@ function AppShell() {
   useEffect(() => {
     if (!pendingSampleMeetingSeed || rootPath !== pendingSampleMeetingSeed.root)
       return;
-    const seedKey = `${pendingSampleMeetingSeed.root}\u0000${pendingSampleMeetingSeed.matterId}`;
+    const seedKey = `${pendingSampleMeetingSeed.root}\u0000${pendingSampleMeetingSeed.matterId}\u0000${pendingSampleMeetingSeed.boundary.selectionGeneration}`;
     // Saving a meeting refreshes the live CRM hook, which rebuilds this
     // service while the first seed is still awaiting. Keep exactly one live
     // recovery attempt for this workspace/matter pair.
@@ -1334,7 +1340,8 @@ function AppShell() {
       pendingSampleMeetingSeed.service,
       pendingSampleMeetingSeed.root,
       pendingSampleMeetingSeed.matterId,
-      sampleMeetingPopulation
+      sampleMeetingPopulation,
+      pendingSampleMeetingSeed.boundary
     )
       .then(() => {
         setSampleMeetingSeedFailure(null);
@@ -1364,11 +1371,26 @@ function AppShell() {
 
   const retrySampleMeetingSeed = useCallback(() => {
     if (!sampleMeetingSeedFailure) return;
+    // A deliberate retry is a new action. Mint a new boundary only for the
+    // same Hendricks sample; a queued request never adopts another client.
+    const boundary = readActiveMeetingClientBoundary();
+    if (
+      !boundary ||
+      boundary.matterId !== sampleMeetingSeedFailure.matterId ||
+      boundary.householdRef !== 'sample-hendricks-household'
+    ) {
+      setSampleMeetingSeedFailure({
+        ...sampleMeetingSeedFailure,
+        message: 'Choose the Hendricks sample client before retrying setup.',
+      });
+      return;
+    }
     setSampleMeetingSeedFailure(null);
     setPendingSampleMeetingSeed({
       matterId: sampleMeetingSeedFailure.matterId,
       root: sampleMeetingSeedFailure.root,
       service: sampleMeetingSeedFailure.service,
+      boundary,
     });
   }, [sampleMeetingSeedFailure]);
 
@@ -1588,7 +1610,16 @@ function AppShell() {
           ) {
             throw new Error('The Hendricks sample client is not ready yet. Try again.');
           }
-          setPendingSampleMeetingSeed({ matterId: matter.id, root, service });
+          const boundary = readActiveMeetingClientBoundary();
+          if (
+            !boundary ||
+            boundary.matterId !== matter.id ||
+            boundary.householdRef !== 'sample-hendricks-household' ||
+            boundary.selectionGeneration !== readySelection.selectionGeneration
+          ) {
+            throw new Error('The Hendricks sample client is not ready yet. Try again.');
+          }
+          setPendingSampleMeetingSeed({ matterId: matter.id, root, service, boundary });
           setSidebarActiveTab('matters');
           // NB: the setup-progress Client Map count intentionally EXCLUDES sample
           // matters (see computeClientMapProgress), so we don't try to report the

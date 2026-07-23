@@ -42,6 +42,11 @@ class InMemoryWorkspace {
 
 const matterId = 'matter-hendricks';
 const workspaceRoot = '/temporary-hendricks-workspace';
+const sampleBoundary = {
+  householdRef: SAMPLE_GOLDEN_PATH.crmHouseholdKey,
+  matterId,
+  selectionGeneration: 1,
+} as never;
 
 function samplePopulation(): MeetingPopulationService {
   const records: MeetingRecord[] = [];
@@ -93,7 +98,7 @@ function samplePopulation(): MeetingPopulationService {
       return next;
     },
     openTarget: async () => { throw new Error('Not needed.'); },
-    captureActiveClientOperation: () => ({
+    captureActiveClientOperationForBoundary: () => ({
       assertStable: () => undefined,
       createForActiveClient: async (draft) => {
         const meeting = canonical(draft);
@@ -149,7 +154,8 @@ describe('seedSampleGoldenPath', () => {
       workspace as unknown as WorkspaceService,
       workspaceRoot,
       matterId,
-      population
+      population,
+      sampleBoundary
     );
     // Re-running onboarding must update the same sample artifacts, not add a
     // second CRM item awaiting advisor approval.
@@ -157,7 +163,8 @@ describe('seedSampleGoldenPath', () => {
       workspace as unknown as WorkspaceService,
       workspaceRoot,
       matterId,
-      population
+      population,
+      sampleBoundary
     );
 
     const meetingPath = `${workspaceRoot}/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}`;
@@ -241,7 +248,7 @@ describe('seedSampleGoldenPath', () => {
       },
     }));
 
-    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population);
+    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary);
 
     const manifest = JSON.parse(await workspace.readFile(path)).meetingFileVisibility;
     expect(manifest).toMatchObject({
@@ -262,8 +269,8 @@ describe('seedSampleGoldenPath', () => {
   it('writes no sample files when canonical creation fails', async () => {
     const workspace = new InMemoryWorkspace();
     const population = samplePopulation();
-    const operation = population.captureActiveClientOperation();
-    population.captureActiveClientOperation = () => ({
+    const operation = population.captureActiveClientOperationForBoundary(sampleBoundary);
+    population.captureActiveClientOperationForBoundary = () => ({
       ...operation,
       createForActiveClient: async () => {
         throw new Error('canonical create failed');
@@ -275,7 +282,8 @@ describe('seedSampleGoldenPath', () => {
         workspace as unknown as WorkspaceService,
         workspaceRoot,
         matterId,
-        population
+        population,
+        sampleBoundary
       )
     ).rejects.toThrow('canonical create failed');
 
@@ -288,20 +296,20 @@ describe('seedSampleGoldenPath', () => {
   it('keeps a persisted draft and finishes exactly one meeting after a link retry', async () => {
     const workspace = new InMemoryWorkspace();
     const population = samplePopulation();
-    const operation = population.captureActiveClientOperation();
+    const operation = population.captureActiveClientOperationForBoundary(sampleBoundary);
     const create = vi.fn(operation.createForActiveClient);
     const link = vi.fn(operation.linkLegacy);
     link.mockImplementationOnce(async () => {
       throw new Error('legacy link failed');
     });
-    population.captureActiveClientOperation = () => ({
+    population.captureActiveClientOperationForBoundary = () => ({
       ...operation,
       createForActiveClient: create,
       linkLegacy: link,
     });
 
     await expect(
-      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population)
+      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary)
     ).rejects.toThrow('legacy link failed');
     expect(create).toHaveBeenCalledTimes(1);
 
@@ -309,7 +317,8 @@ describe('seedSampleGoldenPath', () => {
       workspace as unknown as WorkspaceService,
       workspaceRoot,
       matterId,
-      population
+      population,
+      sampleBoundary
     );
     expect(create).toHaveBeenCalledTimes(1);
     expect(link).toHaveBeenCalledTimes(2);
@@ -345,7 +354,7 @@ describe('seedSampleGoldenPath', () => {
     await workspace.writeFile(path, original);
 
     await expect(
-      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population)
+      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary)
     ).rejects.toThrow('could not be recovered safely');
     expect(await workspace.readFile(path)).toBe(original);
     expect(await population.findByReference(SAMPLE_GOLDEN_PATH.crmSourceRef)).toBeUndefined();

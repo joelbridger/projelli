@@ -494,6 +494,14 @@ export interface MeetingPopulationService {
    * after its asynchronous work, so an A → B → A change cannot resume writes.
    */
   captureActiveClientOperation(): ActiveClientMeetingPopulationOperation;
+  /**
+   * Resumes a deferred population flow only when its previously minted
+   * selection boundary is still the live selection. This never recaptures a
+   * replacement client for queued work.
+   */
+  captureActiveClientOperationForBoundary(
+    boundary: SealedMeetingClientBoundary
+  ): ActiveClientMeetingPopulationOperation;
 }
 
 /** A sealed-in-closure population session; callers never supply a client pair. */
@@ -1953,6 +1961,53 @@ export function createMeetingPopulationService(
 ): MeetingPopulationService {
   const store = createMeetingStore(port) as LinkableMeetingStore;
   const scope = clientScope(port);
+  const operationForBoundary = (
+    expected: SealedMeetingClientBoundary
+  ): ActiveClientMeetingPopulationOperation => {
+    if (!verifyLiveMeetingClientBoundary(expected))
+      throw new Error('Meeting population requires a sealed client selection.');
+    // Check the original authority before returning any capability. A queued
+    // flow must never replace its identity by reading the current client here.
+    scope.assertStable(expected, 'Meeting');
+    const assertStable = () => {
+      scope.assertStable(expected, 'Meeting');
+    };
+    return Object.freeze({
+      assertStable,
+      createForActiveClient: async (draft) => {
+        assertStable();
+        const created = await store.createDraft({
+          ...draft,
+          householdRef: expected.householdRef,
+          matterId: expected.matterId,
+        });
+        assertStable();
+        return created;
+      },
+      findByReference: async (reference) => {
+        assertStable();
+        const exactReference = nonEmpty(reference, 'Meeting reference');
+        requireAvailable(port);
+        const fresh = await port.reloadRecords();
+        assertStable();
+        return meetingRecords(fresh ?? [])
+          .filter((meeting) => scope.owns(meeting))
+          .find((meeting) => meeting.references.includes(exactReference));
+      },
+      transition: async (meetingId, transition) => {
+        assertStable();
+        const transitioned = await store.transition(meetingId, transition);
+        assertStable();
+        return transitioned;
+      },
+      linkLegacy: async (meetingId, legacy) => {
+        assertStable();
+        const linked = await store.linkLegacy(meetingId, legacy);
+        assertStable();
+        return linked;
+      },
+    } satisfies ActiveClientMeetingPopulationOperation);
+  };
   return {
     createNew: (draft) => store.createDraft(draft),
     createAndLink: async (draft, legacy) => {
@@ -2001,46 +2056,9 @@ export function createMeetingPopulationService(
       // This is the only capture point. `requireCurrent` reads the same live
       // selection authority that normal Meetings actions use; the boundary is
       // held privately and cannot be replaced with a caller-built pair.
-      const expected = scope.requireCurrent('Meeting');
-      const assertStable = () => {
-        scope.assertStable(expected, 'Meeting');
-      };
-      return Object.freeze({
-        assertStable,
-        createForActiveClient: async (draft) => {
-          assertStable();
-          const created = await store.createDraft({
-            ...draft,
-            householdRef: expected.householdRef,
-            matterId: expected.matterId,
-          });
-          assertStable();
-          return created;
-        },
-        findByReference: async (reference) => {
-          assertStable();
-          const exactReference = nonEmpty(reference, 'Meeting reference');
-          requireAvailable(port);
-          const fresh = await port.reloadRecords();
-          assertStable();
-          return meetingRecords(fresh ?? [])
-            .filter((meeting) => scope.owns(meeting))
-            .find((meeting) => meeting.references.includes(exactReference));
-        },
-        transition: async (meetingId, transition) => {
-          assertStable();
-          const transitioned = await store.transition(meetingId, transition);
-          assertStable();
-          return transitioned;
-        },
-        linkLegacy: async (meetingId, legacy) => {
-          assertStable();
-          const linked = await store.linkLegacy(meetingId, legacy);
-          assertStable();
-          return linked;
-        },
-      } satisfies ActiveClientMeetingPopulationOperation);
+      return operationForBoundary(scope.requireCurrent('Meeting'));
     },
+    captureActiveClientOperationForBoundary: operationForBoundary,
   };
 }
 
