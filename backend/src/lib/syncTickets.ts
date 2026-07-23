@@ -30,6 +30,8 @@ export interface SyncTicketBinding {
   orgId: string;
   userId: string;
   seatId: string;
+  /** Session binding makes pre-retirement tickets inert at redemption time. */
+  sid: string;
   /** The caller's role at mint time, so a connect-time re-check uses the right
    *  access path (an org admin's access doesn't depend on matter membership). */
   role: UserRole;

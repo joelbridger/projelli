@@ -149,6 +149,7 @@ export function createPrivilegedRoutes(store: Store): readonly PrivilegedRouteDe
  */
 export async function dispatchPrivilegedRequest(
   routes: readonly PrivilegedRouteDefinition[],
+  store: Store,
   req: HttpRequest,
   path: string,
   method: string,
@@ -164,7 +165,7 @@ export async function dispatchPrivilegedRequest(
         return error("unauthorized", 401);
       }
     } else {
-      const auth = authenticate(req);
+      const auth = authenticate(req, store);
       if (!auth.ok) return error("unauthorized", 401);
       if (auth.claims.role !== "admin") return error("forbidden", 403);
     }

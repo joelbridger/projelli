@@ -31,28 +31,23 @@ export interface AuthTokens {
 
 /** Issue a fresh access JWT + a new (stored, hashed) refresh token for a user. */
 export function issueAuthTokens(store: Store, user: User): AuthTokens {
+  const org = store.getOrg(user.org_id);
+  if (user.status !== "active" || !org || org.status !== "active") throw new Error("inactive_auth_subject");
   const now = nowSeconds();
   const accessExp = now + config.accessTokenTtlSeconds;
-  const claims: AccessTokenClaims = {
-    sub: user.user_id,
-    org_id: user.org_id,
-    role: user.role,
-    email: user.email,
-    iss: config.issuer,
-    iat: now,
-    exp: accessExp,
-    typ: "access",
-  };
-  const access = signAccessJwt(claims as unknown as Record<string, unknown>);
-
   const refresh = generateSecretToken();
   const refreshExpSeconds = now + config.refreshTokenTtlSeconds;
   const refreshExpiresAt = new Date(refreshExpSeconds * 1000).toISOString();
-  store.createRefreshToken({
+  const sid = store.createRefreshToken({
     user_id: user.user_id,
     token_hash: hmacHash(refresh),
     expires_at: refreshExpiresAt,
   });
+  const claims: AccessTokenClaims = {
+    sub: user.user_id, org_id: user.org_id, role: user.role, email: user.email,
+    iss: config.issuer, iat: now, exp: accessExp, typ: "access", sid,
+  };
+  const access = signAccessJwt(claims as unknown as Record<string, unknown>);
 
   return {
     access_token: access,
@@ -64,24 +59,28 @@ export function issueAuthTokens(store: Store, user: User): AuthTokens {
 
 export type RefreshResult =
   | { ok: true; tokens: AuthTokens }
-  | { ok: false; reason: "invalid" | "expired" | "revoked" | "user_inactive" };
+  | { ok: false; reason: "invalid" | "expired" | "revoked" | "user_inactive" | "org_inactive" | "authority_unavailable" };
 
 /** Exchange a refresh token for a new access token + rotated refresh token. */
 export function refreshAuthTokens(store: Store, presentedRefresh: string): RefreshResult {
-  const row = store.getRefreshTokenByHash(hmacHash(presentedRefresh));
+  let row;
+  try { row = store.getRefreshTokenByHash(hmacHash(presentedRefresh)); }
+  catch { return { ok: false, reason: "authority_unavailable" }; }
   if (!row) return { ok: false, reason: "invalid" };
   if (row.revoked_at) return { ok: false, reason: "revoked" };
   if (new Date(row.expires_at).getTime() <= Date.now()) return { ok: false, reason: "expired" };
 
   const user = store.getUser(row.user_id);
   if (!user || user.status !== "active") return { ok: false, reason: "user_inactive" };
+  const org = store.getOrg(user.org_id);
+  if (!org || org.status !== "active") return { ok: false, reason: "org_inactive" };
 
   // Rotate the refresh token (one-time use). Reuse of the old token afterwards
   // is rejected as revoked — basic refresh-token reuse protection.
   const now = nowSeconds();
   const newRefresh = generateSecretToken();
   const refreshExpiresAt = new Date((now + config.refreshTokenTtlSeconds) * 1000).toISOString();
-  store.rotateRefreshToken({
+  const sid = store.rotateRefreshToken({
     old_token_id: row.token_id,
     user_id: user.user_id,
     new_token_hash: hmacHash(newRefresh),
@@ -98,6 +97,7 @@ export function refreshAuthTokens(store: Store, presentedRefresh: string): Refre
     iat: now,
     exp: accessExp,
     typ: "access",
+    sid,
   };
   return {
     ok: true,

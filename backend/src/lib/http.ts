@@ -9,6 +9,7 @@ import { config } from "./config.ts";
 import { verifyAccessJwt } from "./crypto.ts";
 import { readCappedJson, type HttpRequest } from "./requestBody.ts";
 import type { AccessTokenClaims } from "./types.ts";
+import type { Store } from "./db.ts";
 
 /**
  * 64 KB — the control-plane cap. Every route that reads its body through
@@ -139,19 +140,57 @@ export type AuthResult =
   | { ok: true; claims: AccessTokenClaims }
   | { ok: false; reason: string };
 
+export interface LiveAccessIdentity {
+  sub: string;
+  org_id: string;
+  sid: string;
+}
+
+/**
+ * The one live authority boundary for every access-token-derived identity.
+ * A valid signature is necessary but never sufficient: the session, user, and
+ * organization must all still be present and active at the instant of use.
+ */
+export function authorizeLiveSession(identity: LiveAccessIdentity, store: Store): AuthResult {
+  if (!isNonEmptyString(identity.sid, 128)) return { ok: false, reason: "missing_session" };
+  try {
+    const session = store.getRefreshTokenById(identity.sid);
+    if (!session || session.token_id !== identity.sid) return { ok: false, reason: "session_not_found" };
+    if (session.revoked_at || session.rotated_to) return { ok: false, reason: "session_revoked" };
+    if (Date.parse(session.expires_at) <= Date.now()) return { ok: false, reason: "session_expired" };
+    if (session.user_id !== identity.sub) return { ok: false, reason: "session_user_mismatch" };
+    const user = store.getUser(identity.sub);
+    if (!user || user.status !== "active" || user.org_id !== identity.org_id) return { ok: false, reason: "user_inactive" };
+    const org = store.getOrg(identity.org_id);
+    if (!org || org.status !== "active" || org.org_id !== user.org_id) return { ok: false, reason: "org_inactive" };
+    return {
+      ok: true,
+      claims: {
+        sub: user.user_id, org_id: org.org_id, role: user.role, email: user.email,
+        iss: config.issuer, iat: 0, exp: 0, typ: "access", sid: session.token_id,
+      },
+    };
+  } catch {
+    return { ok: false, reason: "authority_unavailable" };
+  }
+}
+
 /** Verify a token string as an access JWT. */
-function verifyAccess(token: string): AuthResult {
+function verifyAccess(token: string, store: Store): AuthResult {
   const res = verifyAccessJwt<AccessTokenClaims>(token);
   if (!res.valid) return { ok: false, reason: res.reason };
   if (res.payload.typ !== "access") return { ok: false, reason: "wrong_token_type" };
-  return { ok: true, claims: res.payload };
+  const live = authorizeLiveSession(res.payload, store);
+  if (!live.ok) return live;
+  // The DB row is the authority for mutable identity fields, especially role.
+  return { ok: true, claims: { ...res.payload, role: live.claims.role, email: live.claims.email, org_id: live.claims.org_id, sid: live.claims.sid } };
 }
 
 /** Verify the request carries a valid access JWT (Authorization: Bearer). Does NOT check role. */
-export function authenticate(req: HttpRequest): AuthResult {
+export function authenticate(req: HttpRequest, store: Store): AuthResult {
   const token = getBearer(req);
   if (!token) return { ok: false, reason: "missing_token" };
-  return verifyAccess(token);
+  return verifyAccess(token, store);
 }
 
 // NOTE: relay endpoints used to accept the access token via an `?access_token=`

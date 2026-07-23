@@ -15,7 +15,7 @@ function isInteger(value: unknown): value is number {
 }
 
 function checkpointGate(req: HttpRequest, store: Store, matterId: string, adminOnly = false) {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false as const, resp: error("unauthorized", 401) };
   const seat = verifyActiveSeat(store, req.headers.get("x-seat-token") ?? "", { user_id: auth.claims.sub, org_id: auth.claims.org_id });
   if (!seat.ok) return { ok: false as const, resp: error("seat_invalid", 401) };

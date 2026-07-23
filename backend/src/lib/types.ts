@@ -154,6 +154,8 @@ export interface AccessTokenClaims {
   iat: number;
   exp: number;
   typ: "access";
+  /** The refresh-token row that is the live server-side session record. */
+  sid: string;
 }
 
 // ---------------------------------------------------------------------------

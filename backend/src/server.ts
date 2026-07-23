@@ -12,7 +12,7 @@
 
 import { clientIpFromPeer, config } from "./lib/config.ts";
 import { getStore } from "./lib/db.ts";
-import { json, error, preflight, startRateLimitGc, MAX_BODY_BYTES } from "./lib/http.ts";
+import { authorizeLiveSession, json, error, preflight, startRateLimitGc, MAX_BODY_BYTES } from "./lib/http.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
 import { handleLogin, handleRefresh, handleLogout, handleMe } from "./routes/auth.ts";
 import { handleActivate, handleSeatValidate, handleSeatHeartbeat } from "./routes/seats.ts";
@@ -87,6 +87,7 @@ interface DocumentSocketData {
   orgId: string;
   userId: string;
   seatId: string;
+  sid: string;
   role: UserRole;
   subscriptions: Set<string>;
 }
@@ -97,6 +98,7 @@ interface NotifySocketData {
   orgId: string;
   userId: string;
   seatId: string;
+  sid: string;
 }
 
 export type SyncSocketData = DocumentSocketData | NotifySocketData;
@@ -143,30 +145,45 @@ function subscribeDocument(
 ): void {
   const d = ws.data;
   if (d.kind !== "document") return;
-  const access = resolveAccess(store, { orgId: d.orgId, userId: d.userId, role: d.role }, matterId);
+  const live = authorizeLiveSession({ sub: d.userId, org_id: d.orgId, sid: d.sid }, store);
+  if (!live.ok) {
+    ws.close(1008, "authorization_revoked");
+    return;
+  }
+  d.role = live.claims.role;
+  const access = resolveAccess(store, { orgId: live.claims.org_id, userId: live.claims.sub, role: live.claims.role }, matterId);
   if (!access.allowed) {
     ws.send(JSON.stringify({ type: "subscription_error", matter_id: matterId, doc_id: docId, error: "forbidden" }));
     return;
   }
+  /** Check live authority immediately before EVERY protected socket delivery. */
+  const deliver = (frame: unknown): boolean => {
+    const current = authorizeLiveSession({ sub: d.userId, org_id: d.orgId, sid: d.sid }, store);
+    if (!current.ok || !resolveAccess(store, { orgId: current.claims.org_id, userId: current.claims.sub, role: current.claims.role }, matterId).allowed) {
+      ws.close(1008, "authorization_revoked");
+      return false;
+    }
+    try { ws.send(JSON.stringify(frame)); return true; } catch { return false; }
+  };
   const channel = documentChannel(matterId, docId);
   const subId = `${d.subId}:${channel}`;
   const sub: Subscriber = {
     id: subId,
     user_id: d.userId,
     seat_id: d.seatId,
-    send: (frame) => { try { ws.send(JSON.stringify(frame)); } catch { /* close cleans up */ } },
+    send: deliver,
   };
   hub.subscribe(matterId, sub, docId);
   d.subscriptions.add(channel);
   try {
     const watermark = store.latestMatterCursor(matterId, docId);
     const backlog = store.countMatterUpdatesThrough(matterId, since, watermark, docId);
-    ws.send(JSON.stringify({ type: "ready", matter_id: matterId, doc_id: docId, watermark, latest_cursor: watermark, backlog, subscribers: hub.subscriberCount(matterId, docId) }));
+    if (!deliver({ type: "ready", matter_id: matterId, doc_id: docId, watermark, latest_cursor: watermark, backlog, subscribers: hub.subscriberCount(matterId, docId) })) return;
     let cursor = since;
     for (;;) {
       const page = store.getMatterUpdatesThrough(matterId, cursor, watermark, 500, docId);
       if (!page.length) break;
-      for (const update of page) ws.send(JSON.stringify(toUpdateFrame(update)));
+      for (const update of page) if (!deliver(toUpdateFrame(update))) return;
       cursor = page[page.length - 1]!.id;
     }
   } catch {
@@ -260,7 +277,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         // Privileged routes are auth-by-construction. This dispatch runs before
         // every ordinary route and authenticates before a handler can inspect
         // its target or read/validate its request body.
-        const privileged = await dispatchPrivilegedRequest(privilegedRoutes, req, path, method);
+        const privileged = await dispatchPrivilegedRequest(privilegedRoutes, store, req, path, method);
         if (privileged) return privileged;
 
         // --- Sender-blind sealed notification relay (03 §2) ---
@@ -272,7 +289,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/notify/sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
           const authz = authorizeNotifySync(req, store);
           if (!authz.ok) return authz.resp;
-          const notifyData: SyncSocketData = { kind: "notify", subId: randomUUID(), orgId: authz.orgId, userId: authz.userId, seatId: "" };
+          const notifyData: SyncSocketData = { kind: "notify", subId: randomUUID(), orgId: authz.orgId, userId: authz.userId, seatId: "", sid: authz.sid };
           if (upgradeWebSocket(req, notifyData)) return undefined;
           return error("upgrade_failed", 400);
         }
@@ -416,6 +433,8 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         const d = ws.data;
         if (d.kind === "notify") {
           notificationHub.subscribe(d.orgId, d.userId, d.subId, (frame) => {
+            const live = authorizeLiveSession({ sub: d.userId, org_id: d.orgId, sid: d.sid }, store);
+            if (!live.ok) { ws.close(1008, "authorization_revoked"); return; }
             try { ws.send(JSON.stringify(frame)); } catch { /* close handler prunes */ }
           });
           return;

@@ -39,6 +39,8 @@ export async function handleLogin(req: HttpRequest, store: Store, ip: string): P
   const ok = await verifyPassword(body.password, row?.password_hash ?? dummy);
   if (!row || !ok) return error("invalid_credentials", 401);
   if (row.status !== "active") return error("user_deprovisioned", 403);
+  const org = store.getOrg(row.org_id);
+  if (!org || org.status !== "active") return error("org_suspended", 403);
 
   const tokens = issueAuthTokens(store, row);
   return json({ user: publicUser(row), ...tokens });
@@ -67,7 +69,7 @@ export async function handleLogout(req: HttpRequest, store: Store): Promise<Resp
 }
 
 export function handleMe(req: HttpRequest, store: Store): Response {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
   const user = store.getUser(auth.claims.sub);
   if (!user) return error("unauthorized", 401, "user_not_found");

@@ -29,8 +29,8 @@ const VALID_PROVIDERS = new Set<string>(["entra", "google", "generic"]);
 const REDIRECT_URI = `${config.ssoCallbackBase.replace(/\/$/, "")}/auth/sso/callback`;
 
 /** Require admin role; return { orgId, userId } or an error Response. */
-function requireAdminClaims(req: HttpRequest): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
-  const auth = authenticate(req);
+function requireAdminClaims(req: HttpRequest, store: Store): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
   return { ok: true, orgId: auth.claims.org_id, userId: auth.claims.sub };
@@ -41,7 +41,7 @@ function requireAdminClaims(req: HttpRequest): { ok: true; orgId: string; userId
 // ---------------------------------------------------------------------------
 
 export async function handleSsoConfigSet(req: HttpRequest, store: Store): Promise<Response> {
-  const a = requireAdminClaims(req); if (!a.ok) return a.resp;
+  const a = requireAdminClaims(req, store); if (!a.ok) return a.resp;
   const body = await readJson<{ provider?: unknown; issuer?: unknown; client_id?: unknown; client_secret?: unknown; enabled?: unknown }>(req);
   if (!body) return error("invalid_json", 400);
   const { provider, issuer, client_id, client_secret, enabled } = body;
@@ -79,7 +79,7 @@ export async function handleSsoConfigSet(req: HttpRequest, store: Store): Promis
 }
 
 export function handleSsoConfigGet(req: HttpRequest, store: Store): Response {
-  const a = requireAdminClaims(req); if (!a.ok) return a.resp;
+  const a = requireAdminClaims(req, store); if (!a.ok) return a.resp;
   const cfg = store.getOrgIdpConfig(a.orgId);
   if (!cfg) return json({ configured: false, redirect_uri: REDIRECT_URI });
   return json({
@@ -90,7 +90,7 @@ export function handleSsoConfigGet(req: HttpRequest, store: Store): Response {
 }
 
 export function handleSsoConfigDelete(req: HttpRequest, store: Store): Response {
-  const a = requireAdminClaims(req); if (!a.ok) return a.resp;
+  const a = requireAdminClaims(req, store); if (!a.ok) return a.resp;
   store.deleteOrgIdpConfig(a.orgId);
   store.audit({ org_id: a.orgId, actor_user_id: a.userId, action: "sso.config.delete", target: a.orgId });
   return json({ ok: true });
@@ -112,7 +112,8 @@ export async function handleSsoStart(req: HttpRequest, store: Store, ip: string)
   // Always return a generic shape on the "not eligible" path so we don't leak which emails exist.
   const user = store.getUserByEmailNorm(body.email);
   const cfg = user ? store.getOrgIdpConfig(user.org_id) : null;
-  if (!user || user.status !== "active" || !cfg || !cfg.enabled) {
+  const org = user ? store.getOrg(user.org_id) : null;
+  if (!user || user.status !== "active" || !org || org.status !== "active" || !cfg || !cfg.enabled) {
     return error("sso_unavailable", 404, "SSO is not available for this email. Ask your firm admin.");
   }
 
@@ -151,7 +152,8 @@ export async function handleSsoCallback(req: HttpRequest, store: Store, ip: stri
   if (!code) return fail("missing_code", st.loopbackPort);
 
   const cfg = store.getOrgIdpConfig(st.orgId);
-  if (!cfg || !cfg.enabled) return fail("sso_disabled", st.loopbackPort);
+  const org = store.getOrg(st.orgId);
+  if (!cfg || !cfg.enabled || !org || org.status !== "active") return fail("sso_disabled", st.loopbackPort);
   const clientSecret = decryptSecret(cfg.client_secret_enc);
   if (!clientSecret) return fail("server_misconfig", st.loopbackPort);
 
@@ -194,6 +196,8 @@ export async function handleSsoExchange(req: HttpRequest, store: Store, ip: stri
   if (!entry) return error("invalid_sso_code", 401);
   const user = store.getUser(entry.userId);
   if (!user || user.status !== "active") return error("user_invalid", 403);
+  const org = store.getOrg(user.org_id);
+  if (!org || org.status !== "active") return error("org_inactive", 403);
   const tokens = issueAuthTokens(store, user);
   return json({ user: publicUser(user), ...tokens });
 }

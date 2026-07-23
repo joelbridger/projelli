@@ -30,7 +30,7 @@
  */
 
 import { readCappedJson, type HttpRequest } from "../lib/requestBody.ts";
-import { json, error, readJson, isNonEmptyString, authenticate, rateLimit } from "../lib/http.ts";
+import { json, error, readJson, isNonEmptyString, authenticate, authorizeLiveSession, rateLimit } from "../lib/http.ts";
 import { config } from "../lib/config.ts";
 import {
   gateMatterAccess,
@@ -50,8 +50,8 @@ const VALID_MATTER_ROLES = new Set<MatterRole>(["owner", "editor", "viewer"]);
 // ---------------------------------------------------------------------------
 // Shared admin guard (mirrors routes/admin.ts requireAdmin).
 // ---------------------------------------------------------------------------
-function requireAdmin(req: HttpRequest): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
-  const auth = authenticate(req);
+function requireAdmin(req: HttpRequest, store: Store): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
   return { ok: true, claims: auth.claims };
@@ -76,7 +76,7 @@ function sameOrgMatter(store: Store, orgId: string, matterId: string): { ok: tru
 // Admin: matter CRUD
 // ===========================================================================
 export async function handleCreateMatter(req: HttpRequest, store: Store): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const body = await readJson<{ client_name?: unknown }>(req);
   if (!body || !isNonEmptyString(body.client_name, 256)) return error("missing_fields", 400);
@@ -87,13 +87,13 @@ export async function handleCreateMatter(req: HttpRequest, store: Store): Promis
 }
 
 export function handleListMatters(req: HttpRequest, store: Store): Response {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   return json({ matters: store.listMatters(a.claims.org_id) });
 }
 
 export function handleArchiveMatter(req: HttpRequest, store: Store, matterId: string): Response {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -106,7 +106,7 @@ export function handleArchiveMatter(req: HttpRequest, store: Store, matterId: st
 // Admin: membership
 // ===========================================================================
 export async function handleAddMatterMember(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -128,7 +128,7 @@ export async function handleAddMatterMember(req: HttpRequest, store: Store, matt
 }
 
 export async function handleRemoveMatterMember(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -157,7 +157,7 @@ export async function handleRemoveMatterMember(req: HttpRequest, store: Store, m
 }
 
 export function handleListMatterMembers(req: HttpRequest, store: Store, matterId: string): Response {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -173,7 +173,7 @@ export function handleListMatterMembers(req: HttpRequest, store: Store, matterId
 // Admin: ethical walls (explicit DENY)
 // ===========================================================================
 export async function handleSetWall(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -204,7 +204,7 @@ export async function handleSetWall(req: HttpRequest, store: Store, matterId: st
 }
 
 export async function handleClearWall(req: HttpRequest, store: Store, matterId: string): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -237,7 +237,7 @@ function relayGate(
 ):
   | { ok: true; claims: AccessTokenClaims; seatId: string; matter: NonNullable<ReturnType<Store["getMatter"]>> }
   | { ok: false; resp: Response } {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
 
   if (!seatToken) return { ok: false, resp: error("seat_required", 401, "missing_seat_token") };
@@ -259,7 +259,7 @@ export async function handlePushUpdate(req: HttpRequest, store: Store, matterId:
   // The access credential is always in a header, so reject a missing or bad
   // identity before waiting for the legacy body-carried seat token. This keeps
   // an unauthenticated caller from making the relay read/validate any body.
-  const identity = authenticate(req);
+  const identity = authenticate(req, store);
   if (!identity.ok) return error("unauthorized", 401);
 
   // The legacy seat token still lives in this request body; after the access
@@ -393,6 +393,7 @@ export function handleSyncTicket(
     orgId: gate.claims.org_id,
     userId: gate.claims.sub,
     seatId: gate.seatId,
+    sid: gate.claims.sid,
     role: gate.claims.role,
   });
   return json({ ticket, expires_in_ms: expiresInMs });
@@ -413,7 +414,7 @@ export function authorizeSyncConnect(
   matterId: string,
   tickets: SyncTicketStore = syncTickets,
 ):
-  | { ok: true; data: { matterId: string; orgId: string; userId: string; seatId: string; role: AccessTokenClaims["role"] } }
+  | { ok: true; data: { matterId: string; orgId: string; userId: string; seatId: string; role: AccessTokenClaims["role"]; sid: string } }
   | { ok: false; resp: Response } {
   const url = new URL(req.url);
   const ticket = url.searchParams.get("ticket");
@@ -424,15 +425,17 @@ export function authorizeSyncConnect(
   if (!binding || binding.matterId !== matterId) {
     return { ok: false, resp: error("unauthorized", 401, "invalid_ticket") };
   }
+  const live = authorizeLiveSession({ sub: binding.userId, org_id: binding.orgId, sid: binding.sid }, store);
+  if (!live.ok) return { ok: false, resp: error("forbidden", 403, live.reason) };
   // Defense in depth: re-confirm access at connect time too. A wall/removal that
   // landed in the <=30s window between mint and connect must still slam the door.
   // Use the role captured at mint time so an org admin's (non-membership) access
   // path is preserved, while a wall still denies regardless of role.
-  const access = resolveAccess(store, { orgId: binding.orgId, userId: binding.userId, role: binding.role }, matterId);
+  const access = resolveAccess(store, { orgId: live.claims.org_id, userId: live.claims.sub, role: live.claims.role }, matterId);
   if (!access.allowed) {
     return { ok: false, resp: error("forbidden", 403, access.reason) };
   }
-  return { ok: true, data: { matterId, orgId: binding.orgId, userId: binding.userId, seatId: binding.seatId, role: binding.role } };
+  return { ok: true, data: { matterId, orgId: live.claims.org_id, userId: live.claims.sub, seatId: binding.seatId, role: live.claims.role, sid: live.claims.sid } };
 }
 
 // ---------------------------------------------------------------------------

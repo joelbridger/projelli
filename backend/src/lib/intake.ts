@@ -56,7 +56,7 @@ export function verifyAdvisorSeat(
 
   let access: AccessTokenClaims | undefined;
   if (req.headers.get("authorization")) {
-    const auth = authenticate(req);
+    const auth = authenticate(req, store);
     if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
     if (auth.claims.sub !== claims.user_id || auth.claims.org_id !== claims.org_id) {
       return { ok: false, resp: error("forbidden", 403, "identity_mismatch") };

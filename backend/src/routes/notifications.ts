@@ -1,5 +1,5 @@
 import { type HttpRequest } from "../lib/requestBody.ts";
-import { authenticate, error, isNonEmptyString, json, rateLimit, readJson } from "../lib/http.ts";
+import { authenticate, authorizeLiveSession, error, isNonEmptyString, json, rateLimit, readJson } from "../lib/http.ts";
 import { resolveAccess, verifyActiveSeat } from "../lib/matters.ts";
 import { notificationHub, type NotificationHub } from "../lib/notifications.ts";
 import { notifyTickets, type NotifyTicketStore } from "../lib/notifyTickets.ts";
@@ -16,11 +16,9 @@ function decodeOpaque(value: unknown): Uint8Array | null {
 }
 
 function notifyAuth(req: HttpRequest, store: Store, orgId: string) {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false as const, resp: error("unauthorized", 401) };
   if (auth.claims.org_id !== orgId) return { ok: false as const, resp: error("not_found", 404) };
-  const user = store.getUser(auth.claims.sub);
-  if (!user || user.status !== "active") return { ok: false as const, resp: error("unauthorized", 401) };
   const seat = verifyActiveSeat(store, req.headers.get("x-seat-token") ?? "", { user_id: auth.claims.sub, org_id: orgId });
   if (!seat.ok) return { ok: false as const, resp: error("seat_invalid", 401) };
   return { ok: true as const, claims: auth.claims };
@@ -28,10 +26,8 @@ function notifyAuth(req: HttpRequest, store: Store, orgId: string) {
 
 /** Authenticate identity + active seat without needing any body-derived org id. */
 function notifyHeaderAuth(req: HttpRequest, store: Store) {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false as const, resp: error("unauthorized", 401) };
-  const user = store.getUser(auth.claims.sub);
-  if (!user || user.status !== "active") return { ok: false as const, resp: error("unauthorized", 401) };
   const seat = verifyActiveSeat(store, req.headers.get("x-seat-token") ?? "", { user_id: auth.claims.sub, org_id: auth.claims.org_id });
   if (!seat.ok) return { ok: false as const, resp: error("seat_invalid", 401) };
   return { ok: true as const, claims: auth.claims };
@@ -100,19 +96,19 @@ export async function handleNotifySyncTicket(req: HttpRequest, store: Store, tic
   const body = await readJson<{ org_id?: unknown }>(req);
   if (!body || !isNonEmptyString(body.org_id, 128)) return error("missing_fields", 400);
   if (body.org_id !== headerAuth.claims.org_id) return error("not_found", 404);
-  return json(tickets.mint({ orgId: body.org_id, userId: headerAuth.claims.sub }));
+  return json(tickets.mint({ orgId: body.org_id, userId: headerAuth.claims.sub, sid: headerAuth.claims.sid }));
 }
 
-export function authorizeNotifySync(req: HttpRequest, store: Store, tickets: NotifyTicketStore = notifyTickets): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
+export function authorizeNotifySync(req: HttpRequest, store: Store, tickets: NotifyTicketStore = notifyTickets): { ok: true; orgId: string; userId: string; sid: string } | { ok: false; resp: Response } {
   const url = new URL(req.url);
   const orgId = url.searchParams.get("org_id");
   const ticket = url.searchParams.get("ticket");
   if (!orgId || !ticket) return { ok: false, resp: error("unauthorized", 401) };
   const binding = tickets.redeem(ticket);
   if (!binding || binding.orgId !== orgId) return { ok: false, resp: error("unauthorized", 401) };
-  const user = store.getUser(binding.userId);
-  if (!user || user.org_id !== orgId || user.status !== "active") return { ok: false, resp: error("forbidden", 403) };
-  return { ok: true, orgId, userId: binding.userId };
+  const live = authorizeLiveSession({ sub: binding.userId, org_id: binding.orgId, sid: binding.sid }, store);
+  if (!live.ok || binding.orgId !== orgId) return { ok: false, resp: error("forbidden", 403) };
+  return { ok: true, orgId, userId: live.claims.sub, sid: live.claims.sid };
 }
 
 /** Signed terminal notice handler; envelope content and sender identity remain opaque. */

@@ -1147,6 +1147,19 @@ export class Store {
       | null;
   }
 
+  /** Load the live session record named by an access JWT's `sid` claim. */
+  getRefreshTokenById(tokenId: string): {
+    token_id: string;
+    user_id: string;
+    expires_at: string;
+    revoked_at: string | null;
+    rotated_to: string | null;
+  } | null {
+    return this.db.query(`SELECT token_id, user_id, expires_at, revoked_at, rotated_to FROM refresh_tokens WHERE token_id = ?`).get(tokenId) as
+      | { token_id: string; user_id: string; expires_at: string; revoked_at: string | null; rotated_to: string | null }
+      | null;
+  }
+
   /** Rotate: revoke the presented token, mint a new one, link them. */
   rotateRefreshToken(input: {
     old_token_id: string;
@@ -1177,6 +1190,11 @@ export class Store {
 
   revokeAllRefreshTokensForUser(userId: string): void {
     this.db.query(`UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`).run(this.nowIso(), userId);
+  }
+
+  /** Firm retirement uses this one narrow primitive to invalidate every session. */
+  revokeAllRefreshTokensForOrg(orgId: string): void {
+    this.db.query(`UPDATE refresh_tokens SET revoked_at = ? WHERE user_id IN (SELECT user_id FROM users WHERE org_id = ?) AND revoked_at IS NULL`).run(this.nowIso(), orgId);
   }
 
   // ---- Audit (append-only) -------------------------------------------------

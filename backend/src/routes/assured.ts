@@ -39,8 +39,8 @@ import { randomUUID } from "node:crypto";
 // ---------------------------------------------------------------------------
 // Admin guard (mirrors routes/admin.ts + routes/matters.ts requireAdmin).
 // ---------------------------------------------------------------------------
-function requireAdmin(req: HttpRequest): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
-  const auth = authenticate(req);
+function requireAdmin(req: HttpRequest, store: Store): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
   return { ok: true, claims: auth.claims };
@@ -56,7 +56,7 @@ function parseProvider(v: unknown): AssuredProvider | null {
 
 /** POST /assured/keys/set { provider, api_key } — store/rotate an org managed key. */
 export async function handleSetProviderKey(req: HttpRequest, store: Store): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
 
   // This is a small JSON body (NOT prompt content), so reading it is fine.
@@ -90,14 +90,14 @@ export async function handleSetProviderKey(req: HttpRequest, store: Store): Prom
 
 /** POST /assured/keys/list — which providers the org has a key for (no secrets). */
 export function handleListProviderKeys(req: HttpRequest, store: Store): Response {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   return json({ keys: store.listOrgProviderKeys(a.claims.org_id) });
 }
 
 /** POST /assured/keys/delete { provider } — remove an org managed key. */
 export async function handleDeleteProviderKey(req: HttpRequest, store: Store): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const body = await readJson<{ provider?: unknown }>(req);
   const provider = parseProvider(body?.provider);
@@ -109,7 +109,7 @@ export async function handleDeleteProviderKey(req: HttpRequest, store: Store): P
 
 /** POST /assured/billing — the org's metadata-only inference billing rows. */
 export function handleInferenceBilling(req: HttpRequest, store: Store): Response {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   return json({ rows: store.listInferenceBilling(a.claims.org_id, 500) });
 }
@@ -135,7 +135,7 @@ export async function handleAssuredInfer(req: HttpRequest, store: Store, ip: str
   if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
 
   // --- AuthN: access JWT + active, org-bound seat (reuses chunk-1 verifyActiveSeat) ---
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
   const seatToken = req.headers.get("x-seat-token");
