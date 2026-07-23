@@ -16,6 +16,48 @@ use crate::commands::{
     },
 };
 
+/// Content-only provider input derived from an approved claim. Provider
+/// identity is intentionally absent, and the user-facing subject keeps its
+/// distinct `draft_subject` name so it cannot be confused with a provider
+/// subject.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ApprovedDraftPayloadView {
+    recipients_json: String,
+    draft_subject: String,
+    body: String,
+}
+
+impl ApprovedDraftPayloadView {
+    pub(super) fn recipients_json(&self) -> &str {
+        &self.recipients_json
+    }
+
+    pub(super) fn draft_subject(&self) -> &str {
+        &self.draft_subject
+    }
+
+    pub(super) fn body(&self) -> &str {
+        &self.body
+    }
+}
+
+/// Narrows an encrypted approved-claim record to the only content a provider
+/// adapter will later need. It never exposes or accepts provider identity.
+pub(super) fn approved_draft_payload_view(
+    claim: &ApprovedDraftClaimRecord,
+) -> Result<ApprovedDraftPayloadView> {
+    for value in [&claim.recipients_json, &claim.draft_subject, &claim.body] {
+        if value.trim().is_empty() {
+            bail!("approved draft payload has a missing required field")
+        }
+    }
+    Ok(ApprovedDraftPayloadView {
+        recipients_json: claim.recipients_json.clone(),
+        draft_subject: claim.draft_subject.clone(),
+        body: claim.body.clone(),
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum DraftClaimState {
     Prepared,
@@ -203,6 +245,15 @@ fn test_input(key: &str) -> ApprovedDraftClaimInput {
         content_hash: "hash-7".into(),
         approval_receipt: "approval-4".into(),
         idempotency_key: key.into(),
+    }
+}
+
+#[cfg(test)]
+pub(super) fn test_only_approved_draft_payload() -> ApprovedDraftPayloadView {
+    ApprovedDraftPayloadView {
+        recipients_json: "[\"client@example.com\"]".into(),
+        draft_subject: "Advisor follow-up".into(),
+        body: "Approved body".into(),
     }
 }
 
