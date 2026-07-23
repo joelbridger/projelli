@@ -11,6 +11,9 @@ pub mod store;
 pub mod sync;
 pub mod view;
 
+#[cfg(test)]
+pub(crate) mod verified_m4_credentials;
+#[cfg(not(test))]
 mod verified_m4_credentials;
 mod verified_workspace_authority;
 
