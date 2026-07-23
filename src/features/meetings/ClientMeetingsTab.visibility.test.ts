@@ -145,6 +145,105 @@ describe('ClientMeetingsTab file visibility doorway', () => {
     ).toBe(false);
   });
 
+  it.each(['..', '../sibling', 'outer/inner', 'outer\\inner'])(
+    'refuses a listed non-direct meeting child named %s',
+    async (invalidName) => {
+      const boundary = readActiveMeetingClientBoundary();
+      if (!boundary) throw new Error('expected sealed boundary');
+      const migrationState = JSON.stringify({
+        version: 1,
+        completedMatterIds: ['matter-1'],
+        ambiguousMeetingDirs: [],
+      });
+      const workspace = {
+        exists: vi.fn(() => Promise.resolve(true)),
+        list: vi.fn((path: string) =>
+          Promise.resolve(
+            path === '/ws/client/Meetings'
+              ? [
+                  {
+                    name: invalidName,
+                    path: `/ws/client/Meetings/${invalidName}`,
+                    type: 'folder' as const,
+                  },
+                ]
+              : []
+          )
+        ),
+        readFile: vi.fn((path: string) => {
+          if (path === '.lantern/migrations/meeting-file-visibility-v1.json')
+            return Promise.resolve(migrationState);
+          return Promise.reject(new Error('unexpected read'));
+        }),
+        writeFile: vi.fn(() => Promise.resolve()),
+      };
+
+      await expect(
+        listClientMeetings({
+          clientBoundary: boundary,
+          getActiveClientBoundary: () => boundary,
+          matterFolder: '/ws/client',
+          workspaceService: workspace,
+          visibilityContext: { viewerId: 'included', policies: [policy] },
+        })
+      ).resolves.toMatchObject({ kind: 'error' });
+      expect(workspace.writeFile).not.toHaveBeenCalled();
+    }
+  );
+
+  it('anchors a misleading sibling row to the authorized client and never reads the sibling path', async () => {
+    const boundary = readActiveMeetingClientBoundary();
+    if (!boundary) throw new Error('expected sealed boundary');
+    const siblingPath = '/ws/sibling/Meetings/meeting-a';
+    const authorizedPath = '/ws/client/Meetings/meeting-a';
+    const workspace = {
+      exists: vi.fn(() => Promise.resolve(true)),
+      list: vi.fn((path: string) =>
+        Promise.resolve(
+          path === '/ws/client/Meetings'
+            ? [
+                {
+                  name: 'meeting-a',
+                  path: siblingPath,
+                  type: 'folder' as const,
+                },
+              ]
+            : []
+        )
+      ),
+      readFile: vi.fn((path: string) => {
+        if (path === '.lantern/migrations/meeting-file-visibility-v1.json')
+          return Promise.resolve(
+            JSON.stringify({
+              version: 1,
+              completedMatterIds: ['matter-1'],
+              ambiguousMeetingDirs: [],
+            })
+          );
+        if (path.startsWith(siblingPath))
+          return Promise.reject(new Error('sibling path must never be read'));
+        if (path === `${authorizedPath}/meeting.json`)
+          return Promise.reject(new Error('authorized row is absent'));
+        return Promise.reject(new Error('unexpected read'));
+      }),
+      writeFile: vi.fn(() => Promise.resolve()),
+    };
+
+    const result = await listClientMeetings({
+      clientBoundary: boundary,
+      getActiveClientBoundary: () => boundary,
+      matterFolder: '/ws/client',
+      workspaceService: workspace,
+      visibilityContext: { viewerId: 'included', policies: [policy] },
+    });
+
+    expect(result).toMatchObject({ kind: 'ready', meetings: [] });
+    expect(workspace.list).toHaveBeenCalledWith(authorizedPath);
+    expect(workspace.readFile).not.toHaveBeenCalledWith(
+      expect.stringContaining(siblingPath)
+    );
+  });
+
   it('re-evaluates the same folder snapshot for a switched viewer', async () => {
     const boundary = readActiveMeetingClientBoundary();
     if (!boundary) throw new Error('expected sealed boundary');

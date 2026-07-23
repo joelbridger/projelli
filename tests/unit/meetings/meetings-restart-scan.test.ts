@@ -191,6 +191,24 @@ async function scanAuthorizedClientMeetings(
   workspaceService: WorkspaceService,
   opts?: { retryDelayMs?: number }
 ) {
+  const result = await readAuthorizedClientMeetings(
+    matterFolder,
+    workspaceService,
+    opts
+  );
+  return result.kind === 'ready'
+    ? {
+        meetings: result.meetings.map((entry) => entry.meeting),
+        scanFailed: false,
+      }
+    : { meetings: [], scanFailed: result.kind === 'error' };
+}
+
+async function readAuthorizedClientMeetings(
+  matterFolder: string,
+  workspaceService: WorkspaceService,
+  opts?: { retryDelayMs?: number }
+) {
   const clientBoundary = mintedBoundary('household-test', 'matter-test');
   useMatterStore.setState({
     matters: [
@@ -204,7 +222,7 @@ async function scanAuthorizedClientMeetings(
       } as Matter,
     ],
   });
-  const result = await listClientMeetings({
+  return listClientMeetings({
     clientBoundary,
     getActiveClientBoundary: () => clientBoundary,
     matterFolder,
@@ -213,12 +231,6 @@ async function scanAuthorizedClientMeetings(
       ? { retryDelayMs: opts.retryDelayMs }
       : {}),
   });
-  return result.kind === 'ready'
-    ? {
-        meetings: result.meetings.map((entry) => entry.meeting),
-        scanFailed: false,
-      }
-    : { meetings: [], scanFailed: result.kind === 'error' };
 }
 
 async function openWorkspace(rootPath: string): Promise<WorkspaceService> {
@@ -235,6 +247,56 @@ beforeEach(() => {
 });
 
 describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidator instances)', () => {
+  it('migrates and lists a prior meeting when the client folder is the workspace root itself', async () => {
+    const rootRaw = 'C:\\Lantern M2\\Hendricks';
+    const matterFolder = 'C:/Lantern M2/Hendricks';
+    const meetingDir = `${matterFolder}/Meetings/2026-07-02-hendricks-annual-review`;
+    fakeFs.mkdir(rootRaw);
+
+    const firstSession = await openWorkspace(rootRaw);
+    await firstSession.writeFile(
+      `${meetingDir}/meeting.json`,
+      JSON.stringify({
+        matterId: 'matter-test',
+        startedAt: '2026-07-02T14:00:00.000Z',
+        consent: {
+          mode: 'two-party',
+          confirmedBy: 'Advisor',
+          confirmedAt: '2026-07-02T14:00:00.000Z',
+        },
+      })
+    );
+    await firstSession.writeFile(`${meetingDir}/transcript.json`, '{}');
+    await firstSession.writeFile(`${meetingDir}/notes.docx`, 'synthetic-docx');
+
+    const migrated = await readAuthorizedClientMeetings(
+      matterFolder,
+      firstSession
+    );
+    expect(migrated.kind).toBe('ready');
+    if (migrated.kind !== 'ready') throw new Error('expected migrated meeting');
+    expect(migrated.meetings).toHaveLength(1);
+    expect(migrated.meetings[0]?.meeting).toMatchObject({
+      dir: meetingDir,
+      hasNotes: true,
+      hasTranscript: true,
+    });
+    expect(migrated.meetings[0]?.target.meetingDir).toBe(meetingDir);
+    expect(
+      JSON.parse(await firstSession.readFile(`${meetingDir}/meeting.json`))
+    ).toHaveProperty('meetingFileVisibility');
+
+    const restarted = await openWorkspace(rootRaw);
+    const afterRestart = await readAuthorizedClientMeetings(
+      matterFolder,
+      restarted
+    );
+    expect(afterRestart.kind).toBe('ready');
+    if (afterRestart.kind !== 'ready') throw new Error('expected restarted meeting');
+    expect(afterRestart.meetings).toHaveLength(1);
+    expect(afterRestart.meetings[0]?.target.meetingDir).toBe(meetingDir);
+  });
+
   it('lists a meeting recorded in a PRIOR session after a simulated restart, same rootPath shape', async () => {
     const rootRaw = 'C:\\Northcrest Wealth Partners';
     fakeFs.mkdir(rootRaw);
