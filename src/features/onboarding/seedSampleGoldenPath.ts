@@ -14,8 +14,8 @@ import {
   type SealedMeetingClientBoundary,
 } from '@/features/meetings';
 import type { MeetingFileVisibilityManifest } from '@/features/meetings/meetingFileVisibility';
+import type { MeetingArtifactInput } from '@/features/meetings/foundation/contract';
 import type { TranscriptFile } from '@/platform/types/meeting';
-import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { markdownToDocxBytes } from '@/platform/utils/docx-io';
 import {
@@ -32,6 +32,8 @@ const SAMPLE_MEETING_STARTED_AT = '2026-07-02T14:00:00.000Z';
 const SAMPLE_MEETING_ENDED_AT = '2026-07-02T14:42:00.000Z';
 const SAMPLE_CRM_SOURCE_REF = `meeting:${SAMPLE_MEETING_EVENT_ID}`;
 const SAMPLE_CRM_HOUSEHOLD_KEY = 'sample-hendricks-household';
+const SAMPLE_TASK_PROPOSAL_ID = 'sample-hendricks-task-proposal';
+const SAMPLE_CRM_PROPOSAL_ID = 'sample-hendricks-crm-proposal';
 const SAMPLE_MEETING_FILE_NAMES = [
   'meeting.json',
   'transcript.json',
@@ -231,21 +233,67 @@ function sampleBrief(
   };
 }
 
-function seedSampleCrmApproval(matterId: string): void {
-  const store = useCrmWriteQueueStore.getState();
-  const existing = store.items.some(
-    (item) =>
-      item.matterId === matterId && item.sourceRef === SAMPLE_CRM_SOURCE_REF
-  );
-  if (existing) return;
-  store.enqueue({
-    kind: 'note',
-    matterId,
-    title: 'Annual review follow-ups',
-    body: 'Annual review completed. Prepare Q4 Roth conversion authorization, confirm remaining beneficiary designations, and revisit 529 funding at the October review.',
-    sourceRef: SAMPLE_CRM_SOURCE_REF,
-    aiSource: { kind: 'meeting', date: SAMPLE_MEETING_STARTED_AT.slice(0, 10) },
-  });
+export type SampleReviewArtifactWriter = (
+  artifact: MeetingArtifactInput
+) => Promise<void>;
+
+function sampleReviewArtifacts(
+  meetingId: string
+): readonly MeetingArtifactInput[] {
+  const transcriptRef = `transcript:${SAMPLE_MEETING_EVENT_ID}`;
+  const sourceRefs = [SAMPLE_CRM_SOURCE_REF, transcriptRef] as const;
+  return [
+    {
+      meetingId,
+      kind: 'action-update-proposal',
+      schemaVersion: 2,
+      producedAt: SAMPLE_MEETING_ENDED_AT,
+      sourceRefs,
+      provenance: 'local-processing',
+      payload: {
+        proposal: {
+          id: SAMPLE_TASK_PROPOSAL_ID,
+          kind: 'task',
+          title: 'Prepare Hendricks Roth conversion authorization',
+          detail:
+            'Prepare the Schwab Roth conversion authorization for the Hendricks Q4 review.',
+          ownerRef: null,
+          dueDate: '2026-10-01',
+          transcriptRef,
+          sourceLabel: SAMPLE_MEETING_EVENT_TITLE,
+        },
+      },
+    },
+    {
+      meetingId,
+      kind: 'action-update-proposal',
+      schemaVersion: 2,
+      producedAt: SAMPLE_MEETING_ENDED_AT,
+      sourceRefs,
+      provenance: 'local-processing',
+      payload: {
+        proposal: {
+          id: SAMPLE_CRM_PROPOSAL_ID,
+          kind: 'crm-update',
+          title: 'Set Hendricks household October review date',
+          detail:
+            'Move the household follow-up date to the October review after retirement income is clearer.',
+          transcriptRef,
+          entityRef: SAMPLE_CRM_HOUSEHOLD_KEY,
+          sourceLabel: SAMPLE_MEETING_EVENT_TITLE,
+          fields: [
+            {
+              field: 'nextReviewDate',
+              label: 'Next review date',
+              valueType: 'date',
+              before: '2026-07-02',
+              proposed: '2026-10-01',
+            },
+          ],
+        },
+      },
+    },
+  ];
 }
 
 /**
@@ -273,18 +321,30 @@ async function preservedMeetingVisibility(
   try {
     existing = JSON.parse(await source.readFile(meetingJsonPath));
   } catch (error) {
-    if (typeof source.exists === 'function' && !(await source.exists(meetingJsonPath)))
+    if (
+      typeof source.exists === 'function' &&
+      !(await source.exists(meetingJsonPath))
+    )
       return undefined;
-    if (error instanceof Error && /missing|not found|enoent/i.test(error.message))
+    if (
+      error instanceof Error &&
+      /missing|not found|enoent/i.test(error.message)
+    )
       return undefined;
-    throw new Error('The existing sample meeting visibility could not be recovered safely.');
+    throw new Error(
+      'The existing sample meeting visibility could not be recovered safely.'
+    );
   }
   if (!existing || typeof existing !== 'object' || Array.isArray(existing))
-    throw new Error('The existing sample meeting visibility could not be recovered safely.');
+    throw new Error(
+      'The existing sample meeting visibility could not be recovered safely.'
+    );
   const visibility = (existing as { meetingFileVisibility?: unknown })
     .meetingFileVisibility;
   if (!isPreservableSampleVisibility(visibility)) {
-    throw new Error('The existing sample meeting visibility could not be recovered safely.');
+    throw new Error(
+      'The existing sample meeting visibility could not be recovered safely.'
+    );
   }
   return visibility;
 }
@@ -299,28 +359,30 @@ async function ensureCanonicalSampleMeeting(
   } else {
     // The population service, not this seed, derives the household + matter
     // from the live selected-client boundary immediately before it writes.
-    meeting = await operation.createForActiveClient(
-      {
-        workspaceId: workspaceRoot,
-        typeId: 'annual-review',
-        // A local sample is explicitly accountless, not a made-up advisor.
-        ownerRef: null,
-        scheduledStartUtc: SAMPLE_MEETING_STARTED_AT,
-        scheduledEndUtc: SAMPLE_MEETING_ENDED_AT,
-        timezone: 'UTC',
-        references: [SAMPLE_CRM_SOURCE_REF],
-      }
-    );
+    meeting = await operation.createForActiveClient({
+      workspaceId: workspaceRoot,
+      typeId: 'annual-review',
+      // A local sample is explicitly accountless, not a made-up advisor.
+      ownerRef: null,
+      scheduledStartUtc: SAMPLE_MEETING_STARTED_AT,
+      scheduledEndUtc: SAMPLE_MEETING_ENDED_AT,
+      timezone: 'UTC',
+      references: [SAMPLE_CRM_SOURCE_REF],
+    });
   }
 
   return meeting;
 }
 
 function exactText(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0 && value === value.trim();
+  return (
+    typeof value === 'string' && value.length > 0 && value === value.trim()
+  );
 }
 
-function isOwnerPrivateManifest(value: unknown): value is MeetingFileVisibilityManifest {
+function isOwnerPrivateManifest(
+  value: unknown
+): value is MeetingFileVisibilityManifest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const manifest = value as MeetingFileVisibilityManifest;
   const root = manifest.meetingSubject;
@@ -335,19 +397,23 @@ function isOwnerPrivateManifest(value: unknown): value is MeetingFileVisibilityM
     !manifest.files ||
     typeof manifest.files !== 'object' ||
     Array.isArray(manifest.files)
-  ) return false;
-  return Object.entries(manifest.files).every(([name, subject]) =>
-    exactText(name) &&
-    !name.includes('/') &&
-    subject?.kind === 'file-reference' &&
-    subject.lineage === 'derived' &&
-    subject.parentRef?.kind === 'meeting-note' &&
-    subject.parentRef.id === root.id &&
-    exactText(subject.id)
+  )
+    return false;
+  return Object.entries(manifest.files).every(
+    ([name, subject]) =>
+      exactText(name) &&
+      !name.includes('/') &&
+      subject?.kind === 'file-reference' &&
+      subject.lineage === 'derived' &&
+      subject.parentRef?.kind === 'meeting-note' &&
+      subject.parentRef.id === root.id &&
+      exactText(subject.id)
   );
 }
 
-function isExactAccountlessSampleManifest(value: unknown): value is MeetingFileVisibilityManifest {
+function isExactAccountlessSampleManifest(
+  value: unknown
+): value is MeetingFileVisibilityManifest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const manifest = value as MeetingFileVisibilityManifest;
   const rootId = `meeting-file:${SAMPLE_MEETING_EVENT_ID}`;
@@ -356,9 +422,13 @@ function isExactAccountlessSampleManifest(value: unknown): value is MeetingFileV
     manifest.meetingSubject?.id !== rootId ||
     manifest.meetingSubject.kind !== 'meeting-note' ||
     manifest.meetingSubject.lineage !== 'accountless-unrestricted'
-  ) return false;
+  )
+    return false;
   const names = Object.keys(manifest.files ?? {}).sort();
-  if (names.join('\u0000') !== [...SAMPLE_MEETING_FILE_NAMES].sort().join('\u0000'))
+  if (
+    names.join('\u0000') !==
+    [...SAMPLE_MEETING_FILE_NAMES].sort().join('\u0000')
+  )
     return false;
   return names.every((name) => {
     const subject = manifest.files[name];
@@ -370,13 +440,19 @@ function isExactAccountlessSampleManifest(value: unknown): value is MeetingFileV
   });
 }
 
-function isPreservableSampleVisibility(value: unknown): value is MeetingFileVisibilityManifest {
-  return isOwnerPrivateManifest(value) || isExactAccountlessSampleManifest(value);
+function isPreservableSampleVisibility(
+  value: unknown
+): value is MeetingFileVisibilityManifest {
+  return (
+    isOwnerPrivateManifest(value) || isExactAccountlessSampleManifest(value)
+  );
 }
 
 async function completeCanonicalSampleMeeting(
   operation: ActiveClientMeetingPopulationOperation,
-  meeting: NonNullable<Awaited<ReturnType<MeetingPopulationService['findByReference']>>>
+  meeting: NonNullable<
+    Awaited<ReturnType<MeetingPopulationService['findByReference']>>
+  >
 ): Promise<void> {
   const meetingDir = `Meetings/${SAMPLE_MEETING_FOLDER}`;
   meeting = await operation.linkLegacy(meeting.id, { meetingDir });
@@ -385,13 +461,27 @@ async function completeCanonicalSampleMeeting(
     const transition = (() => {
       switch (meeting.state) {
         case 'draft':
-          return { from: 'draft' as const, to: 'scheduled' as const, at: SAMPLE_MEETING_STARTED_AT };
+          return {
+            from: 'draft' as const,
+            to: 'scheduled' as const,
+            at: SAMPLE_MEETING_STARTED_AT,
+          };
         case 'scheduled':
-          return { from: 'scheduled' as const, to: 'in-progress' as const, at: SAMPLE_MEETING_STARTED_AT };
+          return {
+            from: 'scheduled' as const,
+            to: 'in-progress' as const,
+            at: SAMPLE_MEETING_STARTED_AT,
+          };
         case 'in-progress':
-          return { from: 'in-progress' as const, to: 'completed' as const, at: SAMPLE_MEETING_ENDED_AT };
+          return {
+            from: 'in-progress' as const,
+            to: 'completed' as const,
+            at: SAMPLE_MEETING_ENDED_AT,
+          };
         case 'cancelled':
-          throw new Error('The canonical Hendricks meeting is not completable.');
+          throw new Error(
+            'The canonical Hendricks meeting is not completable.'
+          );
       }
     })();
     meeting = await operation.transition(meeting.id, transition);
@@ -403,7 +493,8 @@ export async function seedSampleGoldenPath(
   workspaceRoot: string,
   matterId: string,
   population: MeetingPopulationService,
-  boundary: SealedMeetingClientBoundary
+  boundary: SealedMeetingClientBoundary,
+  writeReviewArtifact: SampleReviewArtifactWriter = async () => undefined
 ): Promise<void> {
   // The welcome action minted this exact boundary. Deferred work must verify
   // it, never capture whichever client happens to be selected later.
@@ -413,7 +504,8 @@ export async function seedSampleGoldenPath(
   ) {
     throw new Error('The Hendricks sample client changed before setup began.');
   }
-  const operation = population.captureActiveClientOperationForBoundary(boundary);
+  const operation =
+    population.captureActiveClientOperationForBoundary(boundary);
   const meetingDir = `${workspaceRoot.replace(/[\\/]+$/, '')}/Meetings/${SAMPLE_MEETING_FOLDER}`;
   const visibility = await preservedMeetingVisibility(
     workspace,
@@ -422,8 +514,12 @@ export async function seedSampleGoldenPath(
   operation.assertStable();
   // Create the canonical record before any workspace file. A failed create
   // therefore cannot leave sample material in the previously open workspace.
-  const canonical = await ensureCanonicalSampleMeeting(operation, workspaceRoot);
-  if (!canonical) throw new Error('The canonical Hendricks meeting could not be found.');
+  const canonical = await ensureCanonicalSampleMeeting(
+    operation,
+    workspaceRoot
+  );
+  if (!canonical)
+    throw new Error('The canonical Hendricks meeting could not be found.');
   operation.assertStable();
   await workspace.writeFile(
     `${meetingDir}/meeting.json`,
@@ -448,9 +544,12 @@ export async function seedSampleGoldenPath(
   operation.assertStable();
   await completeCanonicalSampleMeeting(operation, canonical);
   operation.assertStable();
+  for (const artifact of sampleReviewArtifacts(canonical.id)) {
+    await writeReviewArtifact(artifact);
+    operation.assertStable();
+  }
   const sample = sampleBrief(workspaceRoot, matterId);
   useBriefStore.getState().upsert(sample.identity, sample.brief);
-  seedSampleCrmApproval(matterId);
 }
 
 export const SAMPLE_GOLDEN_PATH = {
@@ -463,4 +562,6 @@ export const SAMPLE_GOLDEN_PATH = {
   endedAt: SAMPLE_MEETING_ENDED_AT,
   crmSourceRef: SAMPLE_CRM_SOURCE_REF,
   crmHouseholdKey: SAMPLE_CRM_HOUSEHOLD_KEY,
+  taskProposalId: SAMPLE_TASK_PROPOSAL_ID,
+  crmProposalId: SAMPLE_CRM_PROPOSAL_ID,
 } as const;

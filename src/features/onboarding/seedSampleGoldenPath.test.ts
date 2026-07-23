@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import type { MeetingArtifactInput } from '@/features/meetings/foundation/contract';
 import type {
   ActiveClientMeetingDraft,
   LegacyMeetingLinkInput,
@@ -48,6 +49,15 @@ const sampleBoundary = {
   selectionGeneration: 1,
 } as never;
 
+const reviewArtifacts = new Map<string, MeetingArtifactInput>();
+const writeReviewArtifact = vi.fn(async (artifact: MeetingArtifactInput) => {
+  const proposal = artifact.payload['proposal'] as { id?: unknown } | undefined;
+  if (typeof proposal?.id !== 'string')
+    throw new Error('Sample proposal identity is required.');
+  if (!reviewArtifacts.has(proposal.id))
+    reviewArtifacts.set(proposal.id, artifact);
+});
+
 function samplePopulation(): MeetingPopulationService {
   const records: MeetingRecord[] = [];
   const canonical = (draft: ActiveClientMeetingDraft): MeetingRecord => ({
@@ -67,10 +77,17 @@ function samplePopulation(): MeetingPopulationService {
     updatedAt: SAMPLE_GOLDEN_PATH.startedAt,
   });
   return {
-    createNew: async () => { throw new Error('Sample must derive its client boundary.'); },
-    createAndLink: async () => { throw new Error('Sample must not supply a client boundary.'); },
+    createNew: async () => {
+      throw new Error('Sample must derive its client boundary.');
+    },
+    createAndLink: async () => {
+      throw new Error('Sample must not supply a client boundary.');
+    },
     createAndLinkForActiveClient: async (draft, legacy) => {
-      const meeting = { ...canonical(draft), legacyLink: { ...legacy, linkedAt: SAMPLE_GOLDEN_PATH.startedAt } };
+      const meeting = {
+        ...canonical(draft),
+        legacyLink: { ...legacy, linkedAt: SAMPLE_GOLDEN_PATH.startedAt },
+      };
       records.push(meeting);
       return meeting;
     },
@@ -84,8 +101,13 @@ function samplePopulation(): MeetingPopulationService {
     transition: async (id, transition: MeetingLifecycleTransition) => {
       const index = records.findIndex((meeting) => meeting.id === id);
       const current = records[index];
-      if (!current || current.state !== transition.from) throw new Error('Illegal sample transition.');
-      const next = { ...current, state: transition.to, updatedAt: transition.at };
+      if (!current || current.state !== transition.from)
+        throw new Error('Illegal sample transition.');
+      const next = {
+        ...current,
+        state: transition.to,
+        updatedAt: transition.at,
+      };
       records[index] = next;
       return next;
     },
@@ -93,12 +115,19 @@ function samplePopulation(): MeetingPopulationService {
       const index = records.findIndex((meeting) => meeting.id === id);
       const current = records[index];
       if (!current) throw new Error('Missing canonical sample meeting.');
-      const next = { ...current, legacyLink: { ...legacy, linkedAt: current.createdAt } };
+      const next = {
+        ...current,
+        legacyLink: { ...legacy, linkedAt: current.createdAt },
+      };
       records[index] = next;
       return next;
     },
-    openTarget: async () => { throw new Error('Not needed.'); },
-    captureActiveClientOperation: () => { throw new Error('Not needed.'); },
+    openTarget: async () => {
+      throw new Error('Not needed.');
+    },
+    captureActiveClientOperation: () => {
+      throw new Error('Not needed.');
+    },
     captureActiveClientOperationForBoundary: () => ({
       assertStable: () => undefined,
       createForActiveClient: async (draft) => {
@@ -111,8 +140,13 @@ function samplePopulation(): MeetingPopulationService {
       transition: async (id, transition: MeetingLifecycleTransition) => {
         const index = records.findIndex((meeting) => meeting.id === id);
         const current = records[index];
-        if (!current || current.state !== transition.from) throw new Error('Illegal sample transition.');
-        const next = { ...current, state: transition.to, updatedAt: transition.at };
+        if (!current || current.state !== transition.from)
+          throw new Error('Illegal sample transition.');
+        const next = {
+          ...current,
+          state: transition.to,
+          updatedAt: transition.at,
+        };
         records[index] = next;
         return next;
       },
@@ -120,7 +154,10 @@ function samplePopulation(): MeetingPopulationService {
         const index = records.findIndex((meeting) => meeting.id === id);
         const current = records[index];
         if (!current) throw new Error('Missing canonical sample meeting.');
-        const next = { ...current, legacyLink: { ...legacy, linkedAt: current.createdAt } };
+        const next = {
+          ...current,
+          legacyLink: { ...legacy, linkedAt: current.createdAt },
+        };
         records[index] = next;
         return next;
       },
@@ -131,6 +168,8 @@ function samplePopulation(): MeetingPopulationService {
 beforeEach(() => {
   useBriefStore.setState({ briefs: {} });
   useCrmWriteQueueStore.setState({ items: [] });
+  reviewArtifacts.clear();
+  writeReviewArtifact.mockClear();
   useMatterStore.setState({
     matters: [
       {
@@ -156,7 +195,8 @@ describe('seedSampleGoldenPath', () => {
       workspaceRoot,
       matterId,
       population,
-      sampleBoundary
+      sampleBoundary,
+      writeReviewArtifact
     );
     // Re-running onboarding must update the same sample artifacts, not add a
     // second CRM item awaiting advisor approval.
@@ -165,7 +205,8 @@ describe('seedSampleGoldenPath', () => {
       workspaceRoot,
       matterId,
       population,
-      sampleBoundary
+      sampleBoundary,
+      writeReviewArtifact
     );
 
     const meetingPath = `${workspaceRoot}/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}`;
@@ -176,7 +217,7 @@ describe('seedSampleGoldenPath', () => {
       workspace.textFiles.get(`${meetingPath}/transcript.json`) ?? ''
     );
     const briefs = Object.values(useBriefStore.getState().briefs);
-    const proposals = useCrmWriteQueueStore.getState().items;
+    const proposals = [...reviewArtifacts.values()];
 
     expect(meeting).toMatchObject({
       matterId,
@@ -202,16 +243,57 @@ describe('seedSampleGoldenPath', () => {
       matterId,
       householdRef: SAMPLE_GOLDEN_PATH.crmHouseholdKey,
     });
-    expect(proposals).toEqual([
-      expect.objectContaining({
-        matterId,
-        sourceRef: SAMPLE_GOLDEN_PATH.crmSourceRef,
-        aiSource: {
-          kind: 'meeting',
-          date: SAMPLE_GOLDEN_PATH.startedAt.slice(0, 10),
-        },
-      }),
-    ]);
+    expect(proposals).toHaveLength(2);
+    const taskProposal = proposals.find(
+      (artifact) =>
+        (artifact.payload['proposal'] as { id?: string } | undefined)?.id ===
+        SAMPLE_GOLDEN_PATH.taskProposalId
+    );
+    const crmProposal = proposals.find(
+      (artifact) =>
+        (artifact.payload['proposal'] as { id?: string } | undefined)?.id ===
+        SAMPLE_GOLDEN_PATH.crmProposalId
+    );
+    expect(taskProposal).toMatchObject({
+      meetingId: 'canonical-hendricks-meeting',
+      kind: 'action-update-proposal',
+      schemaVersion: 2,
+      sourceRefs: expect.arrayContaining([SAMPLE_GOLDEN_PATH.crmSourceRef]),
+      payload: {
+        proposal: expect.objectContaining({
+          id: SAMPLE_GOLDEN_PATH.taskProposalId,
+          kind: 'task',
+          transcriptRef: `transcript:${SAMPLE_GOLDEN_PATH.eventId}`,
+        }),
+      },
+    });
+    expect(crmProposal).toMatchObject({
+      meetingId: 'canonical-hendricks-meeting',
+      kind: 'action-update-proposal',
+      schemaVersion: 2,
+      sourceRefs: expect.arrayContaining([SAMPLE_GOLDEN_PATH.crmSourceRef]),
+      payload: {
+        proposal: expect.objectContaining({
+          id: SAMPLE_GOLDEN_PATH.crmProposalId,
+          kind: 'crm-update',
+          entityRef: SAMPLE_GOLDEN_PATH.crmHouseholdKey,
+          fields: [
+            expect.objectContaining({
+              field: 'nextReviewDate',
+              before: '2026-07-02',
+              proposed: '2026-10-01',
+            }),
+          ],
+        }),
+      },
+    });
+    expect(writeReviewArtifact).toHaveBeenCalledTimes(4);
+    expect(useCrmWriteQueueStore.getState().items).toEqual([]);
+    expect(
+      proposals.every(
+        (proposal) => !('decision' in proposal) && !('delivery' in proposal)
+      )
+    ).toBe(true);
     expect(SAMPLE_GOLDEN_PATH).toMatchObject({
       completedEventId: meeting.calendarEvent.id,
       briefEventId: meeting.calendarEvent.id,
@@ -224,10 +306,14 @@ describe('seedSampleGoldenPath', () => {
     expect(useMatterStore.getState().matters[0]?.crmHouseholdKeys).toEqual([
       SAMPLE_GOLDEN_PATH.crmHouseholdKey,
     ]);
-    expect((await population.findByReference(SAMPLE_GOLDEN_PATH.crmSourceRef))).toMatchObject({
+    expect(
+      await population.findByReference(SAMPLE_GOLDEN_PATH.crmSourceRef)
+    ).toMatchObject({
       state: 'completed',
       ownerRef: null,
-      legacyLink: { meetingDir: `Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}` },
+      legacyLink: {
+        meetingDir: `Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}`,
+      },
     });
   });
 
@@ -236,41 +322,72 @@ describe('seedSampleGoldenPath', () => {
     const population = samplePopulation();
     ensureSampleHendricksCrmLink(matterId);
     const path = `${workspaceRoot}/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}/meeting.json`;
-    await workspace.writeFile(path, JSON.stringify({
-      meetingFileVisibility: {
-        version: 1,
-        meetingSubject: {
-          id: 'private-note', kind: 'meeting-note', lineage: 'root',
-          ownerRef: 'advisor-a', visibilityPolicyId: 'meeting-file-visibility:owner-private',
+    await workspace.writeFile(
+      path,
+      JSON.stringify({
+        meetingFileVisibility: {
+          version: 1,
+          meetingSubject: {
+            id: 'private-note',
+            kind: 'meeting-note',
+            lineage: 'root',
+            ownerRef: 'advisor-a',
+            visibilityPolicyId: 'meeting-file-visibility:owner-private',
+          },
+          files: {
+            'notes.docx': {
+              id: 'private-note:file:notes.docx',
+              kind: 'file-reference',
+              lineage: 'derived',
+              parentRef: { id: 'private-note', kind: 'meeting-note' },
+            },
+          },
         },
-        files: {
-          'notes.docx': { id: 'private-note:file:notes.docx', kind: 'file-reference', lineage: 'derived', parentRef: { id: 'private-note', kind: 'meeting-note' } },
-        },
-      },
-    }));
+      })
+    );
 
-    await seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary);
+    await seedSampleGoldenPath(
+      workspace as unknown as WorkspaceService,
+      workspaceRoot,
+      matterId,
+      population,
+      sampleBoundary,
+      writeReviewArtifact
+    );
 
-    const manifest = JSON.parse(await workspace.readFile(path)).meetingFileVisibility;
+    const manifest = JSON.parse(
+      await workspace.readFile(path)
+    ).meetingFileVisibility;
     expect(manifest).toMatchObject({
       meetingSubject: { ownerRef: 'advisor-a' },
     });
-    expect(decideMeetingFileVisibility({
-      manifest,
-      fileName: 'notes.docx',
-      context: { viewerId: null, policies: [FILE_MEETING_OWNER_PRIVATE_POLICY] },
-    })).toBe(false);
-    expect(decideMeetingFileVisibility({
-      manifest,
-      fileName: 'notes.docx',
-      context: { viewerId: 'advisor-b', policies: [FILE_MEETING_OWNER_PRIVATE_POLICY] },
-    })).toBe(false);
+    expect(
+      decideMeetingFileVisibility({
+        manifest,
+        fileName: 'notes.docx',
+        context: {
+          viewerId: null,
+          policies: [FILE_MEETING_OWNER_PRIVATE_POLICY],
+        },
+      })
+    ).toBe(false);
+    expect(
+      decideMeetingFileVisibility({
+        manifest,
+        fileName: 'notes.docx',
+        context: {
+          viewerId: 'advisor-b',
+          policies: [FILE_MEETING_OWNER_PRIVATE_POLICY],
+        },
+      })
+    ).toBe(false);
   });
 
   it('writes no sample files when canonical creation fails', async () => {
     const workspace = new InMemoryWorkspace();
     const population = samplePopulation();
-    const operation = population.captureActiveClientOperationForBoundary(sampleBoundary);
+    const operation =
+      population.captureActiveClientOperationForBoundary(sampleBoundary);
     population.captureActiveClientOperationForBoundary = () => ({
       ...operation,
       createForActiveClient: async () => {
@@ -284,7 +401,8 @@ describe('seedSampleGoldenPath', () => {
         workspaceRoot,
         matterId,
         population,
-        sampleBoundary
+        sampleBoundary,
+        writeReviewArtifact
       )
     ).rejects.toThrow('canonical create failed');
 
@@ -297,7 +415,8 @@ describe('seedSampleGoldenPath', () => {
   it('keeps a persisted draft and finishes exactly one meeting after a link retry', async () => {
     const workspace = new InMemoryWorkspace();
     const population = samplePopulation();
-    const operation = population.captureActiveClientOperationForBoundary(sampleBoundary);
+    const operation =
+      population.captureActiveClientOperationForBoundary(sampleBoundary);
     const create = vi.fn(operation.createForActiveClient);
     const link = vi.fn(operation.linkLegacy);
     link.mockImplementationOnce(async () => {
@@ -310,7 +429,14 @@ describe('seedSampleGoldenPath', () => {
     });
 
     await expect(
-      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary)
+      seedSampleGoldenPath(
+        workspace as unknown as WorkspaceService,
+        workspaceRoot,
+        matterId,
+        population,
+        sampleBoundary,
+        writeReviewArtifact
+      )
     ).rejects.toThrow('legacy link failed');
     expect(create).toHaveBeenCalledTimes(1);
 
@@ -319,7 +445,8 @@ describe('seedSampleGoldenPath', () => {
       workspaceRoot,
       matterId,
       population,
-      sampleBoundary
+      sampleBoundary,
+      writeReviewArtifact
     );
     expect(create).toHaveBeenCalledTimes(1);
     expect(link).toHaveBeenCalledTimes(2);
@@ -343,21 +470,37 @@ describe('seedSampleGoldenPath', () => {
       label: 'legacy unrestricted',
       visibility: {
         version: 1,
-        meetingSubject: { id: 'legacy', kind: 'meeting-note', lineage: 'legacy-unrestricted' },
+        meetingSubject: {
+          id: 'legacy',
+          kind: 'meeting-note',
+          lineage: 'legacy-unrestricted',
+        },
         files: {},
       },
     },
-  ])('refuses $label visibility without broadening it', async ({ visibility }) => {
-    const workspace = new InMemoryWorkspace();
-    const population = samplePopulation();
-    const path = `${workspaceRoot}/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}/meeting.json`;
-    const original = JSON.stringify({ meetingFileVisibility: visibility });
-    await workspace.writeFile(path, original);
+  ])(
+    'refuses $label visibility without broadening it',
+    async ({ visibility }) => {
+      const workspace = new InMemoryWorkspace();
+      const population = samplePopulation();
+      const path = `${workspaceRoot}/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}/meeting.json`;
+      const original = JSON.stringify({ meetingFileVisibility: visibility });
+      await workspace.writeFile(path, original);
 
-    await expect(
-      seedSampleGoldenPath(workspace as unknown as WorkspaceService, workspaceRoot, matterId, population, sampleBoundary)
-    ).rejects.toThrow('could not be recovered safely');
-    expect(await workspace.readFile(path)).toBe(original);
-    expect(await population.findByReference(SAMPLE_GOLDEN_PATH.crmSourceRef)).toBeUndefined();
-  });
+      await expect(
+        seedSampleGoldenPath(
+          workspace as unknown as WorkspaceService,
+          workspaceRoot,
+          matterId,
+          population,
+          sampleBoundary,
+          writeReviewArtifact
+        )
+      ).rejects.toThrow('could not be recovered safely');
+      expect(await workspace.readFile(path)).toBe(original);
+      expect(
+        await population.findByReference(SAMPLE_GOLDEN_PATH.crmSourceRef)
+      ).toBeUndefined();
+    }
+  );
 });

@@ -5,7 +5,14 @@
  * where AI proposes and the user approves all destructive actions.
  */
 
-import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { workspacePath } from '@/platform/fs/appPath';
 import {
@@ -53,6 +60,8 @@ import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
 import {
   readActiveMeetingClientBoundary,
+  useMeetingArtifactStore,
+  useMeetingFoundationStore,
   useMeetingPopulationService,
   type SealedMeetingClientBoundary,
 } from '@/features/meetings/foundation/contract';
@@ -122,6 +131,7 @@ import { seedSampleClientMap } from '@/platform/matter/samples/sampleClientMap';
 import {
   ensureSampleHendricksCrmLink,
   seedSampleGoldenPath,
+  type SampleReviewArtifactWriter,
 } from '@/features/onboarding/seedSampleGoldenPath';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 import type {
@@ -132,10 +142,7 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
-import {
-  setAuditWriteEmitter,
-  type AuditWriteEntry,
-} from '@/features/audit';
+import { setAuditWriteEmitter, type AuditWriteEntry } from '@/features/audit';
 import { setEmailAuditEmitter } from '@/features/email/EmailViewer';
 import { setIntakeNudgeAuditEmitter } from '@/platform/intake/nudgeAudit';
 import { setIntakeEmailReplyAuditEmitter } from '@/platform/intake/emailReplyAudit';
@@ -311,7 +318,43 @@ function App() {
 
 function AppShell() {
   const { t } = useTranslation();
+  const sampleMeetingArtifacts = useMeetingArtifactStore();
+  const sampleMeetingFoundation = useMeetingFoundationStore();
   const sampleMeetingPopulation = useMeetingPopulationService();
+  const writeSampleReviewArtifact = useCallback(
+    async (artifact: Parameters<SampleReviewArtifactWriter>[0]) => {
+      const boundary = readActiveMeetingClientBoundary();
+      if (!boundary)
+        throw new Error(
+          'Choose the Hendricks sample client before creating review proposals.'
+        );
+      const reader = sampleMeetingArtifacts.readerFor(
+        sampleMeetingFoundation,
+        boundary,
+        [{ kind: 'action-update-proposal', minimumSchemaVersion: 2 }]
+      );
+      const proposal = artifact.payload['proposal'];
+      const proposalId =
+        proposal && typeof proposal === 'object' && !Array.isArray(proposal)
+          ? (proposal as { id?: unknown })['id']
+          : null;
+      if (typeof proposalId !== 'string' || !proposalId.trim())
+        throw new Error('The Hendricks sample review proposal is malformed.');
+      const exists = reader
+        .listForMeeting(artifact.meetingId, ['action-update-proposal'])
+        .some((existing) => {
+          const existingProposal = existing.payload['proposal'];
+          return (
+            existingProposal &&
+            typeof existingProposal === 'object' &&
+            !Array.isArray(existingProposal) &&
+            (existingProposal as { id?: unknown })['id'] === proposalId
+          );
+        });
+      if (!exists) await sampleMeetingArtifacts.append(artifact);
+    },
+    [sampleMeetingArtifacts, sampleMeetingFoundation]
+  );
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
     !IS_TEST_MODE && !IS_DEMO_MODE
   );
@@ -389,7 +432,9 @@ function AppShell() {
   const [explicitWorkspaceForFirstRun, setExplicitWorkspaceForFirstRun] =
     useState<string | null>(null);
   const recentWorkspacesAtLaunch = useWorkspaceStore((s) => s.recentWorkspaces);
-  const recentWorkspacesLoadedAtLaunch = useWorkspaceStore((s) => s.recentWorkspacesLoaded);
+  const recentWorkspacesLoadedAtLaunch = useWorkspaceStore(
+    (s) => s.recentWorkspacesLoaded
+  );
 
   // ConnectorSourcePanels is only rendered (and its chunk fetched) once a
   // connector citation is actually clicked — rendering it unconditionally,
@@ -424,13 +469,16 @@ function AppShell() {
         noRecentWorkspaces: recentWorkspacesAtLaunch.length === 0,
         isTestMode: IS_TEST_MODE,
         isDemoMode: IS_DEMO_MODE,
-      }) ? EXPLICIT_LAUNCH_WORKSPACE : null,
+      })
+        ? EXPLICIT_LAUNCH_WORKSPACE
+        : null
     );
     setExplicitLaunchDecisionComplete(true);
   }, [recentWorkspacesLoadedAtLaunch, recentWorkspacesAtLaunch.length]);
 
   useEffect(() => {
-    if (!recentWorkspacesLoadedAtLaunch || !explicitLaunchDecisionComplete) return;
+    if (!recentWorkspacesLoadedAtLaunch || !explicitLaunchDecisionComplete)
+      return;
     // Mount the wizard after a tiny delay so the workspace selector gets to
     // render first — the wizard then layers over it as a full-screen overlay,
     // honoring the existing path-input vs file-picker flow underneath.
@@ -450,7 +498,12 @@ function AppShell() {
       return () => clearTimeout(id);
     }
     return undefined;
-  }, [recentWorkspacesLoadedAtLaunch, explicitLaunchDecisionComplete, recentWorkspacesAtLaunch.length, explicitWorkspaceForFirstRun]);
+  }, [
+    recentWorkspacesLoadedAtLaunch,
+    explicitLaunchDecisionComplete,
+    recentWorkspacesAtLaunch.length,
+    explicitWorkspaceForFirstRun,
+  ]);
 
   // v1.6: auto-show feature tour on first launch (post-first-run wizard) once
   // the sidebar testids exist in the DOM. Persistent flag stops re-triggering.
@@ -472,7 +525,12 @@ function AppShell() {
     if (showFirstRun) return;
     const timeoutId = setTimeout(() => setTourOpen(true), 800);
     return () => clearTimeout(timeoutId);
-  }, [FORCE_TOUR, featureTour.shouldAutoShow, showFirstRun, explicitWorkspaceForFirstRun]);
+  }, [
+    FORCE_TOUR,
+    featureTour.shouldAutoShow,
+    showFirstRun,
+    explicitWorkspaceForFirstRun,
+  ]);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
 
@@ -497,8 +555,7 @@ function AppShell() {
   );
 
   // D11: Home is the landing surface; Clients and Ask are the other two tabs.
-  const [sidebarActiveTab, setSidebarActiveTab] =
-    useState<AppSurface>('home');
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<AppSurface>('home');
   const [settingsPageFocus, setSettingsPageFocus] = useState<{
     category?: SettingCategory;
     key: number;
@@ -509,7 +566,9 @@ function AppShell() {
   const activeMatterId = selectionPresentation.matterId;
   const matters = useMatters();
   const activeMatter = activeMatterId
-    ? matters.find((matter) => matter.id === activeMatterId && !matter.archived) ?? null
+    ? (matters.find(
+        (matter) => matter.id === activeMatterId && !matter.archived
+      ) ?? null)
     : null;
   const requestedNetworkLockdown = usePrivilegedMatterModeActive();
   const enforcedNetworkLockdown = useNativeNetworkLockdownBridgeState();
@@ -697,7 +756,9 @@ function AppShell() {
       switch (safeSnapshot.selectionScope.kind) {
         case 'matter':
         case 'matter-only':
-          return issueMatterScopeSelection(safeSnapshot.selectionScope.matterId);
+          return issueMatterScopeSelection(
+            safeSnapshot.selectionScope.matterId
+          );
         case 'all-matters':
           return issueAllMattersScopeSelection();
         case 'blocked-unresolved':
@@ -1321,7 +1382,10 @@ function AppShell() {
     confirm,
   });
 
-  useEffect(() => registerFirmWorkspaceSwitcher(handleWorkspaceSelected), [handleWorkspaceSelected]);
+  useEffect(
+    () => registerFirmWorkspaceSwitcher(handleWorkspaceSelected),
+    [handleWorkspaceSelected]
+  );
 
   // The onboarding callback opens a workspace before React can rebuild the
   // live CRM adapter. Delay the canonical meeting write until this render: the
@@ -1341,7 +1405,8 @@ function AppShell() {
       pendingSampleMeetingSeed.root,
       pendingSampleMeetingSeed.matterId,
       sampleMeetingPopulation,
-      pendingSampleMeetingSeed.boundary
+      pendingSampleMeetingSeed.boundary,
+      writeSampleReviewArtifact
     )
       .then(() => {
         setSampleMeetingSeedFailure(null);
@@ -1351,7 +1416,10 @@ function AppShell() {
           seedErr instanceof Error
             ? seedErr.message
             : 'The sample meeting could not be created safely.';
-        console.warn('[onboarding] sample golden-path seeding failed:', seedErr);
+        console.warn(
+          '[onboarding] sample golden-path seeding failed:',
+          seedErr
+        );
         setSampleMeetingSeedFailure({
           ...pendingSampleMeetingSeed,
           message,
@@ -1367,7 +1435,12 @@ function AppShell() {
             : pending
         );
       });
-  }, [pendingSampleMeetingSeed, rootPath, sampleMeetingPopulation]);
+  }, [
+    pendingSampleMeetingSeed,
+    rootPath,
+    sampleMeetingPopulation,
+    writeSampleReviewArtifact,
+  ]);
 
   const retrySampleMeetingSeed = useCallback(() => {
     if (!sampleMeetingSeedFailure) return;
@@ -1523,7 +1596,9 @@ function AppShell() {
                 ? await createFSBackend(chosen, { createIfMissing: true })
                 : backend;
               if (!selectedBackend) {
-                throw new Error('Could not prepare the selected workspace folder.');
+                throw new Error(
+                  'Could not prepare the selected workspace folder.'
+                );
               }
               const candidate = createWorkspaceService();
               await candidate.initialize(selectedBackend, chosen, {
@@ -1534,7 +1609,7 @@ function AppShell() {
               return candidate;
             })(),
             ONBOARDING_WORKSPACE_OPEN_TIMEOUT_MS,
-            ONBOARDING_WORKSPACE_OPEN_LABEL,
+            ONBOARDING_WORKSPACE_OPEN_LABEL
           );
           // Wire the workspace into the app (sets rootPath, audit, file tree...).
           // The handler can abort (unsaved-changes guard on an already-open
@@ -1595,7 +1670,9 @@ function AppShell() {
             })
           );
           if (selected.kind !== 'selected') {
-            throw new Error('The Hendricks sample client could not be selected safely.');
+            throw new Error(
+              'The Hendricks sample client could not be selected safely.'
+            );
           }
           await new Promise<void>((resolve) => setTimeout(resolve, 0));
           const readySelection = readSelectionOperationDecision({
@@ -1608,7 +1685,9 @@ function AppShell() {
             readySelection.matter.id !== matter.id ||
             readySelection.client?.householdId !== 'sample-hendricks-household'
           ) {
-            throw new Error('The Hendricks sample client is not ready yet. Try again.');
+            throw new Error(
+              'The Hendricks sample client is not ready yet. Try again.'
+            );
           }
           const boundary = readActiveMeetingClientBoundary();
           if (
@@ -1617,9 +1696,16 @@ function AppShell() {
             boundary.householdRef !== 'sample-hendricks-household' ||
             boundary.selectionGeneration !== readySelection.selectionGeneration
           ) {
-            throw new Error('The Hendricks sample client is not ready yet. Try again.');
+            throw new Error(
+              'The Hendricks sample client is not ready yet. Try again.'
+            );
           }
-          setPendingSampleMeetingSeed({ matterId: matter.id, root, service, boundary });
+          setPendingSampleMeetingSeed({
+            matterId: matter.id,
+            root,
+            service,
+            boundary,
+          });
           setSidebarActiveTab('matters');
           // NB: the setup-progress Client Map count intentionally EXCLUDES sample
           // matters (see computeClientMapProgress), so we don't try to report the
@@ -1703,7 +1789,8 @@ function AppShell() {
     },
     openSettings,
     openSettingsPage,
-    isAppShellAvailable: Boolean(rootPath) && !showWorkspaceSelector && !showFirstRun,
+    isAppShellAvailable:
+      Boolean(rootPath) && !showWorkspaceSelector && !showFirstRun,
     setSidebarActiveTab,
     setDocumentsView,
     setAskPrefill,
@@ -1828,25 +1915,18 @@ function AppShell() {
           ? { userDecision: entry.userDecision }
           : {}),
         metadata: entry.metadata,
-        ...(entry.tokensIn !== undefined
-          ? { tokensIn: entry.tokensIn }
-          : {}),
+        ...(entry.tokensIn !== undefined ? { tokensIn: entry.tokensIn } : {}),
         ...(entry.tokensOut !== undefined
           ? { tokensOut: entry.tokensOut }
           : {}),
         ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
-        ...(entry.provider !== undefined
-          ? { provider: entry.provider }
-          : {}),
+        ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
       };
-      if (
-        requirePersistence ||
-        entry.metadata['auditMustPersist'] === true
-      ) {
+      if (requirePersistence || entry.metadata['auditMustPersist'] === true) {
         const newEntry = await auditServiceRef.current.mustLogDurable(
           entry.action,
           entry.description,
-          options,
+          options
         );
         setAuditEntries((prev) => [newEntry, ...prev]);
         try {
@@ -1886,8 +1966,7 @@ function AppShell() {
   // separate from addAuditEntry's default pending behavior so existing
   // callbacks remain unchanged.
   const addDurableAuditEntry = useCallback(
-    (entry: AuditWriteEntry): Promise<AuditEntry> =>
-      addAuditEntry(entry, true),
+    (entry: AuditWriteEntry): Promise<AuditEntry> => addAuditEntry(entry, true),
     [addAuditEntry]
   );
 
@@ -2434,11 +2513,21 @@ function AppShell() {
               />
             )}
             {sampleMeetingSeedFailure && (
-              <div role="alert" data-testid="sample-meeting-seed-error" className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+              <div
+                role="alert"
+                data-testid="sample-meeting-seed-error"
+                className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-sm text-destructive"
+              >
                 <span data-testid="sample-meeting-seed-error-message">
-                  The sample meeting is not ready yet. {sampleMeetingSeedFailure.message}
+                  The sample meeting is not ready yet.{' '}
+                  {sampleMeetingSeedFailure.message}
                 </span>
-                <button type="button" data-testid="sample-meeting-seed-retry" onClick={retrySampleMeetingSeed} className="underline underline-offset-2">
+                <button
+                  type="button"
+                  data-testid="sample-meeting-seed-retry"
+                  onClick={retrySampleMeetingSeed}
+                  className="underline underline-offset-2"
+                >
                   Retry sample setup
                 </button>
               </div>
@@ -2460,163 +2549,180 @@ function AppShell() {
         }
         legacy={
           <>
-      {/* Accessibility: skip link so keyboard users can bypass the nav */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:rounded focus:bg-background focus:text-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
-      >
-        Skip to main content
-      </a>
-      {/* QA-33: a failed "open a different recent project" (or a failed
+            {/* Accessibility: skip link so keyboard users can bypass the nav */}
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:rounded focus:bg-background focus:text-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              Skip to main content
+            </a>
+            {/* QA-33: a failed "open a different recent project" (or a failed
           silent boot-time reopen that fell through to the ALREADY-open
           workspace's UI, not the picker) must never be silent. The current
           workspace is untouched either way, so this is purely informational. */}
-      {workspaceOpenError && (
-        <InlineErrorBanner
-          message={workspaceOpenError}
-          onDismiss={dismissWorkspaceOpenError}
-        />
-      )}
-      {/* QA-33: useApiKeys already degrades gracefully when the OS credential
+            {workspaceOpenError && (
+              <InlineErrorBanner
+                message={workspaceOpenError}
+                onDismiss={dismissWorkspaceOpenError}
+              />
+            )}
+            {/* QA-33: useApiKeys already degrades gracefully when the OS credential
           service is unavailable (falls back to the last known-good key, never
           blocks/crashes) — but that was entirely silent, so a user had no way
           to tell "no AI features right now" apart from "I never set up a key".
           Documents are unaffected either way, hence purely informational. */}
-      {credentialServiceUnavailable && !credentialBannerDismissed && (
-        <InlineErrorBanner
-          message={t('settings.api-keys.credential-service-unavailable')}
-          onDismiss={() => {
-            setCredentialBannerDismissed(true);
-          }}
-        />
-      )}
-      {sampleMeetingSeedFailure && (
-        <div role="alert" data-testid="sample-meeting-seed-error" className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-sm text-destructive">
-          <span data-testid="sample-meeting-seed-error-message">
-            The sample meeting is not ready yet. {sampleMeetingSeedFailure.message}
-          </span>
-          <button type="button" data-testid="sample-meeting-seed-retry" onClick={retrySampleMeetingSeed} className="underline underline-offset-2">
-            Retry sample setup
-          </button>
-        </div>
-      )}
-      {/* Header bar */}
-      <header
-        className="flex items-center gap-3 h-14 px-3 border-b bg-background shrink-0"
-        data-testid="app-header"
-      >
-        <AppLogo variant="dark" height={30} className="shrink-0" />
-        <TrustBar inline onOpenAiSettings={() => openSettingsPage('ai')} />
-        <div className="flex items-center gap-2 shrink-0">
-          {/* The gear opens the full-page Settings screen, which nests Privacy
+            {credentialServiceUnavailable && !credentialBannerDismissed && (
+              <InlineErrorBanner
+                message={t('settings.api-keys.credential-service-unavailable')}
+                onDismiss={() => {
+                  setCredentialBannerDismissed(true);
+                }}
+              />
+            )}
+            {sampleMeetingSeedFailure && (
+              <div
+                role="alert"
+                data-testid="sample-meeting-seed-error"
+                className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-sm text-destructive"
+              >
+                <span data-testid="sample-meeting-seed-error-message">
+                  The sample meeting is not ready yet.{' '}
+                  {sampleMeetingSeedFailure.message}
+                </span>
+                <button
+                  type="button"
+                  data-testid="sample-meeting-seed-retry"
+                  onClick={retrySampleMeetingSeed}
+                  className="underline underline-offset-2"
+                >
+                  Retry sample setup
+                </button>
+              </div>
+            )}
+            {/* Header bar */}
+            <header
+              className="flex items-center gap-3 h-14 px-3 border-b bg-background shrink-0"
+              data-testid="app-header"
+            >
+              <AppLogo variant="dark" height={30} className="shrink-0" />
+              <TrustBar
+                inline
+                onOpenAiSettings={() => openSettingsPage('ai')}
+              />
+              <div className="flex items-center gap-2 shrink-0">
+                {/* The gear opens the full-page Settings screen, which nests Privacy
               Center + Activity Log as sections (see AppSurfaceRouter). The
               egress controls stay in the TrustBar; Email + Documents stay
               reachable from the Client Map's per-client quick actions. */}
-          <IconButton
-            icon={schedulingSurface.icon}
-            label={t(schedulingSurface.labelKey)}
-            size="sm"
-            variant={
-              sidebarActiveTab === schedulingSurface.id ? 'secondary' : 'ghost'
-            }
-            aria-current={
-              sidebarActiveTab === schedulingSurface.id ? 'page' : undefined
-            }
-            data-testid="scheduling-topbar-button"
-            onClick={openSchedulingPage}
-          />
-          <SettingsGearButton
-            active={sidebarActiveTab === settingsSurface.id}
-            onOpenSettings={() => {
-              openSettingsPage();
-            }}
-          />
-          <Button
-            data-testid="command-palette-button"
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 px-0 text-muted-foreground"
-            onClick={() => setShowCommandPalette(true)}
-            title={t('common.command-palette.open')}
-            aria-label={t('common.command-palette.open')}
-          >
-            <Command className="h-3 w-3" />
-          </Button>
-        </div>
-      </header>
+                <IconButton
+                  icon={schedulingSurface.icon}
+                  label={t(schedulingSurface.labelKey)}
+                  size="sm"
+                  variant={
+                    sidebarActiveTab === schedulingSurface.id
+                      ? 'secondary'
+                      : 'ghost'
+                  }
+                  aria-current={
+                    sidebarActiveTab === schedulingSurface.id
+                      ? 'page'
+                      : undefined
+                  }
+                  data-testid="scheduling-topbar-button"
+                  onClick={openSchedulingPage}
+                />
+                <SettingsGearButton
+                  active={sidebarActiveTab === settingsSurface.id}
+                  onOpenSettings={() => {
+                    openSettingsPage();
+                  }}
+                />
+                <Button
+                  data-testid="command-palette-button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 px-0 text-muted-foreground"
+                  onClick={() => setShowCommandPalette(true)}
+                  title={t('common.command-palette.open')}
+                  aria-label={t('common.command-palette.open')}
+                >
+                  <Command className="h-3 w-3" />
+                </Button>
+              </div>
+            </header>
 
-      {/* Memory: model download + live indexing progress banners. Each
+            {/* Memory: model download + live indexing progress banners. Each
           renders only while its work is in flight (one-time embedding-model
           download / workspace indexer running, or briefly after it
           completes); otherwise it returns null and adds zero layout. */}
-      <ModelDownloadCard />
-      <LocalAiDownloadCard />
-      <RagProgressBanner />
-      {/* QA-44: shows when a privilege / client scope change has not yet
+            <ModelDownloadCard />
+            <LocalAiDownloadCard />
+            <RagProgressBanner />
+            {/* QA-44: shows when a privilege / client scope change has not yet
           applied to search (renders null otherwise). */}
-      <ScopeUpdateBanner />
+            <ScopeUpdateBanner />
 
-      {/* Trial countdown banner — only renders during the final week of
+            {/* Trial countdown banner — only renders during the final week of
           the free trial (or once expired) and when no license is active.
           Otherwise null and zero layout. */}
-      <TrialBanner onActivate={() => openSettings('license')} />
+            <TrialBanner onActivate={() => openSettings('license')} />
 
-      {/* Main content area — a real <main> landmark and a focus target so the
+            {/* Main content area — a real <main> landmark and a focus target so the
           "Skip to main content" link moves keyboard focus here, not just scrolls
           (acc-06). tabIndex={-1} makes the non-interactive region focusable. */}
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="flex-1 flex overflow-hidden"
-      >
-        {/* Sidebar with file tree, workflows, research, and settings */}
-        <AppShellNav
-          activeTab={sidebarActiveTab}
-          onTabChange={(tab: string) => {
-            if (tab !== sidebarActiveTab) {
-              pushNavigationSnapshot();
-            }
-            // Any click to 'files' in the spine nav lands on the Files browser,
-            // even if a document was the last thing open. This is the user
-            // clicking the nav (vs a file being opened programmatically), so it
-            // always means "show me my files".
-            if (tab === 'files') {
-              setDocumentsView('browser');
-            }
-            if (tab === 'matters') {
-              const matterState = useMatterStore.getState();
-              const selection = readSelectionPresentation();
-              if (selection.matterId) {
-                setMattersSurfaceMode('client-map');
-                matterState.setClientMapHubId(selection.matterId);
-                matterState.setClientMapHubTab('overview');
-              } else {
-                setMattersSurfaceMode('all-clients');
-                matterState.setClientMapHubId(null);
-                matterState.setClientMapHubTab(null);
-              }
-            }
-            setSidebarActiveTab(tab as typeof sidebarActiveTab);
-          }}
-          onAllClientsSelect={() => {
-            if (
-              sidebarActiveTab !== 'matters' ||
-              mattersSurfaceMode !== 'all-clients'
-            ) {
-              pushNavigationSnapshot();
-            }
-            setMattersSurfaceMode('all-clients');
-            setSidebarActiveTab('matters');
-          }}
-          allClientsSelected={
-            sidebarActiveTab === 'matters' &&
-            mattersSurfaceMode === 'all-clients'
-          }
-          collapsed={sidebarCollapsed}
-          onCollapsedChange={setSidebarCollapsed}
-        />
+            <main
+              id="main-content"
+              tabIndex={-1}
+              className="flex-1 flex overflow-hidden"
+            >
+              {/* Sidebar with file tree, workflows, research, and settings */}
+              <AppShellNav
+                activeTab={sidebarActiveTab}
+                onTabChange={(tab: string) => {
+                  if (tab !== sidebarActiveTab) {
+                    pushNavigationSnapshot();
+                  }
+                  // Any click to 'files' in the spine nav lands on the Files browser,
+                  // even if a document was the last thing open. This is the user
+                  // clicking the nav (vs a file being opened programmatically), so it
+                  // always means "show me my files".
+                  if (tab === 'files') {
+                    setDocumentsView('browser');
+                  }
+                  if (tab === 'matters') {
+                    const matterState = useMatterStore.getState();
+                    const selection = readSelectionPresentation();
+                    if (selection.matterId) {
+                      setMattersSurfaceMode('client-map');
+                      matterState.setClientMapHubId(selection.matterId);
+                      matterState.setClientMapHubTab('overview');
+                    } else {
+                      setMattersSurfaceMode('all-clients');
+                      matterState.setClientMapHubId(null);
+                      matterState.setClientMapHubTab(null);
+                    }
+                  }
+                  setSidebarActiveTab(tab as typeof sidebarActiveTab);
+                }}
+                onAllClientsSelect={() => {
+                  if (
+                    sidebarActiveTab !== 'matters' ||
+                    mattersSurfaceMode !== 'all-clients'
+                  ) {
+                    pushNavigationSnapshot();
+                  }
+                  setMattersSurfaceMode('all-clients');
+                  setSidebarActiveTab('matters');
+                }}
+                allClientsSelected={
+                  sidebarActiveTab === 'matters' &&
+                  mattersSurfaceMode === 'all-clients'
+                }
+                collapsed={sidebarCollapsed}
+                onCollapsedChange={setSidebarCollapsed}
+              />
 
-        {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email).
+              {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email).
             Wrapped in a top-level error boundary, deliberately OUTSIDE AppShellNav
             above: a render error from ANY surface here (CrmHome, ClientsSurface,
             CrmAskSurface, AssociateHome, SchedulingHome, ...) is caught right here
@@ -2625,12 +2731,12 @@ function AppShell() {
             fix/sidebar-blank-after-ask). Because AppShellNav is a sibling, not a
             descendant, of this boundary, it is never part of the crashed subtree
             and stays mounted and clickable no matter which surface throws. */}
-        <ErrorBoundary label="Workspace">
-          <AppSurfaceRuntimeProvider value={appSurfaceCapabilities}>
-            <AppSurfaceRouter sidebarActiveTab={sidebarActiveTab} />
-          </AppSurfaceRuntimeProvider>
-        </ErrorBoundary>
-      </main>
+              <ErrorBoundary label="Workspace">
+                <AppSurfaceRuntimeProvider value={appSurfaceCapabilities}>
+                  <AppSurfaceRouter sidebarActiveTab={sidebarActiveTab} />
+                </AppSurfaceRuntimeProvider>
+              </ErrorBoundary>
+            </main>
           </>
         }
       >
