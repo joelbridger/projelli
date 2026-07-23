@@ -55,6 +55,30 @@ pub(super) struct VerifiedCredentialBinding {
     generation: CredentialGeneration,
 }
 
+/// A native-only borrow of one exact credential generation. Provider adapters
+/// may consume the binding through this lease, but cannot construct a lease
+/// from renderer, account, or legacy connector values.
+#[derive(Debug)]
+pub(super) struct VerifiedCredentialLease {
+    binding: VerifiedCredentialBinding,
+}
+
+impl VerifiedCredentialLease {
+    pub(super) fn binding_for(
+        &self,
+        provider: M4CredentialProvider,
+    ) -> Result<&VerifiedCredentialBinding> {
+        if self.binding.provider() != provider {
+            bail!("credential lease is bound to another provider")
+        }
+        Ok(&self.binding)
+    }
+
+    pub(super) fn provider(&self) -> M4CredentialProvider {
+        self.binding.provider()
+    }
+}
+
 impl VerifiedCredentialBinding {
     pub(super) fn provider(&self) -> M4CredentialProvider {
         self.provider
@@ -106,6 +130,17 @@ fn mint_from_native_credential_state(
     })
 }
 
+/// The future native credential lifecycle is the only production lease mint.
+fn lease_from_native_credential_state(
+    provider: M4CredentialProvider,
+    provider_subject: String,
+    generation: u64,
+) -> Result<VerifiedCredentialLease> {
+    Ok(VerifiedCredentialLease {
+        binding: mint_from_native_credential_state(provider, provider_subject, generation)?,
+    })
+}
+
 #[cfg(test)]
 pub(super) fn test_only_credential(
     provider: M4CredentialProvider,
@@ -113,6 +148,15 @@ pub(super) fn test_only_credential(
     generation: u64,
 ) -> VerifiedCredentialBinding {
     mint_from_native_credential_state(provider, subject.to_string(), generation).unwrap()
+}
+
+#[cfg(test)]
+pub(super) fn test_only_credential_lease(
+    provider: M4CredentialProvider,
+    subject: &str,
+    generation: u64,
+) -> Result<VerifiedCredentialLease> {
+    lease_from_native_credential_state(provider, subject.to_string(), generation)
 }
 
 #[cfg(test)]

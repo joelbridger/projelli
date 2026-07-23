@@ -8,7 +8,9 @@ use rusqlite::{params, OptionalExtension, Transaction};
 use crate::commands::{
     crm::core_store::CrmCoreStore,
     mail::{
-        verified_m4_credentials::{M4CredentialProvider, VerifiedCredentialBinding},
+        verified_m4_credentials::{
+            M4CredentialProvider, VerifiedCredentialBinding, VerifiedCredentialLease,
+        },
         verified_workspace_authority::VerifiedWorkspaceAuthority,
     },
 };
@@ -118,6 +120,10 @@ impl VerifiedMailboxRecord {
         MailboxState::from_db(&self.0.status)
     }
 
+    fn display_label(&self) -> &str {
+        &self.0.display_label
+    }
+
     fn matches_context(
         &self,
         workspace: &VerifiedWorkspaceAuthority,
@@ -148,6 +154,63 @@ impl VerifiedMailboxRecord {
 /// Provider siblings may carry this value but cannot construct it or inspect it.
 #[derive(Debug)]
 pub(super) struct VerifiedMailboxDispatchAuthorization(VerifiedMailboxRecord);
+
+/// Opaque final authorization for one provider-draft attempt. It exists only
+/// after the guard reloads current encrypted mailbox truth, and it preserves
+/// the native workspace and credential lease as borrows rather than values a
+/// mail sibling could manufacture.
+#[derive(Debug)]
+pub(super) struct M4AdapterAuthorization<'a> {
+    workspace: &'a VerifiedWorkspaceAuthority,
+    credential_lease: &'a VerifiedCredentialLease,
+    dispatch: VerifiedMailboxDispatchAuthorization,
+}
+
+impl M4AdapterAuthorization<'_> {
+    pub(super) fn provider(&self) -> Result<M4CredentialProvider> {
+        Ok(self.credential_lease.provider())
+    }
+
+    pub(super) fn workspace(&self) -> &VerifiedWorkspaceAuthority {
+        self.workspace
+    }
+
+    pub(super) fn credential_for(
+        &self,
+        provider: M4CredentialProvider,
+    ) -> Result<&VerifiedCredentialBinding> {
+        self.credential_lease.binding_for(provider)
+    }
+
+    pub(super) fn saved_draft_result(&self, draft_id: &str) -> Result<M4ProviderDraftResult> {
+        if draft_id.trim().is_empty() {
+            bail!("provider draft id is required")
+        }
+        Ok(M4ProviderDraftResult {
+            draft_id: draft_id.to_string(),
+            verified_mailbox_label: self.dispatch.0.display_label().to_string(),
+        })
+    }
+}
+
+/// The only successful provider-draft shape. It identifies a saved draft and
+/// the encrypted-current verified mailbox; it deliberately has no send field
+/// or action.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct M4ProviderDraftResult {
+    draft_id: String,
+    verified_mailbox_label: String,
+}
+
+impl M4ProviderDraftResult {
+    pub(super) fn draft_id(&self) -> &str {
+        &self.draft_id
+    }
+
+    pub(super) fn verified_mailbox_label(&self) -> &str {
+        &self.verified_mailbox_label
+    }
+}
 
 fn identity_column_names() -> &'static [&'static str] {
     &[
@@ -274,6 +337,27 @@ pub(super) fn pre_dispatch_guard(
             bail!("verified mailbox binding is no longer current")
         }
         Ok(VerifiedMailboxDispatchAuthorization(current))
+    })
+}
+
+/// Build the only adapter input after the current encrypted mailbox row has
+/// been reloaded and exactly matched against the sealed workspace and lease.
+pub(super) fn authorize_adapter_dispatch<'a>(
+    store: &CrmCoreStore,
+    workspace: &'a VerifiedWorkspaceAuthority,
+    credential_lease: &'a VerifiedCredentialLease,
+    expected: &VerifiedMailboxRecord,
+    resolved_address: &str,
+) -> Result<M4AdapterAuthorization<'a>> {
+    if !workspace.is_well_formed() {
+        bail!("native workspace authority is invalid")
+    }
+    let credential = credential_lease.binding_for(credential_lease.provider())?;
+    let dispatch = pre_dispatch_guard(store, workspace, credential, expected, resolved_address)?;
+    Ok(M4AdapterAuthorization {
+        workspace,
+        credential_lease,
+        dispatch,
     })
 }
 
