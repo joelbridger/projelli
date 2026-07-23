@@ -7,7 +7,11 @@ import { setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService'
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
 const meetingBoundaryMint = vi.hoisted(() => ({
-  selection: null as null | { householdRef: string; matterId: string },
+  selection: null as null | {
+    householdRef: string;
+    matterId: string;
+    selectionGeneration: number;
+  },
 }));
 
 vi.mock('@/platform/client-context', async (importOriginal) => {
@@ -28,6 +32,7 @@ vi.mock('@/platform/client-context', async (importOriginal) => {
               householdId: selection.householdRef,
               displayName: selection.householdRef,
             },
+            selectionGeneration: selection.selectionGeneration,
           }
         : actual.readSelectionOperationDecision(request);
     },
@@ -70,9 +75,10 @@ import {
 
 function sealedBoundary(
   householdRef: string,
-  matterId: string
+  matterId: string,
+  selectionGeneration = 1
 ): SealedMeetingClientBoundary {
-  meetingBoundaryMint.selection = { householdRef, matterId };
+  meetingBoundaryMint.selection = { householdRef, matterId, selectionGeneration };
   try {
     const boundary = readActiveMeetingClientBoundary();
     if (!boundary) throw new Error('expected live-authority meeting boundary');
@@ -202,6 +208,101 @@ const requirements: readonly MeetingArtifactRequirement[] = [
 ];
 
 describe('meetings foundation contract', () => {
+  it('preserves explicit accountless ownership through projection and updates', async () => {
+    const live = canonicalPort();
+    const meetings = createMeetingStore(live);
+    const created = await meetings.createDraft({ ...draft, ownerRef: null });
+    expect(created.ownerRef).toBeNull();
+    expect(live.readCanonical()[0]?.['ownerRef']).toBeNull();
+
+    const updated = await meetings.update(created.id, { timezone: 'UTC' });
+    expect(updated.ownerRef).toBeNull();
+    expect(live.readCanonical()[0]?.['ownerRef']).toBeNull();
+  });
+
+  it('rejects an A-to-B-to-A stale update before an additional write', async () => {
+    const live = canonicalPort();
+    let generation = 1;
+    const activeBoundary = () =>
+      sealedBoundary('household-1', 'matter-1', generation);
+    const creator = createMeetingStore({
+      ...live,
+      getActiveClientBoundary: activeBoundary,
+    });
+    const created = await creator.createDraft(draft);
+    live.commands.length = 0;
+    const held = createMeetingStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveClientBoundary: activeBoundary,
+      reloadRecords: async () => {
+        // The client came back to A, but only after B had been selected.
+        generation = 3;
+        return live.readCanonical();
+      },
+    });
+
+    await expect(held.update(created.id, { timezone: 'UTC' })).rejects.toThrow(
+      'client changed'
+    );
+    expect(live.commands).toEqual([]);
+  });
+
+  it('refuses an A-to-B-to-A change between population find and link before another write', async () => {
+    const live = canonicalPort();
+    let generation = 1;
+    const activeBoundary = () =>
+      sealedBoundary('household-1', 'matter-1', generation);
+    const created = await createMeetingStore({
+      ...live,
+      getActiveClientBoundary: activeBoundary,
+    }).createDraft(draft);
+    live.commands.length = 0;
+
+    const service = createMeetingPopulationService({
+      ...live,
+      records: live.readCanonical(),
+      getActiveClientBoundary: activeBoundary,
+      reloadRecords: async () => {
+        // The pair returns to A, but a new authority generation proves that
+        // this is not the selection captured by the population session.
+        generation = 2;
+        generation = 3;
+        return live.readCanonical();
+      },
+    });
+    const operation = service.captureActiveClientOperation();
+
+    await expect(operation.findByReference('existing')).rejects.toThrow(
+      'client changed'
+    );
+    await expect(
+      operation.linkLegacy(created.id, { meetingDir: LEGACY_DIR })
+    ).rejects.toThrow('client changed');
+    expect(live.commands).toEqual([]);
+  });
+
+  it('refuses a deferred population boundary after A-to-B-to-A without recapturing A', () => {
+    const live = canonicalPort();
+    let generation = 1;
+    const activeBoundary = () =>
+      sealedBoundary('household-1', 'matter-1', generation);
+    const service = createMeetingPopulationService({
+      ...live,
+      getActiveClientBoundary: activeBoundary,
+    });
+    const welcomeBoundary = activeBoundary();
+
+    // The visible pair returns to A, but its authority generation is new.
+    generation = 2;
+    generation = 3;
+
+    expect(() =>
+      service.captureActiveClientOperationForBoundary(welcomeBoundary)
+    ).toThrow('client changed');
+    expect(live.commands).toEqual([]);
+  });
+
   it('rechecks the live firm viewer and freshly reloaded policy before artifact actions', async () => {
     const live = canonicalPort();
     await createMeetingFoundationPreferencesStore(live).save({

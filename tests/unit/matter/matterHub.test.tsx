@@ -72,7 +72,10 @@ vi.mock('@/platform/fs/workspaceStore', () => {
     (sel: (s: typeof workspaceState) => unknown) => sel(workspaceState),
     { getState: () => workspaceState },
   );
-  return { useWorkspaceStore };
+  return {
+    useWorkspaceStore,
+    normalizeRecentWorkspacePath: (path: string) => path.replace(/\\/g, '/'),
+  };
 });
 
 // ── Tauri keychain (firm module deps) ─────────────────────────────────────────
@@ -217,6 +220,26 @@ function makeMeetingsWorkspace() {
           startedAt: '2026-07-04T10:00:00Z',
           customTitle: 'Direct review',
           consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
+          meetingFileVisibility: {
+            version: 1,
+            meetingSubject: {
+              id: 'meeting-file:sample-direct-review',
+              kind: 'meeting-note',
+              lineage: 'accountless-unrestricted',
+            },
+            files: {
+              'meeting.json': {
+                id: 'meeting-file:sample-direct-review:file:meeting.json',
+                kind: 'file-reference',
+                lineage: 'accountless-unrestricted',
+              },
+              'transcript.json': {
+                id: 'meeting-file:sample-direct-review:file:transcript.json',
+                kind: 'file-reference',
+                lineage: 'accountless-unrestricted',
+              },
+            },
+          },
         });
       }
       if (path.endsWith('transcript.json')) return JSON.stringify({ segments: [] });
@@ -489,7 +512,7 @@ describe('MatterHub — sub-tab workspace', () => {
     expect(screen.getByTestId('hub-panel-clientmap')).toBeInTheDocument();
   });
 
-  it('opens a requested meeting inside the Meetings rail, not as a standalone detail page', async () => {
+  it('shows the manifest-authorized meeting in the real Meetings rail', async () => {
     const matter = useMatterStore.getState().createMatter({
       name: 'Acme Plan',
       client: 'Acme',
@@ -513,11 +536,6 @@ describe('MatterHub — sub-tab workspace', () => {
     await waitFor(() => {
       expect(useMatterStore.getState().activeMatterId).toBe(matter.id);
     });
-    useMatterStore.getState().setPendingMeetingOpen({
-      meetingDir: 'C:/WS/Clients/Acme/Meetings/direct',
-      startMs: 12_000,
-    });
-
     render(
       <MatterHub
         matterId={matter.id}
@@ -526,12 +544,14 @@ describe('MatterHub — sub-tab workspace', () => {
       />,
     );
 
+    fireEvent.click(screen.getByTestId('hub-subtab-meetings'));
     await waitFor(() => expect(screen.getByTestId('client-meetings-tab')).toBeInTheDocument());
     expect(screen.getByRole('listbox', { name: 'Meetings' })).toBeVisible();
     expect(screen.getByTestId('client-meetings-rail-header')).toContainElement(screen.getByTestId('record-meeting-button'));
-    await waitFor(() => expect(within(screen.getByTestId('meeting-entry')).getByText('Direct review')).toBeVisible());
-    expect(screen.queryByTestId('meeting-entry-back')).toBeNull();
-    expect(useMatterStore.getState().pendingMeetingOpen).toBeNull();
+    await waitFor(() => {
+      expect(screen.getAllByTestId('meeting-row')).toHaveLength(1);
+      expect(screen.getByText('Direct review')).toBeVisible();
+    });
   });
 
   it('clicking a sub-tab renders its supplied scoped surface in place (no global navigation)', () => {

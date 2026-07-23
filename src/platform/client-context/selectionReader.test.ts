@@ -27,6 +27,7 @@ function decide(
     follower?: string | null;
     followerStatus?: 'converged' | 'stale';
     matters?: Matter[];
+    selectionGeneration?: number;
     operationClass?: 'matter-scoped' | 'client-scoped';
     allowAllMatters?: boolean;
     expectedScope?:
@@ -48,6 +49,7 @@ function decide(
           : scope.kind === 'matter' || scope.kind === 'matter-only'
             ? scope.matterId
             : null,
+      selectionGeneration: options.selectionGeneration ?? 7,
     },
     {
       operationClass: options.operationClass ?? 'matter-scoped',

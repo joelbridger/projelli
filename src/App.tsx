@@ -51,6 +51,11 @@ import { getAppSurfaceDescriptor } from '@/app/shell/registry/appSurfaceRegistry
 import { V1ShellFrameFlagGate } from '@/app/shell/v1-frame/V1ShellFrame';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
+import {
+  readActiveMeetingClientBoundary,
+  useMeetingPopulationService,
+  type SealedMeetingClientBoundary,
+} from '@/features/meetings/foundation/contract';
 import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
 import { AutoJoinMeetingsPanel } from '@/features/meetings/AutoJoinMeetingsPanel';
 import { LazyBoundary } from '@/ui/LazyBoundary';
@@ -114,7 +119,10 @@ import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import { writeSampleFiles } from '@/platform/matter/samples';
 import { seedSampleClientMap } from '@/platform/matter/samples/sampleClientMap';
-import { seedSampleGoldenPath } from '@/features/onboarding/seedSampleGoldenPath';
+import {
+  ensureSampleHendricksCrmLink,
+  seedSampleGoldenPath,
+} from '@/features/onboarding/seedSampleGoldenPath';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 import type {
   OnboardingStartMode,
@@ -148,8 +156,12 @@ import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMat
 import {
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,
+  issueSharedClientSelection,
+  publishLocalSampleHousehold,
+  readSelectionOperationDecision,
   readSelectionPresentation,
   requestMatterScopeSelection,
+  requestSharedClientSelection,
   useSelectionPresentation,
 } from '@/platform/client-context';
 import {
@@ -299,10 +311,25 @@ function App() {
 
 function AppShell() {
   const { t } = useTranslation();
+  const sampleMeetingPopulation = useMeetingPopulationService();
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
     !IS_TEST_MODE && !IS_DEMO_MODE
   );
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
+  const [pendingSampleMeetingSeed, setPendingSampleMeetingSeed] = useState<{
+    readonly matterId: string;
+    readonly root: string;
+    readonly service: WorkspaceService;
+    readonly boundary: SealedMeetingClientBoundary;
+  } | null>(null);
+  const [sampleMeetingSeedFailure, setSampleMeetingSeedFailure] = useState<{
+    readonly matterId: string;
+    readonly root: string;
+    readonly service: WorkspaceService;
+    readonly boundary: SealedMeetingClientBoundary;
+    readonly message: string;
+  } | null>(null);
+  const sampleMeetingSeedInFlight = useRef<string | null>(null);
   const {
     showCommandPalette,
     setShowCommandPalette,
@@ -1296,6 +1323,77 @@ function AppShell() {
 
   useEffect(() => registerFirmWorkspaceSwitcher(handleWorkspaceSelected), [handleWorkspaceSelected]);
 
+  // The onboarding callback opens a workspace before React can rebuild the
+  // live CRM adapter. Delay the canonical meeting write until this render: the
+  // population service then belongs to the newly selected workspace, while its
+  // own sealed selection checks still refuse any later client switch.
+  useEffect(() => {
+    if (!pendingSampleMeetingSeed || rootPath !== pendingSampleMeetingSeed.root)
+      return;
+    const seedKey = `${pendingSampleMeetingSeed.root}\u0000${pendingSampleMeetingSeed.matterId}\u0000${pendingSampleMeetingSeed.boundary.selectionGeneration}`;
+    // Saving a meeting refreshes the live CRM hook, which rebuilds this
+    // service while the first seed is still awaiting. Keep exactly one live
+    // recovery attempt for this workspace/matter pair.
+    if (sampleMeetingSeedInFlight.current === seedKey) return;
+    sampleMeetingSeedInFlight.current = seedKey;
+    void seedSampleGoldenPath(
+      pendingSampleMeetingSeed.service,
+      pendingSampleMeetingSeed.root,
+      pendingSampleMeetingSeed.matterId,
+      sampleMeetingPopulation,
+      pendingSampleMeetingSeed.boundary
+    )
+      .then(() => {
+        setSampleMeetingSeedFailure(null);
+      })
+      .catch((seedErr: unknown) => {
+        const message =
+          seedErr instanceof Error
+            ? seedErr.message
+            : 'The sample meeting could not be created safely.';
+        console.warn('[onboarding] sample golden-path seeding failed:', seedErr);
+        setSampleMeetingSeedFailure({
+          ...pendingSampleMeetingSeed,
+          message,
+        });
+      })
+      .finally(() => {
+        if (sampleMeetingSeedInFlight.current !== seedKey) return;
+        sampleMeetingSeedInFlight.current = null;
+        setPendingSampleMeetingSeed((pending) =>
+          pending?.root === pendingSampleMeetingSeed.root &&
+          pending.matterId === pendingSampleMeetingSeed.matterId
+            ? null
+            : pending
+        );
+      });
+  }, [pendingSampleMeetingSeed, rootPath, sampleMeetingPopulation]);
+
+  const retrySampleMeetingSeed = useCallback(() => {
+    if (!sampleMeetingSeedFailure) return;
+    // A deliberate retry is a new action. Mint a new boundary only for the
+    // same Hendricks sample; a queued request never adopts another client.
+    const boundary = readActiveMeetingClientBoundary();
+    if (
+      !boundary ||
+      boundary.matterId !== sampleMeetingSeedFailure.matterId ||
+      boundary.householdRef !== 'sample-hendricks-household'
+    ) {
+      setSampleMeetingSeedFailure({
+        ...sampleMeetingSeedFailure,
+        message: 'Choose the Hendricks sample client before retrying setup.',
+      });
+      return;
+    }
+    setSampleMeetingSeedFailure(null);
+    setPendingSampleMeetingSeed({
+      matterId: sampleMeetingSeedFailure.matterId,
+      root: sampleMeetingSeedFailure.root,
+      service: sampleMeetingSeedFailure.service,
+      boundary,
+    });
+  }, [sampleMeetingSeedFailure]);
+
   // Boot: silently reopen the last workspace when "Reopen last workspace" is
   // on, instead of always showing the picker (only Tauri can do this without
   // a fresh user gesture — browser directory handles need a picker click).
@@ -1475,15 +1573,53 @@ function AppShell() {
           useProfessionStore.getState().setProfession('advisor');
           await writeSampleFiles(service, 'advisor');
           const matter = getOrCreateSampleMatter(root);
+          ensureSampleHendricksCrmLink(matter.id);
+          // This narrow directory owner only publishes a local sample where no
+          // provider has published a firm directory. A connected firm stays
+          // untouched and selection remains safely refused instead.
+          publishLocalSampleHousehold({
+            provider: 'wealthbox',
+            householdId: 'sample-hendricks-household',
+            displayName: 'The Hendricks Household',
+          });
           await seedSampleClientMap(matter.id);
-          // Golden-path extras (sample meeting, prep brief, CRM card) are
-          // garnish — a seeding failure must never fail the sample start
-          // itself, so it is caught and logged instead of bubbling.
-          try {
-            await seedSampleGoldenPath(service, root, matter.id);
-          } catch (seedErr) {
-            console.warn('[onboarding] sample golden-path seeding failed (continuing):', seedErr);
+          // Publishing a directory does not select it. Ask the existing
+          // authority to resolve this exact household to its one live sample
+          // matter, then wait for the follower that powers CRM/Meetings to
+          // converge before the deferred canonical seed is allowed to start.
+          const selected = await requestSharedClientSelection(
+            issueSharedClientSelection({
+              provider: 'wealthbox',
+              householdId: 'sample-hendricks-household',
+              displayName: 'The Hendricks Household',
+            })
+          );
+          if (selected.kind !== 'selected') {
+            throw new Error('The Hendricks sample client could not be selected safely.');
           }
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          const readySelection = readSelectionOperationDecision({
+            operationClass: 'client-scoped',
+            allowAllMatters: false,
+            requireFollowerAgreement: true,
+          });
+          if (
+            readySelection.kind !== 'matter' ||
+            readySelection.matter.id !== matter.id ||
+            readySelection.client?.householdId !== 'sample-hendricks-household'
+          ) {
+            throw new Error('The Hendricks sample client is not ready yet. Try again.');
+          }
+          const boundary = readActiveMeetingClientBoundary();
+          if (
+            !boundary ||
+            boundary.matterId !== matter.id ||
+            boundary.householdRef !== 'sample-hendricks-household' ||
+            boundary.selectionGeneration !== readySelection.selectionGeneration
+          ) {
+            throw new Error('The Hendricks sample client is not ready yet. Try again.');
+          }
+          setPendingSampleMeetingSeed({ matterId: matter.id, root, service, boundary });
           setSidebarActiveTab('matters');
           // NB: the setup-progress Client Map count intentionally EXCLUDES sample
           // matters (see computeClientMapProgress), so we don't try to report the
@@ -2297,6 +2433,16 @@ function AppShell() {
                 }}
               />
             )}
+            {sampleMeetingSeedFailure && (
+              <div role="alert" data-testid="sample-meeting-seed-error" className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+                <span data-testid="sample-meeting-seed-error-message">
+                  The sample meeting is not ready yet. {sampleMeetingSeedFailure.message}
+                </span>
+                <button type="button" data-testid="sample-meeting-seed-retry" onClick={retrySampleMeetingSeed} className="underline underline-offset-2">
+                  Retry sample setup
+                </button>
+              </div>
+            )}
           </>
         }
         postTopbar={
@@ -2343,6 +2489,16 @@ function AppShell() {
             setCredentialBannerDismissed(true);
           }}
         />
+      )}
+      {sampleMeetingSeedFailure && (
+        <div role="alert" data-testid="sample-meeting-seed-error" className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+          <span data-testid="sample-meeting-seed-error-message">
+            The sample meeting is not ready yet. {sampleMeetingSeedFailure.message}
+          </span>
+          <button type="button" data-testid="sample-meeting-seed-retry" onClick={retrySampleMeetingSeed} className="underline underline-offset-2">
+            Retry sample setup
+          </button>
+        </div>
       )}
       {/* Header bar */}
       <header

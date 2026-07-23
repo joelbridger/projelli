@@ -6,6 +6,7 @@ import {
   issueMatterScopeSelection,
   issueRehydratedSelection,
   issueSharedClientSelection,
+  publishLocalSampleHousehold,
   readAuthoritativeMatterScope,
   rehydrateSelectionHint,
   replaceCanonicalHouseholdDirectory,
@@ -103,6 +104,18 @@ afterEach(() => {
 });
 
 describe('total selection classifiers', () => {
+  it('publishes a local sample only into an unavailable directory and never replaces a connected firm', () => {
+    seed([matter('matter-a', ['household-a']), matter('matter-b', ['household-b'])]);
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    expect(publishLocalSampleHousehold(clientA)).toBe(true);
+    expect(resolveCanonicalHouseholdClassification(clientA).kind).toBe('exactly-one-live');
+
+    publish(clientB);
+    expect(publishLocalSampleHousehold(clientA)).toBe(false);
+    expect(resolveCanonicalHouseholdClassification(clientB).kind).toBe('exactly-one-live');
+    expect(resolveCanonicalHouseholdClassification(clientA).kind).toBe('invalid-household');
+  });
+
   it('classifies provider-qualified liveness and every matter topology deterministically', () => {
     const live = matter('matter-live', ['household-a']);
     const archived = matter('matter-archived', ['household-a'], { archived: true });

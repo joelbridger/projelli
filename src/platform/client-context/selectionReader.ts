@@ -50,10 +50,13 @@ export type SelectionOperationDecision =
       readonly sourceKind: 'matter' | 'matter-only';
       readonly matter: Matter;
       readonly client: SharedClientIdentity | null;
+      /** A matching pair after A → B → A is still a new authority. */
+      readonly selectionGeneration?: number;
     }
   | {
       readonly kind: 'all-matters';
       readonly client: SharedClientIdentity | null;
+      readonly selectionGeneration?: number;
     }
   | {
       readonly kind: 'refused';
@@ -61,12 +64,26 @@ export type SelectionOperationDecision =
       readonly message: string;
     };
 
+/** A client-scoped action can only proceed with an authority-minted generation. */
+export type ClientScopedSelectionOperationDecision =
+  | {
+      readonly kind: 'matter';
+      readonly sourceKind: 'matter';
+      readonly matter: Matter;
+      readonly client: SharedClientIdentity;
+      /** A matching pair after A → B → A is still a new authority. */
+      readonly selectionGeneration: number;
+    }
+  | Extract<SelectionOperationDecision, { readonly kind: 'refused' }>;
+
 interface SelectionReaderSnapshot {
   readonly client: SharedClientIdentity | null;
   readonly scope: MatterScopeSelection;
   readonly followerStatus: ClientContextState['followerStatus'];
   readonly matters: Matter[];
   readonly activeMatterId: string | null;
+  /** Always minted by the existing selection authority with a successful decision. */
+  readonly selectionGeneration: number;
 }
 
 const refusalMessages: Record<SelectionRefusalReason, string> = {
@@ -137,13 +154,23 @@ export function resolveSelectionOperationDecision(
     case 'all-matters':
       if (request.operationClass === 'client-scoped') return refused('client-required');
       return request.allowAllMatters
-        ? { kind: 'all-matters', client: snapshot.client }
+        ? {
+            kind: 'all-matters',
+            client: snapshot.client,
+            selectionGeneration: snapshot.selectionGeneration,
+          }
         : refused('all-matters-not-allowed');
     case 'matter-only': {
       if (request.operationClass === 'client-scoped') return refused('client-required');
       const matter = resolveActiveMatter(snapshot.matters, snapshot.scope.matterId);
       return matter
-        ? { kind: 'matter', sourceKind: 'matter-only', matter, client: null }
+        ? {
+            kind: 'matter',
+            sourceKind: 'matter-only',
+            matter,
+            client: null,
+            selectionGeneration: snapshot.selectionGeneration,
+          }
         : refused('matter-missing-or-archived');
     }
     case 'matter': {
@@ -157,6 +184,7 @@ export function resolveSelectionOperationDecision(
         sourceKind: 'matter',
         matter,
         client: snapshot.client,
+        selectionGeneration: snapshot.selectionGeneration,
       };
     }
   }
@@ -174,10 +202,19 @@ function currentReaderSnapshot(): SelectionReaderSnapshot {
     followerStatus: source.followerStatus,
     matters: matter.matters,
     activeMatterId: matter.activeMatterId,
+    selectionGeneration: source.selectionRevision,
   };
 }
 
 /** Re-read current source + live data immediately before a sensitive operation. */
+export function readSelectionOperationDecision(
+  request: SelectionOperationRequest & {
+    readonly operationClass: 'client-scoped';
+  },
+): ClientScopedSelectionOperationDecision;
+export function readSelectionOperationDecision(
+  request: SelectionOperationRequest,
+): SelectionOperationDecision;
 export function readSelectionOperationDecision(
   request: SelectionOperationRequest,
 ): SelectionOperationDecision {
@@ -185,6 +222,14 @@ export function readSelectionOperationDecision(
 }
 
 /** Reactive T1 reader. It never derives an arm from the legacy follower. */
+export function useSelectionOperationDecision(
+  request: SelectionOperationRequest & {
+    readonly operationClass: 'client-scoped';
+  },
+): ClientScopedSelectionOperationDecision;
+export function useSelectionOperationDecision(
+  request: SelectionOperationRequest,
+): SelectionOperationDecision;
 export function useSelectionOperationDecision(
   request: SelectionOperationRequest,
 ): SelectionOperationDecision {
@@ -194,6 +239,7 @@ export function useSelectionOperationDecision(
       client: state.client,
       scope: state.scope,
       followerStatus: state.followerStatus,
+      selectionGeneration: state.selectionRevision,
     })),
   );
   const matter = useMatterStore(

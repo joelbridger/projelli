@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ensureSampleHendricksCrmLink,
   seedSampleGoldenPath,
   SAMPLE_GOLDEN_PATH,
 } from '@/features/onboarding/seedSampleGoldenPath';
@@ -30,6 +31,53 @@ function makeWorkspace() {
   };
 }
 
+type SampleRecord = {
+  id: string;
+  state: 'draft' | 'scheduled' | 'in-progress' | 'completed';
+  references: readonly string[];
+};
+
+const sampleBoundary = {
+  householdRef: SAMPLE_GOLDEN_PATH.crmHouseholdKey,
+  matterId: 'sample-matter',
+  selectionGeneration: 1,
+} as never;
+
+function makeSamplePopulation() {
+  let record: SampleRecord | undefined;
+  return {
+    captureActiveClientOperationForBoundary: () => ({
+      assertStable: () => undefined,
+      findByReference: async (reference: string) =>
+        record?.references.includes(reference) ? record : undefined,
+      createForActiveClient: async () => {
+        record = {
+          id: 'sample-canonical-meeting',
+          state: 'draft',
+          references: [SAMPLE_GOLDEN_PATH.crmSourceRef],
+        };
+        return record;
+      },
+      linkLegacy: async () => {
+        if (!record) throw new Error('Missing canonical sample meeting.');
+        return record;
+      },
+      transition: async (
+        _id: string,
+        transition: {
+          from: 'draft' | 'scheduled' | 'in-progress';
+          to: 'scheduled' | 'in-progress' | 'completed';
+        }
+      ) => {
+        if (!record || record.state !== transition.from)
+          throw new Error('Illegal sample transition.');
+        record = { ...record, state: transition.to };
+        return record;
+      },
+    }),
+  };
+}
+
 describe('seedSampleGoldenPath', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -47,12 +95,19 @@ describe('seedSampleGoldenPath', () => {
         },
       ],
     });
+    ensureSampleHendricksCrmLink('sample-matter');
   });
 
   it('seeds a processed meeting, a ready brief, and one pending CRM approval', async () => {
     const { service, textWrites, binaryWrites } = makeWorkspace();
 
-    await seedSampleGoldenPath(service as never, '/workspace', 'sample-matter');
+    await seedSampleGoldenPath(
+      service as never,
+      '/workspace',
+      'sample-matter',
+      makeSamplePopulation() as never,
+      sampleBoundary
+    );
 
     const meetingPath = `/workspace/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}/meeting.json`;
     const transcriptPath = `/workspace/Meetings/${SAMPLE_GOLDEN_PATH.meetingFolder}/transcript.json`;
@@ -79,8 +134,8 @@ describe('seedSampleGoldenPath', () => {
     expect(briefs[0]?.status).toBe('ready');
     expect(briefs[0]?.householdRef).toBe(SAMPLE_GOLDEN_PATH.crmHouseholdKey);
     expect(briefs[0]?.eventId).toBe(SAMPLE_GOLDEN_PATH.briefEventId);
-    expect(briefs[0]?.eventId).not.toBe(meta.calendarEvent?.id);
-    expect(briefs[0]?.eventTitle).toBe('Hendricks planning check-in');
+    expect(briefs[0]?.eventId).toBe(meta.calendarEvent?.id);
+    expect(briefs[0]?.eventTitle).toBe('Hendricks annual review');
     expect(briefs[0]?.isSample).toBe(true);
     expect(briefs[0]?.bullets?.length).toBe(3);
 
@@ -100,16 +155,21 @@ describe('seedSampleGoldenPath', () => {
   it('does not duplicate the pending CRM approval when re-seeded', async () => {
     const first = makeWorkspace();
     const second = makeWorkspace();
+    const population = makeSamplePopulation();
 
     await seedSampleGoldenPath(
       first.service as never,
       '/workspace',
-      'sample-matter'
+      'sample-matter',
+      population as never,
+      sampleBoundary
     );
     await seedSampleGoldenPath(
       second.service as never,
       '/workspace',
-      'sample-matter'
+      'sample-matter',
+      population as never,
+      sampleBoundary
     );
 
     expect(useCrmWriteQueueStore.getState().items).toHaveLength(1);
