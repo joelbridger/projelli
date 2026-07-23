@@ -9,6 +9,7 @@ mod v0002_trash;
 mod v0003_teams_roles;
 mod v0004_merge_receipts;
 mod v0005_team_activity;
+mod v0006_verified_mailbox;
 
 #[cfg(test)]
 mod v0002_test_dummy;
@@ -32,6 +33,7 @@ pub const CRM_MIGRATIONS: &[Migration] = &[
     v0003_teams_roles::MIGRATION,
     v0004_merge_receipts::MIGRATION,
     v0005_team_activity::MIGRATION,
+    v0006_verified_mailbox::MIGRATION,
 ];
 
 const CREATE_MIGRATIONS_TABLE: &str = r#"

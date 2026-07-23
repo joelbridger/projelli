@@ -247,6 +247,51 @@ pub struct ExportJob {
     pub finished_at: Option<String>,
 }
 
+/// The identity half of the M4 verified-mailbox foundation. It deliberately
+/// contains no recipients or message content; those live only in the separate
+/// approved-claim record in the encrypted CRM database.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)] // Read only by the deliberately dark M4 mailbox modules.
+pub(crate) struct VerifiedMailboxIdentity {
+    pub workspace_handle: String,
+    pub provider: String,
+    pub mailbox_handle: String,
+    pub provider_subject: String,
+    pub canonical_address: String,
+    pub display_label: String,
+    pub workspace_generation: u64,
+    pub credential_generation: u64,
+    pub verified_at: String,
+    pub verified_source: String,
+    pub version: u64,
+    pub status: String,
+}
+
+/// The encrypted durable payload for an approval that may later be handed to
+/// a sealed provider adapter. This record is intentionally separate from
+/// mailbox identity so addresses and content cannot leak into identity rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)] // Read only by the deliberately dark M4 mailbox modules.
+pub(crate) struct ApprovedDraftClaimRecord {
+    pub claim_handle: String,
+    pub mailbox_handle: String,
+    pub mailbox_version: u64,
+    pub workspace_handle: String,
+    pub provider: String,
+    pub workspace_generation: u64,
+    pub credential_generation: u64,
+    pub client_context: String,
+    pub meeting_context: String,
+    pub recipients_json: String,
+    pub draft_subject: String,
+    pub body: String,
+    pub content_hash: String,
+    pub approval_receipt: String,
+    pub idempotency_key: String,
+    pub version: u64,
+    pub status: String,
+}
+
 /// Derived-only workflow display. The append-only operations remain the truth;
 /// invalid/quarantined candidates are omitted by the caller before this order is
 /// applied. Ties intentionally fall through to the immutable operation id.

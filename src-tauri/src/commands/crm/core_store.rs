@@ -160,6 +160,18 @@ impl CrmCoreStore {
         Ok(result)
     }
 
+    /// Narrow transaction boundary reserved for the sealed M4 mailbox
+    /// foundation. It keeps mailbox identity and draft claims in this existing
+    /// SQLCipher store without exposing its connection to a renderer or a
+    /// provider adapter.
+    #[allow(dead_code)] // Called when the sealed M4 adapter work lands.
+    pub(crate) fn m4_shared_foundation_transaction<T>(
+        &self,
+        operation: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<T>,
+    ) -> Result<T> {
+        self.with_immediate_transaction(operation)
+    }
+
     /// Importer-only persistence boundary. Wealthbox ids are opaque source
     /// values, and this path accepted every non-empty id before descriptors
     /// were introduced. Keep that compatibility while still running any

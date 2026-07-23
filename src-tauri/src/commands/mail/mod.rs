@@ -11,11 +11,14 @@ pub mod store;
 pub mod sync;
 pub mod view;
 
+mod verified_draft_claim;
 #[cfg(test)]
 pub(crate) mod verified_m4_credentials;
 #[cfg(not(test))]
 mod verified_m4_credentials;
+mod verified_mailbox;
 mod verified_workspace_authority;
+mod verified_workspace_lifecycle;
 
 /// M4's Microsoft draft-handoff consent is intentionally separate from the
 /// legacy connector's send-capable scopes.
