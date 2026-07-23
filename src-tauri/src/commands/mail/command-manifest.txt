@@ -1,5 +1,7 @@
 # Native command registrations owned by this domain.
 # Keep existing order keys stable; add new entries with a new unused key.
+command 3050 crate::commands::mail::m4_workspace_open_selected
+command 3060 crate::commands::mail::m4_workspace_revoke
 command 830 crate::commands::mail::mail_set_workspace
 command 840 crate::commands::mail::mail_begin_login
 command 850 crate::commands::mail::mail_poll_login

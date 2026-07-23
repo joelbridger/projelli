@@ -137,6 +137,21 @@ export async function mailSetWorkspace(path: string): Promise<void> {
   if (!isTauri()) return;
   await invoke('mail_set_workspace', { path });
 }
+
+/**
+ * Ask the native host to verify and own this explicit selected workspace for
+ * M4. The renderer never receives the resulting authority or store.
+ */
+export async function m4WorkspaceOpenSelected(path: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('m4_workspace_open_selected', { path });
+}
+
+/** Revoke M4 authority without accepting any renderer workspace value. */
+export async function m4WorkspaceRevoke(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('m4_workspace_revoke');
+}
 export async function mailBeginLogin(): Promise<DeviceCodePrompt> {
   if (!isTauri())
     throw new Error('Email connect is only available in the desktop app.');

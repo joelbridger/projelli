@@ -45,6 +45,10 @@ import { flushPendingMatterMigrationAudit } from '@/platform/matter/matterStore'
 import { clearCitationVerificationCache } from '@/features/ask/citationVerification';
 import { useAppNavigationStore } from '@/platform/state/appNavigationStore';
 import { setIntakeFactsWorkspace } from '@/platform/intake/factsStore';
+import {
+  m4WorkspaceOpenSelected,
+  m4WorkspaceRevoke,
+} from '@/platform/utils/mail-commands';
 
 // Bounds only the native SETUP (backend creation + initialize) — the SAME
 // budget/label WorkspaceSelector's manual "Open Existing" flow uses for the
@@ -186,7 +190,10 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
   // Callers that need to know (the Workspace Selector, onboarding) await this
   // and treat `false` as "the user stayed on the current workspace".
   const handleWorkspaceSelected = useCallback(
-    async (service: WorkspaceService): Promise<boolean> => {
+    async (
+      service: WorkspaceService,
+      options: { requestM4Workspace?: boolean } = {}
+    ): Promise<boolean> => {
       // BUG-046: flush any dirty tabs of the OUTGOING workspace to disk BEFORE we
       // clear them — otherwise switching workspaces within the 2s autosave window
       // silently drops the last edits.
@@ -254,6 +261,29 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
 
       const newRootPath = service.getRootPath();
       if (newRootPath) {
+        // M4 authority is native-only and intentionally optional for the
+        // ordinary workspace experience. A rejected folder merely leaves the
+        // dark M4 foundation unavailable; it never stops normal opening.
+        // Recents and auto-resume deliberately do not request authority.
+        if (options.requestM4Workspace !== false) {
+          try {
+            await m4WorkspaceOpenSelected(newRootPath);
+          } catch (error) {
+            console.warn(
+              '[M4] Native workspace authority unavailable for this workspace:',
+              error
+            );
+          }
+        } else {
+          // A recent-workspace or boot restore is not allowed to recreate M4
+          // authority. It must still revoke a prior in-process selection
+          // before the ordinary workspace root changes.
+          try {
+            await m4WorkspaceRevoke();
+          } catch (error) {
+            console.warn('[M4] Native workspace revocation was unavailable:', error);
+          }
+        }
         useAppNavigationStore.getState().clear();
         setRootPath(newRootPath);
         // NOTE: the `.lantern` data-folder setup runs earlier, in createFSBackend
@@ -543,7 +573,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
           WORKSPACE_OPEN_LABEL
         );
         setWorkspaceOpenError(null);
-        await handleWorkspaceSelected(service);
+        await handleWorkspaceSelected(service, { requestM4Workspace: false });
       } catch (err) {
         console.error('[App] Failed to open recent project:', err);
         setWorkspaceOpenError(describeWorkspaceOpenError(err));

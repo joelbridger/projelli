@@ -63,6 +63,28 @@ pub async fn mail_set_workspace(state: State<'_, MailState>, path: String) -> Re
     Ok(())
 }
 
+/// Request that the native host validate and own the selected workspace for
+/// the dark M4 foundation. This accepts a folder request only; it returns no
+/// path, handle, generation, store, or authority to the renderer.
+#[tauri::command]
+pub async fn m4_workspace_open_selected(
+    state: State<'_, MailState>,
+    path: String,
+) -> Result<(), String> {
+    state
+        .open_m4_workspace_selected(std::path::Path::new(&path))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// Revoke the dark M4 generation during a normal workspace transition. It
+/// takes no path or other authority-shaped renderer value and cannot open one.
+#[tauri::command]
+pub async fn m4_workspace_revoke(state: State<'_, MailState>) -> Result<(), String> {
+    state.revoke_m4_workspace().await;
+    Ok(())
+}
+
 /// Fetch + decrypt ONE stored message by id and return it as a structured view
 /// for the read-only mail viewer.
 ///

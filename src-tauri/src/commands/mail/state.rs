@@ -71,6 +71,10 @@ pub struct MailMatterMapEntry {
 }
 pub struct MailState {
     pub workspace: tokio::sync::Mutex<Option<std::path::PathBuf>>,
+    /// M4's separate native owner. Legacy mail paths never populate it.
+    #[cfg(not(test))]
+    m4_workspace_owner:
+        tokio::sync::Mutex<super::verified_workspace_lifecycle::NativeWorkspaceLifecycle>,
     /// Serializes each durable manual filing with its matching RAG mirror.
     pub retag_lock: tokio::sync::Mutex<()>,
     pub cancel: Arc<AtomicBool>,
@@ -91,12 +95,72 @@ pub struct MailState {
 pub fn manage_state(app: &tauri::App) {
     app.manage(MailState {
         workspace: tokio::sync::Mutex::new(None),
+        #[cfg(not(test))]
+        m4_workspace_owner: tokio::sync::Mutex::new(
+            super::verified_workspace_lifecycle::NativeWorkspaceLifecycle::default(),
+        ),
         retag_lock: tokio::sync::Mutex::new(()),
         cancel: Arc::new(AtomicBool::new(false)),
         is_syncing: Arc::new(AtomicBool::new(false)),
         oauth_cancel: Arc::new(AtomicBool::new(false)),
         gmail_oauth_cancel: Arc::new(AtomicBool::new(false)),
     });
+}
+
+impl MailState {
+    /// Production commands always use the owner held by this app state. The
+    /// test-only fallback keeps long-standing mail test fixtures source-stable;
+    /// it is not compiled into the desktop app and cannot persist authority.
+    pub(crate) async fn open_m4_workspace_selected(
+        &self,
+        selected_root: &std::path::Path,
+    ) -> anyhow::Result<()> {
+        #[cfg(not(test))]
+        {
+            return self
+                .m4_workspace_owner
+                .lock()
+                .await
+                .open_selected(selected_root);
+        }
+
+        #[cfg(test)]
+        {
+            test_only_m4_owner()
+                .lock()
+                .await
+                .open_selected(selected_root)
+        }
+    }
+
+    /// Revoke the M4-only generation during a non-M4 workspace transition.
+    /// This takes no renderer workspace data and cannot mint authority.
+    pub(crate) async fn revoke_m4_workspace(&self) {
+        #[cfg(not(test))]
+        {
+            self.m4_workspace_owner.lock().await.revoke_current();
+        }
+
+        #[cfg(test)]
+        {
+            test_only_m4_owner().lock().await.revoke_current();
+        }
+    }
+}
+
+#[cfg(test)]
+fn test_only_m4_owner(
+) -> &'static tokio::sync::Mutex<super::verified_workspace_lifecycle::NativeWorkspaceLifecycle> {
+    use std::sync::OnceLock;
+
+    static TEST_ONLY_OWNER: OnceLock<
+        tokio::sync::Mutex<super::verified_workspace_lifecycle::NativeWorkspaceLifecycle>,
+    > = OnceLock::new();
+    TEST_ONLY_OWNER.get_or_init(|| {
+        tokio::sync::Mutex::new(
+            super::verified_workspace_lifecycle::NativeWorkspaceLifecycle::default(),
+        )
+    })
 }
 
 /// RAII guard: sets `is_syncing` to false when dropped, covering all exit paths.
