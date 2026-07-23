@@ -1,5 +1,7 @@
 use super::*;
 use crate::commands::mail::store::{EncryptedMailStore, MailStore};
+use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tauri::State;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,9 +57,46 @@ pub async fn mail_send(
     );
 
     match provider.as_str() {
-        "m365" => send_m365(state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
-        "gmail" => send_gmail(state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
-        "imap" => send_imap(state, account, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
+        "m365" => {
+            send_m365(
+                state,
+                to,
+                cc,
+                bcc,
+                subject,
+                body,
+                in_reply_to_id,
+                attachments.unwrap_or_default(),
+            )
+            .await
+        }
+        "gmail" => {
+            send_gmail(
+                state,
+                to,
+                cc,
+                bcc,
+                subject,
+                body,
+                in_reply_to_id,
+                attachments.unwrap_or_default(),
+            )
+            .await
+        }
+        "imap" => {
+            send_imap(
+                state,
+                account,
+                to,
+                cc,
+                bcc,
+                subject,
+                body,
+                in_reply_to_id,
+                attachments.unwrap_or_default(),
+            )
+            .await
+        }
         other => Err(format!("unknown provider: {other}")),
     }
 }
@@ -145,24 +184,13 @@ async fn send_m365(
     attachments: Vec<AttachmentInput>,
 ) -> Result<String, String> {
     let token = fresh_access_token().await?; // returns "scope_upgrade_required" when needed
-    let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
-        token,
-        graph_token_refresh(),
-    );
+    let client =
+        crate::commands::mail::graph::GraphClient::new_with_refresh(token, graph_token_refresh());
 
     // conversation_id is not stored in MailRecord; pass None for now.
     // Threading for M365 replies can be added when conversationId is stored.
     client
-        .send_message(
-            &to,
-            &cc,
-            &bcc,
-            &subject,
-            &body,
-            None,
-            true,
-            &attachments,
-        )
+        .send_message(&to, &cc, &bcc, &subject, &body, None, true, &attachments)
         .await
         .map_err(|e| e.to_string())
 }
@@ -189,11 +217,9 @@ async fn send_gmail(
             let ws2 = ws.clone();
             let key2 = key;
             let raw_id2 = raw_id.clone();
-            tokio::task::spawn_blocking(move || {
-                resolve_threading_headers(&ws2, &raw_id2, &key2)
-            })
-            .await
-            .unwrap_or((None, None))
+            tokio::task::spawn_blocking(move || resolve_threading_headers(&ws2, &raw_id2, &key2))
+                .await
+                .unwrap_or((None, None))
         } else {
             (None, None)
         }
@@ -244,11 +270,9 @@ async fn send_imap(
         if let Some(ws) = workspace {
             let key = crate::commands::mail::crypto::get_or_create_master_key()
                 .map_err(|e| e.to_string())?;
-            tokio::task::spawn_blocking(move || {
-                resolve_threading_headers(&ws, &raw_id, &key)
-            })
-            .await
-            .unwrap_or((None, None))
+            tokio::task::spawn_blocking(move || resolve_threading_headers(&ws, &raw_id, &key))
+                .await
+                .unwrap_or((None, None))
         } else {
             (None, None)
         }
@@ -277,6 +301,297 @@ async fn send_imap(
     )
     .await
     .map_err(|e| e.to_string())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mail_send_existing_draft — explicit, approval-bound send of one saved draft
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The only three honest outcomes for an explicit existing-draft send.
+///
+/// `outcome-unknown` is intentionally not an error and deliberately carries
+/// no retry instruction. A transport failure after the POST began can mean the
+/// provider accepted the draft, so callers must reconcile with the mailbox
+/// instead of blindly sending it again.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "status",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum ExistingDraftSendResult {
+    Confirmed {
+        provider: String,
+        provider_receipt_id: Option<String>,
+    },
+    FailedBeforeSend {
+        provider: String,
+        reason: ExistingDraftFailureReason,
+    },
+    OutcomeUnknown {
+        provider: String,
+        reason: ExistingDraftUnknownReason,
+        do_not_retry_automatically: bool,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExistingDraftFailureReason {
+    UnsupportedProvider,
+    AccountMismatch,
+    InvalidDraftId,
+    DraftNotFoundOrUnavailable,
+    DraftIdentityMismatch,
+    DraftIsNotEditable,
+    RecipientsMismatch,
+    SubjectMismatch,
+    BodyFingerprintMismatch,
+    ProviderRefused,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExistingDraftUnknownReason {
+    ProviderResponseLost,
+}
+
+/// Explicitly send one provider draft only after proving that the currently
+/// saved draft still matches the caller's approved snapshot.
+///
+/// There is deliberately no UI caller today. Importing its typed frontend
+/// wrapper does nothing; a future human-triggered flow must call this command
+/// with every approval field itself.
+#[tauri::command]
+pub async fn mail_send_existing_draft(
+    _state: State<'_, MailState>,
+    provider: String,
+    account: String,
+    draft_id: String,
+    to: Vec<String>,
+    cc: Vec<String>,
+    bcc: Vec<String>,
+    subject: String,
+    approved_body_fingerprint: String,
+) -> Result<ExistingDraftSendResult, String> {
+    // Never log the draft id, recipient addresses, subject, body, or provider
+    // responses. These values may all expose client information.
+    let failed = |reason| ExistingDraftSendResult::FailedBeforeSend {
+        provider: safe_provider_label(&provider),
+        reason,
+    };
+
+    if let Err(reason) =
+        validate_existing_draft_request(&provider, &account, &draft_id, &approved_body_fingerprint)
+    {
+        return Ok(failed(reason));
+    }
+
+    let result = match provider.as_str() {
+        "m365" => {
+            let token = match fresh_access_token().await {
+                Ok(token) => token,
+                Err(_) => {
+                    return Ok(failed(
+                        ExistingDraftFailureReason::DraftNotFoundOrUnavailable,
+                    ))
+                }
+            };
+            let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
+                token,
+                graph_token_refresh(),
+            );
+            let draft = match client.get_existing_draft(&draft_id).await {
+                Ok(draft) => draft,
+                Err(_) => {
+                    return Ok(failed(
+                        ExistingDraftFailureReason::DraftNotFoundOrUnavailable,
+                    ))
+                }
+            };
+            if let Err(reason) = validate_existing_draft_snapshot(
+                &draft.id,
+                Some(draft.is_draft),
+                &draft_id,
+                &draft.to,
+                &draft.cc,
+                &draft.bcc,
+                &to,
+                &cc,
+                &bcc,
+                &draft.subject,
+                &subject,
+                &draft.body,
+                &approved_body_fingerprint,
+            ) {
+                return Ok(failed(reason));
+            }
+            match client.send_existing_draft(&draft_id).await {
+                Ok(()) => ExistingDraftSendResult::Confirmed {
+                    provider: "m365".to_string(),
+                    // Graph's HTTP 202 is accepted by the provider, not proof
+                    // of mailbox delivery. The validated draft id is its only
+                    // available provider receipt.
+                    provider_receipt_id: Some(draft_id),
+                },
+                Err(crate::commands::mail::graph::GraphExistingDraftSendError::ProviderRefused) => {
+                    failed(ExistingDraftFailureReason::ProviderRefused)
+                }
+                Err(crate::commands::mail::graph::GraphExistingDraftSendError::OutcomeUnknown) => {
+                    ExistingDraftSendResult::OutcomeUnknown {
+                        provider: "m365".to_string(),
+                        reason: ExistingDraftUnknownReason::ProviderResponseLost,
+                        do_not_retry_automatically: true,
+                    }
+                }
+            }
+        }
+        "gmail" => {
+            let token = match fresh_gmail_access_token().await {
+                Ok(token) => token,
+                Err(_) => {
+                    return Ok(failed(
+                        ExistingDraftFailureReason::DraftNotFoundOrUnavailable,
+                    ))
+                }
+            };
+            let client = crate::commands::mail::gmail::api::GmailClient::new(token);
+            let draft = match client.get_existing_draft(&draft_id).await {
+                Ok(draft) => draft,
+                Err(_) => {
+                    return Ok(failed(
+                        ExistingDraftFailureReason::DraftNotFoundOrUnavailable,
+                    ))
+                }
+            };
+            if let Err(reason) = validate_existing_draft_snapshot(
+                &draft.id,
+                None,
+                &draft_id,
+                &draft.to,
+                &draft.cc,
+                &draft.bcc,
+                &to,
+                &cc,
+                &bcc,
+                &draft.subject,
+                &subject,
+                &draft.body,
+                &approved_body_fingerprint,
+            ) {
+                return Ok(failed(reason));
+            }
+            match client.send_existing_draft(&draft_id).await {
+                Ok(message_id) => ExistingDraftSendResult::Confirmed {
+                    provider: "gmail".to_string(),
+                    provider_receipt_id: Some(message_id),
+                },
+                Err(
+                    crate::commands::mail::gmail::api::GmailExistingDraftSendError::ProviderRefused,
+                ) => failed(ExistingDraftFailureReason::ProviderRefused),
+                Err(
+                    crate::commands::mail::gmail::api::GmailExistingDraftSendError::OutcomeUnknown,
+                ) => ExistingDraftSendResult::OutcomeUnknown {
+                    provider: "gmail".to_string(),
+                    reason: ExistingDraftUnknownReason::ProviderResponseLost,
+                    do_not_retry_automatically: true,
+                },
+            }
+        }
+        _ => unreachable!("provider was checked before dispatch"),
+    };
+    Ok(result)
+}
+
+fn safe_provider_label(provider: &str) -> String {
+    match provider {
+        "m365" | "gmail" | "imap" => provider.to_string(),
+        _ => "unsupported".to_string(),
+    }
+}
+
+fn validate_existing_draft_request(
+    provider: &str,
+    account: &str,
+    draft_id: &str,
+    approved_body_fingerprint: &str,
+) -> Result<(), ExistingDraftFailureReason> {
+    if draft_id.trim().is_empty()
+        || approved_body_fingerprint.len() != 64
+        || !approved_body_fingerprint
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err(ExistingDraftFailureReason::InvalidDraftId);
+    }
+    match provider {
+        "m365" if account == M365_ACCOUNT => Ok(()),
+        "gmail" if account == GMAIL_ACCOUNT => Ok(()),
+        "m365" | "gmail" => Err(ExistingDraftFailureReason::AccountMismatch),
+        _ => Err(ExistingDraftFailureReason::UnsupportedProvider),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_existing_draft_snapshot(
+    fetched_id: &str,
+    is_draft: Option<bool>,
+    approved_id: &str,
+    fetched_to: &[String],
+    fetched_cc: &[String],
+    fetched_bcc: &[String],
+    approved_to: &[String],
+    approved_cc: &[String],
+    approved_bcc: &[String],
+    fetched_subject: &str,
+    approved_subject: &str,
+    fetched_body: &str,
+    approved_body_fingerprint: &str,
+) -> Result<(), ExistingDraftFailureReason> {
+    if fetched_id != approved_id {
+        return Err(ExistingDraftFailureReason::DraftIdentityMismatch);
+    }
+    if is_draft == Some(false) {
+        return Err(ExistingDraftFailureReason::DraftIsNotEditable);
+    }
+    if !same_recipients(fetched_to, approved_to)
+        || !same_recipients(fetched_cc, approved_cc)
+        || !same_recipients(fetched_bcc, approved_bcc)
+    {
+        return Err(ExistingDraftFailureReason::RecipientsMismatch);
+    }
+    if fetched_subject != approved_subject {
+        return Err(ExistingDraftFailureReason::SubjectMismatch);
+    }
+    if !fingerprint_matches(fetched_body, approved_body_fingerprint) {
+        return Err(ExistingDraftFailureReason::BodyFingerprintMismatch);
+    }
+    Ok(())
+}
+
+fn fingerprint_matches(body: &str, approved_fingerprint: &str) -> bool {
+    let actual = format!("{:x}", Sha256::digest(body.as_bytes()));
+    actual == approved_fingerprint
+}
+
+fn same_recipients(actual: &[String], approved: &[String]) -> bool {
+    fn canonical(values: &[String]) -> Vec<String> {
+        let mut values: Vec<String> = values
+            .iter()
+            .map(|value| {
+                let trimmed = value.trim();
+                let address = trimmed
+                    .rsplit_once('<')
+                    .and_then(|(_, rest)| rest.strip_suffix('>'))
+                    .unwrap_or(trimmed)
+                    .trim();
+                address.to_ascii_lowercase()
+            })
+            .collect();
+        values.sort();
+        values
+    }
+    canonical(actual) == canonical(approved)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -353,10 +668,8 @@ async fn save_draft_m365(
 ) -> Result<String, String> {
     // Surfaces "scope_upgrade_required" for pre-upgrade tokens.
     let token = fresh_access_token().await?;
-    let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
-        token,
-        graph_token_refresh(),
-    );
+    let client =
+        crate::commands::mail::graph::GraphClient::new_with_refresh(token, graph_token_refresh());
     match in_reply_to {
         Some(orig) => {
             let raw = orig.strip_prefix("mail:").unwrap_or(&orig).to_string();
@@ -429,7 +742,7 @@ async fn save_draft_gmail(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_account_id;
+    use super::*;
 
     #[test]
     fn parse_account_id_splits_provider_and_account() {
@@ -455,5 +768,133 @@ mod tests {
         assert!(parse_account_id(":default").is_err());
         assert!(parse_account_id("m365:").is_err());
         assert!(parse_account_id("").is_err());
+    }
+
+    #[test]
+    fn existing_draft_request_refuses_wrong_provider_account_or_id_before_send() {
+        let fingerprint = "a".repeat(64);
+        assert_eq!(
+            validate_existing_draft_request("imap", "default", "draft-1", &fingerprint),
+            Err(ExistingDraftFailureReason::UnsupportedProvider)
+        );
+        assert_eq!(
+            validate_existing_draft_request("gmail", "another-account", "draft-1", &fingerprint),
+            Err(ExistingDraftFailureReason::AccountMismatch)
+        );
+        assert_eq!(
+            validate_existing_draft_request("m365", "default", "", &fingerprint),
+            Err(ExistingDraftFailureReason::InvalidDraftId)
+        );
+    }
+
+    #[test]
+    fn existing_draft_snapshot_refuses_identity_recipients_subject_and_body_changes() {
+        let body = "approved private body";
+        let fingerprint = format!("{:x}", Sha256::digest(body.as_bytes()));
+        let valid = || {
+            validate_existing_draft_snapshot(
+                "draft-1",
+                Some(true),
+                "draft-1",
+                &["client@example.com".into()],
+                &[],
+                &[],
+                &["Client <client@example.com>".into()],
+                &[],
+                &[],
+                "approved private subject",
+                "approved private subject",
+                body,
+                &fingerprint,
+            )
+        };
+        assert_eq!(valid(), Ok(()));
+        assert_eq!(
+            validate_existing_draft_snapshot(
+                "other",
+                Some(true),
+                "draft-1",
+                &[],
+                &[],
+                &[],
+                &[],
+                &[],
+                &[],
+                "s",
+                "s",
+                body,
+                &fingerprint
+            ),
+            Err(ExistingDraftFailureReason::DraftIdentityMismatch)
+        );
+        assert_eq!(
+            validate_existing_draft_snapshot(
+                "draft-1",
+                Some(true),
+                "draft-1",
+                &["other@example.com".into()],
+                &[],
+                &[],
+                &["client@example.com".into()],
+                &[],
+                &[],
+                "s",
+                "s",
+                body,
+                &fingerprint
+            ),
+            Err(ExistingDraftFailureReason::RecipientsMismatch)
+        );
+        assert_eq!(
+            validate_existing_draft_snapshot(
+                "draft-1",
+                Some(true),
+                "draft-1",
+                &[],
+                &[],
+                &[],
+                &[],
+                &[],
+                &[],
+                "changed",
+                "approved",
+                body,
+                &fingerprint
+            ),
+            Err(ExistingDraftFailureReason::SubjectMismatch)
+        );
+        assert_eq!(
+            validate_existing_draft_snapshot(
+                "draft-1",
+                Some(true),
+                "draft-1",
+                &[],
+                &[],
+                &[],
+                &[],
+                &[],
+                &[],
+                "s",
+                "s",
+                "changed",
+                &fingerprint
+            ),
+            Err(ExistingDraftFailureReason::BodyFingerprintMismatch)
+        );
+    }
+
+    #[test]
+    fn unknown_result_has_no_blind_retry_signal_or_sensitive_content() {
+        let result = ExistingDraftSendResult::OutcomeUnknown {
+            provider: "gmail".into(),
+            reason: ExistingDraftUnknownReason::ProviderResponseLost,
+            do_not_retry_automatically: true,
+        };
+        let value = serde_json::to_string(&result).unwrap();
+        assert!(value.contains("outcome-unknown"));
+        assert!(value.contains("doNotRetryAutomatically\":true"));
+        assert!(!value.contains("client@example.com"));
+        assert!(!value.contains("private subject"));
+        assert!(!value.contains("private body"));
     }
 }

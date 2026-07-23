@@ -34,4 +34,5 @@ command 1130 crate::commands::mail::outlook_connect
 command 1140 crate::commands::mail::outlook_connect_cancel
 command 1150 crate::commands::mail::mail_send
 command 1160 crate::commands::mail::mail_save_draft
+command 3050 crate::commands::mail::mail_send_existing_draft
 state 30 crate::commands::mail::manage_state

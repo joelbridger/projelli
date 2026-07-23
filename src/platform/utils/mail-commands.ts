@@ -967,3 +967,70 @@ export async function mailSaveDraft(
     inReplyTo: inReplyTo ?? null,
   });
 }
+
+/** The immutable approval snapshot a future human-triggered send must supply. */
+export interface ExistingDraftSendRequest {
+  provider: string;
+  account: string;
+  draftId: string;
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  subject: string;
+  /** SHA-256 of the exact approved provider body, encoded as lowercase hex. */
+  approvedBodyFingerprint: string;
+}
+
+export type ExistingDraftSendResult =
+  | {
+      status: 'confirmed';
+      provider: 'm365' | 'gmail';
+      providerReceiptId: string | null;
+    }
+  | {
+      status: 'failed-before-send';
+      provider: 'm365' | 'gmail' | 'imap' | 'unsupported';
+      reason:
+        | 'unsupported-provider'
+        | 'account-mismatch'
+        | 'invalid-draft-id'
+        | 'draft-not-found-or-unavailable'
+        | 'draft-identity-mismatch'
+        | 'draft-is-not-editable'
+        | 'recipients-mismatch'
+        | 'subject-mismatch'
+        | 'body-fingerprint-mismatch'
+        | 'provider-refused';
+    }
+  | {
+      status: 'outcome-unknown';
+      provider: 'm365' | 'gmail';
+      reason: 'provider-response-lost';
+      /** This is always true: reconcile first; never resend blindly. */
+      doNotRetryAutomatically: true;
+    };
+
+/**
+ * Produce the body revision fingerprint the native command compares after its
+ * just-in-time provider fetch. This is pure and never invokes native IPC.
+ */
+export async function mailApprovedBodyFingerprint(body: string): Promise<string> {
+  const bytes = new TextEncoder().encode(body);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('');
+}
+
+/**
+ * Explicitly ask the desktop backend to send one existing provider draft.
+ * Nothing calls this wrapper today. In particular, importing this module or
+ * creating a request never sends mail.
+ */
+export async function mailSendExistingDraft(
+  request: ExistingDraftSendRequest
+): Promise<ExistingDraftSendResult> {
+  if (!isTauri())
+    throw new Error('Sending an existing draft is only available in the desktop app.');
+  return invoke<ExistingDraftSendResult>('mail_send_existing_draft', { ...request });
+}

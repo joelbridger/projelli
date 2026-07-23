@@ -29,6 +29,29 @@ pub struct GraphClient {
     http: reqwest::Client,
 }
 
+/// The small, privacy-safe portion of a provider draft required to prove that
+/// the exact approved draft is still the one about to be sent.  It deliberately
+/// stays inside the native mail boundary and is never logged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GraphExistingDraft {
+    pub id: String,
+    pub is_draft: bool,
+    pub to: Vec<String>,
+    pub cc: Vec<String>,
+    pub bcc: Vec<String>,
+    pub subject: String,
+    pub body: String,
+}
+
+/// A send endpoint either answered definitively, or the connection failed
+/// after the request might have reached the provider.  The caller must never
+/// retry the latter automatically.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GraphExistingDraftSendError {
+    ProviderRefused,
+    OutcomeUnknown,
+}
+
 const GRAPH_MESSAGE_SELECT_FIELDS: &str = "id,conversationId,internetMessageId,subject,receivedDateTime,from,toRecipients,ccRecipients,hasAttachments,body,internetMessageHeaders";
 
 impl GraphClient {
@@ -421,6 +444,77 @@ impl GraphClient {
         Ok(String::new())
     }
 
+    /// Re-fetch one saved Graph draft immediately before sending.  The draft id
+    /// is encoded as one path segment so provider ids can never alter the URL.
+    pub async fn get_existing_draft(&self, draft_id: &str) -> anyhow::Result<GraphExistingDraft> {
+        let url = format!(
+            "{}/v1.0/me/messages/{}?$select=id,isDraft,toRecipients,ccRecipients,bccRecipients,subject,body",
+            self.base,
+            enc_path_segment(draft_id)
+        );
+        let value = self.get_json(&url).await?;
+        let id = value
+            .get("id")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .ok_or_else(|| anyhow::anyhow!("Graph draft response missing `id`"))?;
+        let body = value
+            .pointer("/body/content")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .ok_or_else(|| anyhow::anyhow!("Graph draft response missing body content"))?;
+        Ok(GraphExistingDraft {
+            id,
+            is_draft: value
+                .get("isDraft")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
+            to: graph_draft_recipients(&value, "toRecipients"),
+            cc: graph_draft_recipients(&value, "ccRecipients"),
+            bcc: graph_draft_recipients(&value, "bccRecipients"),
+            subject: value
+                .get("subject")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string(),
+            body,
+        })
+    }
+
+    /// Send one already-saved draft.  This intentionally makes one request and
+    /// never retries a transport failure: after a timeout or lost response the
+    /// provider may have accepted it, so repeating it could duplicate mail.
+    pub async fn send_existing_draft(
+        &self,
+        draft_id: &str,
+    ) -> Result<(), GraphExistingDraftSendError> {
+        let url = format!(
+            "{}/v1.0/me/messages/{}/send",
+            self.base,
+            enc_path_segment(draft_id)
+        );
+        self.validate_token_target(&url)
+            .map_err(|_| GraphExistingDraftSendError::ProviderRefused)?;
+        let access = self.bearer_token().await;
+        let response = self
+            .http
+            .post(&url)
+            .bearer_auth(&access)
+            .send()
+            .await
+            .map_err(|_| GraphExistingDraftSendError::OutcomeUnknown)?;
+        if response.status().as_u16() == 202 {
+            return Ok(());
+        }
+        // Deliberate status-only logging: Graph response bodies can include
+        // recipients, subjects, and mailbox information.
+        log::warn!(
+            "Graph existing-draft send refused: status={}",
+            response.status()
+        );
+        Err(GraphExistingDraftSendError::ProviderRefused)
+    }
+
     /// PATCH JSON to an absolute Graph URL. Mirrors `post_json` exactly
     /// (429/Retry-After capped backoff, one 401 refresh, PII-safe logging);
     /// only the HTTP verb differs. Used to fill in a createReply draft.
@@ -543,6 +637,24 @@ impl GraphClient {
 /// `Client Name <client@example.com>` in that field.
 fn recipient_objs(addrs: &[String]) -> Vec<serde_json::Value> {
     addrs.iter().map(|addr| recipient_obj(addr)).collect()
+}
+
+fn graph_draft_recipients(value: &serde_json::Value, key: &str) -> Vec<String> {
+    value
+        .get(key)
+        .and_then(|v| v.as_array())
+        .map(|recipients| {
+            recipients
+                .iter()
+                .filter_map(|recipient| {
+                    recipient
+                        .pointer("/emailAddress/address")
+                        .and_then(|v| v.as_str())
+                })
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn recipient_obj(addr: &str) -> serde_json::Value {
@@ -1379,6 +1491,58 @@ mod tests {
             .await
             .expect("create_reply_draft should succeed with a path-sensitive id");
         assert_eq!(id, raw_draft_id);
+    }
+
+    #[tokio::test]
+    async fn existing_draft_fetches_and_sends_the_exact_escaped_draft_id() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let draft_id = "draft/with+reserved=";
+        let encoded_id = "draft%2Fwith%2Breserved%3D";
+        Mock::given(method("GET"))
+            .and(path(format!("/v1.0/me/messages/{encoded_id}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": draft_id,
+                "isDraft": true,
+                "toRecipients": [{ "emailAddress": { "address": "client@example.com" } }],
+                "ccRecipients": [],
+                "bccRecipients": [],
+                "subject": "approved subject",
+                "body": { "content": "approved body" }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("/v1.0/me/messages/{encoded_id}/send")))
+            .respond_with(ResponseTemplate::new(202))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        let draft = client
+            .get_existing_draft(draft_id)
+            .await
+            .expect("draft fetch");
+        assert_eq!(draft.id, draft_id);
+        assert!(draft.is_draft);
+        assert_eq!(draft.to, vec!["client@example.com"]);
+        client
+            .send_existing_draft(draft_id)
+            .await
+            .expect("accepted send");
+    }
+
+    #[tokio::test]
+    async fn existing_draft_transport_loss_is_unknown_and_never_retried() {
+        let client = GraphClient::new_with_base("AT".into(), "http://127.0.0.1:9".into());
+        assert_eq!(
+            client.send_existing_draft("draft-1").await,
+            Err(GraphExistingDraftSendError::OutcomeUnknown)
+        );
     }
 
     #[tokio::test]
