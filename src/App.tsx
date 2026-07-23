@@ -51,6 +51,7 @@ import { getAppSurfaceDescriptor } from '@/app/shell/registry/appSurfaceRegistry
 import { V1ShellFrameFlagGate } from '@/app/shell/v1-frame/V1ShellFrame';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
+import { useMeetingPopulationService } from '@/features/meetings/foundation/contract';
 import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
 import { AutoJoinMeetingsPanel } from '@/features/meetings/AutoJoinMeetingsPanel';
 import { LazyBoundary } from '@/ui/LazyBoundary';
@@ -114,7 +115,10 @@ import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import { writeSampleFiles } from '@/platform/matter/samples';
 import { seedSampleClientMap } from '@/platform/matter/samples/sampleClientMap';
-import { seedSampleGoldenPath } from '@/features/onboarding/seedSampleGoldenPath';
+import {
+  ensureSampleHendricksCrmLink,
+  seedSampleGoldenPath,
+} from '@/features/onboarding/seedSampleGoldenPath';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 import type {
   OnboardingStartMode,
@@ -148,6 +152,7 @@ import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMat
 import {
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,
+  publishLocalSampleHousehold,
   readSelectionPresentation,
   requestMatterScopeSelection,
   useSelectionPresentation,
@@ -299,10 +304,17 @@ function App() {
 
 function AppShell() {
   const { t } = useTranslation();
+  const sampleMeetingPopulation = useMeetingPopulationService();
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
     !IS_TEST_MODE && !IS_DEMO_MODE
   );
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
+  const [pendingSampleMeetingSeed, setPendingSampleMeetingSeed] = useState<{
+    readonly matterId: string;
+    readonly root: string;
+    readonly service: WorkspaceService;
+  } | null>(null);
+  const sampleMeetingSeedInFlight = useRef<string | null>(null);
   const {
     showCommandPalette,
     setShowCommandPalette,
@@ -1296,6 +1308,40 @@ function AppShell() {
 
   useEffect(() => registerFirmWorkspaceSwitcher(handleWorkspaceSelected), [handleWorkspaceSelected]);
 
+  // The onboarding callback opens a workspace before React can rebuild the
+  // live CRM adapter. Delay the canonical meeting write until this render: the
+  // population service then belongs to the newly selected workspace, while its
+  // own sealed selection checks still refuse any later client switch.
+  useEffect(() => {
+    if (!pendingSampleMeetingSeed || rootPath !== pendingSampleMeetingSeed.root)
+      return;
+    const seedKey = `${pendingSampleMeetingSeed.root}\u0000${pendingSampleMeetingSeed.matterId}`;
+    // Saving a meeting refreshes the live CRM hook, which rebuilds this
+    // service while the first seed is still awaiting. Keep exactly one live
+    // recovery attempt for this workspace/matter pair.
+    if (sampleMeetingSeedInFlight.current === seedKey) return;
+    sampleMeetingSeedInFlight.current = seedKey;
+    void seedSampleGoldenPath(
+      pendingSampleMeetingSeed.service,
+      pendingSampleMeetingSeed.root,
+      pendingSampleMeetingSeed.matterId,
+      sampleMeetingPopulation
+    )
+      .catch((seedErr: unknown) => {
+        console.warn('[onboarding] sample golden-path seeding failed (continuing):', seedErr);
+      })
+      .finally(() => {
+        if (sampleMeetingSeedInFlight.current !== seedKey) return;
+        sampleMeetingSeedInFlight.current = null;
+        setPendingSampleMeetingSeed((pending) =>
+          pending?.root === pendingSampleMeetingSeed.root &&
+          pending.matterId === pendingSampleMeetingSeed.matterId
+            ? null
+            : pending
+        );
+      });
+  }, [pendingSampleMeetingSeed, rootPath, sampleMeetingPopulation]);
+
   // Boot: silently reopen the last workspace when "Reopen last workspace" is
   // on, instead of always showing the picker (only Tauri can do this without
   // a fresh user gesture — browser directory handles need a picker click).
@@ -1475,15 +1521,17 @@ function AppShell() {
           useProfessionStore.getState().setProfession('advisor');
           await writeSampleFiles(service, 'advisor');
           const matter = getOrCreateSampleMatter(root);
+          ensureSampleHendricksCrmLink(matter.id);
+          // This narrow directory owner only publishes a local sample where no
+          // provider has published a firm directory. A connected firm stays
+          // untouched and selection remains safely refused instead.
+          publishLocalSampleHousehold({
+            provider: 'wealthbox',
+            householdId: 'sample-hendricks-household',
+            displayName: 'The Hendricks Household',
+          });
           await seedSampleClientMap(matter.id);
-          // Golden-path extras (sample meeting, prep brief, CRM card) are
-          // garnish — a seeding failure must never fail the sample start
-          // itself, so it is caught and logged instead of bubbling.
-          try {
-            await seedSampleGoldenPath(service, root, matter.id);
-          } catch (seedErr) {
-            console.warn('[onboarding] sample golden-path seeding failed (continuing):', seedErr);
-          }
+          setPendingSampleMeetingSeed({ matterId: matter.id, root, service });
           setSidebarActiveTab('matters');
           // NB: the setup-progress Client Map count intentionally EXCLUDES sample
           // matters (see computeClientMapProgress), so we don't try to report the

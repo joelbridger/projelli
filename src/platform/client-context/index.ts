@@ -4,6 +4,7 @@ export {
   issueMatterScopeSelection,
   issueRehydratedSelection,
   issueSharedClientSelection,
+  publishLocalSampleHousehold,
   readAuthoritativeMatterScope,
   readSharedClientContext,
   rehydrateSelectionHint,

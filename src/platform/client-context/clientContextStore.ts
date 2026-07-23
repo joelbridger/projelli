@@ -284,6 +284,23 @@ export function replaceCanonicalHouseholdDirectory(
   revalidateCurrentSelection();
 }
 
+/**
+ * Publish the one built-in local sample only when this provider has not yet
+ * published a directory.  This is deliberately not a general bootstrap or
+ * merge API: a connected firm's directory is already authoritative and must
+ * never be replaced or supplemented by demonstration data.
+ */
+export function publishLocalSampleHousehold(
+  sample: SharedClientSelectionInput
+): boolean {
+  const provider = normalizeProvider(sample.provider);
+  const client = normalizeClientInput(sample);
+  if (!provider || !client || currentProviderDirectory(provider).available)
+    return false;
+  replaceCanonicalHouseholdDirectory(provider, [client]);
+  return true;
+}
+
 type HouseholdClassificationKind =
   | 'exactly-one-live'
   | 'zero-live'

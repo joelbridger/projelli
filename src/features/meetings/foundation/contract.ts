@@ -246,6 +246,7 @@ export interface MeetingProjection {
   readonly householdRef: string;
   readonly matterId: string;
   readonly typeId: string;
+  /** Empty only when the durable record is explicitly accountless/unassigned. */
   readonly ownerRef: string;
   readonly scheduledStartUtc: string;
   readonly scheduledEndUtc: string;
@@ -267,7 +268,8 @@ export interface CreateMeetingDraft {
   readonly householdRef: string;
   readonly matterId: string;
   readonly typeId: string;
-  readonly ownerRef: string;
+  /** Null is an explicit accountless/unassigned meeting, never a fake member. */
+  readonly ownerRef: string | null;
   readonly scheduledStartUtc: string;
   readonly scheduledEndUtc: string;
   readonly timezone: string;
@@ -275,10 +277,16 @@ export interface CreateMeetingDraft {
   readonly visibilityPolicyId?: string;
 }
 
+/** A meeting draft whose client boundary is derived, never supplied by a caller. */
+export type ActiveClientMeetingDraft = Omit<
+  CreateMeetingDraft,
+  'householdRef' | 'matterId'
+>;
+
 /** Patches intentionally cannot replace the stable context or artifact ledger. */
 export interface MeetingPatch {
   readonly typeId?: string;
-  readonly ownerRef?: string;
+  readonly ownerRef?: string | null;
   readonly scheduledStartUtc?: string;
   readonly scheduledEndUtc?: string;
   readonly timezone?: string;
@@ -449,6 +457,18 @@ export interface MeetingPopulationService {
   createAndLink(
     draft: CreateMeetingDraft,
     legacy: LegacyMeetingLinkInput
+  ): Promise<MeetingRecord>;
+  /** Derives the household + matter from the live sealed client selection. */
+  createAndLinkForActiveClient(
+    draft: ActiveClientMeetingDraft,
+    legacy: LegacyMeetingLinkInput
+  ): Promise<MeetingRecord>;
+  /** Reads one selected-client meeting by a stable caller reference after reload. */
+  findByReference(reference: string): Promise<MeetingRecord | undefined>;
+  /** Uses the normal lifecycle guard for a population-created meeting. */
+  transition(
+    meetingId: MeetingRef,
+    transition: MeetingLifecycleTransition
   ): Promise<MeetingRecord>;
   linkLegacy(
     meetingId: MeetingRef,
@@ -1306,7 +1326,8 @@ export function validateMeetingDraft(
     householdRef: nonEmpty(input.householdRef, 'Household'),
     matterId: nonEmpty(input.matterId, 'Matter'),
     typeId: nonEmpty(input.typeId, 'Meeting type'),
-    ownerRef: nonEmpty(input.ownerRef, 'Owner'),
+    ownerRef:
+      input.ownerRef === null ? null : nonEmpty(input.ownerRef, 'Owner'),
     scheduledStartUtc: start,
     scheduledEndUtc: end,
     timezone: nonEmpty(input.timezone, 'Timezone'),
@@ -1352,7 +1373,10 @@ export function projectMeetingRecord(record: LiveCrmRecord): MeetingRecord {
     householdRef: nonEmpty(record['householdRef'], 'Household'),
     matterId: nonEmpty(record.matterId, 'Matter'),
     typeId: nonEmpty(record['typeId'], 'Meeting type'),
-    ownerRef: nonEmpty(record['ownerRef'], 'Owner'),
+    ownerRef:
+      record['ownerRef'] === null
+        ? null
+        : nonEmpty(record['ownerRef'], 'Owner'),
     scheduledStartUtc: nonEmpty(record['scheduledStartUtc'], 'Meeting start'),
     scheduledEndUtc: nonEmpty(record['scheduledEndUtc'], 'Meeting end'),
     timezone: nonEmpty(record['timezone'], 'Timezone'),
@@ -1375,6 +1399,7 @@ export function projectMeetingRecord(record: LiveCrmRecord): MeetingRecord {
     id: nonEmpty(record.id, 'Meeting ID'),
     kind: 'meeting',
     ...draft,
+    ownerRef: draft.ownerRef ?? '',
     state: state as MeetingState,
     createdAt: nonEmpty(record.createdAt, 'Created timestamp'),
     updatedAt: nonEmpty(record.updatedAt, 'Updated timestamp'),
@@ -1739,7 +1764,8 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
         householdRef: current.householdRef,
         matterId: current.matterId,
         typeId: patch.typeId ?? current.typeId,
-        ownerRef: patch.ownerRef ?? current.ownerRef,
+        ownerRef:
+          patch.ownerRef === undefined ? current.ownerRef : patch.ownerRef,
         scheduledStartUtc: patch.scheduledStartUtc ?? current.scheduledStartUtc,
         scheduledEndUtc: patch.scheduledEndUtc ?? current.scheduledEndUtc,
         timezone: patch.timezone ?? current.timezone,
@@ -1881,12 +1907,33 @@ export function createMeetingPopulationService(
   port: ClientScopedLivePort
 ): MeetingPopulationService {
   const store = createMeetingStore(port) as LinkableMeetingStore;
+  const scope = clientScope(port);
   return {
     createNew: (draft) => store.createDraft(draft),
     createAndLink: async (draft, legacy) => {
       const created = await store.createDraft(draft);
       return store.linkLegacy(created.id, legacy);
     },
+    createAndLinkForActiveClient: async (draft, legacy) => {
+      const boundary = scope.requireCurrent('Meeting');
+      const created = await store.createDraft({
+        ...draft,
+        householdRef: boundary.householdRef,
+        matterId: boundary.matterId,
+      });
+      return store.linkLegacy(created.id, legacy);
+    },
+    findByReference: async (reference) => {
+      const expected = scope.requireCurrent('Meeting');
+      const exactReference = nonEmpty(reference, 'Meeting reference');
+      requireAvailable(port);
+      const fresh = await port.reloadRecords();
+      scope.assertStable(expected, 'Meeting');
+      return meetingRecords(fresh ?? [])
+        .filter((meeting) => scope.owns(meeting))
+        .find((meeting) => meeting.references.includes(exactReference));
+    },
+    transition: (meetingId, transition) => store.transition(meetingId, transition),
     linkLegacy: (meetingId, legacy) => store.linkLegacy(meetingId, legacy),
     openTarget: (meetingId) =>
       resolveMeetingOpenTarget(
@@ -4091,6 +4138,39 @@ export function useMeetingFoundationStore(): MeetingStore {
     getSelectionError: readAuthoritativeMeetingSelectionError,
     reloadRecords: live.reloadRecords,
   });
+}
+
+/**
+ * Reactive selected-client population doorway for app-level flows such as
+ * onboarding. It uses the same encrypted CRM route and live boundary reader as
+ * the Meetings shell; callers receive no household/matter construction escape.
+ */
+export function useMeetingPopulationService(): MeetingPopulationService {
+  const live = useLiveCrmRecords();
+  useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
+  return useMemo(
+    () =>
+      createMeetingPopulationService({
+        records: live.records,
+        workspaceRoot: live.workspaceRoot,
+        error: live.error,
+        save: live.save,
+        sharedMatterId: live.sharedMatterId,
+        sharedLocalMatterId: live.sharedLocalMatterId,
+        getActiveClientBoundary: readActiveMeetingClientBoundary,
+        getSelectionError: readAuthoritativeMeetingSelectionError,
+        reloadRecords: live.reloadRecords,
+      }),
+    [
+      live.error,
+      live.records,
+      live.reloadRecords,
+      live.save,
+      live.sharedLocalMatterId,
+      live.sharedMatterId,
+      live.workspaceRoot,
+    ]
+  );
 }
 export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
   const live = useLiveCrmRecords();

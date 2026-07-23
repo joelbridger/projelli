@@ -7,7 +7,11 @@ import {
 } from '@/features/meetings/briefStore';
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
 import type { MeetingBriefBullet } from '@/features/meetings/generateBrief';
-import type { SealedMeetingClientBoundary } from '@/features/meetings';
+import {
+  createAccountlessUnrestrictedMeetingFileVisibilityManifest,
+  type MeetingPopulationService,
+  type SealedMeetingClientBoundary,
+} from '@/features/meetings';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -38,7 +42,10 @@ function abs(workspaceRoot: string, filename: string): string {
   return sampleFilePath(workspaceRoot, filename);
 }
 
-function sampleMeetingMeta(matterId: string): MeetingMeta {
+function sampleMeetingMeta(
+  matterId: string,
+  preservedVisibility?: MeetingMeta['meetingFileVisibility']
+): MeetingMeta {
   return {
     matterId,
     startedAt: SAMPLE_MEETING_STARTED_AT,
@@ -63,6 +70,12 @@ function sampleMeetingMeta(matterId: string): MeetingMeta {
         { name: 'Susan Hendricks', email: 'susan.hendricks@email.com' },
       ],
     },
+    meetingFileVisibility:
+      preservedVisibility ??
+      createAccountlessUnrestrictedMeetingFileVisibilityManifest({
+        meetingSubjectId: `meeting-file:${SAMPLE_MEETING_EVENT_ID}`,
+        fileNames: ['meeting.json', 'transcript.json', 'notes.docx'],
+      }),
   };
 }
 
@@ -228,7 +241,11 @@ function seedSampleCrmApproval(matterId: string): void {
   });
 }
 
-function seedSampleCrmLink(matterId: string): void {
+/**
+ * The sample's durable CRM link must exist before the normal matter-selection
+ * request. That request is the authority that mints the Meetings boundary.
+ */
+export function ensureSampleHendricksCrmLink(matterId: string): void {
   const store = useMatterStore.getState();
   const matter = store.matters.find((m) => m.id === matterId);
   if (!matter) return;
@@ -237,15 +254,80 @@ function seedSampleCrmLink(matterId: string): void {
   store.addCrmHouseholdKey(matterId, SAMPLE_CRM_HOUSEHOLD_KEY);
 }
 
+async function preservedMeetingVisibility(
+  workspace: WorkspaceService,
+  meetingJsonPath: string
+): Promise<MeetingMeta['meetingFileVisibility'] | undefined> {
+  try {
+    const existing = JSON.parse(await workspace.readFile(meetingJsonPath)) as {
+      readonly meetingFileVisibility?: MeetingMeta['meetingFileVisibility'];
+    };
+    // A valid owner-private decision must survive reseeding. Keeping an
+    // unknown/malformed older value intact is also safer than replacing it
+    // with unrestricted access; the normal reader continues to fail closed.
+    return existing.meetingFileVisibility;
+  } catch {
+    return undefined;
+  }
+}
+
+async function ensureCanonicalSampleMeeting(
+  population: MeetingPopulationService,
+  workspaceRoot: string
+): Promise<void> {
+  const meetingDir = `Meetings/${SAMPLE_MEETING_FOLDER}`;
+  let meeting = await population.findByReference(SAMPLE_CRM_SOURCE_REF);
+  if (meeting) {
+    meeting = await population.linkLegacy(meeting.id, { meetingDir });
+  } else {
+    // The population service, not this seed, derives the household + matter
+    // from the live selected-client boundary immediately before it writes.
+    meeting = await population.createAndLinkForActiveClient(
+      {
+        workspaceId: workspaceRoot,
+        typeId: 'annual-review',
+        // A local sample is explicitly accountless, not a made-up advisor.
+        ownerRef: null,
+        scheduledStartUtc: SAMPLE_MEETING_STARTED_AT,
+        scheduledEndUtc: SAMPLE_MEETING_ENDED_AT,
+        timezone: 'UTC',
+        references: [SAMPLE_CRM_SOURCE_REF],
+      },
+      { meetingDir }
+    );
+  }
+
+  while (meeting.state !== 'completed') {
+    const transition = (() => {
+      switch (meeting.state) {
+        case 'draft':
+          return { from: 'draft' as const, to: 'scheduled' as const, at: SAMPLE_MEETING_STARTED_AT };
+        case 'scheduled':
+          return { from: 'scheduled' as const, to: 'in-progress' as const, at: SAMPLE_MEETING_STARTED_AT };
+        case 'in-progress':
+          return { from: 'in-progress' as const, to: 'completed' as const, at: SAMPLE_MEETING_ENDED_AT };
+        case 'cancelled':
+          throw new Error('The canonical Hendricks meeting is not completable.');
+      }
+    })();
+    meeting = await population.transition(meeting.id, transition);
+  }
+}
+
 export async function seedSampleGoldenPath(
   workspace: WorkspaceService,
   workspaceRoot: string,
-  matterId: string
+  matterId: string,
+  population: MeetingPopulationService
 ): Promise<void> {
   const meetingDir = `${workspaceRoot.replace(/[\\/]+$/, '')}/Meetings/${SAMPLE_MEETING_FOLDER}`;
+  const visibility = await preservedMeetingVisibility(
+    workspace,
+    `${meetingDir}/meeting.json`
+  );
   await workspace.writeFile(
     `${meetingDir}/meeting.json`,
-    JSON.stringify(sampleMeetingMeta(matterId), null, 2)
+    JSON.stringify(sampleMeetingMeta(matterId, visibility), null, 2)
   );
   await workspace.writeFile(
     `${meetingDir}/transcript.json`,
@@ -260,7 +342,7 @@ export async function seedSampleGoldenPath(
     exactBuffer(notesBytes)
   );
 
-  seedSampleCrmLink(matterId);
+  await ensureCanonicalSampleMeeting(population, workspaceRoot);
   const sample = sampleBrief(workspaceRoot, matterId);
   useBriefStore.getState().upsert(sample.identity, sample.brief);
   seedSampleCrmApproval(matterId);
