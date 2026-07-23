@@ -951,4 +951,24 @@ mod tests {
             Err(GmailExistingDraftSendError::OutcomeUnknown)
         );
     }
+
+    #[tokio::test]
+    async fn existing_draft_provider_refusal_is_distinct_from_transport_unknown() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/gmail/v1/users/me/drafts/draft-1/send"))
+            .respond_with(ResponseTemplate::new(403))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = GmailClient::new_with_base("AT".into(), server.uri());
+        assert_eq!(
+            client.send_existing_draft("draft-1").await,
+            Err(GmailExistingDraftSendError::ProviderRefused)
+        );
+    }
 }

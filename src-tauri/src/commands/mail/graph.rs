@@ -1546,6 +1546,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn existing_draft_provider_refusal_is_distinct_from_transport_unknown() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/messages/draft-1/send"))
+            .respond_with(ResponseTemplate::new(403))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        assert_eq!(
+            client.send_existing_draft("draft-1").await,
+            Err(GraphExistingDraftSendError::ProviderRefused)
+        );
+    }
+
+    #[tokio::test]
     async fn graph_provider_fetch_changes_backfill_returns_message_and_delta_done() {
         use crate::commands::mail::provider::{Cursor, RemoteFolder};
         use wiremock::matchers::{method, path};
