@@ -536,6 +536,7 @@ export async function migrateLegacyMeetingFileVisibility(input: {
   migrationQueue = new Promise<void>((resolve) => {
     release = resolve;
   });
+  // eslint-disable-next-line lantern-async/no-silent-failure -- a failed prior migration must not permanently block a later safe retry.
   await prior.catch(() => undefined);
   try {
     const state = await readMigrationState(input.workspace);

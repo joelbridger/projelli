@@ -2,28 +2,20 @@ import { act, render, screen, fireEvent, waitFor, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { brandText } from '@/config/brandText';
 import { MeetingSendPanel } from '@/features/meetings/MeetingSendPanel';
-import {
-  MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE,
-  MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS,
-} from '@/features/meetings/meetingFileVisibility';
 import { emptyMeetingRecipientArtifacts, type MeetingDeliveryPlan } from '@/features/meetings/meetingRecipientPlan';
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { Matter } from '@/platform/types/matter';
 
-const { sendArtifactsMock, requireFileAccessMock } = vi.hoisted(() => ({
+const { loadMeetingVisibilityPoliciesMock, sendArtifactsMock } = vi.hoisted(() => ({
+  loadMeetingVisibilityPoliciesMock: vi.fn(),
   sendArtifactsMock: vi.fn(),
-  requireFileAccessMock: vi.fn<() => Promise<void>>(),
 }));
 
-vi.mock('@/features/meetings/meetingFileVisibility', async (importOriginal) => {
-  const original = await importOriginal<
-    typeof import('@/features/meetings/meetingFileVisibility')
-  >();
-  return {
-    ...original,
-    requireCurrentMeetingFileAccess: requireFileAccessMock,
-  };
-});
+vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
+  loadMeetingVisibilityPoliciesForFileAccess: loadMeetingVisibilityPoliciesMock,
+}));
 
 vi.mock('@/features/meetings/meetingArtifactDelivery', async (importOriginal) => {
   const original = await importOriginal<
@@ -46,6 +38,11 @@ vi.mock('@/platform/privacy/localOnlyGuard', () => ({
 }));
 
 const NOW = '2026-07-07T12:00:00.000Z';
+const MEETING_ACCESS_CHECK_TIMEOUT_MS = 10_000;
+const MEETING_ACCESS_CHECK_TIMEOUT_MESSAGE =
+  'Lantern could not confirm who may see the meeting, so recipient changes were not saved.';
+const OWNER_VISIBILITY_IDENTITY =
+  '["owner",[{"excludedMemberIds":[],"id":"meeting-file-visibility:owner-private","includedMemberIds":[],"mode":"explicit-review"}]]';
 
 function plan(): MeetingDeliveryPlan {
   return {
@@ -78,9 +75,32 @@ function unreviewedMeta(): MeetingMeta {
   return rest as MeetingMeta;
 }
 
+function meetingFileVisibility() {
+  return {
+    version: 1 as const,
+    meetingSubject: {
+      id: 'meeting-file:one',
+      kind: 'meeting-note' as const,
+      lineage: 'root' as const,
+      ownerRef: 'owner',
+      visibilityPolicyId: 'meeting-file-visibility:owner-private',
+    },
+    files: {
+      'meeting.json': {
+        id: 'meeting-file:one:file:meeting.json',
+        kind: 'file-reference' as const,
+        lineage: 'derived' as const,
+        parentRef: { id: 'meeting-file:one', kind: 'meeting-note' as const },
+      },
+    },
+  };
+}
 
 function makeWorkspace(files = new Map<string, string>()) {
-  files.set('/client/Meetings/one/meeting.json', JSON.stringify(meta()));
+  files.set(
+    '/client/Meetings/one/meeting.json',
+    JSON.stringify({ ...meta(), meetingFileVisibility: meetingFileVisibility() })
+  );
   return {
     files,
     readFile: vi.fn(async (path: string) => files.get(path) ?? ''),
@@ -101,7 +121,7 @@ function renderPanel(opts: { inputMeta?: MeetingMeta; ws?: ReturnType<typeof mak
       meetingDir="/client/Meetings/one"
       workspaceRoot="/client"
       workspaceGeneration={17}
-      visibilityIdentity="test-viewer-and-policy"
+      visibilityIdentity={OWNER_VISIBILITY_IDENTITY}
       meta={opts.inputMeta ?? meta()}
       matter={opts.matter ?? null}
       clientName="Hendricks"
@@ -122,11 +142,29 @@ describe('MeetingSendPanel (merged send surface)', () => {
   beforeEach(() => {
     localOnlyState.value = false;
     vi.clearAllMocks();
+    loadMeetingVisibilityPoliciesMock.mockResolvedValue([]);
     sendArtifactsMock.mockResolvedValue([]);
-    requireFileAccessMock.mockResolvedValue();
+    useWorkspaceStore.setState({ rootPath: '/client', rootGeneration: 17 });
+    useFirmStore.setState({
+      session: {
+        userId: 'owner',
+        email: 'owner@example.com',
+        role: 'member',
+        org: null,
+        seatId: null,
+        tier: null,
+        packs: [],
+        seats: 0,
+        lastValidatedAt: null,
+        activated: false,
+      },
+    });
   });
   afterEach(() => {
     localOnlyState.value = false;
+    loadMeetingVisibilityPoliciesMock.mockReset();
+    useFirmStore.setState({ session: null });
+    useWorkspaceStore.setState({ rootPath: null, rootGeneration: 0 });
   });
 
   it('is one surface: recipient planning and the single Review send action live together', async () => {
@@ -223,7 +261,10 @@ describe('MeetingSendPanel (merged send surface)', () => {
     vi.useFakeTimers();
     try {
       const files = new Map<string, string>();
-      files.set('/client/Meetings/one/meeting.json', JSON.stringify(meta()));
+      files.set(
+        '/client/Meetings/one/meeting.json',
+        JSON.stringify({ ...meta(), meetingFileVisibility: meetingFileVisibility() })
+      );
       let inFlight = 0;
       let maxInFlight = 0;
       let releaseFirstWrite: () => void = () => {};
@@ -285,7 +326,10 @@ describe('MeetingSendPanel (merged send surface)', () => {
 
   it('(finding 1, unmount edge) persists the last recipient edit when the drawer closes within the debounce window', async () => {
     const files = new Map<string, string>();
-    files.set('/client/Meetings/one/meeting.json', JSON.stringify(meta()));
+    files.set(
+      '/client/Meetings/one/meeting.json',
+      JSON.stringify({ ...meta(), meetingFileVisibility: meetingFileVisibility() })
+    );
     const ws = {
       files,
       readFile: vi.fn(async (path: string) => files.get(path) ?? ''),
@@ -314,22 +358,17 @@ describe('MeetingSendPanel (merged send surface)', () => {
     vi.useFakeTimers();
     try {
       const ws = makeWorkspace();
-      requireFileAccessMock
-        .mockResolvedValueOnce()
-        .mockRejectedValueOnce(
-          new Error('Access to this meeting file changed.')
-        );
       renderPanel({ ws });
 
       fireEvent.change(screen.getByTestId('meeting-recipient-input-person'), {
         target: { value: 'revoked@example.com' },
       });
       fireEvent.click(screen.getByTestId('meeting-recipient-add-person'));
+      useWorkspaceStore.setState({ rootGeneration: 18 });
       await act(async () => {
         await vi.advanceTimersByTimeAsync(600);
       });
 
-      expect(requireFileAccessMock).toHaveBeenCalledTimes(2);
       expect(ws.writeFile).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -341,13 +380,8 @@ describe('MeetingSendPanel (merged send surface)', () => {
     try {
       const ws = makeWorkspace();
       const onChanged = vi.fn();
-      requireFileAccessMock.mockImplementation(
-        () => new Promise<void>((_resolve, reject) => {
-          setTimeout(
-            () => reject(new Error(MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE)),
-            MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS
-          );
-        })
+      loadMeetingVisibilityPoliciesMock.mockImplementation(
+        () => new Promise<readonly unknown[]>(() => {})
       );
       renderPanel({ ws, onChanged });
 
@@ -361,12 +395,13 @@ describe('MeetingSendPanel (merged send surface)', () => {
       expect(screen.getByTestId('meeting-recipients-status')).toHaveTextContent(/Saving/);
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS);
+        await vi.advanceTimersByTimeAsync(MEETING_ACCESS_CHECK_TIMEOUT_MS);
       });
 
       expect(screen.getByTestId('meeting-recipients-status')).toHaveTextContent(
-        MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE
+        MEETING_ACCESS_CHECK_TIMEOUT_MESSAGE
       );
+      expect(loadMeetingVisibilityPoliciesMock).toHaveBeenCalledWith('/client');
       expect(ws.writeFile).not.toHaveBeenCalled();
       expect(onChanged).not.toHaveBeenCalled();
       expect(sendArtifactsMock).not.toHaveBeenCalled();
@@ -377,18 +412,16 @@ describe('MeetingSendPanel (merged send surface)', () => {
 
   it('writes nothing when a pending unmount flush has already lost access', async () => {
     const ws = makeWorkspace();
-    requireFileAccessMock.mockRejectedValue(
-      new Error('Access to this meeting file changed.')
-    );
     const { unmount } = renderPanel({ ws });
 
     fireEvent.change(screen.getByTestId('meeting-recipient-input-person'), {
       target: { value: 'revoked-on-close@example.com' },
     });
     fireEvent.click(screen.getByTestId('meeting-recipient-add-person'));
+    useWorkspaceStore.setState({ rootGeneration: 18 });
     unmount();
 
-    await waitFor(() => expect(requireFileAccessMock).toHaveBeenCalled());
+    await act(async () => {});
     expect(ws.writeFile).not.toHaveBeenCalled();
   });
 
