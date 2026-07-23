@@ -1,0 +1,78 @@
+{
+  "kind": "verification-evidence",
+  "lane_id": "m3-foundation-c-local-task-evidence-attempt2-20260723",
+  "attempt": 2,
+  "candidate": {
+    "head": "16a90ebedf7e645a41d07821411d32e273637589",
+    "parent": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "subject": "feat(crm): add local meeting task doorway",
+    "repository": "/home/jameson/lantern/app/integration",
+    "worktree": "/home/jameson/lantern/app/integration/.worktrees/evidence/m3-foundation-c-local-task-v2-20260723",
+    "branch": "evidence/m3-foundation-c-local-task-v2-20260723",
+    "remote": "https://github.com/lanternplatform/lantern.git",
+    "sha256": {
+      "src-tauri/src/commands/crm/features/local_task/mod.rs": "672a3b86e1f96269b88eb60089b9ff8230b80dbccc6923235f11221be4e13905",
+      "src-tauri/src/commands/crm/features/local_task/commands.rs": "f8eb769242f3fbd0a18cc7ce82679b0e36e443b926882e1bd55365b66ca9972f",
+      "src-tauri/src/commands/crm/features/local_task/command-manifest.txt": "20457b4da656b37e6187370dfa7c7543cff5312cb561c88d4ecddea86558af25",
+      "src-tauri/src/commands/crm/features/mod.rs": "65c0234d27e2fc79bd6722560ba7857df05975d418fe85a97216211875a40c7a",
+      "src-tauri/src/commands/crm/migrations/v0008_local_task_delivery_receipts.rs": "f69c38f10ddaa151f149747581c7189d8b5e5f1b0cf8ea6960ef37ad8861742a",
+      "src-tauri/src/commands/crm/migrations/mod.rs": "3aa9f3548ee6d97865830776031fc55a8914e4827d482b0e3730a6e589ff9531",
+      "src/platform/crm/localMeetingTaskTransport.ts": "ec2275d2f1644d9227c49bb1c438e4c3f3040e0e526e3e72bbd529a4d1dbcd5a",
+      "src/platform/crm/localMeetingTaskTransport.test.ts": "8101b482fc37b9beacdfb49e1dcc6c808f14d9d4c3d7b9be7dc519c49f25eab9",
+      "src/features/crm-tasks/testing/roundTripTaskRecord.test.tsx": "1fd82f93a35ca579179728fba6b32da51c128665252360042cad19c3a15e93c5",
+      "scripts/verify-m3-foundation-c-local-task.sh": "815d6d32ce2c6beb030b03ed8190e8c86e4b9b0030333c5ad2920fbf23a67669",
+      "bench-evidence/2026-07-23-m3-foundation-c-local-task/receipt.json": "f917ee7735b323078c4a0b1f765992a8996c6b4ee6b6aa8f84a958bccf4be12d"
+    }
+  },
+  "attempt_1": {
+    "job_id": "20260723-231928-dkqzxxxx",
+    "classification": "false/invalid result: its obsolete short lane-result shape omitted required production fields; this was not a product-check failure",
+    "candidate_head": "16a90ebedf7e645a41d07821411d32e273637589"
+  },
+  "contract": {
+    "sha256": "c75add7bcc23d0da65b925a00f2aad6c895a0fbc7cbac5a06902c5a40e48acab",
+    "job_id": "20260723-233940-jhz5xxxx",
+    "launch_record": "/home/jameson/.local/share/codex-fleet/20260723-233940-jhz5xxxx/launch-record.json"
+  },
+  "checks": [
+    {
+      "name": "Real SQLCipher and focused Task transport verification",
+      "command": "bash scripts/verify-m3-foundation-c-local-task.sh",
+      "exit_code": 0,
+      "result": "6 Rust SQLCipher tests passed; 2 focused TypeScript files and 3 tests passed; typecheck and Tauri contract check passed; verifier cleanup left its named temporary paths absent."
+    },
+    {
+      "name": "Owned Rust formatting and verifier syntax",
+      "command": "rustfmt --edition 2021 --config skip_children=true --check src-tauri/src/commands/crm/features/local_task/mod.rs src-tauri/src/commands/crm/features/local_task/commands.rs src-tauri/src/commands/crm/migrations/v0008_local_task_delivery_receipts.rs && bash -n scripts/verify-m3-foundation-c-local-task.sh",
+      "exit_code": 0
+    },
+    {
+      "name": "TypeScript and native command contracts",
+      "command": "set -euo pipefail; repo_root=\"$PWD\"; source_root=/home/jameson/lantern/app/integration; cleanup(){ if test -L \"$repo_root/node_modules\"; then test \"$(readlink \"$repo_root/node_modules\")\" = \"$source_root/node_modules\"; unlink \"$repo_root/node_modules\"; fi; }; trap cleanup EXIT; test ! -e node_modules && test ! -L node_modules; test \"$(sha256sum package.json | awk '{print $1}')\" = 192f9b6e8237344fe730d4dcf058759bd3b0457664501f3fa1f0b351f380e012; test \"$(sha256sum package-lock.json | awk '{print $1}')\" = ce074d4be9d8fa7bd1ae9454692d74e7376fbf819a6f9b9d1e473dbb1f38c4ae; test -d \"$source_root/node_modules\" && test ! -L \"$source_root/node_modules\"; ln -s \"$source_root/node_modules\" node_modules; npm run typecheck; node scripts/check-tauri-contracts.mjs; cleanup; trap - EXIT; test ! -e node_modules && test ! -L node_modules",
+      "exit_code": 0,
+      "result": "Typecheck passed. Tauri contract check passed: 80 TypeScript invokes and 91 target registered Rust commands checked (305 total manifest commands); warnings were reported without failure."
+    },
+    {
+      "name": "Temporary dependency and helper absence",
+      "command": "test ! -e node_modules && test ! -L node_modules && test ! -e src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/piper-x86_64-unknown-linux-gnu && test ! -e src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu && test ! -L src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu",
+      "exit_code": 0
+    },
+    {
+      "name": "Exact evidence-only scope and candidate parent",
+      "command": "git diff --check 16a90ebedf7e645a41d07821411d32e273637589..HEAD && test \"$(git diff --name-only 16a90ebedf7e645a41d07821411d32e273637589..HEAD)\" = \"bench-evidence/2026-07-23-m3-foundation-c-local-task/verification-attempt-2.json\" && test \"$(git rev-parse HEAD^)\" = 16a90ebedf7e645a41d07821411d32e273637589",
+      "exit_code": 0
+    }
+  ],
+  "unproven": [
+    "UI",
+    "provider",
+    "mail",
+    "network",
+    "Windows",
+    "external delivery",
+    "visible M3 journey",
+    "Whole Firm",
+    "staff permissions"
+  ],
+  "status": "verification evidence only; does not claim product acceptance"
+}
