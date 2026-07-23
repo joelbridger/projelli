@@ -7,13 +7,25 @@ import {
   createAccountlessUnrestrictedMeetingFileVisibilityManifest,
   createMeetingFileVisibilityManifest,
   decideMeetingFileVisibility,
+  MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE,
+  MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS,
   meetingFileVisibilityContextIdentity,
   migrateLegacyMeetingFileVisibility,
   readCurrentMeetingViewerId,
+  requireCurrentMeetingFileAccess,
   resolveMeetingFilePathVisibility,
   type MeetingFileVisibilityManifest,
 } from './meetingFileVisibility';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+
+const { loadMeetingVisibilityPoliciesMock } = vi.hoisted(() => ({
+  loadMeetingVisibilityPoliciesMock: vi.fn(),
+}));
+
+vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
+  loadMeetingVisibilityPoliciesForFileAccess: loadMeetingVisibilityPoliciesMock,
+}));
 
 const policy: MeetingVisibilityPolicy = {
   id: 'policy-one-meeting',
@@ -114,10 +126,12 @@ describe('file-backed meeting visibility', () => {
     const current = manifest();
     const raw = JSON.stringify({ meetingFileVisibility: current });
     const workspace = {
-      exists: vi.fn(async (path: string) =>
-        path.replaceAll('\\', '/').endsWith('/client/Meetings/arbitrary/meeting.json')
+      exists: vi.fn((path: string) =>
+        Promise.resolve(
+          path.replaceAll('\\', '/').endsWith('/client/Meetings/arbitrary/meeting.json')
+        )
       ),
-      readFile: vi.fn(async () => raw),
+      readFile: vi.fn(() => Promise.resolve(raw)),
     };
 
     await expect(
@@ -204,6 +218,63 @@ describe('file-backed meeting visibility', () => {
     useFirmStore.setState({ session: null });
   });
 
+  it('fails closed with a stable error when the current policy read never settles', async () => {
+    vi.useFakeTimers();
+    try {
+      useWorkspaceStore.setState({ rootPath: '/client', rootGeneration: 17 });
+      useFirmStore.setState({
+        session: {
+          userId: 'owner',
+          email: 'owner@example.com',
+          role: 'member',
+          org: null,
+          seatId: null,
+          tier: null,
+          packs: [],
+          seats: 0,
+          lastValidatedAt: null,
+          activated: false,
+        },
+      });
+      loadMeetingVisibilityPoliciesMock.mockImplementation(
+        () => new Promise<readonly unknown[]>(() => {})
+      );
+      const meeting = createMeetingFileVisibilityManifest({
+        ownerRef: 'owner',
+        meetingSubjectId: 'meeting-file:timeout',
+        fileNames: ['meeting.json'],
+      });
+      const workspace = {
+        readFile: vi.fn(() =>
+          Promise.resolve(JSON.stringify({ meetingFileVisibility: meeting }))
+        ),
+        writeFile: vi.fn(),
+      };
+
+      const access = requireCurrentMeetingFileAccess({
+        path: '/client/Meetings/one/meeting.json',
+        workspace,
+        workspaceRoot: '/client',
+        workspaceGeneration: 17,
+      });
+      const assertion = expect(access).rejects.toThrow(
+        MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE
+      );
+
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS);
+      await assertion;
+
+      expect(loadMeetingVisibilityPoliciesMock).toHaveBeenCalledWith('/client');
+      expect(workspace.writeFile).not.toHaveBeenCalled();
+    } finally {
+      loadMeetingVisibilityPoliciesMock.mockReset();
+      useFirmStore.setState({ session: null });
+      useWorkspaceStore.setState({ rootPath: null, rootGeneration: 0 });
+      vi.useRealTimers();
+    }
+  });
+
   it('migrates only exact children, records mismatches, and then keeps missing manifests hidden', async () => {
     const goodDir = '/ws/client/Meetings/good';
     const wrongDir = '/ws/client/Meetings/wrong';
@@ -212,32 +283,34 @@ describe('file-backed meeting visibility', () => {
       [`${wrongDir}/meeting.json`, JSON.stringify({ matterId: 'matter-2' })],
     ]);
     const workspace = {
-      readFile: vi.fn(async (path: string) => {
+      readFile: vi.fn((path: string) => {
         const value = files.get(path);
-        if (value === undefined) throw new Error('ENOENT');
-        return value;
+        return value === undefined
+          ? Promise.reject(new Error('ENOENT'))
+          : Promise.resolve(value);
       }),
-      writeFile: vi.fn(async (path: string, content: string) => {
+      writeFile: vi.fn((path: string, content: string) => {
         files.set(path, content);
+        return Promise.resolve();
       }),
-      exists: vi.fn(async (path: string) =>
-        path === '/ws/client/Meetings' || files.has(path)
+      exists: vi.fn((path: string) =>
+        Promise.resolve(path === '/ws/client/Meetings' || files.has(path))
       ),
-      list: vi.fn(async (path: string) => {
+      list: vi.fn((path: string) => {
         if (path === '/ws/client/Meetings')
-          return [
+          return Promise.resolve([
             { name: 'good', path: goodDir, type: 'folder' as const },
             { name: 'wrong', path: wrongDir, type: 'folder' as const },
-          ];
+          ]);
         if (path === goodDir || path === wrongDir)
-          return [
+          return Promise.resolve([
             {
               name: 'meeting.json',
               path: `${path}/meeting.json`,
               type: 'file' as const,
             },
-          ];
-        return [];
+          ]);
+        return Promise.resolve([]);
       }),
     };
 
@@ -271,30 +344,36 @@ describe('file-backed meeting visibility', () => {
     const files = new Map<string, string>(
       dirs.map((dir) => [`${dir}/meeting.json`, JSON.stringify({ matterId: 'matter-1' })])
     );
+    const secondDir = '/ws/client/Meetings/two';
     let failSecond = true;
     const workspace = {
-      readFile: vi.fn(async (path: string) => {
+      readFile: vi.fn((path: string) => {
         const value = files.get(path);
-        if (value === undefined) throw new Error('ENOENT');
-        return value;
+        return value === undefined
+          ? Promise.reject(new Error('ENOENT'))
+          : Promise.resolve(value);
       }),
-      writeFile: vi.fn(async (path: string, content: string) => {
-        if (failSecond && path === `${dirs[1]}/meeting.json`) throw new Error('disk full');
+      writeFile: vi.fn((path: string, content: string) => {
+        if (failSecond && path === `${secondDir}/meeting.json`)
+          return Promise.reject(new Error('disk full'));
         files.set(path, content);
+        return Promise.resolve();
       }),
-      exists: vi.fn(async (path: string) =>
-        path === '/ws/client/Meetings' || files.has(path)
+      exists: vi.fn((path: string) =>
+        Promise.resolve(path === '/ws/client/Meetings' || files.has(path))
       ),
-      list: vi.fn(async (path: string) => {
+      list: vi.fn((path: string) => {
         if (path === '/ws/client/Meetings')
-          return dirs.map((dir) => ({
+          return Promise.resolve(dirs.map((dir) => ({
             name: dir.split('/').at(-1) as string,
             path: dir,
             type: 'folder' as const,
-          }));
+          })));
         if (dirs.includes(path))
-          return [{ name: 'meeting.json', path: `${path}/meeting.json`, type: 'file' as const }];
-        return [];
+          return Promise.resolve([
+            { name: 'meeting.json', path: `${path}/meeting.json`, type: 'file' as const },
+          ]);
+        return Promise.resolve([]);
       }),
     };
 
@@ -315,6 +394,8 @@ describe('file-backed meeting visibility', () => {
         workspace,
       })
     ).resolves.toMatchObject({ kind: 'completed', migrated: 1 });
-    expect(JSON.parse(files.get(sentinel) as string).completedMatterIds).toContain('matter-1');
+    expect(files.get(sentinel)).toMatch(
+      /"completedMatterIds":\s+\[\s+"matter-1"\s+\]/u
+    );
   });
 });
