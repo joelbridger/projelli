@@ -1,4 +1,5 @@
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { TimeoutError, withTimeout } from '@/lib/withTimeout';
 import {
   loadMeetingVisibilityPoliciesForFileAccess,
 } from '@/platform/crm/useLiveCrmRecords';
@@ -66,6 +67,18 @@ export class MeetingFileVisibilityRevokedError extends Error {
   constructor() {
     super('Access to this meeting file changed. Nothing was sent or opened.');
     this.name = 'MeetingFileVisibilityRevokedError';
+  }
+}
+
+export const MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS = 10_000;
+export const MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE =
+  'Lantern could not confirm who may see the meeting, so recipient changes were not saved.';
+
+/** The policy snapshot was not available in time, so access must fail closed. */
+export class MeetingFileAccessCheckTimeoutError extends Error {
+  constructor() {
+    super(MEETING_FILE_ACCESS_CHECK_TIMEOUT_MESSAGE);
+    this.name = 'MeetingFileAccessCheckTimeoutError';
   }
 }
 
@@ -222,9 +235,19 @@ export async function readCurrentMeetingFileVisibilityContext(
   workspaceRoot: string | null | undefined
 ): Promise<MeetingFileVisibilityContext> {
   const persisted = workspaceRoot
-    ? await loadMeetingVisibilityPoliciesForFileAccess(workspaceRoot).catch(
-        () => []
-      )
+    ? await withTimeout(
+        loadMeetingVisibilityPoliciesForFileAccess(workspaceRoot),
+        MEETING_FILE_ACCESS_CHECK_TIMEOUT_MS,
+        'Meeting access check'
+      ).catch((error: unknown) => {
+        // A stalled policy read is uncertainty, not an empty policy list. Keep
+        // the existing fallback for an ordinary loader failure, but never let
+        // the deadline turn into a save authorization.
+        if (error instanceof TimeoutError) {
+          throw new MeetingFileAccessCheckTimeoutError();
+        }
+        return [];
+      })
     : [];
   return {
     viewerId: readCurrentMeetingViewerId(),
@@ -513,6 +536,7 @@ export async function migrateLegacyMeetingFileVisibility(input: {
   migrationQueue = new Promise<void>((resolve) => {
     release = resolve;
   });
+  // eslint-disable-next-line lantern-async/no-silent-failure -- a failed prior migration must not permanently block a later safe retry.
   await prior.catch(() => undefined);
   try {
     const state = await readMigrationState(input.workspace);
