@@ -130,6 +130,62 @@ describe('meeting follow-up exact-pair store', () => {
     expect(JSON.stringify(readB)).not.toContain('Private household A recap');
   });
 
+  it('locks a durable pending provider receipt to its original mailbox and refuses another attempt', async () => {
+    const lane = harness();
+    const store = createMeetingFollowUpStore(lane.meetings, lane.artifacts);
+    const edited = {
+      to: 'alpha@example.test',
+      subject: 'Alpha recap',
+      body: 'Private household A recap.',
+    };
+    await expect(
+      store.save(target(lane.householdA), { ...edited, state: 'edited' })
+    ).resolves.toMatchObject({ kind: 'ready' });
+    await expect(
+      store.save(target(lane.householdA), {
+        ...edited,
+        state: 'provider-save-pending',
+        draftProvider: 'm365',
+        draftAccount: 'advisor@firm.test',
+        draftAccountLabel: 'Advisor Outlook',
+      })
+    ).resolves.toMatchObject({
+      kind: 'ready',
+      recap: {
+        state: 'provider-save-pending',
+        draftProvider: 'm365',
+        draftAccount: 'advisor@firm.test',
+      },
+    });
+    await expect(
+      store.save(target(lane.householdA), {
+        ...edited,
+        state: 'provider-save-unknown',
+        draftProvider: 'gmail',
+        draftAccount: 'advisor@firm.test',
+        draftAccountLabel: 'Advisor Gmail',
+      })
+    ).resolves.toEqual({ kind: 'refused' });
+    await expect(
+      store.save(target(lane.householdA), {
+        ...edited,
+        state: 'provider-save-unknown',
+        draftProvider: 'm365',
+        draftAccount: 'advisor@firm.test',
+        draftAccountLabel: 'Advisor Outlook',
+      })
+    ).resolves.toMatchObject({ kind: 'ready' });
+    await expect(
+      store.save(target(lane.householdA), {
+        ...edited,
+        state: 'provider-save-pending',
+        draftProvider: 'm365',
+        draftAccount: 'second@firm.test',
+        draftAccountLabel: 'Second Outlook',
+      })
+    ).resolves.toEqual({ kind: 'refused' });
+  });
+
   it('refuses missing runtime identity and ignores legacy records without the pair-derived key', async () => {
     const lane = harness();
     const store = createMeetingFollowUpStore(lane.meetings, lane.artifacts);

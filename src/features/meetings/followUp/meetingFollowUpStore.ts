@@ -35,10 +35,16 @@ export interface MeetingFollowUpRecap extends MeetingFollowUpDraft {
   readonly householdRef: string;
   readonly matterId: string;
   readonly producedAt: string;
-  readonly state: 'edited' | 'saved-to-drafts';
+  readonly state:
+    | 'edited'
+    | 'provider-save-pending'
+    | 'provider-save-unknown'
+    | 'saved-to-drafts';
   readonly outlookDraftId?: string;
-  /** Provider retained so a saved Gmail draft is never presented as Outlook. */
+  /** Provider/account snapshot keeps an unresolved attempt bound to one mailbox. */
   readonly draftProvider?: 'm365' | 'gmail';
+  readonly draftAccount?: string;
+  readonly draftAccountLabel?: string;
 }
 
 export type MeetingFollowUpReadResult =
@@ -61,9 +67,17 @@ export interface MeetingFollowUpStore {
       (
         | { readonly state: 'edited' }
         | {
+            readonly state: 'provider-save-pending' | 'provider-save-unknown';
+            readonly draftProvider: 'm365' | 'gmail';
+            readonly draftAccount: string;
+            readonly draftAccountLabel: string;
+          }
+        | {
             readonly state: 'saved-to-drafts';
             readonly outlookDraftId: string;
             readonly draftProvider: 'm365' | 'gmail';
+            readonly draftAccount: string;
+            readonly draftAccountLabel: string;
           }
       )
   ): Promise<MeetingFollowUpWriteResult>;
@@ -185,6 +199,40 @@ function validOutlookDraft(input: {
   );
 }
 
+function validProviderSnapshot(input: {
+  readonly draftProvider: unknown;
+  readonly draftAccount: unknown;
+  readonly draftAccountLabel: unknown;
+}): input is {
+  readonly draftProvider: 'm365' | 'gmail';
+  readonly draftAccount: string;
+  readonly draftAccountLabel: string;
+} {
+  return (
+    (input.draftProvider === 'm365' || input.draftProvider === 'gmail') &&
+    cleanIdentity(input.draftAccount) !== null &&
+    cleanIdentity(input.draftAccountLabel) !== null
+  );
+}
+
+function sameProviderSnapshot(
+  left: Pick<
+    MeetingFollowUpRecap,
+    'draftProvider' | 'draftAccount' | 'draftAccountLabel'
+  >,
+  right: {
+    readonly draftProvider: 'm365' | 'gmail';
+    readonly draftAccount: string;
+    readonly draftAccountLabel: string;
+  }
+): boolean {
+  return (
+    left.draftProvider === right.draftProvider &&
+    left.draftAccount === right.draftAccount &&
+    left.draftAccountLabel === right.draftAccountLabel
+  );
+}
+
 function projectRecap(
   artifact: MeetingArtifact,
   target: MeetingFollowUpTarget,
@@ -214,15 +262,30 @@ function projectRecap(
     body: draft.body,
   };
   const state = artifact.payload['deliveryState'];
-  if (state !== 'edited' && state !== 'saved-to-drafts') return null;
-  if (state === 'saved-to-drafts' && !validOutlookDraft(validatedDraft))
+  if (
+    state !== 'edited' &&
+    state !== 'provider-save-pending' &&
+    state !== 'provider-save-unknown' &&
+    state !== 'saved-to-drafts'
+  ) {
     return null;
+  }
+  if (state !== 'edited' && !validOutlookDraft(validatedDraft)) return null;
   const outlookDraftId = cleanIdentity(artifact.payload['outlookDraftId']);
-  const rawProvider = artifact.payload['draftProvider'];
-  const draftProvider =
-    rawProvider === 'gmail' || rawProvider === 'm365' ? rawProvider : 'm365';
+  const providerSnapshot = {
+    draftProvider: artifact.payload['draftProvider'],
+    draftAccount: artifact.payload['draftAccount'],
+    draftAccountLabel: artifact.payload['draftAccountLabel'],
+  };
   if (state === 'saved-to-drafts' && !outlookDraftId) return null;
   if (state === 'edited' && outlookDraftId) return null;
+  if (
+    (state === 'provider-save-pending' || state === 'provider-save-unknown') &&
+    !validProviderSnapshot(providerSnapshot)
+  ) {
+    return null;
+  }
+  const hasSnapshot = validProviderSnapshot(providerSnapshot);
   return Object.freeze({
     artifactId: artifact.id,
     recapKey,
@@ -235,7 +298,7 @@ function projectRecap(
     body: validatedDraft.body,
     state,
     ...(outlookDraftId ? { outlookDraftId } : {}),
-    ...(state === 'saved-to-drafts' ? { draftProvider } : {}),
+    ...(hasSnapshot ? providerSnapshot : {}),
   });
 }
 
@@ -293,15 +356,27 @@ export function createMeetingFollowUpStore(
       !hasCompleteTarget(target) ||
       !ownsExactCanonicalMeeting(meetings, target) ||
       !validEditedDraft(input) ||
-      (input.state === 'saved-to-drafts' &&
+      (input.state !== 'edited' &&
         (!validOutlookDraft(input) ||
-          !cleanIdentity(input.outlookDraftId) ||
-          (input.draftProvider !== 'm365' && input.draftProvider !== 'gmail')))
+          !validProviderSnapshot(input) ||
+          (input.state === 'saved-to-drafts' &&
+            !cleanIdentity(input.outlookDraftId))))
     ) {
       return { kind: 'refused' };
     }
     try {
       const recapKey = await deriveMeetingFollowUpRecapKey(target);
+      const current = await read(target);
+      if (current.kind === 'ready' && current.recap.state !== 'edited') {
+        const completingPendingAttempt =
+          current.recap.state === 'provider-save-pending' &&
+          (input.state === 'saved-to-drafts' ||
+            input.state === 'provider-save-unknown') &&
+          sameProviderSnapshot(current.recap, input);
+        if (!completingPendingAttempt) {
+          return { kind: 'refused' };
+        }
+      }
       const artifact = await artifacts.append({
         meetingId: target.meetingId,
         kind: 'follow-up-draft',
@@ -318,8 +393,12 @@ export function createMeetingFollowUpStore(
           ...(input.state === 'saved-to-drafts'
             ? { outlookDraftId: input.outlookDraftId }
             : {}),
-          ...(input.state === 'saved-to-drafts'
-            ? { draftProvider: input.draftProvider }
+          ...(input.state !== 'edited'
+            ? {
+                draftProvider: input.draftProvider,
+                draftAccount: input.draftAccount,
+                draftAccountLabel: input.draftAccountLabel,
+              }
             : {}),
         },
       });

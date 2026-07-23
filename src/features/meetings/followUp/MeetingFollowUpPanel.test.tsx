@@ -43,7 +43,9 @@ vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
 });
 
 vi.mock('@/platform/matter/matterStore', () => ({ useMatters: () => [] }));
-vi.mock('@/platform/utils/openExternal', () => ({ openExternal: external.open }));
+vi.mock('@/platform/utils/openExternal', () => ({
+  openExternal: external.open,
+}));
 
 const translations: Record<string, string> = {
   'meetings.entry.follow-up.loading': 'Loading follow-up',
@@ -127,6 +129,34 @@ function recap(
   };
 }
 
+function receiptAwareSave(
+  complete: (
+    input: Parameters<MeetingFollowUpStore['save']>[1]
+  ) => MeetingFollowUpRecap = (input) =>
+    recap({
+      artifactId: 'follow-up-artifact-2',
+      to: input.to,
+      subject: input.subject,
+      body: input.body,
+      state: input.state,
+      ...(input.state === 'saved-to-drafts'
+        ? { outlookDraftId: input.outlookDraftId }
+        : {}),
+      ...(input.state !== 'edited'
+        ? {
+            draftProvider: input.draftProvider,
+            draftAccount: input.draftAccount,
+            draftAccountLabel: input.draftAccountLabel,
+          }
+        : {}),
+    })
+) {
+  return vi.fn<MeetingFollowUpStore['save']>(async (_target, input) => ({
+    kind: 'ready' as const,
+    recap: complete(input),
+  }));
+}
+
 function productionStoreHarness() {
   const client = boundary();
   const meetings: MeetingStore = {
@@ -138,6 +168,8 @@ function productionStoreHarness() {
     transition: vi.fn(),
   };
   const records: MeetingArtifact[] = [];
+  let appendAttempt = 0;
+  const failedAppendAttempts = new Set<number>();
   const artifacts: MeetingArtifactStore = {
     readerFor: (_meetings, requestedClient): MeetingArtifactReader => ({
       listForMeeting: (meetingId, kinds) =>
@@ -151,6 +183,10 @@ function productionStoreHarness() {
       get: (id) => records.find((artifact) => artifact.id === id) ?? null,
     }),
     append: vi.fn((input: MeetingArtifactInput) => {
+      appendAttempt += 1;
+      if (failedAppendAttempts.has(appendAttempt)) {
+        return Promise.reject(new Error('simulated local artifact failure'));
+      }
       const artifact: MeetingArtifact = {
         ...input,
         id: `artifact-${String(records.length + 1)}`,
@@ -172,6 +208,9 @@ function productionStoreHarness() {
     records,
     store: createMeetingFollowUpStore(meetings, artifacts),
     target,
+    failAppendAttempts(...attempts: number[]) {
+      for (const attempt of attempts) failedAppendAttempts.add(attempt);
+    },
   };
 }
 
@@ -268,8 +307,19 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     expect(external.open).toHaveBeenCalledWith(
       'https://outlook.office.com/mail/?path=/mail/drafts'
     );
-    expect(lane.records).toHaveLength(2);
+    expect(lane.records).toHaveLength(3);
     expect(lane.records[1]).toMatchObject({
+      meetingId: 'meeting-a',
+      householdRef: 'household-a',
+      matterId: 'matter-shared',
+      payload: {
+        body: 'Edited exact-meeting recap.',
+        deliveryState: 'provider-save-pending',
+        draftProvider: 'm365',
+        draftAccount: 'default',
+      },
+    });
+    expect(lane.records[2]).toMatchObject({
       meetingId: 'meeting-a',
       householdRef: 'household-a',
       matterId: 'matter-shared',
@@ -316,6 +366,8 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
           state: 'saved-to-drafts',
           outlookDraftId: 'outlook-draft-1',
           draftProvider: 'm365',
+          draftAccount: 'default',
+          draftAccountLabel: 'Outlook',
         }
       )
     ).resolves.toEqual({ kind: 'refused' });
@@ -327,18 +379,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
         Promise.resolve({ kind: 'ready', recap: recap() })
       ),
       start: vi.fn(),
-      save: vi.fn<MeetingFollowUpStore['save']>((_target, input) =>
-        Promise.resolve({
-          kind: 'ready',
-          recap: recap({
-            artifactId: 'follow-up-artifact-2',
-            state: 'saved-to-drafts',
-            ...(input.state === 'saved-to-drafts'
-              ? { outlookDraftId: input.outlookDraftId }
-              : {}),
-          }),
-        })
-      ),
+      save: receiptAwareSave(),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     const account = await screen.findByTestId('followup-drafts-account');
@@ -357,31 +398,33 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     expect(external.open).toHaveBeenCalledWith(
       'https://mail.google.com/mail/u/0/#drafts'
     );
-    expect(await screen.findByTestId('meeting-follow-up-saved')).toHaveTextContent(
-      'That folder is open'
-    );
+    expect(
+      await screen.findByTestId('meeting-follow-up-saved')
+    ).toHaveTextContent('That folder is open');
     expect(screen.getByTestId('meeting-follow-up-saved')).not.toHaveTextContent(
       'exact draft'
     );
   });
 
   it('renders an editable recap, saves one Outlook draft, and exposes no Send path', async () => {
-    const save = vi.fn<MeetingFollowUpStore['save']>((target, input) =>
-      input.state === 'saved-to-drafts'
-        ? Promise.resolve({
-            kind: 'ready',
-            recap: recap({
-              artifactId: 'follow-up-artifact-2',
-              to: input.to,
-              subject: input.subject,
-              body: input.body,
-              state: 'saved-to-drafts',
-              outlookDraftId: input.outlookDraftId,
-              householdRef: target.client.householdRef,
-              matterId: target.client.matterId,
-            }),
-          })
-        : Promise.resolve({ kind: 'refused' })
+    const save = receiptAwareSave((input) =>
+      recap({
+        artifactId: 'follow-up-artifact-2',
+        to: input.to,
+        subject: input.subject,
+        body: input.body,
+        state: input.state,
+        ...(input.state === 'saved-to-drafts'
+          ? { outlookDraftId: input.outlookDraftId }
+          : {}),
+        ...(input.state !== 'edited'
+          ? {
+              draftProvider: input.draftProvider,
+              draftAccount: input.draftAccount,
+              draftAccountLabel: input.draftAccountLabel,
+            }
+          : {}),
+      })
     );
     const store: MeetingFollowUpStore = {
       read: vi.fn<MeetingFollowUpStore['read']>(() =>
@@ -409,8 +452,8 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
       'Annual review recap',
       expect.stringContaining('Edited exact-meeting recap.')
     );
-    const savedTarget = save.mock.calls[0]?.[0];
-    const savedInput = save.mock.calls[0]?.[1];
+    const savedTarget = save.mock.calls[1]?.[0];
+    const savedInput = save.mock.calls[1]?.[1];
     expect(savedTarget?.meetingId).toBe('meeting-a');
     expect(savedTarget?.client.householdRef).toBe('household-a');
     expect(savedTarget?.client.matterId).toBe('matter-shared');
@@ -442,25 +485,62 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     expect(screen.queryByTestId('followup-drafts-save')).toBeNull();
   });
 
-  it('sanitizes a raw provider failure and keeps the explicit save retryable', async () => {
+  it('records an ambiguous provider rejection as unresolved and makes another save unreachable', async () => {
     mail.saveDraft.mockRejectedValueOnce(
       new Error('Graph 401 raw tenant secret detail')
     );
-    const store: MeetingFollowUpStore = {
-      read: vi.fn<MeetingFollowUpStore['read']>(() =>
-        Promise.resolve({ kind: 'ready', recap: recap() })
-      ),
-      start: vi.fn(),
-      save: vi.fn(),
-    };
-    render(<MeetingFollowUpPanel context={context()} store={store} />);
+    const lane = productionStoreHarness();
+    await lane.store.start(lane.target);
+    const rendered = render(
+      <MeetingFollowUpPanel context={context()} store={lane.store} />
+    );
+    fireEvent.change(await screen.findByTestId('followup-drafts-to'), {
+      target: { value: 'client@example.test' },
+    });
+    fireEvent.change(screen.getByTestId('followup-drafts-body'), {
+      target: { value: 'Exact meeting follow-up.' },
+    });
     const save = await screen.findByTestId('followup-drafts-save');
     fireEvent.click(save);
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('The draft was not saved to Outlook');
+    const alert = await screen.findByTestId('meeting-follow-up-unresolved');
+    expect(alert).toHaveTextContent(
+      'cannot confirm whether a draft was created'
+    );
+    expect(alert).toHaveTextContent('Outlook');
     expect(alert).not.toHaveTextContent('401');
     expect(alert).not.toHaveTextContent('tenant secret');
-    expect(save).not.toBeDisabled();
+    expect(screen.queryByTestId('followup-drafts-save')).toBeNull();
+    expect(screen.queryByTestId('followup-drafts-account')).toBeNull();
+    expect(mail.saveDraft).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId('followup-drafts-open-locked-folder'));
+    await waitFor(() => {
+      expect(external.open).toHaveBeenCalledWith(
+        'https://outlook.office.com/mail/?path=/mail/drafts'
+      );
+    });
+    expect(lane.records).toHaveLength(3);
+    expect(lane.records[2]).toMatchObject({
+      payload: {
+        deliveryState: 'provider-save-unknown',
+        draftProvider: 'm365',
+        draftAccount: 'default',
+        draftAccountLabel: 'Outlook',
+      },
+    });
+    rendered.rerender(
+      <MeetingFollowUpPanel
+        context={context(boundary('household-b'))}
+        store={lane.store}
+      />
+    );
+    expect(await screen.findByTestId('meeting-follow-up-refused')).toBeTruthy();
+    expect(mail.saveDraft).toHaveBeenCalledTimes(1);
+    rendered.unmount();
+    render(<MeetingFollowUpPanel context={context()} store={lane.store} />);
+    expect(
+      await screen.findByTestId('meeting-follow-up-unresolved')
+    ).toHaveTextContent('Inspect that exact Drafts folder');
+    expect(mail.saveDraft).toHaveBeenCalledTimes(1);
   });
 
   it('keeps a provider account-check failure generic and retryable', async () => {
@@ -487,33 +567,31 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
     );
   });
 
-  it('retries the local meeting update without creating a duplicate provider draft', async () => {
-    const save = vi
-      .fn<MeetingFollowUpStore['save']>()
-      .mockResolvedValueOnce({ kind: 'error' })
-      .mockResolvedValueOnce({
-        kind: 'ready',
-        recap: recap({
-          artifactId: 'follow-up-artifact-2',
-          state: 'saved-to-drafts',
-          outlookDraftId: 'outlook-draft-1',
-        }),
-      });
-    const store: MeetingFollowUpStore = {
-      read: vi.fn<MeetingFollowUpStore['read']>(() =>
-        Promise.resolve({ kind: 'ready', recap: recap() })
-      ),
-      start: vi.fn(),
-      save,
-    };
-    render(<MeetingFollowUpPanel context={context()} store={store} />);
+  it('keeps the durable pending receipt locked across full unmount and remount when local completion fails', async () => {
+    const lane = productionStoreHarness();
+    await lane.store.start(lane.target);
+    // Start is append 1, receipt is append 2; both completion records fail.
+    lane.failAppendAttempts(3, 4);
+    const rendered = render(
+      <MeetingFollowUpPanel context={context()} store={lane.store} />
+    );
+    fireEvent.change(await screen.findByTestId('followup-drafts-to'), {
+      target: { value: 'client@example.test' },
+    });
+    fireEvent.change(screen.getByTestId('followup-drafts-body'), {
+      target: { value: 'Exact meeting follow-up.' },
+    });
     fireEvent.click(await screen.findByTestId('followup-drafts-save'));
     expect(
-      await screen.findByTestId('followup-drafts-retry-local-save')
-    ).toBeTruthy();
+      await screen.findByTestId('meeting-follow-up-unresolved')
+    ).toHaveTextContent('Do not save another provider draft');
     expect(mail.saveDraft).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByTestId('followup-drafts-retry-local-save'));
-    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(lane.records).toHaveLength(2));
+    rendered.unmount();
+    render(<MeetingFollowUpPanel context={context()} store={lane.store} />);
+    expect(
+      await screen.findByTestId('meeting-follow-up-unresolved')
+    ).toHaveTextContent('Outlook Drafts for Outlook');
     expect(mail.saveDraft).toHaveBeenCalledTimes(1);
   });
 
@@ -523,16 +601,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
         Promise.resolve({ kind: 'ready', recap: recap() })
       ),
       start: vi.fn(),
-      save: vi.fn<MeetingFollowUpStore['save']>(() =>
-        Promise.resolve({
-          kind: 'ready',
-          recap: recap({
-            artifactId: 'follow-up-artifact-2',
-            state: 'saved-to-drafts',
-            outlookDraftId: 'outlook-draft-1',
-          }),
-        })
-      ),
+      save: receiptAwareSave(),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     fireEvent.click(await screen.findByTestId('followup-drafts-save'));
@@ -549,16 +618,7 @@ describe('Meeting follow-up provider Drafts-only panel', () => {
         Promise.resolve({ kind: 'ready', recap: recap() })
       ),
       start: vi.fn(),
-      save: vi.fn<MeetingFollowUpStore['save']>(() =>
-        Promise.resolve({
-          kind: 'ready',
-          recap: recap({
-            artifactId: 'follow-up-artifact-2',
-            state: 'saved-to-drafts',
-            outlookDraftId: 'outlook-draft-1',
-          }),
-        })
-      ),
+      save: receiptAwareSave(),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     fireEvent.click(await screen.findByTestId('followup-drafts-save'));
