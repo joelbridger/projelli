@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "lane": "phase1-m1-regression-legion-5d9",
+  "attempt": 2,
+  "verdict": "NOT RUN",
+  "contract": {
+    "sha256": "356cab75fb4f33cdc5e0c2c11a2cdb61c26b949be1b65304516c56e0a6c8e31b",
+    "job_id": "20260724-005912-r5kexxxx",
+    "launch_record": "/home/jameson/.local/share/codex-fleet/20260724-005912-r5kexxxx/launch-record.json",
+    "base_revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "expected_remote": "https://github.com/lanternplatform/lantern.git"
+  },
+  "machine": {
+    "bench": "Legion",
+    "ssh": "james@100.127.67.22",
+    "host": "DESKLINK129887",
+    "reachability": "PASS",
+    "logged_in_desktop_helper": "NOT RUN: resource guard stopped before desktop-helper inspection",
+    "competing_driver": "NOT RUN: resource guard stopped before driver inspection"
+  },
+  "resources": {
+    "preflight_command": "exact contract-provided secret-free SSH PowerShell command",
+    "pre": {
+      "c_free_gb": 5.55,
+      "c_used_gb": 946.1,
+      "d_free_gb": 629.58,
+      "d_used_gb": 301.91,
+      "available_memory_mb": 4760,
+      "committed_memory_percent": 99.19
+    },
+    "post": "NOT RECHECKED: run stopped immediately after unsafe preflight",
+    "verdict": "FAIL",
+    "reason": "99.19% committed memory with 4,760 MB available is unsafe for the required exact one-build package; contract requires stop without cleanup or improvised recovery."
+  },
+  "preflight": {
+    "lantern_processes": [],
+    "cargo_processes": [],
+    "rustc_processes": [],
+    "sccache_processes": [],
+    "listening_ports": {
+      "9223": 0,
+      "9250": 0,
+      "9251": 0
+    },
+    "prior_m2_artifacts": "NOT REVALIDATED: no M2 task/artifact inspection ran after the resource blocker; the preflight did prove no Lantern/build process and no listed port listener."
+  },
+  "source": {
+    "accepted_git_object": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "local_identity": "NOT RUN",
+    "archive": "NOT RUN",
+    "local_archive_sha256": null,
+    "remote_archive_sha256": null,
+    "fresh_d_drive_root": "NOT CREATED",
+    "remote_extraction": "NOT RUN"
+  },
+  "sidecar": {
+    "local_mirror_inventory": "NOT RUN",
+    "cache_win_claimed": false,
+    "parked_helper_used": false
+  },
+  "build": {
+    "scheduled_task_action": "NOT CREATED",
+    "liveness_process_id": null,
+    "one_build_marker": "NOT CREATED",
+    "one_build_count": 0,
+    "cargo_or_rust_started": false,
+    "second_build_ran": false,
+    "retry_ran": false,
+    "status": "NOT RUN"
+  },
+  "artifacts": {
+    "executable": "NOT PRODUCED",
+    "installer": "NOT PRODUCED",
+    "executable_sha256": null,
+    "installer_sha256": null,
+    "signatures": "NOT RUN",
+    "updater_limit": "NOT RUN"
+  },
+  "desktop_drive": {
+    "fresh_synthetic_workspace": "NOT CREATED",
+    "screenshots": {},
+    "assertions": [
+      {"id": "open_exact_executable", "verdict": "NOT RUN", "reason": "resource blocker before build"},
+      {"id": "open_fresh_workspace_and_load_hendricks", "verdict": "NOT RUN", "reason": "resource blocker before build"},
+      {"id": "today_appears", "verdict": "NOT RUN", "reason": "resource blocker before build"},
+      {"id": "crm_select_hendricks", "verdict": "NOT RUN", "reason": "resource blocker before build"},
+      {"id": "approved_homes_keep_hendricks_selected", "verdict": "NOT RUN", "reason": "resource blocker before build"},
+      {"id": "whole_firm_closed", "verdict": "NOT RUN", "reason": "resource blocker before build"},
+      {"id": "normal_close_exact_process", "verdict": "NOT RUN", "reason": "resource blocker before build"},
+      {"id": "reopen_same_exact_executable_hendricks_active", "verdict": "NOT RUN", "reason": "resource blocker before build"}
+    ]
+  },
+  "first_blocker": {
+    "stage": "resource preflight",
+    "verdict": "FAIL",
+    "reason": "Unsafe Legion memory pressure before any product operation."
+  },
+  "attempt_lineage": {
+    "attempt_1_job": "20260724-005113-6mpuxxxx",
+    "attempt_1_outcome": "Stopped before source copy, scheduled task, build, Cargo, Rust, product launch, or repository write after four read-only PowerShell quoting mistakes.",
+    "attempt_1_product_tested": false,
+    "attempt_2_product_tested": false
+  },
+  "safety": {
+    "no_account_used": true,
+    "no_credentials_used": true,
+    "no_provider_opened": true,
+    "no_browser_or_mail_opened": true,
+    "no_private_note": true,
+    "no_approval_or_crm_mutation": true,
+    "no_task_created": true,
+    "no_ask_answer": true,
+    "no_send": true,
+    "whole_firm_enabled": false,
+    "no_cleanup_or_deletion": true
+  }
+}
