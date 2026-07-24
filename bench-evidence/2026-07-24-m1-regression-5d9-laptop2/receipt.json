@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "lane": "phase1-m1-package-legion-drive-laptop2-5d9",
+  "attempt": 1,
+  "verdict": "PARTIAL",
+  "scope": "Exact 5d package build on Legion; Laptop-2 drive stopped before any Laptop-2 command, transfer, install, or launch.",
+  "contract": {
+    "sha256": "6eff7b92793bbcb28394adad9efea6add1909bf8884a31a32f06e361022fa34b",
+    "job_id": "20260724-012434-4walxxxx",
+    "launch_record": "/home/jameson/.local/share/codex-fleet/20260724-012434-4walxxxx/launch-record.json",
+    "base_revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "expected_remote": "https://github.com/lanternplatform/lantern.git"
+  },
+  "source": {
+    "revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "tree": "cfe9ec1caa49d788aea96aa03bd885c1c3fc286d",
+    "local_worktree_clean_before_evidence": true,
+    "local_origin": "https://github.com/lanternplatform/lantern.git",
+    "archive": {
+      "local_path": "/tmp/lantern-m1-5d9-laptop2-20260724.tar",
+      "legion_path": "D:\\Lantern-M1-5d9-L2-20260724\\incoming\\lantern-5d9fc9ed.tar",
+      "bytes": 274053120,
+      "sha256": "01dbcddf3b6e7adf4dbea7f7b8bddfbdfc458683392bb6e3f767084d44c04b60",
+      "destination_sha256": "01dbcddf3b6e7adf4dbea7f7b8bddfbdfc458683392bb6e3f767084d44c04b60"
+    },
+    "package_json_sha256": "192f9b6e8237344fe730d4dcf058759bd3b0457664501f3fa1f0b351f380e012",
+    "tauri_config_sha256": "6d270bb49caebbd0d685efa9ac8ffbb4a74bd1eb8e4da71d9767f0e699772608"
+  },
+  "legion": {
+    "role": "exact-package-builder",
+    "ssh": "james@100.127.67.22",
+    "host": "DESKLINK129887",
+    "interactive_user": "Desklink129887\\james",
+    "post_reboot_resources": {
+      "c_free_gb": 18.33,
+      "d_free_gb": 629.58,
+      "available_memory_mb": 23425,
+      "committed_memory_percent": 31.09,
+      "gate": "PASS"
+    },
+    "pre_reboot_system_host_spike": {
+      "absent": true,
+      "top_private_processes_recorded": true,
+      "largest_process": "pythonw",
+      "largest_private_mb": 513.63
+    },
+    "preflight": {
+      "competing_processes": [],
+      "ports": {"9223": 0, "9250": 0, "9251": 0},
+      "prior_m2_artifacts_present_and_untouched": [
+        "D:\\Lantern-M2-M3-M5-897640c95",
+        "D:\\Lantern-M2-M3-M5-897640c95-R2",
+        "D:\\Lantern-M2-Targets",
+        "D:\\LanternM2Sources"
+      ],
+      "screen_helper": {
+        "task": "LegionAgent",
+        "action": "C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe C:\\agent\\legion_agent.py",
+        "state": "Running",
+        "port_8765_listener": 1
+      }
+    },
+    "sidecars": {
+      "source": "verified hash-keyed local sidecar mirror",
+      "mirror_root": "C:\\Lantern-M1-Smoke-b35b7dcd\\source\\src-tauri",
+      "files_verified": 446,
+      "inventory_path": "D:\\Lantern-M1-5d9-L2-20260724\\evidence\\sidecar-inventory.json",
+      "inventory_sha256": "a30fd6b5f5db4c4e1e9b3939ad30af9337d93ec73d5af8f84161895381d82cca",
+      "cache_win_claim": "none",
+      "parked_helper_used": false,
+      "no_sidecar_downloads": true
+    },
+    "fixture": {
+      "task": "LanternM1Fixture-5d9-L2-20260724",
+      "action": "C:\\Windows\\System32\\cmd.exe /d /c marker write, log write, and 30-second timeout",
+      "fixed_pid": 9184,
+      "liveness": "Get-Process proved cmd alive",
+      "last_task_result": 0,
+      "marker_sha256": "403cb198cb51954b4dbeff3c8b89822639463abdbae2137653e51eeb531e112e",
+      "log_sha256": "1b890a5a58b0274e3ee41d7ac1c95c1d616e41487e3c2539ccc59f91b94a0011"
+    },
+    "build": {
+      "task": "LanternM1Build-5d9-L2-20260724",
+      "command": "npm run tauri:build",
+      "marker": "D:\\Lantern-M1-5d9-L2-20260724\\ONE-CARGO-BUILD.marker",
+      "marker_utc": "2026-07-24T01:35:31.0060521Z",
+      "fixed_task_pid": 3380,
+      "fixed_task_liveness": "Get-Process proved cmd alive",
+      "one_build_count": 1,
+      "second_build_ran": false,
+      "cargo_started": true,
+      "flags": {
+        "selection_authority_boot_gate": true,
+        "meetings_shell_v1": true,
+        "shared_client_bar": true,
+        "v1_shell_frame": true
+      },
+      "task_result": 1,
+      "task_result_interpretation": "Tauri produced executable and installer, then returned nonzero because TAURI_SIGNING_PRIVATE_KEY was absent.",
+      "post_resources": {"c_free_gb": 18.32, "d_free_gb": 621.58, "available_memory_mb": 22047, "committed_memory_percent": 34.87}
+    },
+    "artifacts": {
+      "status": "PACKAGE_PARTIAL_UNSIGNED_DEVELOPMENT",
+      "executable": {
+        "path": "D:\\Lantern-M1-5d9-L2-20260724\\target\\release\\lantern.exe",
+        "bytes": 215660032,
+        "sha256": "62d3bf454bb84fa1799856719c1bf7e4f0248802d72832cd36c98b030e99c2e8",
+        "signature_status": "NotSigned"
+      },
+      "installer": {
+        "path": "D:\\Lantern-M1-5d9-L2-20260724\\target\\release\\bundle\\nsis\\Advisor Prep Hero_3.3.5_x64-setup.exe",
+        "bytes": 186429197,
+        "sha256": "433a952f25286b35db84c70258b290bdeac6a07c9187a81baa248401b734c70c",
+        "signature_status": "NotSigned"
+      },
+      "updater_limit": "Public updater key present; private signing key absent. No signing or rebuild attempted."
+    }
+  },
+  "transfer": {
+    "legion": {"bytes": 186429197, "sha256": "433a952f25286b35db84c70258b290bdeac6a07c9187a81baa248401b734c70c"},
+    "server_staging": {
+      "path": "/tmp/lantern-m1-5d9-laptop2-20260724.BipW9N/Advisor Prep Hero_3.3.5_x64-setup.exe",
+      "bytes": 186429197,
+      "sha256": "433a952f25286b35db84c70258b290bdeac6a07c9187a81baa248401b734c70c"
+    },
+    "laptop2": {"status": "NOT RUN", "bytes": null, "sha256": null, "reason": "Laptop-2 rejected the required direct PowerShell-over-SSH form before any command ran."}
+  },
+  "laptop2": {
+    "role": "drive-only installer consumer",
+    "ssh": "james@100.64.136.15",
+    "expected_host": "DESKLINK00998",
+    "preflight": "NOT RUN: required direct PowerShell-over-SSH form was rejected by the remote session before any command executed.",
+    "build_count": 0,
+    "installer_transfer": "NOT RUN",
+    "installation": "NOT RUN",
+    "launch": "NOT RUN",
+    "desktop_drive": "NOT RUN"
+  },
+  "m1_assertions": [
+    {"id": "launch_exact_installed_executable", "verdict": "NOT RUN", "reason": "Laptop-2 preflight command-shape blocker."},
+    {"id": "fresh_workspace_real_picker_hendricks", "verdict": "NOT RUN", "reason": "Laptop-2 preflight command-shape blocker."},
+    {"id": "today_appears", "verdict": "NOT RUN", "reason": "Laptop-2 preflight command-shape blocker."},
+    {"id": "crm_select_hendricks", "verdict": "NOT RUN", "reason": "Laptop-2 preflight command-shape blocker."},
+    {"id": "today_crm_meetings_ask_keep_hendricks", "verdict": "NOT RUN", "reason": "Laptop-2 preflight command-shape blocker."},
+    {"id": "whole_firm_closed", "verdict": "NOT RUN", "reason": "Laptop-2 preflight command-shape blocker."},
+    {"id": "normal_close_process_ends", "verdict": "NOT RUN", "reason": "Laptop-2 preflight command-shape blocker."},
+    {"id": "reopen_exact_app_hendricks_persists", "verdict": "NOT RUN", "reason": "Laptop-2 preflight command-shape blocker."}
+  ],
+  "screenshots": {},
+  "first_blocker": {
+    "stage": "Laptop-2 read-only preflight",
+    "reason": "Laptop-2 SSH treated the required direct PowerShell text as a cmd.exe command and rejected it. This lane forbids an alternate remote-command shape.",
+    "later_steps_not_run": true
+  },
+  "safety": {
+    "no_account_used": true,
+    "no_credentials_used": true,
+    "no_provider_opened": true,
+    "no_browser_or_mail_opened": true,
+    "no_private_note": true,
+    "no_crm_data_changed": true,
+    "no_task_created": true,
+    "no_ask_answer": true,
+    "no_send": true,
+    "whole_firm_enabled": false,
+    "no_laptop2_build": true,
+    "no_laptop2_install_or_launch": true,
+    "no_rebuild": true
+  }
+}
