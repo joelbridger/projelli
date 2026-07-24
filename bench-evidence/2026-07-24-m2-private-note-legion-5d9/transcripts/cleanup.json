@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "kind": "secret-free-cleanup-transcript",
+  "status": "completed_best_effort",
+  "steps": [
+    {"item": "interactive_clipboard", "result": "not_created_by_lane; left untouched to avoid altering another desktop owner's clipboard"},
+    {"item": "temporary_windows_credential_file", "result": "not_created; exact path absent"},
+    {"item": "exact_test_lantern_process", "result": "not_created; no close or stop attempted"},
+    {"item": "fresh_ssh_tunnel", "result": "closed; server loopback listener absent"},
+    {"item": "LegionAgent", "result": "preflight state running; restarted for identity proof and left running"},
+    {"item": "password_bearing_scratch", "result": "not_created"}
+  ]
+}

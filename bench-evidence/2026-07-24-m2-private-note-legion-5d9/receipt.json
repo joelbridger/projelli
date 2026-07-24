@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "lane": "phase1-m2-private-note-legion-5d9",
+  "attempt": 1,
+  "terminal_product_verdict": "NOT_TESTED",
+  "stop_point": {
+    "stage": "preflight",
+    "reason": "NOT_TESTED / ANOTHER ACTIVE LANTERN BENCH OWNER",
+    "first_blocker": "A separate Lantern debug process and visible window were already active in the logged-in Legion desktop session.",
+    "later_product_steps_not_run": true
+  },
+  "contract": {
+    "sha256": "97d56514aaec4803e4b0777fd1b10924c8242f2ec83b65a2017efe6faaf4bd35",
+    "job_id": "20260724-153859-4of2xxxx",
+    "launch_record": "/home/jameson/.local/share/codex-fleet/20260724-153859-4of2xxxx/launch-record.json",
+    "base_revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "expected_remote": "https://github.com/lanternplatform/lantern.git"
+  },
+  "source": {
+    "worktree_revision_before_evidence": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "worktree_clean_before_evidence": true,
+    "origin": "https://github.com/lanternplatform/lantern.git",
+    "fresh_root": "C:\\Lantern-M2-5d9-PRIVATE-20260724-01",
+    "fresh_root_absent_before_creation": true,
+    "fresh_root_created": false
+  },
+  "bench": {
+    "host": "Desklink129887",
+    "interactive_user": "Desklink129887\\james",
+    "interactive_session": 1,
+    "resources": {"c_free_gb": 17.45, "d_free_gb": 621.58, "free_memory_mb": 17147, "total_memory_mb": 31941},
+    "active_other_bench_owner": {
+      "found": true,
+      "pid": 85276,
+      "session": 1,
+      "path": "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe",
+      "visible_window_proven_by": "screenshots/00-helper-preflight.png"
+    }
+  },
+  "exact_executable": {
+    "path": "D:\\Lantern-M1-5d9-L2-20260724\\target\\release\\lantern.exe",
+    "bytes": 215660032,
+    "sha256": "62d3bf454bb84fa1799856719c1bf7e4f0248802d72832cd36c98b030e99c2e8",
+    "measured_before_launch": true,
+    "launch_attempted": false,
+    "restart_measurements": []
+  },
+  "helper": {
+    "task": "LegionAgent",
+    "preflight_task_state": "Running",
+    "action_execute": "C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe",
+    "action_arguments": "C:\\agent\\legion_agent.py",
+    "script_sha256": "55261f488a6a7b2cf8607847ac4f7c68b7e6a4584d691c9996df84aefa8fbc01",
+    "fresh_helper": {
+      "old_pid": 20508,
+      "new_pid": 128100,
+      "new_pid_verified": true,
+      "session": 1,
+      "listener": {"address": "127.0.0.1", "port": 8765, "pid": 128100, "sole_listener": true}
+    },
+    "fresh_tunnel": {
+      "server_listener": "127.0.0.1:18765",
+      "pid": 3062498,
+      "only_destination": "Legion 127.0.0.1:8765",
+      "all_helper_requests_used_tunnel": true,
+      "closed": true
+    },
+    "harmless_requests": ["health", "size", "move", "shot"],
+    "screenshot": {"name": "00-helper-preflight.png", "sha256": "a03cf105b6107a4dfc890b713b2155f04d3b5da87349b1724baa5a0f04d984f0", "width": 2560, "height": 1600}
+  },
+  "synthetic_workspace": {
+    "source_path": "C:\\Lantern-M2-c236b5a9\\workspace",
+    "source_manifest_sha256": "d45a45c10c680da3671c0c232b2156e2edc4ebb9d03b878edc91451273ec6a2f",
+    "source_file_count": 96,
+    "synthetic_hendricks_summary_marker_found": true,
+    "only_meeting_folder": "2026-07-02-hendricks-annual-review",
+    "non_synthetic_client_workspace_found": false,
+    "copy_attempted": false,
+    "destination_manifest_sha256": null
+  },
+  "network_and_credentials": {
+    "firm_api_https_reachable_without_credentials": true,
+    "firm_api_http_status": 404,
+    "protected_server_credential_file_exists": true,
+    "protected_server_credential_file_permissions": "owner-only 0600",
+    "credential_contents_read": false,
+    "temporary_windows_credential_file": {"created": false, "acl": "not_created_before_stop"},
+    "identity_matches_protected_test_account": "NOT_RUN",
+    "role_matches_protected_test_account": "NOT_RUN"
+  },
+  "ordered_assertions": [
+    {"id": "A.establish_real_owner", "status": "NOT_RUN", "reason": "preflight stop"},
+    {"id": "B.make_saved_note_private", "status": "NOT_RUN", "reason": "preflight stop"},
+    {"id": "C.owner_reopen_and_restart", "status": "NOT_RUN", "reason": "preflight stop"},
+    {"id": "D.signed_out_exclusion", "status": "NOT_RUN", "reason": "preflight stop"},
+    {"id": "E.restore_same_owner", "status": "NOT_RUN", "reason": "preflight stop"}
+  ],
+  "file_hashes": {
+    "meeting_json": {"before": null, "after": null},
+    "notes_docx": {"before": null, "after": null},
+    "workspace_manifest": {"before": null, "after": null},
+    "one_intended_mutation": false
+  },
+  "safety": {
+    "no_build": true, "no_install": true, "no_send": true, "no_provider": true,
+    "no_m3": true, "no_seat_or_staff_action": true, "whole_firm_closed": true,
+    "app_not_launched_by_lane": true, "credential_not_used": true
+  },
+  "screenshots": {"00-helper-preflight.png": "a03cf105b6107a4dfc890b713b2155f04d3b5da87349b1724baa5a0f04d984f0"},
+  "transcripts": ["transcripts/preflight.json", "transcripts/cleanup.json"],
+  "cleanup": {
+    "status": "completed_best_effort",
+    "clipboard": "not_created_by_lane",
+    "temporary_credential": "not_created",
+    "exact_test_app": "not_created",
+    "tunnel": "closed",
+    "helper_state_restored": "running",
+    "password_bearing_scratch": "not_created",
+    "changes_product_verdict": false
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "secret-free-preflight-transcript",
+  "ordered_events": [
+    {"step": 1, "event": "app_worktree_exact_and_clean_before_evidence", "passed": true},
+    {"step": 2, "event": "legion_interactive_desktop_observed", "passed": true, "host": "Desklink129887", "interactive_session": 1},
+    {"step": 3, "event": "exact_accepted_executable_measured", "passed": true},
+    {"step": 4, "event": "fresh_root_absent", "passed": true},
+    {"step": 5, "event": "synthetic_workspace_source_proven", "passed": true},
+    {"step": 6, "event": "helper_task_hash_pid_listener_and_fresh_tunnel_proven", "passed": true},
+    {"step": 7, "event": "https_api_reachable_without_credentials", "passed": true, "http_status": 404},
+    {"step": 8, "event": "protected_server_credential_file_permission_checked_only", "passed": true},
+    {"step": 9, "event": "separate_active_lantern_debug_process_found", "passed": false, "stop": true}
+  ]
+}
