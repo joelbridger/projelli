@@ -1,0 +1,12 @@
+{
+  "secret_free": true,
+  "normal_close": {"method": "LegionAgent Alt+F4 on the exact foreground app", "lantern_count_after_close": 0},
+  "clipboard": "cleared_to_harmless_blank",
+  "temporary_credential_file": "not_created",
+  "temporary_launch_task": "removed",
+  "camera_tunnel": "closed",
+  "helper_tunnel": "closed",
+  "helper_state": "running",
+  "contract_evidence_secret_scan": "no credential transfer occurred; no credential value was recorded",
+  "cleanup_changes_product_verdict": false
+}

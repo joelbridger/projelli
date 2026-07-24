@@ -1,0 +1,21 @@
+{
+  "secret_free": true,
+  "required_order": ["BEFORE", "pointer-in-pane", "scroll", "GO-VISIBLE", "click-Go", "GO-AFTER", "SHELL"],
+  "observed": [
+    {"event": "BEFORE-helper", "timestamp_utc": "2026-07-24T17:45:16.570477770Z", "image": "02-helper-before.png", "sha256": "6dd87ed73581a83006f1fc4ca8153c39063953348b325f4b98b4e01be54a89d7", "state": "ordinary_app_workspace_not_intro"},
+    {"event": "BEFORE-camera", "timestamp_utc": "2026-07-24T17:45:16.688479480Z", "image": "03-camera-before.jpg", "sha256": "338cea9f5fc98678b9b97cda2dee557b25e965a21af4d2d45ba3a5a79285830b", "state": "ordinary_app_workspace_not_intro"}
+  ],
+  "paired_views_agree": true,
+  "intro_visible": false,
+  "pointer_coordinates": null,
+  "pointer_inside_onboarding_pane": false,
+  "scroll_amount": null,
+  "scrollbar_moved": false,
+  "go_fully_visible": false,
+  "go_click_count": 0,
+  "next_screen_progression": false,
+  "regular_shell_arrival_by_onboarding": false,
+  "credentials_precede_complete_frame_gate": false,
+  "status": "BLOCKED_BEFORE_GO",
+  "stop_reason": "NOT_TESTED / VISIBLE GO AND APP SHELL DRIVE NOT PROVEN"
+}
