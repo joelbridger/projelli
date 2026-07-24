@@ -1,0 +1,14 @@
+{
+  "kind": "best-effort-non-gating-cleanup",
+  "timestamp_utc": "2026-07-24T16:53:17Z",
+  "non_gating": true,
+  "changes_product_verdict": false,
+  "steps": [
+    {"item": "windows_clipboard", "status": "not_created_by_lane"},
+    {"item": "temporary_credential_file", "status": "not_created"},
+    {"item": "exact_test_app", "status": "not_created"},
+    {"item": "LegionAgent", "status": "not_touched_after_ownership_stop"},
+    {"item": "camera-only_ssh_tunnel", "status": "closed"},
+    {"item": "contract_evidence_secret_scan", "status": "pending_verify_py"}
+  ]
+}

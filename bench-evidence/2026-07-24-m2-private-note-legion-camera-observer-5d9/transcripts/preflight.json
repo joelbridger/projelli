@@ -1,0 +1,122 @@
+{
+  "kind": "secret-free-present-tense-ownership-and-camera-preflight",
+  "timestamps_utc": {
+    "ownership_snapshot": "2026-07-24T16:52:12.7547227Z",
+    "camera_classification": "2026-07-24T16:52:42.3053561Z"
+  },
+  "transport": {
+    "target": "james@100.127.67.22",
+    "method": "key-only SSH",
+    "commands_before_stop": "read-only machine/task/process/source/listener/endpoint observations and one passive camera frame"
+  },
+  "bench": {
+    "hostname": "DESKLINK129887",
+    "interactive_user": "desklink129887\\james",
+    "interactive_session": 1,
+    "explorer_pid": 9960,
+    "resources": {
+      "c_free_bytes": 18744586240,
+      "d_free_bytes": 667416403968,
+      "free_memory_bytes": 19790364672,
+      "total_memory_bytes": 33492262912
+    }
+  },
+  "exact_app_before_launch": {
+    "path": "D:\\Lantern-M1-5d9-L2-20260724\\target\\release\\lantern.exe",
+    "exists": true,
+    "bytes": 215660032,
+    "sha256": "62d3bf454bb84fa1799856719c1bf7e4f0248802d72832cd36c98b030e99c2e8",
+    "launch_attempted": false
+  },
+  "keepance_dev": {
+    "task": "KeepanceDev",
+    "state": "Ready",
+    "running": false,
+    "read_only_observation": true
+  },
+  "lantern_processes": {
+    "count": 0,
+    "pid_session_path_visible_window_enumeration": true,
+    "visible_windows": 0
+  },
+  "camera": {
+    "task": "BenchCam",
+    "task_state": "Running",
+    "task_action_executable_observed": "\"C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe\"",
+    "task_action_executable_normalized": "C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe",
+    "task_action_arguments": "C:\\Users\\james\\bench_cam.py",
+    "script_path": "C:\\Users\\james\\bench_cam.py",
+    "script_sha256": "026811c25cff6e5f211195369e7617b3f4b8b7bf222adb83e47e0ef84e35509f",
+    "process": {
+      "pid": 120860,
+      "session": 1,
+      "executable": "C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe",
+      "command_line": "\"C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe\" C:\\Users\\james\\bench_cam.py"
+    },
+    "sole_listener": {
+      "address": "127.0.0.1",
+      "port": 8799,
+      "pid": 120860,
+      "wildcard_or_ipv6_or_foreign_or_second_listener": false
+    },
+    "source_static_proof": {
+      "imports": ["warnings", "io", "json", "http.server.BaseHTTPRequestHandler", "http.server.HTTPServer", "urllib.parse.urlparse", "mss", "PIL.Image"],
+      "routes": ["GET /size", "GET /shot"],
+      "screen_behavior": "mss captures primary monitor; Pillow encodes the bytes into an in-memory BytesIO JPEG buffer",
+      "input_or_control_import_or_call_found": false,
+      "no_mouse_keyboard_clipboard_process_launch_shell_command_or_filesystem_write_call": true,
+      "note": "The source comment contains the word keyboard only to state that it has no mouse/keyboard capability; this is not an import or call."
+    },
+    "endpoint_refusals": {
+      "non_read_methods_on_passive_paths": {"POST": 501, "PUT": 501, "PATCH": 501, "DELETE": 501, "OPTIONS": 501},
+      "control_paths_get": {"/click": 404, "/move": 404, "/key": 404, "/type": 404, "/hotkey": 404, "/clipboard": 404, "/launch": 404, "/exec": 404},
+      "response_bodies_recorded": false
+    },
+    "fresh_frame": {
+      "path": "screenshots/00-camera-preflight.jpg",
+      "sha256": "880c0c18335b219b4b0e1c98a806b91656054d2f45f28eae02ae51340372ca63",
+      "dimensions": "2560x1600",
+      "passive_tunnel_destination": "Legion 127.0.0.1:8799"
+    },
+    "classification": "APPROVED_READ_ONLY_OBSERVER"
+  },
+  "legion_agent": {
+    "observed_but_not_used_after_ownership_stop": true,
+    "task": "LegionAgent",
+    "task_state": "Running",
+    "task_action_executable": "C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe",
+    "task_action_arguments": "C:\\agent\\legion_agent.py",
+    "expected_script_sha256": "55261f488a6a7b2cf8607847ac4f7c68b7e6a4584d691c9996df84aefa8fbc01",
+    "observed_pid": 128100,
+    "observed_session": 1,
+    "observed_listener": "127.0.0.1:8765",
+    "fresh_helper_or_tunnel_or_input_request": false
+  },
+  "unapproved_interactive_owner": {
+    "pid": 9388,
+    "session": 1,
+    "process": "InputDirectorSessionHelper.exe",
+    "path": "C:\\Program Files\\Input Director\\InputDirectorSessionHelper.exe",
+    "command_line": "\"C:\\Program Files\\Input Director\\InputDirectorSessionHelper.exe\" 7492",
+    "classification": "interactive mouse/keyboard input-control helper; neither exact allowed exception",
+    "result": "ownership ambiguous; stop required"
+  },
+  "process_scan": {
+    "interactive_process_count": 94,
+    "read_only_process_table_enumerated": true,
+    "app_build_installer_cargo_rust_provider_chain_active": false,
+    "other_unapproved_owner_found": true
+  },
+  "first_blocker": "NOT_TESTED / ANOTHER ACTIVE LANTERN BENCH OWNER",
+  "actions_after_stop": {
+    "fresh_root_checked": false,
+    "fresh_root_created": false,
+    "credential_file_content_read": false,
+    "credential_transferred": false,
+    "api_checked": false,
+    "legion_agent_request_or_input": false,
+    "app_launched": false,
+    "workspace_cloned": false,
+    "product_assertions_A_through_E": false
+  }
+}
