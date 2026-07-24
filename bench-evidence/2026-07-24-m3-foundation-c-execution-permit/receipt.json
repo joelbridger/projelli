@@ -1,0 +1,44 @@
+{
+  "contract": {
+    "sha256": "aede9e5cb8b6488aae4086e66e6edf94a60cf68b50e6f8050262f0f75ca5def1",
+    "base": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "implementationCommit": "d19fd3ddc874191aa447e899eb135358c27bbfb1"
+  },
+  "privatePermitBoundary": {
+    "guard": "ActiveClientLeaseExecutionGuard privately owns workspace, exact lease, and OwnedSemaphorePermit; it is neither serializable nor returned to the renderer.",
+    "order": ["read-only encrypted artifact/transition/meeting reload", "capture exact private lease", "acquire one-slot permit", "resolve workspace and recheck lease", "blocking SQLCipher open and migrations", "BEGIN IMMEDIATE", "second encrypted reload and guard target validation", "derive Task/identity/hash", "receipt-orphan checks", "actual Task insert", "test-only post-Task/pre-receipt fault", "receipt insert", "commit or rollback", "guard drop"],
+    "lifecycle": "clear, client selection/refusal, and every workspace handoff acquire the same permit before changing private selection or workspace state; queued changes wait until commit or rollback. No Tokio mutex guard crosses blocking store work."
+  },
+  "behavior": {
+    "replay": "Only a receipt whose artifact, revision, Task id, and SHA-256 match the newly derived Task bytes returns replayed; changed Task bytes, receipt hash or identity, and an orphan Task refuse.",
+    "rollback": "The injected failure is immediately after the real crm_docs Task INSERT and before receipt INSERT. The immediate transaction rolls back both rows.",
+    "migration": "v0008 adds only local_task_delivery_receipts. Stores at v1-v7 migrate forward without rewriting existing data."
+  },
+  "ownedPathsAtImplementationCommit": [
+    {"path":"scripts/verify-m3-foundation-c-local-task.sh","blob":"a829a07688e9d1a75921a1eb65199333f1950ec4","sha256":"5eb8d13ee1a4ea2bb0a2278adf52b037de62acec52ec595d21f3f66ebb130d8b"},
+    {"path":"src-tauri/src/commands/crm/active_client_context.rs","blob":"6d113758b488c31dc67d1fa1577b5c3c5864ae4f","sha256":"526eab4f8dcd469f104c31bf416d3ff1f84f3ff3b6fcd823f935de12986b098c"},
+    {"path":"src-tauri/src/commands/crm/commands.rs","blob":"cce64b060884a090f345e0f297d1ba7db418c311","sha256":"2606f2765a7eaa532737ef02d86ffcc98ed89b6580da58ff34ce84676e8c1bee"},
+    {"path":"src-tauri/src/commands/crm/features/connector/commands.rs","blob":"c3840ca2a8c3a47e910614e0f45a63a305a236a3","sha256":"3208c62513adebe0200a716460c80612f8f121563b645ed6e7dd23260fa81c2f"},
+    {"path":"src-tauri/src/commands/crm/features/local_task/command-manifest.txt","blob":"be01334713ec959d66e8d6cb35a91d5b35c7c6bc","sha256":"20457b4da656b37e6187370dfa7c7543cff5312cb561c88d4ecddea86558af25"},
+    {"path":"src-tauri/src/commands/crm/features/local_task/commands.rs","blob":"64c7a6eed591f28b56f33b8619929046d84abd92","sha256":"f13c4519b4e3e8f2bda8c6d92a2c5377ce327059170d6c782e2b88b1c44f4a1b"},
+    {"path":"src-tauri/src/commands/crm/features/local_task/mod.rs","blob":"0381f222cb69e0ee81f6fc3a0dd1d352918998a0","sha256":"da70d5ea555c2b3fc912f7e49356d7efef29784104a254b775adc3b1f9c674f9"},
+    {"path":"src-tauri/src/commands/crm/features/mod.rs","blob":"7a83bf965158f717e969ab5da042f3ccd5ff2d68","sha256":"65c0234d27e2fc79bd6722560ba7857df05975d418fe85a97216211875a40c7a"},
+    {"path":"src-tauri/src/commands/crm/migrations/mod.rs","blob":"2777deddc045516541d919e05b89c8705a22baab","sha256":"3aa9f3548ee6d97865830776031fc55a8914e4827d482b0e3730a6e589ff9531"},
+    {"path":"src-tauri/src/commands/crm/migrations/v0008_local_task_delivery_receipts.rs","blob":"81e357fe49d8365295234e0e42a14647dce2d92f","sha256":"554132ed5a109a4839e4ecca2d12b606af308ee515004c2be6f4edd3a5a7267f"},
+    {"path":"src/features/crm-tasks/testing/roundTripTaskRecord.test.tsx","blob":"da2b2eb65794570a476b255e5eb6f5197f9f2028","sha256":"8056d1800d17071cfe7a7d072a207e86bc1c12c34f1b1b6c95ff745f9d5b5dba"},
+    {"path":"src/platform/crm/localMeetingTaskTransport.test.ts","blob":"06e4f36a5d09464b9cfc769d500c71ed42f3dd2e","sha256":"3b07e3af9245de668d709a3a3eb01d69edbecc2b7f49788ee2e0d0d0c154bae8"},
+    {"path":"src/platform/crm/localMeetingTaskTransport.ts","blob":"40688291aea770a8ea4f3403dae887f0f5d22cd1","sha256":"6b6719eeaa539143eea67d5faa08c9e4a64e9ea8d9afa5e87608e7e771c8599e"}
+  ],
+  "commands": [
+    {"literal":"bash scripts/verify-m3-foundation-c-local-task.sh","exitCode":1,"stdout":"Rust: 2 passed; 0 failed; 1623 filtered out. Exactly one FOUNDATION_C_RUST_TASK_JSON sentinel emitted. TypeScript first attempt failed only because test mock useFirmStore.subscribe was absent.","stderr":""},
+    {"literal":"FOUNDATION_C_RUST_TASK_JSON_PATH=/tmp/foundation-c-rust-task.json npx vitest run src/platform/crm/localMeetingTaskTransport.test.ts src/features/crm-tasks/testing/roundTripTaskRecord.test.tsx","exitCode":0,"stdout":"Test Files 2 passed (2); Tests 4 passed (4).","stderr":""},
+    {"literal":"rustfmt --edition 2021 --config skip_children=true --check [six owned Rust paths] && bash -n scripts/verify-m3-foundation-c-local-task.sh","exitCode":0,"stdout":"","stderr":""},
+    {"literal":"npm run typecheck && node scripts/check-tauri-contracts.mjs","exitCode":0,"stdout":"typecheck passed; native contract check passed: 80 TS invokes, 91 target registered Rust commands checked (305 total manifest commands). Existing repository warnings only.","stderr":""},
+    {"literal":"git diff --check 5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef..d19fd3ddc874191aa447e899eb135358c27bbfb1","exitCode":0,"stdout":"","stderr":""}
+  ],
+  "totals": {"rust":"2 passed; 0 failed; 1623 filtered out","typescript":"2 files passed; 4 tests passed"},
+  "dependencyHashes": {"packageJson":"192f9b6e8237344fe730d4dcf058759bd3b0457664501f3fa1f0b351f380e012","packageLockJson":"ce074d4be9d8fa7bd1ae9454692d74e7376fbf819a6f9b9d1e473dbb1f38c4ae","piper":"12672a94ca6716e5a8f335cfa68bf43bd9a33284960e3f9d16b85090bf7aab6b","llamaServer":"64682459ee4095f62cf39002cd9429f1c1a911721564ef8c9598077cdf71fb77","cleanup":"temporary node_modules and two helper links were absent after each check; generated Rust JSON temporary file was removed."},
+  "exclusions":["No UI or meeting-review binding","No provider, mail, network, Windows, Whole Firm, staff-permission, browser Task, legacy facade, core-store API, or second-store change"],
+  "unproven":["Windows proof","Visible M3 advisor journey","Provider, mail, network, or external delivery"],
+  "status":"Code-level local persistence evidence only; this receipt does not claim acceptance."
+}
