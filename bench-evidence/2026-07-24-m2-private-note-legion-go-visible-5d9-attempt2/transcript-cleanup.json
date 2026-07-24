@@ -1,0 +1,12 @@
+{
+  "secret_free": true,
+  "clipboard": "cleared_to_harmless_blank",
+  "temporary_credential": "not_created",
+  "exact_app": "closed_normally",
+  "temporary_launch_task": "removed",
+  "camera_tunnel": "closed",
+  "helper_tunnel": "closed",
+  "helper_state": "running",
+  "lantern_process_count_after_cleanup": 0,
+  "changes_product_verdict": false
+}

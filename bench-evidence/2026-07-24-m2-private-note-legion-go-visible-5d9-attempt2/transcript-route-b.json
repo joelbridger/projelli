@@ -1,0 +1,20 @@
+{
+  "secret_free": true,
+  "entry_route": "regular_shell_already_visible",
+  "paired_entry_frames": [
+    {"role": "helper", "image": "02-helper-entry.png", "state": "regular_shell"},
+    {"role": "camera", "image": "03-camera-entry.jpg", "state": "regular_shell"}
+  ],
+  "entry_frames_agree": true,
+  "onboarding_forced": false,
+  "go_sought_or_pressed": false,
+  "ordinary_visible_attempts": [
+    {"control": "Workspace breadcrumb", "outcome": "No folder picker or path binding appeared"},
+    {"control": "Settings → Workspace", "outcome": "No folder-selection control appeared"},
+    {"control": "Meetings", "outcome": "No selected client or Hendricks workspace binding appeared"}
+  ],
+  "isolated_workspace_path": "C:\\Lantern-M2-5d9-PRIVATE-20260724-06\\workspace",
+  "isolated_workspace_active": false,
+  "stop_reason": "NOT_TESTED / ORDINARY APP SHELL DRIVE NOT PROVEN",
+  "credentials_precede_complete_gate": false
+}

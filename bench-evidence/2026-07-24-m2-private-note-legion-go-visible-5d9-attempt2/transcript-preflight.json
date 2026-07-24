@@ -1,0 +1,60 @@
+{
+  "secret_free": true,
+  "worktree": {
+    "branch": "evidence/m2-private-note-legion-go-visible-5d9-attempt2-20260724",
+    "head_before_evidence": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "origin": "https://github.com/lanternplatform/lantern.git",
+    "clean_before_evidence": true
+  },
+  "legion": {
+    "hostname": "DESKLINK129887",
+    "ssh_key_only": true,
+    "interactive_user": "Desklink129887\\james",
+    "interactive_session": 1,
+    "free_disk_gb": 621.58,
+    "free_memory_mb": 16976.68
+  },
+  "ownership": {
+    "keepance_dev_state": "Ready",
+    "lantern_before_launch_count": 0,
+    "input_director_count": 0,
+    "build_or_installer_chain_active": false,
+    "other_remote_control_owner": false,
+    "ambiguous_owner": false,
+    "gh_runner_listener_only": true
+  },
+  "fresh_root": {
+    "path": "C:\\Lantern-M2-5d9-PRIVATE-20260724-06",
+    "absent_before_creation": true,
+    "created_by_lane": true,
+    "initial_create_command_failed_before_any_write": true,
+    "absence_rechecked_before_successful_create": true
+  },
+  "exact_app_before_launch": {
+    "path": "D:\\Lantern-M1-5d9-L2-20260724\\target\\release\\lantern.exe",
+    "bytes": 215660032,
+    "sha256": "62d3bf454bb84fa1799856719c1bf7e4f0248802d72832cd36c98b030e99c2e8"
+  },
+  "synthetic_workspace": {
+    "source": "C:\\Lantern-M2-c236b5a9\\workspace",
+    "destination": "C:\\Lantern-M2-5d9-PRIVATE-20260724-06\\workspace",
+    "source_file_count": 96,
+    "source_manifest_sha256": "4ae9bf83ccfe10ed35818666df566f99ed296f0b790648e70d0cfc42b3ecff0a",
+    "destination_manifest_sha256": "4ae9bf83ccfe10ed35818666df566f99ed296f0b790648e70d0cfc42b3ecff0a",
+    "identical": true,
+    "synthetic_markers": [
+      "Meetings/2026-07-02-hendricks-annual-review/meeting.json",
+      "Meetings/2026-07-02-hendricks-annual-review/notes.docx",
+      "Sample - Household Overview.md"
+    ]
+  },
+  "network_and_credential_guard": {
+    "api_https_status": 404,
+    "server_credential_file_mode": "600",
+    "server_credential_owner_only": true,
+    "credential_contents_read": false,
+    "credential_transferred": false,
+    "clipboard_credential": false,
+    "credential_typed": false
+  }
+}

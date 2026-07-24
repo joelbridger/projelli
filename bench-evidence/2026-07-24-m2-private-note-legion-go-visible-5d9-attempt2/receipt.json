@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "lane_id": "phase1-m2-private-note-legion-go-visible-5d9",
+  "attempt": 2,
+  "attempt_limit": 2,
+  "contract_sha256": "ee419538f501a9f2bde0be7a46f9a4f9370d0b3e7cc7ff83e2d3e7fd517d3d4e",
+  "job_id": "20260724-175452-2z1wxxxx",
+  "lineage_reference_only": {
+    "attempt_1_job": "20260724-173657-5s6bxxxx",
+    "attempt_1_commit": "e3ab531ea6a5f2c8a5f94ae4b96aaabb8a114690",
+    "attempt_1_verdict": "NOT_TESTED / VISIBLE GO AND APP SHELL DRIVE NOT PROVEN",
+    "attempt_1_was_verification_contract_stop": true,
+    "attempt_1_made_no_product_attempt": true
+  },
+  "source": {
+    "revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "branch": "evidence/m2-private-note-legion-go-visible-5d9-attempt2-20260724",
+    "origin": "https://github.com/lanternplatform/lantern.git",
+    "clean_before_evidence": true,
+    "fresh_root": "C:\\Lantern-M2-5d9-PRIVATE-20260724-06",
+    "fresh_root_absent_before_creation": true
+  },
+  "ownership": {
+    "host": "DESKLINK129887",
+    "key_only_ssh": true,
+    "interactive_user": "Desklink129887\\james",
+    "interactive_session": 1,
+    "keepance_dev_state": "Ready",
+    "lantern_before_launch_count": 0,
+    "input_director_count": 0,
+    "build_or_installer_chain_active": false,
+    "other_remote_control_owner": false,
+    "ambiguous_owner": false,
+    "approved_coexisting_processes": ["BenchCam PID 120860", "fresh LegionAgent PID 149716"]
+  },
+  "exact_executable": {
+    "path": "D:\\Lantern-M1-5d9-L2-20260724\\target\\release\\lantern.exe",
+    "bytes": 215660032,
+    "sha256": "62d3bf454bb84fa1799856719c1bf7e4f0248802d72832cd36c98b030e99c2e8",
+    "measured_before_launch": true,
+    "launched_pid": 150300,
+    "launched_session": 1,
+    "visible_window_proven_by_paired_frames": true,
+    "restart_not_attempted": true,
+    "reason_restart_not_attempted": "Shared route gate did not prove the isolated workspace before credentials"
+  },
+  "camera": {
+    "task": "BenchCam",
+    "action_executable": "C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe",
+    "sole_script_argument": "C:\\Users\\james\\bench_cam.py",
+    "script_sha256": "026811c25cff6e5f211195369e7617b3f4b8b7bf222adb83e47e0ef84e35509f",
+    "pid": 120860,
+    "session": 1,
+    "sole_listener": "127.0.0.1:8799",
+    "passive_only": true,
+    "control_path_refusals": {"POST": 501, "click": 404, "move": 404, "key": 404, "type": 404, "hotkey": 404, "clipboard": 404, "launch": 404, "exec": 404},
+    "fresh_frame": "00-camera-preflight.jpg",
+    "fresh_frame_sha256": "043a053436fb44853cf5ebc3b049c2e68192291bdc47dc6413c61d5a49e04be0"
+  },
+  "helper": {
+    "task": "LegionAgent",
+    "action_executable": "C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe",
+    "sole_script_argument": "C:\\agent\\legion_agent.py",
+    "script_sha256": "55261f488a6a7b2cf8607847ac4f7c68b7e6a4584d691c9996df84aefa8fbc01",
+    "previous_pid": 139764,
+    "fresh_pid": 149716,
+    "session": 1,
+    "sole_listener": "127.0.0.1:8765",
+    "fresh_tunnel": "127.0.0.1:18765 -> Legion 127.0.0.1:8765",
+    "health": "ok",
+    "size": {"w": 2560, "h": 1600},
+    "harmless_move": {"x": 1, "y": 1}
+  },
+  "synthetic_workspace": {
+    "source": "C:\\Lantern-M2-c236b5a9\\workspace",
+    "destination": "C:\\Lantern-M2-5d9-PRIVATE-20260724-06\\workspace",
+    "synthetic_markers": ["Hendricks annual review", "Sample - Household Overview.md"],
+    "source_manifest_sha256": "4ae9bf83ccfe10ed35818666df566f99ed296f0b790648e70d0cfc42b3ecff0a",
+    "destination_manifest_sha256": "4ae9bf83ccfe10ed35818666df566f99ed296f0b790648e70d0cfc42b3ecff0a",
+    "file_count": 96,
+    "identical": true
+  },
+  "network_and_credentials": {
+    "api_https_reachable": true,
+    "api_http_status": 404,
+    "server_credential_file_owner_only": true,
+    "credential_contents_read": false,
+    "credential_transferred": false,
+    "clipboard_credential": false,
+    "credential_typed": false
+  },
+  "entry_route": "regular_shell_already_visible",
+  "route_b": {
+    "entry_frames": [
+      {"role": "helper", "image": "02-helper-entry.png", "sha256": "ba8a38883e77cb25c46f22df4511e20d8b34497bb0eb5e762105de80c1331770", "timestamp_utc": "2026-07-24T18:02:42.790664016Z", "state": "regular_shell"},
+      {"role": "camera", "image": "03-camera-entry.jpg", "sha256": "e80b647ea3e32d1eface5fc6ca565730ffd1328f4c7a098677c2345c270eab60", "timestamp_utc": "2026-07-24T18:02:42.934665900Z", "state": "regular_shell"}
+    ],
+    "paired_views_agree": true,
+    "onboarding_forced": false,
+    "go_sought_or_pressed": false,
+    "ordinary_visible_controls": [
+      {"action": "Workspace breadcrumb", "helper_image": "04-helper-workspace-control.png", "camera_image": "05-camera-workspace-control.jpg", "outcome": "no folder picker or path binding"},
+      {"action": "Settings → Workspace", "helper_image": "06-helper-settings.png", "camera_image": "07-camera-settings.jpg", "outcome": "no folder-selection control"},
+      {"action": "Meetings", "helper_image": "08-helper-meetings.png", "camera_image": "09-camera-meetings.jpg", "outcome": "no selected client or Hendricks binding"}
+    ],
+    "isolated_workspace_path": "C:\\Lantern-M2-5d9-PRIVATE-20260724-06\\workspace",
+    "isolated_workspace_active": false,
+    "shared_gate_complete": false,
+    "complete_route_b_requires_no_onboarding_scroll_or_go": true
+  },
+  "a_to_e": [
+    {"id": "A", "status": "NOT_RUN", "reason": "shared gate incomplete"},
+    {"id": "B", "status": "NOT_RUN", "reason": "depends on A"},
+    {"id": "C", "status": "NOT_RUN", "reason": "depends on B"},
+    {"id": "D", "status": "NOT_RUN", "reason": "depends on C"},
+    {"id": "E", "status": "NOT_RUN", "reason": "depends on D"}
+  ],
+  "terminal_product_verdict": "NOT_TESTED",
+  "stop_point": {
+    "stage": "Route B isolated-workspace binding",
+    "reason": "NOT_TESTED / ORDINARY APP SHELL DRIVE NOT PROVEN",
+    "first_blocker": "The paired regular shell was visible but the exact isolated workspace could not be proven active through an ordinary visible route.",
+    "later_product_steps_not_run": true
+  },
+  "safety": {
+    "no_build": true,
+    "no_install": true,
+    "no_provider": true,
+    "no_send": true,
+    "no_seat_or_staff_action": true,
+    "whole_firm_closed": true,
+    "no_m3": true,
+    "credentials_not_used": true
+  },
+  "cleanup": {
+    "clipboard": "cleared_to_harmless_blank",
+    "temporary_credential": "not_created",
+    "exact_app": "closed_normally",
+    "temporary_launcher_task": "removed",
+    "camera_tunnel": "closed",
+    "helper_tunnel": "closed",
+    "helper_state": "running",
+    "changes_product_verdict": false
+  }
+}
