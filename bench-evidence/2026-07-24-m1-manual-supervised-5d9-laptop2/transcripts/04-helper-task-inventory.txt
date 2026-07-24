@@ -1,0 +1,39 @@
+UTC date: 2026-07-24
+Purpose: short, direct read-only inventory of the historical interactive helper task; command length before contact: 104 characters excluding the trailing newline.
+
+Exact command:
+ssh -o BatchMode=yes -o ConnectTimeout=15 james@100.64.136.15 schtasks /query /tn UXEvalAgent /fo list /v
+
+Output:
+
+Folder: \
+HostName:                             DESKLINK00998
+TaskName:                             \UXEvalAgent
+Next Run Time:                        N/A
+Status:                               Ready
+Logon Mode:                           Interactive only
+Last Run Time:                        7/13/2026 12:23:03 PM
+Last Result:                          1073807364
+Author:                               N/A
+Task To Run:                          C:\Program Files\Python312\python.exe C:\lantern-plus\scripts\legion_agent.py
+Start In:                             C:\lantern-plus
+Comment:                              N/A
+Scheduled Task State:                 Enabled
+Idle Time:                            Disabled
+Power Management:
+Run As User:                          james
+Delete Task If Not Rescheduled:       Disabled
+Stop Task If Runs X Hours and X Mins: Disabled
+Schedule:                             Scheduling data is not available in this format.
+Schedule Type:                        On demand only
+Start Time:                           N/A
+Start Date:                           N/A
+End Date:                             N/A
+Days:                                 N/A
+Months:                               N/A
+Repeat: Every:
+Repeat: Until: Time:                  N/A
+Repeat: Until: Duration:              N/A
+Repeat: Stop If Still Running:        N/A
+
+Observation: The historical task is enabled, interactive-only, runs as `james`, and its declared action points at the expected script path. Its task state is Ready, not proof that it is presently running or that its named script still exists.

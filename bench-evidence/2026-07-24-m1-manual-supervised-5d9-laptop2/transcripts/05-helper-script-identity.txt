@@ -1,0 +1,11 @@
+UTC date: 2026-07-24
+Purpose: required short, direct read-only SHA-256 check of the action script; command length before contact: 128 characters excluding the trailing newline.
+
+Exact command:
+ssh -o BatchMode=yes -o ConnectTimeout=15 james@100.64.136.15 certutil -hashfile C:\lantern-plus\scripts\legion_agent.py SHA256
+
+Output:
+CertUtil: -hashfile command FAILED: 0x80070002 (WIN32: 2 ERROR_FILE_NOT_FOUND)
+CertUtil: The system cannot find the file specified.
+
+Observation: BLOCKED. The helper action script was absent at its declared path, so it could not match the required accepted SHA-256 `55261f488a6a7b2cf8607847ac4f7c68b7e6a4584d691c9996df84aefa8fbc01`. The helper task was not started. No listener check, tunnel, health, screen size, screenshot, input, transfer, installation, or product interaction followed.

@@ -1,0 +1,10 @@
+UTC date: 2026-07-24
+Purpose: short, direct read-only identity command; command length before contact: 78 characters excluding the trailing newline.
+
+Exact command:
+ssh -o BatchMode=yes -o ConnectTimeout=15 james@100.64.136.15 hostname
+
+Output:
+Desklink00998
+
+Observation: PASS. The returned host matches the required Laptop-2 host, case-insensitively.

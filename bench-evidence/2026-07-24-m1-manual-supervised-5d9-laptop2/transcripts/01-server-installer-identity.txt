@@ -1,0 +1,16 @@
+UTC date: 2026-07-24
+Purpose: local-only pre-contact identity gate for the saved installer.
+
+Exact command:
+stat -c '%n %s' '/tmp/lantern-m1-5d9-laptop2-20260724.BipW9N/Advisor Prep Hero_3.3.5_x64-setup.exe'
+
+Output:
+/tmp/lantern-m1-5d9-laptop2-20260724.BipW9N/Advisor Prep Hero_3.3.5_x64-setup.exe 186429197
+
+Exact command:
+sha256sum '/tmp/lantern-m1-5d9-laptop2-20260724.BipW9N/Advisor Prep Hero_3.3.5_x64-setup.exe'
+
+Output:
+433a952f25286b35db84c70258b290bdeac6a07c9187a81baa248401b734c70c  /tmp/lantern-m1-5d9-laptop2-20260724.BipW9N/Advisor Prep Hero_3.3.5_x64-setup.exe
+
+Observation: PASS. The saved installer was present and matched required length and SHA-256 before Laptop-2 contact.
