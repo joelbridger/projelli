@@ -1,0 +1,7 @@
+purpose: Required harmless Laptop-2 cmd.exe host probe (read-only)
+exact_command: ssh -o BatchMode=yes -o ConnectTimeout=10 james@100.64.136.15 'cmd.exe /d /s /c "echo HOST=%COMPUTERNAME%&&whoami"'
+exit_code: 0
+stdout:
+HOST=DESKLINK00998
+desklink00998\james
+stderr:

@@ -1,0 +1,3 @@
+purpose: Laptop-2 destination installer size and SHA-256
+status: NOT RUN
+reason: The first blocker was the encoded-PowerShell command-line-length rejection. No transfer command was issued.

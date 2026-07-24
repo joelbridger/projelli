@@ -1,0 +1,3 @@
+purpose: Initial exact installed application process identity
+status: NOT RUN
+reason: No installation or application launch occurred after the first blocker.

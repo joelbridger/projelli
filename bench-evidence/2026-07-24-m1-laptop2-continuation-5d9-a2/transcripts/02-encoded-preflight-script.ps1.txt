@@ -1,0 +1,29 @@
+$ErrorActionPreference = 'Stop'
+$hostName = $env:COMPUTERNAME
+$interactiveUser = (Get-CimInstance Win32_ComputerSystem).UserName
+$drive = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+$os = Get-CimInstance Win32_OperatingSystem
+$processPatterns = '^(lantern|advisor|node|npm|cargo|rustc|rustup|tauri|link|lld|cl|msbuild|chromedriver|msedgedriver|winappdriver)'
+$processes = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -match $processPatterns } | Select-Object ProcessId, Name)
+$oldCheckout = [ordered]@{ checkout_exists = (Test-Path -LiteralPath 'C:\lantern-plus'); old_target_exists = (Test-Path -LiteralPath 'C:\lantern-plus\target') }
+$taskCandidates = @(Get-ScheduledTask | ForEach-Object {
+  $task = $_
+  $actionText = (($task.Actions | ForEach-Object { "$($_.Execute) $($_.Arguments)" }) -join ' | ')
+  if (($task.TaskName -match '(?i)(screen|agent|lantern)') -or ($actionText -match '(?i)(8765|screen|agent)')) {
+    [ordered]@{ task_name = $task.TaskName; task_path = $task.TaskPath; state = "$($task.State)"; user_id = "$($task.Principal.UserId)"; logon_type = "$($task.Principal.LogonType)"; action = $actionText }
+  }
+})
+$listening8765 = @(Get-NetTCPConnection -State Listen -LocalPort 8765 -ErrorAction SilentlyContinue | Select-Object LocalAddress, LocalPort, OwningProcess)
+$uninstallRoots = @('HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*')
+$installs = @($uninstallRoots | ForEach-Object { Get-ItemProperty $_ -ErrorAction SilentlyContinue } | Where-Object { $_.DisplayName -match '(?i)(lantern|advisor prep)' } | Select-Object DisplayName, DisplayVersion, InstallLocation, UninstallString)
+$appData = @('C:\Users\james\AppData\Roaming\lantern','C:\Users\james\AppData\Local\lantern','C:\Users\james\AppData\Roaming\Advisor Prep Hero','C:\Users\james\AppData\Local\Advisor Prep Hero') | ForEach-Object { [ordered]@{ path = $_; exists = (Test-Path -LiteralPath $_) } }
+$gateFailures = @()
+if ($hostName -ne 'DESKLINK00998') { $gateFailures += 'wrong_host' }
+if ($interactiveUser -notmatch '(?i)\\james$') { $gateFailures += 'wrong_interactive_user' }
+if (($drive.FreeSpace / 1GB) -lt 50) { $gateFailures += 'low_c_free_space' }
+if (($os.FreePhysicalMemory / 1024) -lt 6144) { $gateFailures += 'low_available_memory' }
+if ($processes.Count -ne 0) { $gateFailures += 'competing_process' }
+if ($taskCandidates.Count -eq 0) { $gateFailures += 'screen_helper_missing' }
+$result = [ordered]@{ host = $hostName; interactive_user = $interactiveUser; c_free_gb = [math]::Round($drive.FreeSpace / 1GB, 2); available_physical_mb = [math]::Round($os.FreePhysicalMemory / 1024, 2); competing_processes = $processes; old_checkout = $oldCheckout; screen_helper_candidates = $taskCandidates; port_8765_listeners = $listening8765; installs = $installs; app_data = $appData; gate_failures = $gateFailures; read_only = $true }
+$result | ConvertTo-Json -Depth 6 -Compress
+if ($gateFailures.Count -ne 0) { exit 42 }

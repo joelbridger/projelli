@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "lane": "phase1-m1-package-legion-drive-laptop2-5d9",
+  "attempt": 2,
+  "max_attempts": 2,
+  "verdict": "PARTIAL",
+  "product_journey": "NOT RUN",
+  "first_blocker": {
+    "class": "BENCH_TOOLING",
+    "stage": "Laptop-2 encoded PowerShell preflight transport",
+    "reason": "Laptop-2 cmd.exe rejected the required fixed encoded-PowerShell invocation with 'The command line is too long.' before PowerShell could execute.",
+    "product_tested": false,
+    "later_steps_not_run": true
+  },
+  "attempt_lineage": {
+    "ordinary_attempt": 2,
+    "accepted_partial_attempt": 1,
+    "attempt_1_job": "20260724-012434-4walxxxx",
+    "attempt_1_evidence_commit": "43cf12c83e28da4ede5a2aa6f57246f2ab2f3b7e",
+    "attempt_1_status": "PARTIAL",
+    "attempt_1_wording_correction": "One remote cmd.exe invocation did run on Laptop-2 and rejected raw PowerShell text. No intended PowerShell operation, file copy, installation, app launch, desktop drive, or product assertion ran."
+  },
+  "contract": {
+    "sha256": "308fe731d5b8a7f3833d9d8a8a73341cf3dec6b56252f7e6d0cb83bd1ea9aee6",
+    "job_id": "20260724-022840-vz8kxxxx",
+    "launch_record": "/home/jameson/.local/share/codex-fleet/20260724-022840-vz8kxxxx/launch-record.json",
+    "base_revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "expected_remote": "https://github.com/lanternplatform/lantern.git"
+  },
+  "source": {
+    "accepted_product_revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "attempt_2_base_revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef"
+  },
+  "machine": {
+    "role": "drive-only installer consumer",
+    "ssh": "james@100.64.136.15",
+    "expected_host": "DESKLINK00998",
+    "host_probe_host": "DESKLINK00998",
+    "host_probe_user": "desklink00998\\james",
+    "interactive_desktop": "NOT RUN: encoded preflight did not execute"
+  },
+  "transport": {
+    "cmd_host_probe_count": 1,
+    "cmd_host_probe_shape": "cmd.exe /d /s /c \"echo HOST=%COMPUTERNAME%&&whoami\"",
+    "encoded_powershell_operation_count": 1,
+    "encoded_powershell_shape": "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand <base64 UTF-16LE payload>",
+    "raw_powershell_operations": 0,
+    "other_remote_command_shapes": 0,
+    "preflight": {
+      "purpose": "complete read-only preflight",
+      "operation_class": "read-only",
+      "plain_utf8_sha256": "43e586d2ca6ac11f783f56ea03ed96ae1b67820ddf9d070780f7186210d7abeb",
+      "utf16le_sha256": "4fa0fb89b9e2715427b0eb445d738767dd150ab2c62cf3cb3f92e1270881b77d",
+      "base64_characters": 8228,
+      "remote_exit_code": 1,
+      "executed": false,
+      "error": "The command line is too long."
+    }
+  },
+  "artifact": {
+    "installer": {
+      "bytes": 186429197,
+      "sha256": "433a952f25286b35db84c70258b290bdeac6a07c9187a81baa248401b734c70c",
+      "signature_status": "NotSigned"
+    },
+    "executable": {
+      "bytes": 215660032,
+      "sha256": "62d3bf454bb84fa1799856719c1bf7e4f0248802d72832cd36c98b030e99c2e8",
+      "signature_status": "NotSigned"
+    },
+    "attempt_1_receipt": {
+      "installer_bytes": 186429197,
+      "installer_sha256": "433a952f25286b35db84c70258b290bdeac6a07c9187a81baa248401b734c70c",
+      "executable_bytes": 215660032,
+      "executable_sha256": "62d3bf454bb84fa1799856719c1bf7e4f0248802d72832cd36c98b030e99c2e8"
+    },
+    "server_staging": {
+      "path": "/tmp/lantern-m1-5d9-laptop2-20260724.BipW9N/Advisor Prep Hero_3.3.5_x64-setup.exe",
+      "bytes": 186429197,
+      "sha256": "433a952f25286b35db84c70258b290bdeac6a07c9187a81baa248401b734c70c",
+      "measured_before_contact": true
+    },
+    "laptop2_destination": {
+      "status": "NOT RUN",
+      "bytes": null,
+      "sha256": null,
+      "reason": "First bench-tooling blocker happened before transfer."
+    }
+  },
+  "preflight": {
+    "status": "NOT RUN",
+    "reason": "The fixed encoded-PowerShell payload did not execute; no gate may be treated as passed.",
+    "resources": "NOT RUN",
+    "process_gate": "NOT RUN",
+    "old_checkout_inventory": "NOT RUN",
+    "screen_helper_inventory": "NOT RUN",
+    "existing_install_inventory": "NOT RUN"
+  },
+  "lane_root": {
+    "path": "C:\\Lantern-M1-5d9-Laptop2-A2-20260724",
+    "status": "NOT CREATED",
+    "reason": "The required read-only preflight did not pass."
+  },
+  "install": {
+    "status": "NOT RUN",
+    "visible_interactive_install": "NOT RUN",
+    "installed_executable": "NOT RUN"
+  },
+  "processes": {
+    "initial_exact_app": "NOT RUN",
+    "normal_close": "NOT RUN",
+    "reopened_exact_app": "NOT RUN"
+  },
+  "workspace": {
+    "status": "NOT RUN",
+    "fresh_synthetic_workspace": false,
+    "hendricks_sample": "NOT RUN"
+  },
+  "m1_assertions": [
+    {"id": "launch_exact_installed_executable", "verdict": "NOT RUN", "reason": "First blocker: BENCH_TOOLING."},
+    {"id": "fresh_workspace_real_picker_hendricks", "verdict": "NOT RUN", "reason": "First blocker: BENCH_TOOLING."},
+    {"id": "today_appears", "verdict": "NOT RUN", "reason": "First blocker: BENCH_TOOLING."},
+    {"id": "crm_select_hendricks", "verdict": "NOT RUN", "reason": "First blocker: BENCH_TOOLING."},
+    {"id": "today_crm_meetings_ask_keep_hendricks", "verdict": "NOT RUN", "reason": "First blocker: BENCH_TOOLING."},
+    {"id": "whole_firm_closed", "verdict": "NOT RUN", "reason": "First blocker: BENCH_TOOLING; app was never launched."},
+    {"id": "normal_close_process_ends", "verdict": "NOT RUN", "reason": "First blocker: BENCH_TOOLING."},
+    {"id": "reopen_exact_app_hendricks_persists", "verdict": "NOT RUN", "reason": "First blocker: BENCH_TOOLING."}
+  ],
+  "safety": {
+    "no_rebuild": true,
+    "no_cargo": true,
+    "no_rust": true,
+    "no_node": true,
+    "no_npm": true,
+    "no_tauri": true,
+    "no_linker": true,
+    "no_package_build": true,
+    "no_legion_command": true,
+    "no_legion_write": true,
+    "no_signing": true,
+    "no_updater_action": true,
+    "no_file_copy": true,
+    "no_lane_root_created": true,
+    "no_installation": true,
+    "no_app_launch": true,
+    "no_desktop_drive": true,
+    "no_account_used": true,
+    "no_credentials_used": true,
+    "no_provider_opened": true,
+    "no_browser_or_mail_opened": true,
+    "no_private_note": true,
+    "no_crm_data_changed": true,
+    "no_task_created": true,
+    "no_ask_answer": true,
+    "no_send": true,
+    "whole_firm_enabled": false
+  },
+  "screenshots": {},
+  "transcripts": {
+    "00-server-installer-identity.txt": "4b46da4eeeff2f912243f5ec0bd73899aaf17399a3e323cb5a159c66d5a4a059",
+    "01-harmless-cmd-host-probe.txt": "614e4812b1950ce821a92abc50d4a2d27e5d537a2fc001cde5fb6bcbedee35f1",
+    "02-encoded-preflight-script.ps1.txt": "43e586d2ca6ac11f783f56ea03ed96ae1b67820ddf9d070780f7186210d7abeb",
+    "02-encoded-preflight.txt": "74a0d0e5ed92cc3fdcfb9a291e93d1b712f7b56a267460f06c714b61bb49024b",
+    "03-laptop2-installer-identity-not-run.txt": "bea64f5bb2b6a73ca3686cacc2360073780e10f9dcec3697de02cbcceba4148a",
+    "04-installed-executable-identity-not-run.txt": "18fb9f74aa7558c2ff68cbd741b5e9c02248b23469d7b0b4a4252d585d1eefa2",
+    "05-initial-app-process-not-run.txt": "0cbbe7ccba215241ff2f6b56523e2dd633ba8e7b0610a172df21a9ab4c1c67a9",
+    "06-normal-close-not-run.txt": "31b9a8dab047d97b83660028ead1f6c6526593d9a34a499cb9d24f0ce805277b",
+    "07-reopened-app-process-not-run.txt": "4e615d8505448bccabedfc459a162bb2b6700e01dc2fad27657792828bc0963c"
+  }
+}

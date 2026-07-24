@@ -1,0 +1,3 @@
+purpose: Normal close proof for the exact application process
+status: NOT RUN
+reason: No application launch occurred after the first blocker.

@@ -1,0 +1,12 @@
+purpose: Pre-contact identity gate for the exact attempt-1 server-staged installer (read-only)
+command: stat --printf='STAGE bytes=%s path=%n\\n' '/tmp/lantern-m1-5d9-laptop2-20260724.BipW9N/Advisor Prep Hero_3.3.5_x64-setup.exe'
+exit_code: 0
+stdout:
+STAGE bytes=186429197 path=/tmp/lantern-m1-5d9-laptop2-20260724.BipW9N/Advisor Prep Hero_3.3.5_x64-setup.exe
+stderr:
+
+command: sha256sum '/tmp/lantern-m1-5d9-laptop2-20260724.BipW9N/Advisor Prep Hero_3.3.5_x64-setup.exe'
+exit_code: 0
+stdout:
+433a952f25286b35db84c70258b290bdeac6a07c9187a81baa248401b734c70c  /tmp/lantern-m1-5d9-laptop2-20260724.BipW9N/Advisor Prep Hero_3.3.5_x64-setup.exe
+stderr:

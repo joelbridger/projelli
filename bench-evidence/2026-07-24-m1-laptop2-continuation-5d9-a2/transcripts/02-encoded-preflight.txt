@@ -1,0 +1,14 @@
+purpose: Complete Laptop-2 read-only preflight
+operation_class: read-only
+transport: powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand <base64-from-02-encoded-preflight-script.ps1.txt>
+plain_utf8_sha256: 43e586d2ca6ac11f783f56ea03ed96ae1b67820ddf9d070780f7186210d7abeb
+utf16le_sha256: 4fa0fb89b9e2715427b0eb445d738767dd150ab2c62cf3cb3f92e1270881b77d
+base64_characters: 8228
+exact_ssh_prefix: ssh -o BatchMode=yes -o ConnectTimeout=10 james@100.64.136.15 "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand "
+payload_source: The full Base64 is deterministically the standard unwrapped UTF-16LE Base64 encoding of the adjacent exact script; it is not a secret and is bound by both byte hashes and its character length.
+remote_exit_code: 1
+remote_stdout:
+
+remote_stderr:
+The command line is too long.
+observation: Laptop-2 cmd.exe rejected the required fixed encoded-PowerShell invocation before the PowerShell payload could execute. No preflight observation was produced.
