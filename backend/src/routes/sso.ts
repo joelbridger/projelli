@@ -28,8 +28,8 @@ const VALID_PROVIDERS = new Set<string>(["entra", "google", "generic"]);
 const REDIRECT_URI = `${config.ssoCallbackBase.replace(/\/$/, "")}/auth/sso/callback`;
 
 /** Require admin role; return { orgId, userId } or an error Response. */
-function requireAdminClaims(req: Request): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
-  const auth = authenticate(req);
+function requireAdminClaims(req: Request, store: Store): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
   return { ok: true, orgId: auth.claims.org_id, userId: auth.claims.sub };
@@ -40,7 +40,7 @@ function requireAdminClaims(req: Request): { ok: true; orgId: string; userId: st
 // ---------------------------------------------------------------------------
 
 export async function handleSsoConfigSet(req: Request, store: Store): Promise<Response> {
-  const a = requireAdminClaims(req); if (!a.ok) return a.resp;
+  const a = requireAdminClaims(req, store); if (!a.ok) return a.resp;
   const body = await readJson<{ provider?: unknown; issuer?: unknown; client_id?: unknown; client_secret?: unknown; enabled?: unknown }>(req);
   if (!body) return error("invalid_json", 400);
   const { provider, issuer, client_id, client_secret, enabled } = body;
@@ -78,7 +78,7 @@ export async function handleSsoConfigSet(req: Request, store: Store): Promise<Re
 }
 
 export function handleSsoConfigGet(req: Request, store: Store): Response {
-  const a = requireAdminClaims(req); if (!a.ok) return a.resp;
+  const a = requireAdminClaims(req, store); if (!a.ok) return a.resp;
   const cfg = store.getOrgIdpConfig(a.orgId);
   if (!cfg) return json({ configured: false, redirect_uri: REDIRECT_URI });
   return json({
@@ -89,7 +89,7 @@ export function handleSsoConfigGet(req: Request, store: Store): Response {
 }
 
 export function handleSsoConfigDelete(req: Request, store: Store): Response {
-  const a = requireAdminClaims(req); if (!a.ok) return a.resp;
+  const a = requireAdminClaims(req, store); if (!a.ok) return a.resp;
   store.deleteOrgIdpConfig(a.orgId);
   store.audit({ org_id: a.orgId, actor_user_id: a.userId, action: "sso.config.delete", target: a.orgId });
   return json({ ok: true });
@@ -192,7 +192,8 @@ export async function handleSsoExchange(req: Request, store: Store, ip: string):
   const entry = takeCode(hmacHash(body.sso_code));
   if (!entry) return error("invalid_sso_code", 401);
   const user = store.getUser(entry.userId);
-  if (!user || user.status !== "active") return error("user_invalid", 403);
+  const org = user ? store.getOrg(user.org_id) : null;
+  if (!user || user.status !== "active" || !org || org.status !== "active") return error("user_invalid", 403);
   const tokens = issueAuthTokens(store, user);
   return json({ user: publicUser(user), ...tokens });
 }

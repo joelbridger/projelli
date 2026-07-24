@@ -35,6 +35,10 @@ export function verifyAdvisorSeat(
   req: Request,
   store: Store,
 ): { ok: true; identity: AdvisorIntakeIdentity } | { ok: false; resp: Response } {
+  // Intake mutations are server-authorized work. A seat proves a machine is
+  // enrolled; it is not a substitute for a live revocable login session.
+  const auth = authenticate(req, store);
+  if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   const seatToken = req.headers.get("x-seat-token");
   if (!seatToken) return { ok: false, resp: error("seat_required", 401, "missing_seat_token") };
 
@@ -53,14 +57,8 @@ export function verifyAdvisorSeat(
   const user = store.getUser(claims.user_id);
   if (!user || user.status !== "active") return { ok: false, resp: error("seat_invalid", 401, "user_inactive") };
 
-  let access: AccessTokenClaims | undefined;
-  if (req.headers.get("authorization")) {
-    const auth = authenticate(req);
-    if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
-    if (auth.claims.sub !== claims.user_id || auth.claims.org_id !== claims.org_id) {
-      return { ok: false, resp: error("forbidden", 403, "identity_mismatch") };
-    }
-    access = auth.claims;
+  if (auth.claims.sub !== claims.user_id || auth.claims.org_id !== claims.org_id) {
+    return { ok: false, resp: error("forbidden", 403, "identity_mismatch") };
   }
 
   return {
@@ -70,7 +68,7 @@ export function verifyAdvisorSeat(
       user_id: claims.user_id,
       seat_id: claims.seat_id,
       claims,
-      access,
+      access: auth.claims,
     },
   };
 }

@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS orgs (
   packs               TEXT NOT NULL DEFAULT '[]',   -- JSON array
   seat_limit          INTEGER NOT NULL,
   status              TEXT NOT NULL DEFAULT 'active',
+  test_marker         TEXT,
   created_at          TEXT NOT NULL
 );
 
@@ -712,6 +713,10 @@ export class Store {
     this.db.exec("PRAGMA synchronous = NORMAL;");
     this.db.exec(SCHEMA);
 
+    const orgCols = this.db.query("PRAGMA table_info(orgs)").all() as Array<{ name: string }>;
+    if (!orgCols.some((c) => c.name === "test_marker")) this.db.exec("ALTER TABLE orgs ADD COLUMN test_marker TEXT");
+    this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orgs_test_marker ON orgs(test_marker) WHERE test_marker IS NOT NULL");
+
     // Guarded migration: add subscription_id column + partial unique index to
     // webhook_events if they were not present in the schema when the DB was
     // created. A DB built from the pre-migration SCHEMA lacks this column and
@@ -807,6 +812,46 @@ export class Store {
   findOrgByName(name: string): Org | null {
     const r = this.db.query(`SELECT * FROM orgs WHERE name = ?`).get(name) as OrgRow | null;
     return r ? toOrg(r) : null;
+  }
+
+  /** The only supported creation path for the fixed, no-charge proof firm. */
+  createSarahTestFirm(input: { password_hash: string; license_hash: string }): { created: boolean; org_id: string; user_id: string; license_id: string } {
+    const existing = this.db.query("SELECT org_id FROM orgs WHERE test_marker = 'sarah_morgan_demo'").get() as { org_id: string } | null;
+    if (existing) return { created: false, org_id: existing.org_id, user_id: "", license_id: "" };
+    const orgId = randomUUID(), userId = randomUUID(), licenseId = randomUUID(), now = this.nowIso();
+    const txn = this.db.transaction(() => {
+      this.db.query("INSERT INTO orgs (org_id,name,billing_customer_id,plan,packs,seat_limit,status,test_marker,created_at) VALUES (?,?,?,?,?,?,?,?,?)")
+        .run(orgId, "TEST — Sarah Morgan — M2/M3 proof", null, "practice", '["advisor"]', 1, "active", "sarah_morgan_demo", now);
+      this.db.query("INSERT INTO users (user_id,org_id,email,email_norm,password_hash,role,status,created_at) VALUES (?,?,?,?,?,?,?,?)")
+        .run(userId, orgId, "sarah.morgan.cfp@outlook.com", "sarah.morgan.cfp@outlook.com", input.password_hash, "admin", "active", now);
+      this.db.query("INSERT INTO license_keys (key_id,org_id,key_hash,plan,packs,seat_limit,status,issued_at) VALUES (?,?,?,?,?,?,?,?)")
+        .run(licenseId, orgId, input.license_hash, "practice", '["advisor"]', 1, "active", now);
+      this.audit({ org_id: orgId, actor_user_id: null, action: "test_firm.create", target: orgId, detail: { created: true } });
+    });
+    txn.immediate();
+    return { created: true, org_id: orgId, user_id: userId, license_id: licenseId };
+  }
+
+  /** Permanently retires only the marker-bound test firm, in one write lock. */
+  retireSarahTestFirm(): { retired: boolean; org_id: string | null; users: number; seats: number; sessions: number; licenses: number; intakes: number } {
+    const result = { retired: false, org_id: null as string | null, users: 0, seats: 0, sessions: 0, licenses: 0, intakes: 0 };
+    const txn = this.db.transaction(() => {
+      const org = this.db.query("SELECT org_id,status FROM orgs WHERE test_marker = 'sarah_morgan_demo'").get() as { org_id: string; status: string } | null;
+      if (!org || org.status === "suspended") return;
+      const now = this.nowIso(); result.org_id = org.org_id;
+      result.users = (this.db.query("UPDATE users SET status='deprovisioned' WHERE org_id=? AND status='active'").run(org.org_id) as { changes: number }).changes;
+      result.sessions = (this.db.query("UPDATE refresh_tokens SET revoked_at=? WHERE user_id IN (SELECT user_id FROM users WHERE org_id=?) AND revoked_at IS NULL").run(now, org.org_id) as { changes: number }).changes;
+      const active = this.db.query("SELECT seat_id FROM seats WHERE org_id=? AND status='active'").all(org.org_id) as Array<{ seat_id: string }>;
+      for (const seat of active) this.db.query("INSERT INTO revocations (seat_id,org_id,reason,revoked_at) VALUES (?,?,?,?)").run(seat.seat_id, org.org_id, "test_firm_retired", now);
+      result.seats = (this.db.query("UPDATE seats SET status='revoked',revoked_at=?,revoked_reason='test_firm_retired' WHERE org_id=? AND status='active'").run(now, org.org_id) as { changes: number }).changes;
+      result.licenses = (this.db.query("UPDATE license_keys SET status='disabled' WHERE org_id=? AND status='active'").run(org.org_id) as { changes: number }).changes;
+      result.intakes = (this.db.query("UPDATE intakes SET status='revoked' WHERE org_id=? AND status='active'").run(org.org_id) as { changes: number }).changes;
+      this.db.query("UPDATE orgs SET status='suspended' WHERE org_id=?").run(org.org_id);
+      this.audit({ org_id: org.org_id, actor_user_id: null, action: "test_firm.retire", target: org.org_id, detail: { users: result.users, seats: result.seats, sessions: result.sessions, licenses: result.licenses, intakes: result.intakes } });
+      result.retired = true;
+    });
+    txn.immediate();
+    return result;
   }
 
   setOrgStatus(orgId: string, status: OrgStatus): void {
@@ -1145,6 +1190,14 @@ export class Store {
     return this.db.query(`SELECT token_id, user_id, expires_at, revoked_at, rotated_to FROM refresh_tokens WHERE token_hash = ?`).get(tokenHash) as
       | { token_id: string; user_id: string; expires_at: string; revoked_at: string | null; rotated_to: string | null }
       | null;
+  }
+
+  getRefreshTokenById(tokenId: string): {
+    token_id: string; user_id: string; expires_at: string; revoked_at: string | null; rotated_to: string | null;
+  } | null {
+    return this.db.query(`SELECT token_id, user_id, expires_at, revoked_at, rotated_to FROM refresh_tokens WHERE token_id = ?`).get(tokenId) as {
+      token_id: string; user_id: string; expires_at: string; revoked_at: string | null; rotated_to: string | null;
+    } | null;
   }
 
   /** Rotate: revoke the presented token, mint a new one, link them. */

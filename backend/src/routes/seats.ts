@@ -19,7 +19,7 @@ import { activateSeatForUser, validateSeatToken, heartbeatSeat } from "../lib/se
 import type { Store } from "../lib/db.ts";
 
 export async function handleActivate(req: Request, store: Store): Promise<Response> {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
   const body = await readJson<{ license_key?: unknown; machine_id?: unknown; machine_label?: unknown; app_version?: unknown }>(req);

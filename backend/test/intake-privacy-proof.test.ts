@@ -8,6 +8,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
+import { issueAuthTokens } from "../src/lib/services.ts";
 
 import {
   allDurableValues,
@@ -42,6 +43,7 @@ describe("standing intake privacy proof", () => {
     const ctx = makeServer();
     servers.push(ctx);
     const advisor = seedAdvisor(ctx.store);
+    const accessToken = issueAuthTokens(ctx.store, advisor.user).access_token;
     const recorder = recordRequestsForBase(ctx.base);
 
     const plaintextClientName = "Sarah Plainclient";
@@ -55,7 +57,7 @@ describe("standing intake privacy proof", () => {
       const created = await parseJson(
         await fetch(`${ctx.base}/intake`, {
           method: "POST",
-          headers: { "content-type": "application/json", "x-seat-token": advisor.seatToken },
+          headers: { "content-type": "application/json", "x-seat-token": advisor.seatToken, authorization: `Bearer ${accessToken}` },
           body: JSON.stringify({
             intake_id: "privacy-intake",
             auth_token: authToken,

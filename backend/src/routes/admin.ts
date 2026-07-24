@@ -28,15 +28,15 @@ import type { Store } from "../lib/db.ts";
 import type { AccessTokenClaims, Plan, ProfessionPack } from "../lib/types.ts";
 
 /** Require admin role + return the verified claims, or an error Response. */
-function requireAdmin(req: Request): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
-  const auth = authenticate(req);
+function requireAdmin(req: Request, store: Store): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
   return { ok: true, claims: auth.claims };
 }
 
 export async function handleListSeats(req: Request, store: Store): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const org = store.getOrg(a.claims.org_id);
   if (!org) return error("org_not_found", 404);
@@ -52,7 +52,7 @@ export async function handleListSeats(req: Request, store: Store): Promise<Respo
 }
 
 export async function handleRevokeSeat(req: Request, store: Store): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const body = await readJson<{ seat_id?: unknown; reason?: unknown }>(req);
   if (!body || !isNonEmptyString(body.seat_id, 64)) return error("missing_fields", 400);
@@ -70,7 +70,7 @@ export async function handleRevokeSeat(req: Request, store: Store): Promise<Resp
 }
 
 export async function handleDeprovisionUser(req: Request, store: Store): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const body = await readJson<{ user_id?: unknown }>(req);
   if (!body || !isNonEmptyString(body.user_id, 64)) return error("missing_fields", 400);
@@ -91,7 +91,7 @@ export async function handleDeprovisionUser(req: Request, store: Store): Promise
 }
 
 export async function handleTransferSeat(req: Request, store: Store): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const body = await readJson<{ from_seat_id?: unknown; to_user_id?: unknown; to_machine_id?: unknown; to_machine_label?: unknown }>(req);
   if (!body || !isNonEmptyString(body.from_seat_id, 64) || !isNonEmptyString(body.to_user_id, 64) || !isNonEmptyString(body.to_machine_id, 128)) {
@@ -125,7 +125,7 @@ export async function handleTransferSeat(req: Request, store: Store): Promise<Re
 }
 
 export async function handleCreateUser(req: Request, store: Store): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const body = await readJson<{ email?: unknown; password?: unknown; role?: unknown }>(req);
   if (!body) return error("invalid_json", 400);
@@ -143,7 +143,7 @@ export async function handleCreateUser(req: Request, store: Store): Promise<Resp
 }
 
 export function handleAudit(req: Request, store: Store): Response {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   return json({ events: store.listAudit(a.claims.org_id) });
 }
@@ -157,7 +157,7 @@ export function handleAudit(req: Request, store: Store): Response {
  * Access: role=admin in the same org. Never crosses org boundaries.
  */
 export function handleListOrgUsers(req: Request, store: Store): Response {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const users = store.listOrgUsers(a.claims.org_id);
   return json({ users });

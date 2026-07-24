@@ -449,7 +449,7 @@ describe("E2EE sync relay — E2E over HTTP + WebSocket", () => {
     const m = await post("/org/matters", { client_name: "Expiry Matter" }, adminAccess);
     const mId = m.json.matter.matter_id as string;
     await post(`/matter/${mId}/members/add`, { user_id: aliceId, role: "editor" }, adminAccess);
-    const { ticket } = tickets.mint({ matterId: mId, orgId: "o", userId: aliceId, seatId: "s", role: "member" });
+    const { ticket } = tickets.mint({ matterId: mId, orgId: "o", userId: aliceId, seatId: "s", sessionId: "expired-test-session", role: "member" });
     await new Promise((r) => setTimeout(r, 20)); // let it expire
     const req = new Request(`http://x/matter/${mId}/sync?ticket=${ticket}`, { headers: { upgrade: "websocket" } });
     const res = authorizeSyncConnect(req, store, mId, tickets);

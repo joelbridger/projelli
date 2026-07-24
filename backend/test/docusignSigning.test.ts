@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import { Store } from "../src/lib/db.ts";
 import { hmacHash } from "../src/lib/crypto.ts";
-import { mintSeatToken } from "../src/lib/services.ts";
+import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
 import {
   handleAckSignatureWakeups,
   handleDeleteSignatureLaunch,
@@ -17,6 +17,7 @@ import {
 import { BlindSigningBrokerStore, MAX_SIGNATURE_LAUNCH_BYTES } from "../src/lib/docusignSigning/store.ts";
 import type { DocusignSigningGrantConfig, HttpPostForm } from "../src/lib/docusignSigning/jwtGrant.ts";
 
+const accessBySeat = new Map<string, string>();
 function addOwnedIntake(store: Store) {
   const org = store.createOrg({ name: `Broker ${crypto.randomUUID()}`, plan: "practice", packs: ["advisor"], seat_limit: 2 });
   const user = store.createUser({ org_id: org.org_id, email: `broker-${crypto.randomUUID()}@test.invalid`, password_hash: "x", role: "admin" });
@@ -34,7 +35,9 @@ function addOwnedIntake(store: Store) {
     checklist_ciphertext: new Uint8Array([1]),
     state_ciphertext: new Uint8Array([2]),
   });
-  return { store, intakeId, publicToken, seatToken: mintSeatToken(org, user, activated.seat).token };
+  const seatToken = mintSeatToken(org, user, activated.seat).token;
+  accessBySeat.set(seatToken, issueAuthTokens(store, user).access_token);
+  return { store, intakeId, publicToken, seatToken };
 }
 
 function fixture() {
@@ -67,7 +70,7 @@ function deps(overrides: Partial<DocusignSigningDependencies> = {}): DocusignSig
 function advisorRequest(path: string, seatToken: string, method: string, body?: unknown): Request {
   return new Request(`https://broker.test${path}`, {
     method,
-    headers: { "x-seat-token": seatToken, ...(body !== undefined ? { "content-type": "application/json" } : {}) },
+    headers: { "x-seat-token": seatToken, authorization: `Bearer ${accessBySeat.get(seatToken) ?? ""}`, ...(body !== undefined ? { "content-type": "application/json" } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
@@ -135,7 +138,7 @@ describe("DocuSign signing launch relay", () => {
   test("rejects multipart bodies on each launch endpoint before touching its store", async () => {
     const f = fixture();
     const d = deps();
-    const multipartHeaders = { "x-seat-token": f.seatToken, "content-type": "multipart/form-data; boundary=x" };
+    const multipartHeaders = { "x-seat-token": f.seatToken, authorization: `Bearer ${accessBySeat.get(f.seatToken)!}`, "content-type": "multipart/form-data; boundary=x" };
     expect((await response(await handlePutSignatureLaunch(new Request(`https://broker.test/docusign-signing/${f.intakeId}/launch`, { method: "PUT", headers: multipartHeaders, body: "--x" }), f.store, f.intakeId, d))).status).toBe(400);
     expect((await response(await handleGetSignatureLaunch(new Request(`https://broker.test/docusign-signing/${f.intakeId}/launch`, { headers: { authorization: `Bearer ${f.publicToken}`, "content-type": "multipart/form-data; boundary=x" } }), f.store, f.intakeId, "127.0.0.1", d))).status).toBe(400);
     expect((await response(await handleDeleteSignatureLaunch(new Request(`https://broker.test/docusign-signing/${f.intakeId}/launch`, { method: "DELETE", headers: multipartHeaders, body: "--x" }), f.store, f.intakeId, d))).status).toBe(400);

@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { Store } from "../src/lib/db.ts";
 import { FanoutHub } from "../src/lib/matters.ts";
 import { hmacHash } from "../src/lib/crypto.ts";
-import { mintSeatToken } from "../src/lib/services.ts";
+import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
 import {
   MAX_INTAKE_CHUNK_BYTES,
   MAX_INTAKE_STATE_BYTES,
@@ -22,6 +22,7 @@ import { handleSaveIntakeState } from "../src/routes/intake.ts";
 import { buildServeOptions, type SyncSocketData } from "../src/server.ts";
 
 const servers: Array<Bun.Server<SyncSocketData>> = [];
+const accessBySeat = new Map<string, string>();
 
 afterEach(() => {
   while (servers.length > 0) servers.pop()!.stop(true);
@@ -59,7 +60,9 @@ function seedAdvisor(store: Store) {
     seat_limit: org.seat_limit,
   });
   if (!seat.ok) throw new Error("fixture seat activation failed");
-  return { org, user, seat: seat.seat, seatToken: mintSeatToken(org, user, seat.seat).token };
+  const seatToken = mintSeatToken(org, user, seat.seat).token;
+  accessBySeat.set(seatToken, issueAuthTokens(store, user).access_token);
+  return { org, user, seat: seat.seat, seatToken };
 }
 
 async function parse(res: Response) {
@@ -81,7 +84,7 @@ async function createIntake(
   const authToken = opts?.authToken ?? `auth-${crypto.randomUUID()}`;
   const res = await fetch(`${ctx.base}/intake`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-seat-token": seatToken },
+    headers: { "content-type": "application/json", "x-seat-token": seatToken, authorization: `Bearer ${accessBySeat.get(seatToken) ?? ""}` },
     body: JSON.stringify({
       intake_id: intakeId,
       auth_token: authToken,
@@ -126,6 +129,7 @@ async function advisorJson(
       method,
       headers: {
         "x-seat-token": seatToken,
+        authorization: `Bearer ${accessBySeat.get(seatToken) ?? ""}`,
         ...(body ? { "content-type": "application/json" } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -434,7 +438,9 @@ function addAdvisorToOrg(store: Store, org: ReturnType<typeof seedAdvisor>["org"
     seat_limit: org.seat_limit,
   });
   if (!seat.ok) throw new Error("fixture coworker seat activation failed");
-  return { user, seat: seat.seat, seatToken: mintSeatToken(org, user, seat.seat).token };
+  const seatToken = mintSeatToken(org, user, seat.seat).token;
+  accessBySeat.set(seatToken, issueAuthTokens(store, user).access_token);
+  return { user, seat: seat.seat, seatToken };
 }
 
 describe("intake owner-scoping and abuse limits", () => {
