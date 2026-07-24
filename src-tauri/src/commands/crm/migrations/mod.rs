@@ -11,6 +11,7 @@ mod v0004_merge_receipts;
 mod v0005_team_activity;
 mod v0006_verified_mailbox;
 mod v0007_m4_provider_draft_receipts;
+mod v0008_local_task_delivery_receipts;
 
 #[cfg(test)]
 mod v0002_test_dummy;
@@ -36,6 +37,7 @@ pub const CRM_MIGRATIONS: &[Migration] = &[
     v0005_team_activity::MIGRATION,
     v0006_verified_mailbox::MIGRATION,
     v0007_m4_provider_draft_receipts::MIGRATION,
+    v0008_local_task_delivery_receipts::MIGRATION,
 ];
 
 const CREATE_MIGRATIONS_TABLE: &str = r#"

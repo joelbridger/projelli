@@ -6,7 +6,7 @@
 //! immediately before a protected action. It does not prove browser pixels,
 //! clicks, advisor identity, permissions, or provider authorization.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use tauri::State;
@@ -44,6 +44,54 @@ pub struct ActiveClientContextReceipt {
 /// Tauri DTO, and no command accepts one as input.
 #[derive(Clone)]
 pub(crate) struct ActiveClientLease(ActiveClientSelection);
+
+/// A private authority object which owns the one-slot execution permit for
+/// the whole encrypted write. It cannot be serialized or supplied by the
+/// renderer. It intentionally exposes only the workspace and exact target
+/// comparison needed by the blocking transaction.
+pub(crate) struct ActiveClientLeaseExecutionGuard {
+    workspace: PathBuf,
+    lease: ActiveClientLease,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+}
+
+impl ActiveClientLeaseExecutionGuard {
+    pub(crate) fn workspace(&self) -> &Path {
+        &self.workspace
+    }
+
+    pub(crate) fn require_exact_target(
+        &self,
+        household_id: &str,
+        matter_id: &str,
+    ) -> Result<(), String> {
+        if self.lease.0.household_id == household_id && self.lease.0.matter_id == matter_id {
+            Ok(())
+        } else {
+            Err("The approved artifact is not for the active client.".to_string())
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn test_execution_guard(
+    workspace: PathBuf,
+    household_id: &str,
+    matter_id: &str,
+) -> ActiveClientLeaseExecutionGuard {
+    ActiveClientLeaseExecutionGuard {
+        workspace,
+        lease: ActiveClientLease(ActiveClientSelection {
+            household_id: household_id.to_string(),
+            matter_id: matter_id.to_string(),
+            workspace_revision: 1,
+            selection_revision: 1,
+        }),
+        _permit: std::sync::Arc::new(tokio::sync::Semaphore::new(1))
+            .try_acquire_owned()
+            .expect("fresh test permit"),
+    }
+}
 
 impl ActiveClientContextState {
     pub(crate) fn handoff_workspace(&mut self, workspace: PathBuf) {
@@ -135,6 +183,28 @@ pub(crate) async fn require_active_client_lease(
     }
 }
 
+/// Acquire the private one-slot permit after a caller has read its encrypted
+/// approval data and captured a target-bound lease. The guard keeps the permit
+/// across workspace resolution, the final native lease check, and the caller's
+/// blocking SQLCipher transaction. Lifecycle changes take this same permit
+/// before they may change selection or workspace state.
+pub(crate) async fn hold_active_client_lease_through_transaction(
+    state: &CrmState,
+    lease: ActiveClientLease,
+) -> Result<ActiveClientLeaseExecutionGuard, String> {
+    let permit = std::sync::Arc::clone(&state.active_client_execution_permit)
+        .acquire_owned()
+        .await
+        .map_err(|_| "The active-client execution permit is unavailable.".to_string())?;
+    let workspace = state.service().workspace().await?;
+    require_active_client_lease(state, &lease).await?;
+    Ok(ActiveClientLeaseExecutionGuard {
+        workspace,
+        lease,
+        _permit: permit,
+    })
+}
+
 fn exact_live_household(
     records: Vec<serde_json::Value>,
     household_id: &str,
@@ -162,6 +232,13 @@ async fn request_active_client_with_reader(
     matter_id: String,
     read_records: impl FnOnce(PathBuf) -> Result<Vec<serde_json::Value>, String> + Send + 'static,
 ) -> ActiveClientContextReceipt {
+    // Selection request, refusal, and successful replacement are lifecycle
+    // changes. Taking the same permit first prevents a read/clear/switch from
+    // racing an already-authorized transaction.
+    let _permit = std::sync::Arc::clone(&state.active_client_execution_permit)
+        .acquire_owned()
+        .await
+        .expect("active-client execution permit remains open");
     let (workspace, workspace_revision) = {
         let mut context = state.active_client_context.lock().await;
         match (&context.workspace, context.workspace_revision) {
@@ -226,6 +303,10 @@ pub async fn crm_request_active_client(
 pub async fn crm_clear_active_client_context(
     state: State<'_, CrmState>,
 ) -> Result<ActiveClientContextReceipt, String> {
+    let _permit = std::sync::Arc::clone(&state.active_client_execution_permit)
+        .acquire_owned()
+        .await
+        .map_err(|_| "The active-client execution permit is unavailable.".to_string())?;
     let mut context = state.active_client_context.lock().await;
     context.clear();
     Ok(context.receipt(false, Some("cleared")))

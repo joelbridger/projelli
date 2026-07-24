@@ -23,6 +23,10 @@ pub struct CrmState {
     pub workspace: tokio::sync::Mutex<Option<PathBuf>>,
     pub(crate) active_client_context:
         tokio::sync::Mutex<super::active_client_context::ActiveClientContextState>,
+    /// Serializes the private active-client authority boundary with protected
+    /// encrypted transactions. This is deliberately a semaphore permit, not
+    /// a mutex guard that could be held during blocking SQLCipher work.
+    pub(crate) active_client_execution_permit: Arc<tokio::sync::Semaphore>,
     pub is_syncing: Arc<AtomicBool>,
     pub cancel: Arc<AtomicBool>,
     pub last_report: tokio::sync::Mutex<Option<CrmSyncReportDto>>,
@@ -42,6 +46,7 @@ impl Default for CrmState {
             active_client_context: tokio::sync::Mutex::new(
                 super::active_client_context::ActiveClientContextState::default(),
             ),
+            active_client_execution_permit: Arc::new(tokio::sync::Semaphore::new(1)),
             is_syncing: Arc::new(AtomicBool::new(false)),
             cancel: Arc::new(AtomicBool::new(false)),
             last_report: tokio::sync::Mutex::new(None),
@@ -88,6 +93,10 @@ impl CrmService<'_> {
         // Every handoff is an authority boundary, including the same path.
         // Clearing before publishing the compatibility workspace field means
         // an old client lease never survives A → B → A.
+        let _permit = Arc::clone(&self.state.active_client_execution_permit)
+            .acquire_owned()
+            .await
+            .expect("active-client execution permit remains open");
         self.state
             .active_client_context
             .lock()

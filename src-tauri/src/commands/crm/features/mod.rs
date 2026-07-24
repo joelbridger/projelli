@@ -6,6 +6,7 @@
 
 pub mod activity;
 pub mod connector;
+pub mod local_task;
 pub mod merge;
 pub mod teams_roles;
 pub mod trash;
@@ -22,6 +23,7 @@ pub struct CrmFeatureDescriptor {
 pub const CRM_FEATURE_REGISTRY: &[CrmFeatureDescriptor] = &[
     activity::FEATURE_DESCRIPTOR,
     connector::FEATURE_DESCRIPTOR,
+    local_task::FEATURE_DESCRIPTOR,
     teams_roles::FEATURE_DESCRIPTOR,
     trash::FEATURE_DESCRIPTOR,
     merge::FEATURE_DESCRIPTOR,

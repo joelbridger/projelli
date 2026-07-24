@@ -2893,6 +2893,7 @@ mod tests {
             active_client_context: tokio::sync::Mutex::new(
                 crate::commands::crm::active_client_context::ActiveClientContextState::default(),
             ),
+            active_client_execution_permit: Arc::new(tokio::sync::Semaphore::new(1)),
             is_syncing: Arc::new(AtomicBool::new(is_syncing)),
             cancel: Arc::new(AtomicBool::new(false)),
             last_report: tokio::sync::Mutex::new(None),
