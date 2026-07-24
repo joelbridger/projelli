@@ -31,28 +31,25 @@ export interface AuthTokens {
 
 /** Issue a fresh access JWT + a new (stored, hashed) refresh token for a user. */
 export function issueAuthTokens(store: Store, user: User): AuthTokens {
+  const org = store.getOrg(user.org_id);
+  if (user.status !== "active" || !org || org.status !== "active") {
+    throw new Error("inactive_identity");
+  }
   const now = nowSeconds();
   const accessExp = now + config.accessTokenTtlSeconds;
-  const claims: AccessTokenClaims = {
-    sub: user.user_id,
-    org_id: user.org_id,
-    role: user.role,
-    email: user.email,
-    iss: config.issuer,
-    iat: now,
-    exp: accessExp,
-    typ: "access",
-  };
-  const access = signAccessJwt(claims as unknown as Record<string, unknown>);
-
   const refresh = generateSecretToken();
   const refreshExpSeconds = now + config.refreshTokenTtlSeconds;
   const refreshExpiresAt = new Date(refreshExpSeconds * 1000).toISOString();
-  store.createRefreshToken({
+  const sessionId = store.createRefreshToken({
     user_id: user.user_id,
     token_hash: hmacHash(refresh),
     expires_at: refreshExpiresAt,
   });
+  const claims: AccessTokenClaims = {
+    sub: user.user_id, org_id: user.org_id, role: user.role, email: user.email,
+    iss: config.issuer, iat: now, exp: accessExp, typ: "access", sid: sessionId,
+  };
+  const access = signAccessJwt(claims as unknown as Record<string, unknown>);
 
   return {
     access_token: access,
@@ -74,14 +71,15 @@ export function refreshAuthTokens(store: Store, presentedRefresh: string): Refre
   if (new Date(row.expires_at).getTime() <= Date.now()) return { ok: false, reason: "expired" };
 
   const user = store.getUser(row.user_id);
-  if (!user || user.status !== "active") return { ok: false, reason: "user_inactive" };
+  const org = user ? store.getOrg(user.org_id) : null;
+  if (!user || user.status !== "active" || !org || org.status !== "active") return { ok: false, reason: "user_inactive" };
 
   // Rotate the refresh token (one-time use). Reuse of the old token afterwards
   // is rejected as revoked — basic refresh-token reuse protection.
   const now = nowSeconds();
   const newRefresh = generateSecretToken();
   const refreshExpiresAt = new Date((now + config.refreshTokenTtlSeconds) * 1000).toISOString();
-  store.rotateRefreshToken({
+  const sessionId = store.rotateRefreshToken({
     old_token_id: row.token_id,
     user_id: user.user_id,
     new_token_hash: hmacHash(newRefresh),
@@ -97,7 +95,7 @@ export function refreshAuthTokens(store: Store, presentedRefresh: string): Refre
     iss: config.issuer,
     iat: now,
     exp: accessExp,
-    typ: "access",
+    typ: "access", sid: sessionId,
   };
   return {
     ok: true,

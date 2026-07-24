@@ -11,6 +11,7 @@ import { openPageJson } from "../../intake-page/src/pageCrypto.ts";
 import { RelayClient } from "../../intake-page/src/relayClient.ts";
 import { submitAnswer } from "../../intake-page/src/submission.ts";
 import { normalizeFirm } from "../../intake-page/src/App.tsx";
+import { issueAuthTokens } from "../src/lib/services.ts";
 
 import {
   allDurableValues,
@@ -42,12 +43,21 @@ class HttpInboxRelay {
   constructor(
     private readonly base: string,
     private readonly seatToken: string,
+    private readonly accessToken: string,
   ) {}
+
+  private headers(contentType = false): Record<string, string> {
+    return {
+      ...(contentType ? { "content-type": "application/json" } : {}),
+      "x-seat-token": this.seatToken,
+      authorization: `Bearer ${this.accessToken}`,
+    };
+  }
 
   async fetchInbox(sinceCursor: number): Promise<IntakeInboxPage> {
     const body = await fetchJson(`${this.base}/intake/e2e-intake/inbox?cursor=${String(sinceCursor)}`, {
       method: "GET",
-      headers: { "x-seat-token": this.seatToken },
+      headers: this.headers(),
     }) as {
       cursor: number;
       has_more: boolean;
@@ -69,7 +79,7 @@ class HttpInboxRelay {
       for (const blob of submission.blobs) {
         const res = await fetch(`${this.base}/intake/${encodeURIComponent(submission.intake_id)}/blob/${String(blob.blob_id)}`, {
           method: "GET",
-          headers: { "x-seat-token": this.seatToken },
+          headers: this.headers(),
         });
         expect(res.status).toBe(200);
         chunks.push({
@@ -98,7 +108,7 @@ class HttpInboxRelay {
   async ackSubmission(intakeId: string, submissionId: string): Promise<void> {
     await fetchJson(`${this.base}/intake/${encodeURIComponent(intakeId)}/ack`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-seat-token": this.seatToken },
+      headers: this.headers(true),
       body: JSON.stringify({ submission_ids: [submissionId] }),
     });
   }
@@ -108,6 +118,7 @@ describe("intake real page to relay to advisor flow", () => {
   test("creates a real advisor link, resumes chunk upload, syncs real submissions, and stores no plaintext", async () => {
     const ctx = makeTrackedServer();
     const advisor = seedAdvisor(ctx.store);
+    const accessToken = issueAuthTokens(ctx.store, advisor.user).access_token;
     const restoreLocalStorage = installMemoryLocalStorage();
     const recorder = recordRequestsForBase(ctx.base);
 
@@ -156,7 +167,7 @@ describe("intake real page to relay to advisor flow", () => {
           next_steps: ["Dana will review what you sent."],
           journey: DEFAULT_WELCOME_JOURNEY,
         },
-        relay: new IntakeRelayClient({ baseUrl: ctx.base, seatToken: advisor.seatToken }),
+        relay: new IntakeRelayClient({ baseUrl: ctx.base, seatToken: advisor.seatToken, accessToken }),
       });
       expect(ctx.store.getIntake("e2e-intake")).not.toBeNull();
       const createRequest = recorder.requests.find((request) => request.startsWith("POST /intake\n"));
@@ -239,7 +250,7 @@ describe("intake real page to relay to advisor flow", () => {
       const knownSessions = new Set<string>();
       const flags: string[] = [];
       const sync = new IntakeSyncClient({
-        relay: new HttpInboxRelay(ctx.base, advisor.seatToken),
+        relay: new HttpInboxRelay(ctx.base, advisor.seatToken, accessToken),
         loadPrivateKey: async () => bundle.privateKey,
         hasSubmission: async () => false,
         rememberSubmission: async () => {},
@@ -281,7 +292,7 @@ describe("intake real page to relay to advisor flow", () => {
       expect(ctx.store.countIntakeChunks("e2e-intake")).toBe(0);
       const emptyInbox = await fetchJson(`${ctx.base}/intake/e2e-intake/inbox?cursor=0`, {
         method: "GET",
-        headers: { "x-seat-token": advisor.seatToken },
+        headers: { "x-seat-token": advisor.seatToken, authorization: `Bearer ${accessToken}` },
       }) as { submissions: unknown[] };
       expect(emptyInbox.submissions).toEqual([]);
     } finally {

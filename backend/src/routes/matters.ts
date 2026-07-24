@@ -49,8 +49,8 @@ const VALID_MATTER_ROLES = new Set<MatterRole>(["owner", "editor", "viewer"]);
 // ---------------------------------------------------------------------------
 // Shared admin guard (mirrors routes/admin.ts requireAdmin).
 // ---------------------------------------------------------------------------
-function requireAdmin(req: Request): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
-  const auth = authenticate(req);
+function requireAdmin(req: Request, store: Store): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
   if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
   return { ok: true, claims: auth.claims };
@@ -75,7 +75,7 @@ function sameOrgMatter(store: Store, orgId: string, matterId: string): { ok: tru
 // Admin: matter CRUD
 // ===========================================================================
 export async function handleCreateMatter(req: Request, store: Store): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const body = await readJson<{ client_name?: unknown }>(req);
   if (!body || !isNonEmptyString(body.client_name, 256)) return error("missing_fields", 400);
@@ -86,13 +86,13 @@ export async function handleCreateMatter(req: Request, store: Store): Promise<Re
 }
 
 export function handleListMatters(req: Request, store: Store): Response {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   return json({ matters: store.listMatters(a.claims.org_id) });
 }
 
 export function handleArchiveMatter(req: Request, store: Store, matterId: string): Response {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -105,7 +105,7 @@ export function handleArchiveMatter(req: Request, store: Store, matterId: string
 // Admin: membership
 // ===========================================================================
 export async function handleAddMatterMember(req: Request, store: Store, matterId: string): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -127,7 +127,7 @@ export async function handleAddMatterMember(req: Request, store: Store, matterId
 }
 
 export async function handleRemoveMatterMember(req: Request, store: Store, matterId: string): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -156,7 +156,7 @@ export async function handleRemoveMatterMember(req: Request, store: Store, matte
 }
 
 export function handleListMatterMembers(req: Request, store: Store, matterId: string): Response {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -172,7 +172,7 @@ export function handleListMatterMembers(req: Request, store: Store, matterId: st
 // Admin: ethical walls (explicit DENY)
 // ===========================================================================
 export async function handleSetWall(req: Request, store: Store, matterId: string): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -203,7 +203,7 @@ export async function handleSetWall(req: Request, store: Store, matterId: string
 }
 
 export async function handleClearWall(req: Request, store: Store, matterId: string): Promise<Response> {
-  const a = requireAdmin(req);
+  const a = requireAdmin(req, store);
   if (!a.ok) return a.resp;
   const m = sameOrgMatter(store, a.claims.org_id, matterId);
   if (!m.ok) return m.resp;
@@ -236,7 +236,7 @@ function relayGate(
 ):
   | { ok: true; claims: AccessTokenClaims; seatId: string; matter: NonNullable<ReturnType<Store["getMatter"]>> }
   | { ok: false; resp: Response } {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
 
   if (!seatToken) return { ok: false, resp: error("seat_required", 401, "missing_seat_token") };
@@ -385,6 +385,7 @@ export function handleSyncTicket(
     orgId: gate.claims.org_id,
     userId: gate.claims.sub,
     seatId: gate.seatId,
+    sessionId: gate.claims.sid,
     role: gate.claims.role,
   });
   return json({ ticket, expires_in_ms: expiresInMs });
@@ -405,7 +406,7 @@ export function authorizeSyncConnect(
   matterId: string,
   tickets: SyncTicketStore = syncTickets,
 ):
-  | { ok: true; data: { matterId: string; orgId: string; userId: string; seatId: string; role: AccessTokenClaims["role"] } }
+  | { ok: true; data: { matterId: string; orgId: string; userId: string; seatId: string; sessionId: string; role: AccessTokenClaims["role"] } }
   | { ok: false; resp: Response } {
   const url = new URL(req.url);
   const ticket = url.searchParams.get("ticket");
@@ -416,6 +417,13 @@ export function authorizeSyncConnect(
   if (!binding || binding.matterId !== matterId) {
     return { ok: false, resp: error("unauthorized", 401, "invalid_ticket") };
   }
+  const session = store.getRefreshTokenById(binding.sessionId);
+  const user = store.getUser(binding.userId);
+  const org = store.getOrg(binding.orgId);
+  const seat = store.getSeat(binding.seatId);
+  if (!session || session.user_id !== binding.userId || session.revoked_at || session.rotated_to || Date.parse(session.expires_at) <= Date.now() || !user || user.status !== "active" || !org || org.status !== "active" || !seat || seat.status !== "active" || seat.user_id !== binding.userId || seat.org_id !== binding.orgId) {
+    return { ok: false, resp: error("forbidden", 403, "session_or_seat_inactive") };
+  }
   // Defense in depth: re-confirm access at connect time too. A wall/removal that
   // landed in the <=30s window between mint and connect must still slam the door.
   // Use the role captured at mint time so an org admin's (non-membership) access
@@ -424,7 +432,7 @@ export function authorizeSyncConnect(
   if (!access.allowed) {
     return { ok: false, resp: error("forbidden", 403, access.reason) };
   }
-  return { ok: true, data: { matterId, orgId: binding.orgId, userId: binding.userId, seatId: binding.seatId, role: binding.role } };
+  return { ok: true, data: { matterId, orgId: binding.orgId, userId: binding.userId, seatId: binding.seatId, sessionId: binding.sessionId, role: user.role } };
 }
 
 // ---------------------------------------------------------------------------

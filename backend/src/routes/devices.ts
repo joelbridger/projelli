@@ -45,7 +45,7 @@ function isValidP256PublicJwk(v: unknown): v is { kty: "EC"; crv: "P-256"; x: st
 
 /** POST /device/register — upsert this user's device public key. */
 export async function handleDeviceRegister(req: Request, store: Store): Promise<Response> {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
   const body = await readJson<{
@@ -94,7 +94,7 @@ export async function handleDeviceRegister(req: Request, store: Store): Promise<
 
 /** POST /org/users/devices — list devices for a set of users (any org member, same-org). */
 export async function handleListUsersDevices(req: Request, store: Store): Promise<Response> {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
   const body = await readJson<{ user_ids?: unknown }>(req);
@@ -126,7 +126,7 @@ export async function handleListUsersDevices(req: Request, store: Store): Promis
 
 /** POST /org/admins — list the caller's org admins (any org member). */
 export async function handleListOrgAdmins(req: Request, store: Store): Promise<Response> {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
   const admins = store.listOrgAdmins(auth.claims.org_id);

@@ -15,7 +15,7 @@ function decodeOpaque(value: unknown): Uint8Array | null {
 }
 
 function notifyAuth(req: Request, store: Store, orgId: string) {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return { ok: false as const, resp: error("unauthorized", 401) };
   if (auth.claims.org_id !== orgId) return { ok: false as const, resp: error("not_found", 404) };
   const user = store.getUser(auth.claims.sub);
@@ -85,10 +85,12 @@ export async function handleNotifySyncTicket(req: Request, store: Store, tickets
   if (!body || !isNonEmptyString(body.org_id, 128)) return error("missing_fields", 400);
   const auth = notifyAuth(req, store, body.org_id);
   if (!auth.ok) return auth.resp;
-  return json(tickets.mint({ orgId: body.org_id, userId: auth.claims.sub }));
+  const seat = verifyActiveSeat(store, req.headers.get("x-seat-token") ?? "", { user_id: auth.claims.sub, org_id: body.org_id });
+  if (!seat.ok) return error("seat_invalid", 401);
+  return json(tickets.mint({ orgId: body.org_id, userId: auth.claims.sub, seatId: seat.claims.seat_id, sessionId: auth.claims.sid }));
 }
 
-export function authorizeNotifySync(req: Request, store: Store, tickets: NotifyTicketStore = notifyTickets): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
+export function authorizeNotifySync(req: Request, store: Store, tickets: NotifyTicketStore = notifyTickets): { ok: true; orgId: string; userId: string; seatId: string; sessionId: string } | { ok: false; resp: Response } {
   const url = new URL(req.url);
   const orgId = url.searchParams.get("org_id");
   const ticket = url.searchParams.get("ticket");
@@ -96,8 +98,11 @@ export function authorizeNotifySync(req: Request, store: Store, tickets: NotifyT
   const binding = tickets.redeem(ticket);
   if (!binding || binding.orgId !== orgId) return { ok: false, resp: error("unauthorized", 401) };
   const user = store.getUser(binding.userId);
-  if (!user || user.org_id !== orgId || user.status !== "active") return { ok: false, resp: error("forbidden", 403) };
-  return { ok: true, orgId, userId: binding.userId };
+  const firm = store.getOrg(orgId);
+  const session = store.getRefreshTokenById(binding.sessionId);
+  const seat = store.getSeat(binding.seatId);
+  if (!user || user.org_id !== orgId || user.status !== "active" || !firm || firm.status !== "active" || !session || session.user_id !== user.user_id || session.revoked_at || session.rotated_to || Date.parse(session.expires_at) <= Date.now() || !seat || seat.status !== "active" || seat.user_id !== user.user_id || seat.org_id !== orgId) return { ok: false, resp: error("forbidden", 403) };
+  return { ok: true, orgId, userId: binding.userId, seatId: binding.seatId, sessionId: binding.sessionId };
 }
 
 /** Signed terminal notice handler; envelope content and sender identity remain opaque. */

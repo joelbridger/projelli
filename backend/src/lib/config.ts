@@ -336,6 +336,9 @@ export const config = {
    *  client treats tokens uniformly; the seat-token issuer is the firm host. */
   issuer: str("TOKEN_ISSUER", "licenses.lanternplatform.app"),
 
+  /** Loopback-only operator proof for the fixed Sarah test firm. Empty means closed. */
+  testFirmProvisioningSecret: str("TEST_FIRM_PROVISIONING_SECRET", ""),
+
   // ---- SSO (OIDC) — Wave 3a -------------------------------------------------
   /** Public base URL the IdP redirects back to: `${ssoCallbackBase}/auth/sso/callback`.
    *  Must match the redirect URI the firm registers with their IdP. */

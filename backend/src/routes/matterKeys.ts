@@ -28,7 +28,7 @@ import type { Store } from "../lib/db.ts";
 // ---------------------------------------------------------------------------
 
 export async function handlePublishMatterKeys(req: Request, store: Store, matterId: string): Promise<Response> {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
   // Access: admin OR matter owner (has a member row with role=owner).
@@ -110,7 +110,7 @@ export async function handlePublishMatterKeys(req: Request, store: Store, matter
 // ---------------------------------------------------------------------------
 
 export async function handleFetchMatterKey(req: Request, store: Store, matterId: string): Promise<Response> {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
   // Also require an active seat token (X-Seat-Token header).
@@ -152,7 +152,7 @@ export async function handleFetchMatterKey(req: Request, store: Store, matterId:
 // ---------------------------------------------------------------------------
 
 export async function handleMatterMine(req: Request, store: Store): Promise<Response> {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
   // Also require a seat token (X-Seat-Token header).

@@ -86,6 +86,7 @@ import {
 import { handleNotifySend, handleNotifyInbox, handleNotifyAck, handleNotifySyncTicket, authorizeNotifySync, handleNotifyTerminal } from "./routes/notifications.ts";
 import { notificationHub } from "./lib/notifications.ts";
 import { handleCheckpointChunk, handleCheckpointManifest, handleCheckpointReceipt, handleCheckpointPrune } from "./routes/checkpoints.ts";
+import { handleTestFirmProvision, handleTestFirmRetirement } from "./routes/privileged.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
 import type { UserRole } from "./lib/types.ts";
@@ -102,6 +103,7 @@ interface DocumentSocketData {
   orgId: string;
   userId: string;
   seatId: string;
+  sessionId: string;
   role: UserRole;
   subscriptions: Set<string>;
 }
@@ -112,6 +114,7 @@ interface NotifySocketData {
   orgId: string;
   userId: string;
   seatId: string;
+  sessionId: string;
 }
 
 export type SyncSocketData = DocumentSocketData | NotifySocketData;
@@ -145,6 +148,18 @@ function documentChannel(matterId: string, docId: string): string {
   return `${matterId}\u0000${docId}`;
 }
 
+/** Check the live database immediately before every socket frame. */
+function liveSocketAllowed(store: Store, data: SyncSocketData, matterId?: string): boolean {
+  try {
+    const session = store.getRefreshTokenById(data.sessionId);
+    const user = store.getUser(data.userId);
+    const org = store.getOrg(data.orgId);
+    const seat = store.getSeat(data.seatId);
+    if (!session || session.user_id !== data.userId || session.revoked_at || session.rotated_to || Date.parse(session.expires_at) <= Date.now() || !user || user.status !== "active" || !org || org.status !== "active" || !seat || seat.status !== "active" || seat.user_id !== data.userId || seat.org_id !== data.orgId) return false;
+    return data.kind !== "document" || !matterId || resolveAccess(store, { orgId: data.orgId, userId: data.userId, role: user.role }, matterId).allowed;
+  } catch { return false; }
+}
+
 /** Add one logical document to a multiplexed authenticated socket. Subscribe before
  * taking the watermark, so rows written during HTTP/socket handoff are buffered
  * by the hub and delivered at least once rather than lost. */
@@ -158,6 +173,7 @@ function subscribeDocument(
 ): void {
   const d = ws.data;
   if (d.kind !== "document") return;
+  if (!liveSocketAllowed(store, d, matterId)) { ws.close(1008, "authorization_revoked"); return; }
   const access = resolveAccess(store, { orgId: d.orgId, userId: d.userId, role: d.role }, matterId);
   if (!access.allowed) {
     ws.send(JSON.stringify({ type: "subscription_error", matter_id: matterId, doc_id: docId, error: "forbidden" }));
@@ -169,19 +185,20 @@ function subscribeDocument(
     id: subId,
     user_id: d.userId,
     seat_id: d.seatId,
-    send: (frame) => { try { ws.send(JSON.stringify(frame)); } catch { /* close cleans up */ } },
+    send: (frame) => { if (!liveSocketAllowed(store, d, matterId)) { ws.close(1008, "authorization_revoked"); return; } try { ws.send(JSON.stringify(frame)); } catch { /* close cleans up */ } },
   };
   hub.subscribe(matterId, sub, docId);
   d.subscriptions.add(channel);
   try {
     const watermark = store.latestMatterCursor(matterId, docId);
     const backlog = store.countMatterUpdatesThrough(matterId, since, watermark, docId);
+    if (!liveSocketAllowed(store, d, matterId)) { ws.close(1008, "authorization_revoked"); return; }
     ws.send(JSON.stringify({ type: "ready", matter_id: matterId, doc_id: docId, watermark, latest_cursor: watermark, backlog, subscribers: hub.subscriberCount(matterId, docId) }));
     let cursor = since;
     for (;;) {
       const page = store.getMatterUpdatesThrough(matterId, cursor, watermark, 500, docId);
       if (!page.length) break;
-      for (const update of page) ws.send(JSON.stringify(toUpdateFrame(update)));
+      for (const update of page) { if (!liveSocketAllowed(store, d, matterId)) { ws.close(1008, "authorization_revoked"); return; } ws.send(JSON.stringify(toUpdateFrame(update))); }
       cursor = page[page.length - 1]!.id;
     }
   } catch {
@@ -225,7 +242,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/notify/sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
           const authz = authorizeNotifySync(req, store);
           if (!authz.ok) return authz.resp;
-          if (srv.upgrade(req, { data: { kind: "notify", subId: randomUUID(), orgId: authz.orgId, userId: authz.userId, seatId: "" } })) return undefined;
+          if (srv.upgrade(req, { data: { kind: "notify", subId: randomUUID(), orgId: authz.orgId, userId: authz.userId, seatId: authz.seatId, sessionId: authz.sessionId } })) return undefined;
           return error("upgrade_failed", 400);
         }
         // --- E2EE sync relay + matter ACL (chunk 2) ---
@@ -375,6 +392,9 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/webhooks/docusign-signing" && method === "POST") return await handleDocusignConnectEvent(req);
 
         // --- Provisioning (billing-driven; protect at network layer) ---
+        // The fixed TEST firm is loopback-only and authenticates before any body read.
+        if (path === "/admin/test-firm" && method === "POST") return await handleTestFirmProvision(req, store);
+        if (path === "/admin/test-firm/retire" && method === "POST") return handleTestFirmRetirement(req, store);
         if (path === "/admin/org" && method === "POST") return await handleCreateOrg(req, store);
 
         return error("not_found", 404);
@@ -402,6 +422,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         const d = ws.data;
         if (d.kind === "notify") {
           notificationHub.subscribe(d.orgId, d.userId, d.subId, (frame) => {
+            if (!liveSocketAllowed(store, d)) { notificationHub.unsubscribe(d.orgId, d.userId, d.subId); ws.close(1008, "authorization_revoked"); return; }
             try { ws.send(JSON.stringify(frame)); } catch { /* close handler prunes */ }
           });
           return;

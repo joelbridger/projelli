@@ -3,6 +3,8 @@ import { randomBytes } from "node:crypto";
 interface NotifyTicketBinding {
   orgId: string;
   userId: string;
+  seatId: string;
+  sessionId: string;
 }
 
 interface StoredTicket extends NotifyTicketBinding {
@@ -24,7 +26,7 @@ export class NotifyTicketStore {
     if (!entry) return null;
     this.tickets.delete(ticket);
     if (entry.expiresAt <= Date.now()) return null;
-    return { orgId: entry.orgId, userId: entry.userId };
+    return { orgId: entry.orgId, userId: entry.userId, seatId: entry.seatId, sessionId: entry.sessionId };
   }
 }
 

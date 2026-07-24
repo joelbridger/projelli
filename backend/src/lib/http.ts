@@ -8,6 +8,7 @@
 import { config } from "./config.ts";
 import { verifyAccessJwt } from "./crypto.ts";
 import type { AccessTokenClaims } from "./types.ts";
+import type { Store } from "./db.ts";
 
 const MAX_BODY_BYTES = 64 * 1024; // 64 KB — generous for our small JSON bodies.
 
@@ -139,10 +140,23 @@ function verifyAccess(token: string): AuthResult {
 }
 
 /** Verify the request carries a valid access JWT (Authorization: Bearer). Does NOT check role. */
-export function authenticate(req: Request): AuthResult {
+export function authenticate(req: Request, store: Store): AuthResult {
   const token = getBearer(req);
   if (!token) return { ok: false, reason: "missing_token" };
-  return verifyAccess(token);
+  const auth = verifyAccess(token);
+  if (!auth.ok || !auth.claims.sid) return auth.ok ? { ok: false, reason: "missing_session" } : auth;
+  try {
+    const session = store.getRefreshTokenById(auth.claims.sid);
+    if (!session || session.user_id !== auth.claims.sub || session.revoked_at || session.rotated_to || Date.parse(session.expires_at) <= Date.now()) return { ok: false, reason: "session_invalid" };
+    const user = store.getUser(auth.claims.sub);
+    if (!user || user.status !== "active" || user.org_id !== auth.claims.org_id) return { ok: false, reason: "user_inactive" };
+    const org = store.getOrg(user.org_id);
+    if (!org || org.status !== "active") return { ok: false, reason: "org_inactive" };
+    // The role comes from the live row, never the signed-but-stale token.
+    return { ok: true, claims: { ...auth.claims, role: user.role, org_id: user.org_id, email: user.email } };
+  } catch {
+    return { ok: false, reason: "identity_unavailable" };
+  }
 }
 
 // NOTE: relay endpoints used to accept the access token via an `?access_token=`

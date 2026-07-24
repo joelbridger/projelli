@@ -7,11 +7,11 @@
  */
 
 import { createHash } from "node:crypto";
-import { hmacEquals, hmacHash, verifySeatToken } from "../lib/crypto.ts";
+import { hmacEquals, hmacHash } from "../lib/crypto.ts";
 import { config } from "../lib/config.ts";
-import { error, getBearer, json, rateLimit } from "../lib/http.ts";
+import { authenticate, error, getBearer, json, rateLimit } from "../lib/http.ts";
+import { verifyActiveSeat } from "../lib/matters.ts";
 import type { Store, IntakeRecord } from "../lib/db.ts";
-import type { SeatTokenClaims } from "../lib/types.ts";
 import {
   DocusignGrantError,
   type DocusignSigningGrantConfig,
@@ -59,22 +59,17 @@ function authorizeAdvisorSigning(
   intakeId: string,
 ): { ok: true; intake: IntakeRecord; userId: string } | { ok: false; resp: Response } {
   if (!safeIntakeId(intakeId)) return { ok: false, resp: error("intake_not_found", 404) };
+  const auth = authenticate(req, store);
+  if (!auth.ok) return { ok: false, resp: error("unauthorized", 401) };
   const seatToken = req.headers.get("x-seat-token");
   if (!seatToken) return { ok: false, resp: error("seat_required", 401, "missing_seat_token") };
-  const verified = verifySeatToken<SeatTokenClaims>(seatToken, config.seatPublicKey);
-  if (!verified.valid) return { ok: false, resp: error("seat_invalid", 401, verified.reason) };
-  const claims = verified.payload;
-  const seat = store.getSeat(claims.seat_id);
-  const org = store.getOrg(claims.org_id);
-  const user = store.getUser(claims.user_id);
-  if (!seat || seat.status !== "active" || seat.user_id !== claims.user_id || seat.org_id !== claims.org_id || !org || org.status !== "active" || !user || user.status !== "active") {
-    return { ok: false, resp: error("seat_invalid", 401, "seat_not_active") };
-  }
+  const seat = verifyActiveSeat(store, seatToken, { user_id: auth.claims.sub, org_id: auth.claims.org_id });
+  if (!seat.ok) return { ok: false, resp: error("seat_invalid", 401, seat.reason) };
   const intake = store.getIntake(intakeId);
-  if (!intake || intake.org_id !== claims.org_id || intake.user_id !== claims.user_id) {
+  if (!intake || intake.org_id !== auth.claims.org_id || intake.user_id !== auth.claims.sub) {
     return { ok: false, resp: error("intake_not_found", 404) };
   }
-  return { ok: true, intake, userId: claims.user_id };
+  return { ok: true, intake, userId: auth.claims.sub };
 }
 
 /** Public launch read gate, intentionally independent from intake.ts internals. */

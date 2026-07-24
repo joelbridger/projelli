@@ -114,7 +114,9 @@ export type AuditAction =
   | "sso.config.set" // admin set/updated an org IdP configuration
   | "sso.config.delete" // admin removed an org IdP configuration
   | "sso.login" // user completed SSO sign-in
-  | "sso.login.rejected"; // SSO sign-in rejected (bad token, disabled, unknown user, etc.)
+  | "sso.login.rejected"
+  | "test_firm.create"
+  | "test_firm.retire";
 
 export interface AuditEvent {
   id: number;
@@ -154,6 +156,8 @@ export interface AccessTokenClaims {
   iat: number;
   exp: number;
   typ: "access";
+  /** Refresh-session identifier. Every newly-issued access token is bound to it. */
+  sid: string;
 }
 
 // ---------------------------------------------------------------------------

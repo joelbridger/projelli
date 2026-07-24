@@ -37,7 +37,8 @@ export async function handleLogin(req: Request, store: Store, ip: string): Promi
   const dummy = "$2b$12$0000000000000000000000000000000000000000000000000000a";
   const ok = await verifyPassword(body.password, row?.password_hash ?? dummy);
   if (!row || !ok) return error("invalid_credentials", 401);
-  if (row.status !== "active") return error("user_deprovisioned", 403);
+  const org = store.getOrg(row.org_id);
+  if (row.status !== "active" || !org || org.status !== "active") return error("user_deprovisioned", 403);
 
   const tokens = issueAuthTokens(store, row);
   return json({ user: publicUser(row), ...tokens });
@@ -66,7 +67,7 @@ export async function handleLogout(req: Request, store: Store): Promise<Response
 }
 
 export function handleMe(req: Request, store: Store): Response {
-  const auth = authenticate(req);
+  const auth = authenticate(req, store);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
   const user = store.getUser(auth.claims.sub);
   if (!user) return error("unauthorized", 401, "user_not_found");
