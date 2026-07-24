@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "secret-free-ownership-preflight",
+  "timestamp_utc": "2026-07-24T16:04:34.7900296Z",
+  "transport": {
+    "target": "james@100.127.67.22",
+    "method": "key-only SSH",
+    "command_class": "read_only"
+  },
+  "host": "DESKLINK129887",
+  "current_user": "Desklink129887\\james",
+  "interactive_desktop": {
+    "explorer_pid": 9960,
+    "session": 1,
+    "present": true
+  },
+  "keepance_dev": {
+    "task_name": "KeepanceDev",
+    "task_path": "\\",
+    "state": "Ready",
+    "observation_was_read_only": true,
+    "running": false
+  },
+  "lantern_processes": {
+    "count": 0,
+    "competing_lantern_present": false,
+    "observation_included_pid_session_path_and_visible_window": true
+  },
+  "desktop_owner_check": {
+    "other_interactive_tool": {
+      "pid": 120860,
+      "process": "pythonw.exe",
+      "executable_path": "C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe",
+      "script_argument": "C:\\Users\\james\\bench_cam.py"
+    },
+    "result": "ambiguous",
+    "reason": "A separate interactive desktop Python tool was active; this lane could not prove it was not another app driver.",
+    "stop": true
+  },
+  "actions_after_stop": {
+    "helper_request": false,
+    "fresh_root_checked": false,
+    "fresh_root_created": false,
+    "credentials_read_or_transferred": false,
+    "app_launched": false,
+    "pointer_or_keyboard_input": false
+  }
+}

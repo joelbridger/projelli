@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "lane": "phase1-m2-private-note-legion-5d9",
+  "attempt": 2,
+  "terminal_product_verdict": "NOT_TESTED",
+  "stop_point": {
+    "stage": "ownership_preflight",
+    "reason": "NOT_TESTED / ANOTHER ACTIVE LANTERN BENCH OWNER",
+    "first_blocker": "An active interactive desktop Python tool made exclusive app-driver ownership ambiguous.",
+    "later_product_steps_not_run": true
+  },
+  "contract": {
+    "sha256": "90ba771be8a4bd4896de848fae767add297afd4ac6ee3eba26323dde3193a27d",
+    "job_id": "20260724-160217-iorfxxxx",
+    "launch_record": "/home/jameson/.local/share/codex-fleet/20260724-160217-iorfxxxx/launch-record.json",
+    "base_revision": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "expected_remote": "https://github.com/lanternplatform/lantern.git"
+  },
+  "lineage": {
+    "attempt_1_job": "20260724-153859-4of2xxxx",
+    "attempt_1_commit": "a5f645534",
+    "attempt_1_terminal_verdict": "NOT_TESTED / ANOTHER ACTIVE LANTERN BENCH OWNER",
+    "attempt_1_stale_owner": "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe",
+    "attempt_1_helper_proof": "healthy, historical only",
+    "attempt_1_zero_input_boundary": true,
+    "not_present_tense_authority": true
+  },
+  "source": {
+    "worktree_revision_before_evidence": "5d9fc9ed85b39173b919f8d3c988c5efc1e0f8ef",
+    "worktree_clean_before_evidence": true,
+    "origin": "https://github.com/lanternplatform/lantern.git",
+    "fresh_root": "C:\\Lantern-M2-5d9-PRIVATE-20260724-02",
+    "fresh_root_absent_before_creation": "not_observed_due_to_earlier_ownership_stop",
+    "fresh_root_created": false
+  },
+  "bench": {
+    "host": "DESKLINK129887",
+    "interactive_user": "Desklink129887\\james",
+    "interactive_session": 1,
+    "keepance_dev": {"state": "Ready", "read_only_observation": true, "running": false},
+    "lantern_processes": {"count": 0, "competing_lantern_present": false},
+    "other_desktop_owner": {
+      "found": true,
+      "ambiguous": true,
+      "pid": 120860,
+      "process": "pythonw.exe",
+      "script_argument": "C:\\Users\\james\\bench_cam.py"
+    }
+  },
+  "exact_executable": {
+    "path": "D:\\Lantern-M1-5d9-L2-20260724\\target\\release\\lantern.exe",
+    "expected_bytes": 215660032,
+    "expected_sha256": "62d3bf454bb84fa1799856719c1bf7e4f0248802d72832cd36c98b030e99c2e8",
+    "measured": false,
+    "reason": "not measured after earlier ownership stop",
+    "launch_attempted": false,
+    "restart_measurements": []
+  },
+  "helper": {
+    "present_tense_proven": false,
+    "reason": "not needed after earlier ownership stop",
+    "task": "LegionAgent",
+    "expected_action_execute": "C:\\Users\\james\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe",
+    "expected_action_arguments": "C:\\agent\\legion_agent.py",
+    "expected_script_sha256": "55261f488a6a7b2cf8607847ac4f7c68b7e6a4584d691c9996df84aefa8fbc01",
+    "fresh_tunnel_created": false,
+    "requests": []
+  },
+  "synthetic_workspace": {"source_resolved": false, "copy_attempted": false, "reason": "not needed after earlier ownership stop"},
+  "network_and_credentials": {
+    "firm_api_https_reachable_without_credentials": "not_run_after_ownership_stop",
+    "protected_server_credential_file_permission_checked_only": false,
+    "credential_contents_read": false,
+    "credential_transferred": false,
+    "temporary_windows_credential_file": {"created": false, "acl": "not_created"},
+    "identity_matches_protected_test_account": "NOT_RUN",
+    "role_matches_protected_test_account": "NOT_RUN"
+  },
+  "ordered_assertions": [
+    {"id": "A.establish_real_owner", "status": "NOT_RUN", "reason": "ownership preflight stop"},
+    {"id": "B.make_saved_note_private", "status": "NOT_RUN", "reason": "ownership preflight stop"},
+    {"id": "C.owner_reopen_and_restart", "status": "NOT_RUN", "reason": "ownership preflight stop"},
+    {"id": "D.signed_out_exclusion", "status": "NOT_RUN", "reason": "ownership preflight stop"},
+    {"id": "E.restore_same_owner", "status": "NOT_RUN", "reason": "ownership preflight stop"}
+  ],
+  "file_hashes": {"meeting_json": {"before": null, "after": null}, "notes_docx": {"before": null, "after": null}, "workspace_manifest": {"before": null, "after": null}, "one_intended_mutation": false},
+  "screenshots": {},
+  "transcripts": ["transcripts/preflight.json", "transcripts/cleanup.json"],
+  "safety": {
+    "no_build": true,
+    "no_install": true,
+    "no_send": true,
+    "no_provider": true,
+    "no_m3": true,
+    "no_seat_or_staff_action": true,
+    "whole_firm_closed": true,
+    "app_not_launched_by_lane": true,
+    "no_pointer_or_keyboard_input": true,
+    "credential_not_used": true
+  },
+  "cleanup": {
+    "status": "completed_best_effort",
+    "clipboard": "not_created_by_lane",
+    "temporary_credential": "not_created",
+    "exact_test_app": "not_created",
+    "tunnel": "not_created",
+    "helper_state_restored": "not_touched",
+    "password_bearing_scratch": "not_created",
+    "changes_product_verdict": false
+  }
+}
