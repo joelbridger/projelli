@@ -1,0 +1,5137 @@
+[
+ {
+  "start": 0.21,
+  "end": 31.92,
+  "text": "Thank you for asking. You're welcome. All right. We're back. We're back. Thanks for spending some time. Yeah, you're welcome. Let's see. It's 721. Is it okay if we go to like 810 for 30 minutes? 810 would be 51 minutes. How about 8 for 40 minutes? Is that what you mean? Yeah, that's kind of what I meant. Okay, perfect. 750. Yeah. Okay. Thank you so much. So last time we talked about the so there was like two pillars, right? So the first pillar was"
+ },
+ {
+  "start": 31.92,
+  "end": 39.44,
+  "text": "was can i use this can i use this what was the second one do i want to do you want to would it"
+ },
+ {
+  "start": 39.44,
+  "end": 44.76,
+  "text": "be helpful yeah yeah so we're gonna okay so yeah we're gonna look at that tonight and i would love"
+ },
+ {
+  "start": 44.76,
+  "end": 48.88,
+  "text": "to get your like raw and honest thoughts and i think you're really good at this i really appreciate"
+ },
+ {
+  "start": 48.88,
+  "end": 56.14,
+  "text": "that thank you and i love to hear about the hard stuff you know especially okay about your job so"
+ },
+ {
+  "start": 56.14,
+  "end": 59.04,
+  "text": "yeah think about your job a little bit put yourself kind of in job mode like you're sitting"
+ },
+ {
+  "start": 59.04,
+  "end": 64.96,
+  "text": "down at work and i'm going to show you so we're not going to go into the software first we're"
+ },
+ {
+  "start": 64.96,
+  "end": 70.83,
+  "text": "going to look at something i put together called a feature map i've been trying to map out because"
+ },
+ {
+  "start": 70.83,
+  "end": 75.15,
+  "text": "i've recently added an intake and so i've been i was like there's too many features i need to map"
+ },
+ {
+  "start": 75.15,
+  "end": 80.83,
+  "text": "this all out so my like ideally that this will be the place the source of truth for everything"
+ },
+ {
+  "start": 80.83,
+  "end": 88.64,
+  "text": "this software can do going forward so i'd love to get your thoughts on it so um if you want to get"
+ },
+ {
+  "start": 88.64,
+  "end": 93.46,
+  "text": "into kind of the mode again of like thinking out loud okay i'd love to hear whatever crosses your"
+ },
+ {
+  "start": 93.46,
+  "end": 101.14,
+  "text": "mind as you like as you read these things from a financial advisor perspective okay all right"
+ },
+ {
+  "start": 101.14,
+  "end": 111.54,
+  "text": "so let's take a look at the feature map okay so as you can see there's a lot here but it's"
+ },
+ {
+  "start": 111.54,
+  "end": 120.34,
+  "text": "separated into cards and you can drag like this and these cards basically go through the flow"
+ },
+ {
+  "start": 120.34,
+  "end": 125.14,
+  "text": "of using this software and kind of like what it's what it's meant to do and then the features are"
+ },
+ {
+  "start": 125.14,
+  "end": 132.18,
+  "text": "below and the features are categorized to kind of in chunks so we're not going to see exactly what"
+ },
+ {
+  "start": 132.18,
+  "end": 139.69,
+  "text": "each of these look like but i'd love to get your take on what you think about each feature and how"
+ },
+ {
+  "start": 139.69,
+  "end": 148.17,
+  "text": "it's kind of said and maybe some of like your concerns or some of your um how things could be"
+ },
+ {
+  "start": 148.17,
+  "end": 153.63,
+  "text": "useful or not useful, et cetera. So the cards are kind of broad. It starts with connecting"
+ },
+ {
+  "start": 153.63,
+  "end": 159.65,
+  "text": "your practice and then it goes to bringing a new client in and then creating a client map"
+ },
+ {
+  "start": 159.65,
+  "end": 165.93,
+  "text": "and then meeting with confidence, meeting with people, and then asking anything to the AI about"
+ },
+ {
+  "start": 165.93,
+  "end": 170.87,
+  "text": "everything before it, producing the work, which is basically getting this software's help with"
+ },
+ {
+  "start": 170.87,
+  "end": 176.93,
+  "text": "creating things and sending them and, or creating things and then send it back out is basically"
+ },
+ {
+  "start": 176.93,
+  "end": 182.57,
+  "text": "sending and then receiving things so it's kind of like this flow of like and then the sending"
+ },
+ {
+  "start": 182.57,
+  "end": 188.35,
+  "text": "and the receiving potentially would loop back with the client map that would then get updated"
+ },
+ {
+  "start": 188.35,
+  "end": 194.45,
+  "text": "as you do these things again as you go meet with them again you ask ai and then make stuff and so"
+ },
+ {
+  "start": 194.45,
+  "end": 202.83,
+  "text": "i'd love to hear your thoughts on steps but let's dive into like each one and um we'll assume oh"
+ },
+ {
+  "start": 202.83,
+  "end": 207.87,
+  "text": "go ahead is this like something i would see on the website or like instructions or more like when i'm"
+ },
+ {
+  "start": 207.87,
+  "end": 212.19,
+  "text": "shopping around i'm seeing this that's a great question so this this a version of this will be"
+ },
+ {
+  "start": 212.19,
+  "end": 215.63,
+  "text": "on the website but this specifically is not like a marketing that what you're seeing here this is"
+ },
+ {
+  "start": 215.63,
+  "end": 221.39,
+  "text": "actually like an internal document basically for the software so you're you're taking a peek inside"
+ },
+ {
+  "start": 221.39,
+  "end": 225.95,
+  "text": "basically cool um at like a big list of what it can do and i just would love to hear your thoughts"
+ },
+ {
+  "start": 225.95,
+  "end": 234.73,
+  "text": "on that big list so start with yeah so start with connect your practice and um read through and"
+ },
+ {
+  "start": 234.73,
+  "end": 238.45,
+  "text": "tell me what you think perfect and are we using all of our time looking at the future map or are"
+ },
+ {
+  "start": 238.45,
+  "end": 243.59,
+  "text": "there other things maybe maybe yeah then that's fine if we do perfect so step one is connect to"
+ },
+ {
+  "start": 243.59,
+  "end": 249.9,
+  "text": "your practice i like the emojis i'm an emoji girl connect your practice practice kind of sounds to"
+ },
+ {
+  "start": 249.9,
+  "end": 255.72,
+  "text": "me like dental practice or like maybe medical practice so maybe like connect your firm or"
+ },
+ {
+  "start": 255.72,
+  "end": 263.58,
+  "text": "something okay um i mean practice could be but one time set up plug in the tools that the firm"
+ },
+ {
+  "start": 263.58,
+  "end": 269.46,
+  "text": "already uses is that what you want me to do like everything this is perfect okay yeah and you don't"
+ },
+ {
+  "start": 269.46,
+  "end": 273.28,
+  "text": "have to say everything out loud but yeah just go through and like what do you think about a software"
+ },
+ {
+  "start": 273.28,
+  "end": 279.46,
+  "text": "that could do this stuff basically like what are your thoughts okay live today or live today email"
+ },
+ {
+  "start": 279.46,
+  "end": 288.84,
+  "text": "accounts so and one thing i forgot to say is that we're assuming that all of this is fully in the"
+ },
+ {
+  "start": 288.84,
+  "end": 293.06,
+  "text": "software so you're just reacting to it like as if this was a software that you were basically"
+ },
+ {
+  "start": 293.06,
+  "end": 301.17,
+  "text": "evaluating i think yeah okay so that's yeah um okay connect to your practice email accounts"
+ },
+ {
+  "start": 301.17,
+  "end": 313.18,
+  "text": "calendar one drive wealth box calendly understands files exported from right capital and jump"
+ },
+ {
+  "start": 313.18,
+  "end": 319.58,
+  "text": "um the files exported from right capital and jump once again i'm like kind of getting stuck"
+ },
+ {
+  "start": 319.58,
+  "end": 326.2,
+  "text": "on the exported from okay um why is that or what do you mean we don't export documents from right"
+ },
+ {
+  "start": 326.2,
+  "end": 334.42,
+  "text": "capital okay so i mean we'll take screenshots and we include them in our client meeting materials"
+ },
+ {
+  "start": 334.42,
+  "end": 341.18,
+  "text": "which is in a powerpoint okay but we don't like export like a pdf like we don't do that standard"
+ },
+ {
+  "start": 341.18,
+  "end": 345.12,
+  "text": "lee so i would wonder if that would count us out from the right capital benefits"
+ },
+ {
+  "start": 345.12,
+  "end": 350.4,
+  "text": "and jump we like copy and paste a lot of stuff from jump and put it into our crm"
+ },
+ {
+  "start": 350.4,
+  "end": 359.26,
+  "text": "so wealth box yeah always labeled with where they came from so with jump you don't export"
+ },
+ {
+  "start": 359.26,
+  "end": 366.39,
+  "text": "things either it's the same kind of like copying screenshots um it's like just copying the text"
+ },
+ {
+  "start": 366.39,
+  "end": 372.02,
+  "text": "copying and pasting the text itself okay do you know if it automatically creates x like it"
+ },
+ {
+  "start": 372.02,
+  "end": 381.98,
+  "text": "documents from the meeting notes probably not you have to copy them out yeah it like can you"
+ },
+ {
+  "start": 381.98,
+  "end": 387.54,
+  "text": "download it as like a pdf no well i don't know okay not to your knowledge that's a good question"
+ },
+ {
+  "start": 387.54,
+  "end": 393.98,
+  "text": "yeah we don't but yeah yeah that sounds good sorry no you're good um always label with where"
+ },
+ {
+  "start": 393.98,
+  "end": 399.46,
+  "text": "they came from i think maybe one thing that i'm like just having trouble with with step one is"
+ },
+ {
+  "start": 399.46,
+  "end": 404.14,
+  "text": "just knowing like kind of like what's it all for like it makes sense connect your practice"
+ },
+ {
+  "start": 404.14,
+  "end": 411.15,
+  "text": "but i guess there's like part of me that's and maybe maybe it's totally fine because we're just"
+ },
+ {
+  "start": 411.15,
+  "end": 415.83,
+  "text": "assuming that compliance is everything's fine from the compliance and and that's that's a good"
+ },
+ {
+  "start": 415.83,
+  "end": 419.73,
+  "text": "point let's let's pretend that this just got the green light and so now you guys can choose whether"
+ },
+ {
+  "start": 419.73,
+  "end": 428.03,
+  "text": "to use it or not compliance wise yeah okay like something that i really like there's a guy named"
+ },
+ {
+  "start": 428.03,
+  "end": 433.81,
+  "text": "mitch anthony who has this book called story selling and so it's all about like when you're"
+ },
+ {
+  "start": 433.81,
+  "end": 438.19,
+  "text": "trying to sell something like you're always leading with you're always telling the person"
+ },
+ {
+  "start": 438.19,
+  "end": 443.39,
+  "text": "like what's in it for me so like i could see maybe like something under step one like one"
+ },
+ {
+  "start": 443.39,
+  "end": 447.69,
+  "text": "time setup plug in the tools that the firm already used like like so that it does this"
+ },
+ {
+  "start": 447.69,
+  "end": 451.31,
+  "text": "thing so that it helps you in this way or something like maybe something like that yeah"
+ },
+ {
+  "start": 451.31,
+  "end": 461.77,
+  "text": "Okay. More connections. Very cool. Um, and why do you say very cool? Just, it seems like more"
+ },
+ {
+  "start": 461.77,
+  "end": 469.26,
+  "text": "connections, the better, like at first glance. And why is that? Because like, I mean, we use"
+ },
+ {
+  "start": 469.26,
+  "end": 480.89,
+  "text": "DocuSign and JotForm. Um, so I don't know, like it would benefit us in those ways. I think also"
+ },
+ {
+  "start": 480.89,
+  "end": 486.07,
+  "text": "it gives it some credibility. Like if it's really connected to like Redtail, Salesforce, some of"
+ },
+ {
+  "start": 486.07,
+  "end": 493.52,
+  "text": "these are big names so like Zox I don't recognize at all but other ones I recognize okay uh specialty"
+ },
+ {
+  "start": 493.52,
+  "end": 500.64,
+  "text": "and legal tools Clio document systems for law firm word and outlook add-ins okay so now I'm"
+ },
+ {
+  "start": 500.64,
+  "end": 509.13,
+  "text": "starting to see like maybe that's um like less advisor based and a little bit more like law firm"
+ },
+ {
+  "start": 509.13,
+  "end": 515.99,
+  "text": "based oh right okay maybe is Clio law firm is it legal I don't know I don't recognize Clio"
+ },
+ {
+  "start": 515.99,
+  "end": 520.47,
+  "text": "recognize it but document systems for law firms is kind of right of course sounds like that of"
+ },
+ {
+  "start": 520.47,
+  "end": 524.55,
+  "text": "course yeah so i think that's actually a mistake yeah okay it should be all for financial advisors"
+ },
+ {
+  "start": 524.55,
+  "end": 532.36,
+  "text": "yeah okay cool step two bringing a new client once again love the emoji very cute and i like the"
+ },
+ {
+  "start": 532.36,
+  "end": 539.62,
+  "text": "like the ui the graphic design cool a household says yes lantern intake gets their whole life"
+ },
+ {
+  "start": 539.62,
+  "end": 550.13,
+  "text": "into the practice okay cool um the basics add a new client their documents file themselves into"
+ },
+ {
+  "start": 550.13,
+  "end": 556.56,
+  "text": "the right folder oh i love that why is that um just because like sometimes there's a delay"
+ },
+ {
+  "start": 556.56,
+  "end": 560.6,
+  "text": "like we have a human that files the right folders into the right folders and so there's a human"
+ },
+ {
+  "start": 560.6,
+  "end": 570.96,
+  "text": "delay um lantern intake the flagship i don't know what the flagship means one private link the client"
+ },
+ {
+  "start": 570.96,
+  "end": 581.17,
+  "text": "opens on their phone no account no app okay that's kind of nice there's no sign"
+ },
+ {
+  "start": 581.17,
+  "end": 584.35,
+  "text": "in but I'm kind of wondering like what is that like how does that work the"
+ },
+ {
+  "start": 584.35,
+  "end": 589.03,
+  "text": "headline feature lock and end so only you and the client can ever read it"
+ },
+ {
+  "start": 589.03,
+  "end": 599.47,
+  "text": "Oh locked and end okay that's cool the starter form yeah I think well yeah so"
+ },
+ {
+  "start": 599.47,
+  "end": 602.71,
+  "text": "I was just gonna say so it can also open on the web so if this makes it sounds"
+ },
+ {
+  "start": 602.71,
+  "end": 606.91,
+  "text": "like it's only on your phone but um like if the point is it's a private link so"
+ },
+ {
+  "start": 606.91,
+  "end": 607.93,
+  "text": "You can do it phone or computer."
+ },
+ {
+  "start": 608.07,
+  "end": 608.45,
+  "text": "Yeah, laptop."
+ },
+ {
+  "start": 609.21,
+  "end": 609.87,
+  "text": "Very cool."
+ },
+ {
+  "start": 612.85,
+  "end": 613.07,
+  "text": "Yeah."
+ },
+ {
+  "start": 613.23,
+  "end": 616.93,
+  "text": "Okay, so I guess we could say we could, you know, for the benefit of the recording,"
+ },
+ {
+  "start": 617.17,
+  "end": 618.97,
+  "text": "maybe we don't need on their phone."
+ },
+ {
+  "start": 619.85,
+  "end": 620.05,
+  "text": "Yes."
+ },
+ {
+  "start": 620.05,
+  "end": 621.03,
+  "text": "We wanted to record that kind of thing."
+ },
+ {
+  "start": 621.21,
+  "end": 622.15,
+  "text": "Yeah, and I'll get that."
+ },
+ {
+  "start": 622.27,
+  "end": 624.53,
+  "text": "So you don't have to do, you don't have to critique the design or the language."
+ },
+ {
+  "start": 624.53,
+  "end": 626.37,
+  "text": "Just, yeah, just give me your thoughts."
+ },
+ {
+  "start": 626.57,
+  "end": 627.29,
+  "text": "But yeah, you can if you want."
+ },
+ {
+  "start": 627.51,
+  "end": 627.63,
+  "text": "Okay."
+ },
+ {
+  "start": 627.85,
+  "end": 635.13,
+  "text": "The starter form has the birth date, social, driver's license, photos, spending, and income."
+ },
+ {
+  "start": 636.13,
+  "end": 637.93,
+  "text": "Works over plain email too."
+ },
+ {
+  "start": 637.93,
+  "end": 642.49,
+  "text": "a client can just reply to an email items check themselves off that's very cool and why is that"
+ },
+ {
+  "start": 643.05,
+  "end": 649.74,
+  "text": "because it's a pain to keep track of what's been done and what's not been done fill it in together"
+ },
+ {
+  "start": 649.74,
+  "end": 654.81,
+  "text": "over the phone i think i'm still kind of wondering like what what is it like items check themselves"
+ },
+ {
+  "start": 654.81,
+  "end": 661.53,
+  "text": "off of what you know what items yeah not like what items but like like where oh i see you know"
+ },
+ {
+  "start": 663.1,
+  "end": 667.26,
+  "text": "yeah so that's coming up there's more about that on the onboarding board so you can keep reading"
+ },
+ {
+  "start": 667.26,
+  "end": 675.32,
+  "text": "through but like yeah you don't answer that fill it together over the phone i guess i'm wondering"
+ },
+ {
+  "start": 675.32,
+  "end": 681.26,
+  "text": "what that means fill it in together over the phone like am i calling someone it is if they"
+ },
+ {
+  "start": 681.26,
+  "end": 688.84,
+  "text": "don't want to do it if they um can't or don't know how to use email or a private link is like"
+ },
+ {
+  "start": 688.84,
+  "end": 692.52,
+  "text": "you could because you mentioned the other day that you will help people do stuff over the phone right"
+ },
+ {
+  "start": 692.52,
+  "end": 698.82,
+  "text": "like simple stuff find things move things sign things is that right so that's an option too is"
+ },
+ {
+  "start": 698.82,
+  "end": 706.81,
+  "text": "they um you can pull it up with them and help them and then help them put these things in"
+ },
+ {
+  "start": 706.81,
+  "end": 712.56,
+  "text": "okay this is the thing yeah they don't have they're not all the way on their own okay um"
+ },
+ {
+  "start": 712.56,
+  "end": 716.8,
+  "text": "document detective the ai spots missing statements while the client is still uploading"
+ },
+ {
+  "start": 716.8,
+  "end": 722.74,
+  "text": "that's cool because sometimes people are like willing to do it if you can strike while the"
+ },
+ {
+  "start": 722.74,
+  "end": 730.27,
+  "text": "iron's hot they will do it but sometimes there's again a human gap you know yeah um never"
+ },
+ {
+  "start": 730.27,
+  "end": 736.7,
+  "text": "ask a client the same question twice oh i love that why is that because i that's just a question"
+ },
+ {
+  "start": 736.7,
+  "end": 741.82,
+  "text": "that i'm i wonder a lot at work like do i already know the answer to this so i'll go looking for it"
+ },
+ {
+  "start": 741.82,
+  "end": 747.08,
+  "text": "um and take answers flow into schwab paperwork account transfers and write capital i think it's"
+ },
+ {
+  "start": 747.08,
+  "end": 752.5,
+  "text": "especially hard when someone first comes aboard because there's conversations that are had like"
+ },
+ {
+  "start": 752.5,
+  "end": 757.82,
+  "text": "before i join in as kind of like a service representative and so like just trying to"
+ },
+ {
+  "start": 757.82,
+  "end": 762.64,
+  "text": "catch up on that you know the advisor's trying to give this feel like we really know you and we want"
+ },
+ {
+  "start": 762.64,
+  "end": 767.96,
+  "text": "to know you and all the things and so like i just never want to ask like a you know a question that's"
+ },
+ {
+  "start": 767.96,
+  "end": 776.54,
+  "text": "like oh that gives off the vibe that we didn't communicate as an internal team or that we we"
+ },
+ {
+  "start": 776.54,
+  "end": 780.44,
+  "text": "don't know them or i wasn't clued in or i didn't care enough to read their notes that kind of thing"
+ },
+ {
+  "start": 780.44,
+  "end": 787.26,
+  "text": "right so it's like credit the credibility aspect of you and caring yeah client service yeah that's"
+ },
+ {
+  "start": 787.26,
+  "end": 792.53,
+  "text": "cool or client experience because that's like the worst when you go to the doctor's office and"
+ },
+ {
+  "start": 792.53,
+  "end": 799.61,
+  "text": "someone um like they fill out a bunch of intake forms and like you tell them what's wrong you tell"
+ },
+ {
+  "start": 799.61,
+  "end": 804.47,
+  "text": "like the right the med assistant and then the doctor comes in and is like so what's wrong and"
+ },
+ {
+  "start": 804.47,
+  "end": 809.97,
+  "text": "you're like are you serious i just spent like 10 minutes describing that to your other person you"
+ },
+ {
+  "start": 809.97,
+  "end": 815.67,
+  "text": "know like and would you say that happens to your clients um we try to prevent try to prevent it but"
+ },
+ {
+  "start": 815.67,
+  "end": 821.73,
+  "text": "Okay. But it's, it's a, it's a concern because it can happen. Yeah. Okay. Definitely. That's"
+ },
+ {
+  "start": 821.73,
+  "end": 826.49,
+  "text": "great. Thanks. Definitely. I cringe. I cringe sometimes if I see like a team member emailing"
+ },
+ {
+  "start": 826.49,
+  "end": 831.33,
+  "text": "a client and I'm CC'd. Right. Sometimes if they're asking a question, I'm like, did you look at every"
+ },
+ {
+  "start": 831.33,
+  "end": 835.77,
+  "text": "resource we had? Cause like, I feel like we should have known that already. Right. That's like,"
+ },
+ {
+  "start": 835.93,
+  "end": 840.45,
+  "text": "that's like a nerve wracking. So. And where should that information be right now? Like,"
+ },
+ {
+  "start": 840.79,
+  "end": 844.19,
+  "text": "do you guys have a place like, oh, did you check Wealthbox or, oh, did you check this place or?"
+ },
+ {
+  "start": 844.19,
+  "end": 856.0,
+  "text": "um yeah it should be in wealth box yeah but it can be kind of scattered yeah okay cool"
+ },
+ {
+  "start": 856.0,
+  "end": 862.14,
+  "text": "scattered with it in wealth box even yeah okay so what it doesn't sound like wealth box is the"
+ },
+ {
+  "start": 862.14,
+  "end": 867.28,
+  "text": "ultimate solution either or in terms of a really nice place to keep everything or something i think"
+ },
+ {
+  "start": 867.28,
+  "end": 873.66,
+  "text": "it's like the closest to what we have but as far as like sometimes it's like hard to recall"
+ },
+ {
+  "start": 873.66,
+  "end": 878.62,
+  "text": "something or you know like it has a search feature so you can search notes or you can search"
+ },
+ {
+  "start": 878.62,
+  "end": 885.02,
+  "text": "things if you have the right keyword but like if you wrote something differently you know yeah like"
+ },
+ {
+  "start": 885.02,
+  "end": 890.76,
+  "text": "if you said this person has a retirement account at jp morgan and then later you're thinking like"
+ },
+ {
+  "start": 890.76,
+  "end": 897.06,
+  "text": "where is this person's 401k and you search 401k if you didn't use 401k earlier yeah it won't pop"
+ },
+ {
+  "start": 897.06,
+  "end": 900.86,
+  "text": "up in the search yeah and they don't have a private ai to search the whole thing right"
+ },
+ {
+  "start": 900.86,
+  "end": 907.82,
+  "text": "or they do they don't i mean they have an ai tab but i haven't really seen what it does it doesn't"
+ },
+ {
+  "start": 907.82,
+  "end": 913.0,
+  "text": "really i don't think it's really that advanced it also can't they can't search emails so you can"
+ },
+ {
+  "start": 913.0,
+  "end": 919.55,
+  "text": "like it will show the email list of things that you've had but you can't like search for a keyword"
+ },
+ {
+  "start": 919.55,
+  "end": 925.25,
+  "text": "anybody's email i want to ask one thing you mentioned that like it's hard to know what"
+ },
+ {
+  "start": 925.25,
+  "end": 931.31,
+  "text": "other people in your team team and company have talked to people about is that right so i'm curious"
+ },
+ {
+  "start": 931.31,
+  "end": 946.84,
+  "text": "like um what do you guys what do you guys try to do to improve that or help that or like are you"
+ },
+ {
+  "start": 946.84,
+  "end": 954.31,
+  "text": "doing anything to get on the same page about what people have been said specifically in onboarding"
+ },
+ {
+  "start": 954.31,
+  "end": 959.59,
+  "text": "or just like in a general client life cycle like i think once they're in maintenance mode yeah"
+ },
+ {
+  "start": 959.59,
+  "end": 969.47,
+  "text": "general but also um i think sometimes we'll use teams to kind of like say hey i just met with"
+ },
+ {
+  "start": 969.47,
+  "end": 973.55,
+  "text": "this person something we need to keep in mind is this i'll add a note to what box but like"
+ },
+ {
+  "start": 973.55,
+  "end": 979.69,
+  "text": "oftentimes i think teams sometimes hold more holds more color sometimes they'll leave a note"
+ },
+ {
+  "start": 979.69,
+  "end": 984.51,
+  "text": "in what box and just notify everybody so everybody kind of gets a notification of the the updater"
+ },
+ {
+  "start": 984.51,
+  "end": 993.17,
+  "text": "yeah um those are kind of the two things jump records meetings but it doesn't sound like that's"
+ },
+ {
+  "start": 993.17,
+  "end": 998.83,
+  "text": "really solving like oh jump helps us all understand what's been said to everybody right"
+ },
+ {
+  "start": 998.83,
+  "end": 1005.87,
+  "text": "yeah so jump record jump records meetings and then it puts our meetings into a specific"
+ },
+ {
+  "start": 1005.87,
+  "end": 1013.42,
+  "text": "meeting note template that we wanted and so our meeting note template has three parts to it"
+ },
+ {
+  "start": 1013.42,
+  "end": 1018.4,
+  "text": "it has like first it just says like thanks for meeting with us today and then the first part is"
+ },
+ {
+  "start": 1018.4,
+  "end": 1024.22,
+  "text": "um your action items and it's bullet points that have their action items and then there's one that"
+ },
+ {
+  "start": 1024.22,
+  "end": 1030.66,
+  "text": "says jbw action items so then it has our action items listed and then other notables and so"
+ },
+ {
+  "start": 1031.22,
+  "end": 1037.83,
+  "text": "the thing is that that like you've had a 60 minute meeting with someone and the notes boil"
+ },
+ {
+  "start": 1037.83,
+  "end": 1042.47,
+  "text": "down into that format so anything that doesn't fit into that format and we like that because"
+ },
+ {
+  "start": 1042.47,
+  "end": 1048.22,
+  "text": "it keeps it clean it's like to do's and then like the top thing to remember or notables you know"
+ },
+ {
+  "start": 1048.22,
+  "end": 1053.44,
+  "text": "yeah so it keeps it clean but internally it feels like we lose a lot of details because that's the"
+ },
+ {
+  "start": 1053.44,
+  "end": 1057.96,
+  "text": "only thing that we end up like sending to the crm and then all those things end up as tasks that we"
+ },
+ {
+  "start": 1057.96,
+  "end": 1062.18,
+  "text": "follow up on and stuff like that and so we have like if something's big enough that it becomes"
+ },
+ {
+  "start": 1062.18,
+  "end": 1067.8,
+  "text": "an other notable like it will be there but a lot of times there's a lot of detail that doesn't end"
+ },
+ {
+  "start": 1067.8,
+  "end": 1073.64,
+  "text": "up in the other notable so like that's kind of technically living in jump but to this at this"
+ },
+ {
+  "start": 1073.64,
+  "end": 1080.35,
+  "text": "point jump does not uh like when jump is doing meeting prep and stuff i mean this might be"
+ },
+ {
+  "start": 1080.35,
+  "end": 1086.65,
+  "text": "different now like hot off the press different but in the past like jump will not look at past"
+ },
+ {
+  "start": 1086.65,
+  "end": 1091.67,
+  "text": "jump meetings to gather details like it won't look at a full meeting transcript"
+ },
+ {
+  "start": 1091.67,
+  "end": 1101.7,
+  "text": "wow it will just it just goes and crawls through your wealth box wow okay so like sometimes that's"
+ },
+ {
+  "start": 1101.7,
+  "end": 1107.74,
+  "text": "hard like if you didn't record like what university this person's like 18 year old"
+ },
+ {
+  "start": 1107.74,
+  "end": 1112.1,
+  "text": "is thinking about going to and it's like you just kind of lost that you know and if you could"
+ },
+ {
+  "start": 1112.1,
+  "end": 1115.32,
+  "text": "capture that that would be really cool and obviously it needs to be accurate but if you"
+ },
+ {
+  "start": 1115.32,
+  "end": 1119.38,
+  "text": "could capture that that'd be really cool because then like before they move out in the fall you"
+ },
+ {
+  "start": 1119.38,
+  "end": 1125.48,
+  "text": "could send them a auburn hoodie or whatever you know like you could really go the extra mile with"
+ },
+ {
+  "start": 1125.48,
+  "end": 1130.12,
+  "text": "that and sometimes i feel like we'll get these sos messages to each other like hey do you remember"
+ },
+ {
+  "start": 1130.12,
+  "end": 1137.44,
+  "text": "where so-and-so's kid is going to college or like you know it's like we we know that kid's birthday"
+ },
+ {
+  "start": 1137.44,
+  "end": 1143.75,
+  "text": "we know their name we know they're a beneficiary on xyz account but like you know it's like did"
+ },
+ {
+  "start": 1143.75,
+  "end": 1150.13,
+  "text": "they do swim team or was it rowing you know yeah so then it sounds like from when i talked to you"
+ },
+ {
+  "start": 1150.13,
+  "end": 1156.07,
+  "text": "before like those details like matter so much to you guys because one mistake can be devastating"
+ },
+ {
+  "start": 1156.07,
+  "end": 1163.4,
+  "text": "it sounds like and and if you and gifts are a big deal and if you don't know what to give and so"
+ },
+ {
+  "start": 1163.4,
+  "end": 1170.09,
+  "text": "yeah it just seems like knowing your client is just so important totally but sometimes that like"
+ },
+ {
+  "start": 1170.09,
+  "end": 1177.05,
+  "text": "that those little it's like those human things those just don't always make it to the notes as"
+ },
+ {
+  "start": 1177.05,
+  "end": 1182.31,
+  "text": "were saying because it's not a to-do you know it's not like yeah you know kids in rowing like"
+ },
+ {
+  "start": 1182.31,
+  "end": 1185.79,
+  "text": "i mean we try to grab them as a notable but a lot of times stuff slips through the cracks"
+ },
+ {
+  "start": 1185.79,
+  "end": 1194.58,
+  "text": "yeah have you guys ever tried to get jump to give you two outputs one that goes one in your template"
+ },
+ {
+  "start": 1194.58,
+  "end": 1202.82,
+  "text": "and one that's just a normal summary like of everything that was said yeah um yeah have you"
+ },
+ {
+  "start": 1202.82,
+  "end": 1211.88,
+  "text": "I think we could try that we've had it give us like it can do a big data sheet because that's"
+ },
+ {
+  "start": 1211.88,
+  "end": 1216.24,
+  "text": "another thing that sometimes you want to make sure that everything is grabbed is like numbers"
+ },
+ {
+  "start": 1216.24,
+  "end": 1222.42,
+  "text": "numbers yeah so it'll sometimes like generate a ton of numbers so any number that's mentioned"
+ },
+ {
+  "start": 1222.42,
+  "end": 1227.61,
+  "text": "ends up in a table so like sometimes we'll have the advisors look at that because we also need"
+ },
+ {
+  "start": 1227.61,
+  "end": 1232.63,
+  "text": "to make sure that if any of those numbers are changed that that gets to like the planning team"
+ },
+ {
+  "start": 1232.63,
+  "end": 1238.97,
+  "text": "okay to do things with so i'm sure we could like i'm sure we could just tack on tons of"
+ },
+ {
+  "start": 1238.97,
+  "end": 1245.33,
+  "text": "different things yeah but there's just kind of this human that well there's a couple problems"
+ },
+ {
+  "start": 1245.33,
+  "end": 1252.91,
+  "text": "one it can just become a lot of stuff for someone to like look through okay and it shouldn't be"
+ },
+ {
+  "start": 1252.91,
+  "end": 1261.17,
+  "text": "captured unless well essentially like it shouldn't make it to the crm unless like a human has kind of"
+ },
+ {
+  "start": 1261.17,
+  "end": 1268.39,
+  "text": "like reviewed it right because it may have captured something incorrectly you know and then like we"
+ },
+ {
+  "start": 1268.39,
+  "end": 1274.57,
+  "text": "don't want to further that you know it may have been confused because jump is coming in jump"
+ },
+ {
+  "start": 1274.57,
+  "end": 1279.43,
+  "text": "doesn't really know the clients right yeah so it just comes in thinking that someone's a stranger"
+ },
+ {
+  "start": 1279.43,
+  "end": 1284.61,
+  "text": "and it's like if you were to just overhear someone on the bus yeah and you've like you have"
+ },
+ {
+  "start": 1284.61,
+  "end": 1289.15,
+  "text": "no context for their life you know like that's how jump is coming in and so like a lot of times"
+ },
+ {
+  "start": 1289.15,
+  "end": 1295.57,
+  "text": "their spelling names wrong yeah they don't know you know i mean just there's just a lot of stuff"
+ },
+ {
+  "start": 1295.57,
+  "end": 1300.85,
+  "text": "that it doesn't know and so a human at this point still has to like do a fair amount to like"
+ },
+ {
+  "start": 1300.85,
+  "end": 1308.37,
+  "text": "clean clean up the notes and verify yeah and like and so one of my concerns is if everything was"
+ },
+ {
+  "start": 1308.37,
+  "end": 1312.99,
+  "text": "getting like pushed over to what the box is that we might be saving a lot of stuff that technically"
+ },
+ {
+  "start": 1312.99,
+  "end": 1322.11,
+  "text": "kind of shouldn't be saved yeah and maybe isn't fully correct and does jump right to wealth box"
+ },
+ {
+  "start": 1322.11,
+  "end": 1328.39,
+  "text": "directly it can do you know the do you know if it has like a human verification system where it says"
+ },
+ {
+  "start": 1328.39,
+  "end": 1331.63,
+  "text": "hey i'm about to put all this in jump stop but i need someone to go check check check check to make"
+ },
+ {
+  "start": 1331.63,
+  "end": 1335.89,
+  "text": "sure it's okay or push it over yeah do you know if it's anything like that we have to push it over"
+ },
+ {
+  "start": 1335.89,
+  "end": 1342.01,
+  "text": "manually so i think that's probably just the human like it won't just push it to wealth box"
+ },
+ {
+  "start": 1342.01,
+  "end": 1349.3,
+  "text": "immediately but it but it can if you say that it's right or yeah if you say that it's right if"
+ },
+ {
+  "start": 1349.3,
+  "end": 1354.54,
+  "text": "you'd be like you're basically clicking like send it to wealth box right right right so you're saying"
+ },
+ {
+  "start": 1354.54,
+  "end": 1360.38,
+  "text": "manually but you can stay and jump oh yeah yeah you can stay and jump i was just thinking like"
+ },
+ {
+  "start": 1360.38,
+  "end": 1365.64,
+  "text": "it's not like completely an automation where like the meeting is done and you don't have to lift a"
+ },
+ {
+  "start": 1365.64,
+  "end": 1369.74,
+  "text": "finger and jump it just sends everything to but it sounds like you wouldn't want the complete"
+ },
+ {
+  "start": 1369.74,
+  "end": 1376.16,
+  "text": "automation right so like yeah so is jump so in that case like are you guys happy with that in"
+ },
+ {
+  "start": 1376.16,
+  "end": 1381.18,
+  "text": "jump because jump identifies things asks you if you want to send and if you do it does it for you"
+ },
+ {
+  "start": 1381.18,
+  "end": 1388.32,
+  "text": "like is that nice versus putting it straight in wealth box yourself or not really yeah it's that"
+ },
+ {
+  "start": 1388.32,
+  "end": 1393.96,
+  "text": "i mean we don't use that feature a lot like okay what the problem with jump is that they can't"
+ },
+ {
+  "start": 1393.96,
+  "end": 1398.8,
+  "text": "take our meeting template that we have that like your action items are extended notables okay"
+ },
+ {
+  "start": 1398.8,
+  "end": 1406.46,
+  "text": "it can't read that and and put all of those little things into tasks okay it just gives"
+ },
+ {
+  "start": 1406.46,
+  "end": 1411.98,
+  "text": "its best guess of tasks so right now that like the send to wealth box feature like"
+ },
+ {
+  "start": 1411.98,
+  "end": 1419.22,
+  "text": "we don't use that at all because it's not using your template yeah so it just takes the raw notes"
+ },
+ {
+  "start": 1419.22,
+  "end": 1426.84,
+  "text": "and guesses at a bunch of tasks wow yeah and apparently you can have it like it can connect"
+ },
+ {
+  "start": 1426.84,
+  "end": 1431.86,
+  "text": "to what the box like workflows so if it's like if if in the meeting they had said open an account"
+ },
+ {
+  "start": 1431.86,
+  "end": 1437.43,
+  "text": "like it will kind of pop up on the side like oh should we launch this workflow I think you can"
+ },
+ {
+  "start": 1437.43,
+  "end": 1444.64,
+  "text": "do that but once again we just haven't because it's been like like I don't know it's sometimes"
+ },
+ {
+  "start": 1444.64,
+  "end": 1449.28,
+  "text": "kind of embarrassing it's embarrassing to admit because it's like you should be working to like"
+ },
+ {
+  "start": 1449.28,
+  "end": 1454.32,
+  "text": "make your firm more efficient I think just like we're married to that note template like the"
+ },
+ {
+  "start": 1454.32,
+  "end": 1458.96,
+  "text": "advisors just love the template the way that it is and seattle has told us like if we could be way"
+ },
+ {
+  "start": 1458.96,
+  "end": 1464.34,
+  "text": "more flexible on the template like this could do a lot more work for us but like because we're so"
+ },
+ {
+  "start": 1464.34,
+  "end": 1470.86,
+  "text": "married to the notes as we like them um like we just had a meeting with jump and they're like no"
+ },
+ {
+  "start": 1470.86,
+  "end": 1475.9,
+  "text": "sorry still can't take your template and turn it into to do's you know right because that's a whole"
+ },
+ {
+  "start": 1475.9,
+  "end": 1483.86,
+  "text": "other extra ai step they'd have to analyze the template and um but it but it is weird it seems"
+ },
+ {
+  "start": 1483.86,
+  "end": 1488.74,
+  "text": "like they should be able to because they're already doing it with the raw notes but um"
+ },
+ {
+  "start": 1488.74,
+  "end": 1496.03,
+  "text": "just working in tech and everything on the back end that could be a monumental change which is"
+ },
+ {
+  "start": 1496.03,
+  "end": 1501.25,
+  "text": "crazy because on the front and i work with engineers every day and i'm like they they focus"
+ },
+ {
+  "start": 1501.25,
+  "end": 1505.53,
+  "text": "so much on a tiny little thing that like matt doesn't matter at all but it turns out it's"
+ },
+ {
+  "start": 1505.53,
+  "end": 1509.63,
+  "text": "everything to them um and so i'm like can we just move this in here like no"
+ },
+ {
+  "start": 1509.63,
+  "end": 1514.71,
+  "text": "and I'm like okay well that's the best user experience so I'll just let you guys do what you"
+ },
+ {
+  "start": 1514.71,
+  "end": 1521.06,
+  "text": "yeah we got it we got to get there eventually or whatever so yeah anyway sorry um but but that is"
+ },
+ {
+  "start": 1521.06,
+  "end": 1526.53,
+  "text": "funny and frustrating because I've been what I'm saying is that is frustrating totally and it and"
+ },
+ {
+  "start": 1526.53,
+  "end": 1529.91,
+  "text": "it doesn't make sense I still don't understand why they can't do that stuff you know it's like"
+ },
+ {
+  "start": 1529.91,
+  "end": 1535.42,
+  "text": "um because I think one of the one of the challenges is like with the clients like for"
+ },
+ {
+  "start": 1535.42,
+  "end": 1539.1,
+  "text": "the clients like they they have now been trained that like you get a little to-do list"
+ },
+ {
+  "start": 1539.1,
+  "end": 1543.98,
+  "text": "after the meetings right and so if we were to just adapt like our notes just become like"
+ },
+ {
+  "start": 1543.98,
+  "end": 1551.45,
+  "text": "here's the meeting like kind of summary you know or here's like a here's just a"
+ },
+ {
+  "start": 1551.45,
+  "end": 1559.15,
+  "text": "transcribed version of our meeting like that's like less appealing because like of course where"
+ },
+ {
+  "start": 1559.15,
+  "end": 1564.05,
+  "text": "are my to-dos and yeah what about that right i also i've wondered about how other people do it"
+ },
+ {
+  "start": 1564.05,
+  "end": 1567.39,
+  "text": "and i don't know maybe other people like i assume other people are a lot more relaxed than we are"
+ },
+ {
+  "start": 1567.39,
+  "end": 1575.76,
+  "text": "but um but i've also wondered like does it cause would it cause anybody grief to like send a word"
+ },
+ {
+  "start": 1575.76,
+  "end": 1582.0,
+  "text": "for word meeting transcript like could you ever get are you more liable like than every word is"
+ },
+ {
+  "start": 1582.0,
+  "end": 1587.54,
+  "text": "recorded that you said as an advisor so if you stated something i'm sure you are incorrectly"
+ },
+ {
+  "start": 1587.54,
+  "end": 1593.62,
+  "text": "or whatever so i'm like i don't i don't know like i don't love the idea of like sending a full"
+ },
+ {
+  "start": 1593.62,
+  "end": 1597.32,
+  "text": "transcript i don't either because it makes me uncomfortable just thinking if i was an advisor"
+ },
+ {
+  "start": 1597.32,
+  "end": 1602.2,
+  "text": "yeah because you have to be very careful how you say things like you can't like guarantee market"
+ },
+ {
+  "start": 1602.2,
+  "end": 1608.14,
+  "text": "returns and you have to you know and i think you can get more relaxed the longer you do it"
+ },
+ {
+  "start": 1608.14,
+  "end": 1613.3,
+  "text": "just conversation but if someone's recording you know that it's like yeah okay here's my robotic"
+ },
+ {
+  "start": 1613.3,
+  "end": 1617.88,
+  "text": "speech that i need to give you about market returns you know so i have a question for you so"
+ },
+ {
+  "start": 1617.88,
+  "end": 1627.89,
+  "text": "it what if there was a way for you guys to create basically more than one output from a meeting so"
+ },
+ {
+  "start": 1627.89,
+  "end": 1633.29,
+  "text": "yes this template was created that was sent to the advisors and the clients but then you got to"
+ },
+ {
+  "start": 1633.29,
+  "end": 1639.61,
+  "text": "craft whatever sort of summary you want to help you in your job and then seattle could too"
+ },
+ {
+  "start": 1639.61,
+  "end": 1645.36,
+  "text": "and you all internally had not the client but internally you would all have access to the"
+ },
+ {
+  "start": 1645.36,
+  "end": 1649.9,
+  "text": "transcript as well to go like verify things or whatever and potentially you could like what if"
+ },
+ {
+  "start": 1649.9,
+  "end": 1656.4,
+  "text": "you crafted a template where ai was smart enough to pull the right tasks or or make tasks specifically"
+ },
+ {
+  "start": 1656.4,
+  "end": 1663.38,
+  "text": "for wealth box and and what if it could base that on a summary i guess i'm kind of asking like yeah"
+ },
+ {
+  "start": 1663.38,
+  "end": 1666.68,
+  "text": "like what what if it sent out like different things to everyone and you could have whatever"
+ },
+ {
+  "start": 1666.68,
+  "end": 1671.84,
+  "text": "you wanted from that meeting like would that be appealing or not yeah to a degree i i would need"
+ },
+ {
+  "start": 1671.84,
+  "end": 1676.06,
+  "text": "to know that i could trust it so the advisor is right now that's the advisor and the client in"
+ },
+ {
+  "start": 1676.06,
+  "end": 1681.46,
+  "text": "the meeting as the only two people so it has to go through advisor eyes you know to know that"
+ },
+ {
+  "start": 1681.46,
+  "end": 1687.6,
+  "text": "that's correct like if it sends me something as hey as the gift person yeah like if it just sent"
+ },
+ {
+  "start": 1687.6,
+  "end": 1691.4,
+  "text": "me that automatically without the advisor saying like yep it is auburn that they're sending their"
+ },
+ {
+  "start": 1691.4,
+  "end": 1697.41,
+  "text": "kid to in the fall then there's like a little bit of like so how does that work right now how do you"
+ },
+ {
+  "start": 1697.41,
+  "end": 1704.35,
+  "text": "does the advisor confirm everything that you're told they confirm the notes before they go out"
+ },
+ {
+  "start": 1704.35,
+  "end": 1710.1,
+  "text": "to the client in the template uh-huh and then if you want to know anything extra you have to ask"
+ },
+ {
+  "start": 1710.1,
+  "end": 1717.58,
+  "text": "them directly um we can go like ask jump or i guess like look through the transcript"
+ },
+ {
+  "start": 1717.58,
+  "end": 1726.24,
+  "text": "like the auburn thing i guess i could figure that out on my own manually you just go look"
+ },
+ {
+  "start": 1726.24,
+  "end": 1735.58,
+  "text": "basically like yeah it's just i guess i'm what i'm thinking is like if sometimes there's things"
+ },
+ {
+  "start": 1735.58,
+  "end": 1743.26,
+  "text": "that would be tricky for the ai to like take a read on like it could it could do a job right"
+ },
+ {
+  "start": 1743.26,
+  "end": 1747.82,
+  "text": "but like let's say it's sending information to the planning team like let's say we tell it hey"
+ },
+ {
+  "start": 1747.82,
+  "end": 1753.18,
+  "text": "every time after you meet like planning team needs updated numbers or they need like anything"
+ },
+ {
+  "start": 1753.18,
+  "end": 1756.16,
+  "text": "that was mentioned about numbers anything that's mentioned about savings anything that was mentioned"
+ },
+ {
+  "start": 1756.16,
+  "end": 1762.45,
+  "text": "about this and this like send that all to the planning team like i just feel like the planning"
+ },
+ {
+  "start": 1762.45,
+  "end": 1767.86,
+  "text": "team would kind of need to know from an actual human who is in the meeting is this all good okay"
+ },
+ {
+  "start": 1767.86,
+  "end": 1772.72,
+  "text": "is that actually legit you know so oh and this goes back to the problem so is this the problem"
+ },
+ {
+  "start": 1772.72,
+  "end": 1778.53,
+  "text": "where basically like you guys the the advisors don't have bandwidth to just review like six"
+ },
+ {
+  "start": 1778.53,
+  "end": 1784.35,
+  "text": "summaries yeah because the detail can just be immense yeah the ai picks up on and they can"
+ },
+ {
+  "start": 1784.35,
+  "end": 1788.37,
+  "text": "build tables and they can build this and this and this and it's just it's a lot for the advisors to"
+ },
+ {
+  "start": 1788.37,
+  "end": 1795.85,
+  "text": "make sure is everything that it said like right well i i had claude made make us a financial plan"
+ },
+ {
+  "start": 1795.85,
+  "end": 1802.8,
+  "text": "it was like what 100 pages yeah eventually exactly yeah totally so you're running into the same thing"
+ },
+ {
+  "start": 1802.8,
+  "end": 1809.64,
+  "text": "kind of in that way uh-huh yeah yeah okay yeah that's really good and the advisors really get"
+ },
+ {
+  "start": 1809.64,
+  "end": 1815.5,
+  "text": "overwhelmed at that like okay if if the notes are really long or if the notes are incorrect and it's"
+ },
+ {
+  "start": 1815.5,
+  "end": 1819.6,
+  "text": "going to take a while or just if they're in like an incorrect format which occasionally happens"
+ },
+ {
+  "start": 1819.6,
+  "end": 1824.4,
+  "text": "with jump like they'll do an update or something and it messes up our notes um or like we'll ask"
+ },
+ {
+  "start": 1824.4,
+  "end": 1830.75,
+  "text": "for an update and it like messes up something that we didn't want um like that's such a battery"
+ },
+ {
+  "start": 1830.75,
+  "end": 1835.99,
+  "text": "drain can't even explain it like chris will sometimes just do he will do the notes from"
+ },
+ {
+  "start": 1835.99,
+  "end": 1845.41,
+  "text": "scratch just entirely from his memory basically versus like dealing with the yeah the jump stuff"
+ },
+ {
+  "start": 1845.41,
+  "end": 1849.31,
+  "text": "of course you guys have a template that's super simple and stick to it it's just making so much"
+ },
+ {
+  "start": 1849.31,
+  "end": 1853.69,
+  "text": "more sense as you just explained it all you know yeah because they don't have the band i i could"
+ },
+ {
+  "start": 1853.69,
+  "end": 1858.62,
+  "text": "totally see them not having bandwidth and sometimes you like have a conversation with someone it's"
+ },
+ {
+  "start": 1858.62,
+  "end": 1862.86,
+  "text": "really interesting with financial advising too and like i was a physical note taker in meetings"
+ },
+ {
+  "start": 1862.86,
+  "end": 1867.52,
+  "text": "for a long time yeah you know and like something that was really interesting is like you have to"
+ },
+ {
+  "start": 1867.52,
+  "end": 1871.98,
+  "text": "follow that trail all the way to the end because sometimes they'll be like they'll say something"
+ },
+ {
+  "start": 1871.98,
+  "end": 1879.2,
+  "text": "like oh you know we're gonna change this or like i think i'm getting a new job and like i think i'm"
+ },
+ {
+  "start": 1879.2,
+  "end": 1884.28,
+  "text": "going to make this much or whatever and then like by the end of the meeting i don't know like it's"
+ },
+ {
+  "start": 1884.28,
+  "end": 1887.68,
+  "text": "just really interesting they'll they'll have kind of made a discovery with their advisor like"
+ },
+ {
+  "start": 1887.68,
+  "end": 1892.78,
+  "text": "actually i just i don't really like doing this oh yeah like i i don't think i'm gonna like the"
+ },
+ {
+  "start": 1892.78,
+  "end": 1897.72,
+  "text": "advisors ultimately like well then don't do it like you have enough money to retire like just"
+ },
+ {
+  "start": 1897.72,
+  "end": 1902.14,
+  "text": "be done now you know whatever like yeah and so i think there's other things and i assume ai would"
+ },
+ {
+  "start": 1902.14,
+  "end": 1908.42,
+  "text": "be smart enough to like you know not just pick out that number but kind of know like okay yeah"
+ },
+ {
+  "start": 1908.42,
+  "end": 1912.8,
+  "text": "they said, assume this for how much money I'm making. But then by the end of it, they had kind"
+ },
+ {
+  "start": 1912.8,
+  "end": 1917.56,
+  "text": "of, there had been this transition of like, actually I'm, maybe I will retire, you know,"
+ },
+ {
+  "start": 1917.58,
+  "end": 1920.38,
+  "text": "or something like that. And that could have been two minutes before the meeting ends and then the"
+ },
+ {
+  "start": 1920.38,
+  "end": 1925.22,
+  "text": "meeting's done. Yeah. And they had just reversed 20 minutes of talking. Completely. That happens"
+ },
+ {
+  "start": 1925.22,
+  "end": 1930.68,
+  "text": "like, I mean, so often, like you'd just be shocked. You'd be shocked. Like just humans do not fit in"
+ },
+ {
+  "start": 1930.68,
+  "end": 1936.06,
+  "text": "their box. And that's like, what is so valuable about these conversations is like, honestly,"
+ },
+ {
+  "start": 1936.06,
+  "end": 1941.7,
+  "text": "the last 10 minutes yeah wow because like you've laid this foundation you've connected you've heard"
+ },
+ {
+  "start": 1941.7,
+  "end": 1946.3,
+  "text": "what's going on you know you've like gone over some of the numbers because that doesn't matter"
+ },
+ {
+  "start": 1946.3,
+  "end": 1952.68,
+  "text": "you know but then like it really is like the last 10 minutes that's like well then gosh you know"
+ },
+ {
+  "start": 1952.68,
+  "end": 1956.9,
+  "text": "what that could afford us to do or like you know what i would love to do or you know what would be"
+ },
+ {
+  "start": 1956.9,
+  "end": 1962.94,
+  "text": "cool you know yeah and like sometimes it's that that you have to like run with like oh you really"
+ },
+ {
+  "start": 1962.94,
+  "end": 1967.34,
+  "text": "want to build a pool okay well let's i mean should we meet again talk about the pool like"
+ },
+ {
+  "start": 1967.34,
+  "end": 1972.02,
+  "text": "i don't know it's just really interesting so then like that's the story that's the human story is"
+ },
+ {
+  "start": 1972.02,
+  "end": 1976.48,
+  "text": "like gosh you're thinking about getting a pool that becomes number one on their to-do list like"
+ },
+ {
+  "start": 1976.48,
+  "end": 1982.34,
+  "text": "consider that some more go get an estimate get it whatever you know i don't know and like i mean i"
+ },
+ {
+  "start": 1982.34,
+  "end": 1989.1,
+  "text": "just maybe i'm like because ai can do a good job like they really do a decent job they it does a"
+ },
+ {
+  "start": 1989.1,
+  "end": 1994.09,
+  "text": "decent job with note-taking but like i think that's one of the reasons why it's like important"
+ },
+ {
+  "start": 1994.09,
+  "end": 2001.39,
+  "text": "for a human to look at everything got it that makes so much sense to me sounds like ai is good"
+ },
+ {
+  "start": 2001.39,
+  "end": 2008.53,
+  "text": "at summarizing but the human story it sounds like it's it's yeah i just i just had a bunch of"
+ },
+ {
+  "start": 2008.53,
+  "end": 2013.31,
+  "text": "feedback the other day for claude and a huge amount and at the end i reversed the decision"
+ },
+ {
+  "start": 2013.31,
+  "end": 2018.97,
+  "text": "for about three of the bullets and guess what it started making the three bullet change really"
+ },
+ {
+  "start": 2018.97,
+  "end": 2025.23,
+  "text": "yeah it basically started fixing things in order even though i know without a doubt that it read"
+ },
+ {
+  "start": 2025.23,
+  "end": 2031.35,
+  "text": "the whole thing and categorized and put things in its place it's still i think it's trying to be as"
+ },
+ {
+  "start": 2031.35,
+  "end": 2035.21,
+  "text": "smart as it can right so it it puts weights on different things that's a big thing with ai models"
+ },
+ {
+  "start": 2035.21,
+  "end": 2041.11,
+  "text": "so waiting it's like waiting the importance to know what you want basically so if you did four"
+ },
+ {
+  "start": 2041.11,
+  "end": 2045.85,
+  "text": "pulp paragraphs of feedback it's gonna wait those more than one that says don't do any of those four"
+ },
+ {
+  "start": 2045.85,
+  "end": 2050.37,
+  "text": "yeah yeah and they just did a study where and this is just for your knowledge too so you kind"
+ },
+ {
+  "start": 2050.37,
+  "end": 2053.11,
+  "text": "of like understand how things are working in the background within the networks but like"
+ },
+ {
+  "start": 2053.11,
+  "end": 2057.81,
+  "text": "they just did a study where if you literally like people if you tell it not to think about something"
+ },
+ {
+  "start": 2057.81,
+  "end": 2063.67,
+  "text": "it it thinks about it like if you tell a person don't think about it so the same thing happens"
+ },
+ {
+  "start": 2063.67,
+  "end": 2070.05,
+  "text": "with ai no way it thinks about the thing you told it not to wow because it has a place where it has"
+ },
+ {
+  "start": 2070.05,
+  "end": 2074.95,
+  "text": "this scratch pad global workspace they call it where things just appear based on what you've"
+ },
+ {
+  "start": 2074.95,
+  "end": 2079.79,
+  "text": "it so it can figure out what to do for you and if you say don't think about a spider spider will"
+ },
+ {
+  "start": 2079.79,
+  "end": 2086.33,
+  "text": "flash wow and eight legs will flash yeah so it so it doesn't like the black coffee theory so it so"
+ },
+ {
+  "start": 2086.33,
+  "end": 2092.32,
+  "text": "it makes sure it doesn't give you spider because it knows you don't want that yeah so it's kind"
+ },
+ {
+  "start": 2092.32,
+  "end": 2097.9,
+  "text": "of crazy that is crazy i didn't know it did that the same way that we do so so but anyways i think"
+ },
+ {
+  "start": 2097.9,
+  "end": 2103.88,
+  "text": "there's a lot that we that people who design around ai and with ai can do to really help it"
+ },
+ {
+  "start": 2103.88,
+  "end": 2106.7,
+  "text": "I'm actually really encouraged by this because really help it find a human"
+ },
+ {
+  "start": 2106.7,
+  "end": 2108.14,
+  "text": "story amidst the summary."
+ },
+ {
+  "start": 2108.52,
+  "end": 2111.68,
+  "text": "So because I was able to help mine actually like be like, look,"
+ },
+ {
+  "start": 2111.74,
+  "end": 2113.4,
+  "text": "you didn't do this and can we fix that in the future?"
+ },
+ {
+  "start": 2113.48,
+  "end": 2116.12,
+  "text": "So you actually, um, so anyways, I think there's a lot of new,"
+ },
+ {
+  "start": 2116.24,
+  "end": 2117.32,
+  "text": "so that's really great feedback."
+ },
+ {
+  "start": 2117.52,
+  "end": 2117.68,
+  "text": "Cool."
+ },
+ {
+  "start": 2118.32,
+  "end": 2118.68,
+  "text": "Also,"
+ },
+ {
+  "start": 2118.68,
+  "end": 2121.56,
+  "text": "I'm just like having the thought to have something that would be kind of"
+ },
+ {
+  "start": 2121.56,
+  "end": 2126.35,
+  "text": "cool is almost like, almost like it starts, I don't know."
+ },
+ {
+  "start": 2126.55,
+  "end": 2129.57,
+  "text": "It could start with like a base amount of notes, like very basic,"
+ },
+ {
+  "start": 2129.75,
+  "end": 2132.21,
+  "text": "you know, like these are things that were very clear in the meeting."
+ },
+ {
+  "start": 2132.57,
+  "end": 2133.61,
+  "text": "We are going to do this."
+ },
+ {
+  "start": 2133.61,
+  "end": 2134.55,
+  "text": "You are going to do this."
+ },
+ {
+  "start": 2134.59,
+  "end": 2138.81,
+  "text": "or whatever and then maybe there's just a lot of add-ons that you could just kind of click to be"
+ },
+ {
+  "start": 2138.81,
+  "end": 2141.61,
+  "text": "like oh yeah include that include that include that include that interesting you know what i"
+ },
+ {
+  "start": 2141.61,
+  "end": 2147.87,
+  "text": "mean or like or don't include or something or like i think sometimes that would be nice because i mean"
+ },
+ {
+  "start": 2147.87,
+  "end": 2152.68,
+  "text": "you could delete something just as easily but like it always is picking up like i don't know"
+ },
+ {
+  "start": 2152.68,
+  "end": 2156.98,
+  "text": "on like their investment report and we just don't really care to like have that in the notes all the"
+ },
+ {
+  "start": 2156.98,
+  "end": 2162.84,
+  "text": "time you know yeah so like if we could just like uncheck it and it kind of um would just do that"
+ },
+ {
+  "start": 2162.84,
+  "end": 2167.48,
+  "text": "that would be really nice cool or you know if there were additive things or like maybe"
+ },
+ {
+  "start": 2167.48,
+  "end": 2176.81,
+  "text": "i don't know almost like just whatever kind of like if each thing that could potentially be"
+ },
+ {
+  "start": 2176.81,
+  "end": 2182.07,
+  "text": "included in the notes came up and was like do you want to include this in the notes like this is"
+ },
+ {
+  "start": 2182.07,
+  "end": 2187.41,
+  "text": "where we'd put it or something like it'd be cool to just like move it with your mouse like put that"
+ },
+ {
+  "start": 2187.41,
+  "end": 2192.91,
+  "text": "in their action items or ours yeah or if it's like oh and also do you want to start this wealth box"
+ },
+ {
+  "start": 2192.91,
+  "end": 2197.59,
+  "text": "task with that or like i don't know maybe maybe you just start with the notes and then from the"
+ },
+ {
+  "start": 2197.59,
+  "end": 2203.45,
+  "text": "notes maybe it moves to another page where it kind of like each little note you know like a"
+ },
+ {
+  "start": 2203.45,
+  "end": 2211.14,
+  "text": "do you want to push this to wild box b what other stuff do you do with notes like start a what are"
+ },
+ {
+  "start": 2211.14,
+  "end": 2219.22,
+  "text": "like a workflow well if this is saying like it can um or if you're wanting to like read and write"
+ },
+ {
+  "start": 2219.22,
+  "end": 2225.7,
+  "text": "into right capital okay like you'd probably need to know like okay are we going to override"
+ },
+ {
+  "start": 2225.7,
+  "end": 2232.35,
+  "text": "whatever we have in right capital currently right um is there any time when that needs to go through"
+ },
+ {
+  "start": 2232.35,
+  "end": 2240.04,
+  "text": "multiple sign-offs so like ideally like if a note was going to do this you could say send this to"
+ },
+ {
+  "start": 2240.04,
+  "end": 2246.22,
+  "text": "andy i think it should go in the notes and then he can approve it and it like but like an automatic"
+ },
+ {
+  "start": 2246.22,
+  "end": 2251.18,
+  "text": "way to get basically colleague feedback on what happens would that be helpful so you don't have"
+ },
+ {
+  "start": 2251.18,
+  "end": 2260.88,
+  "text": "to reach out like personally or yeah really yeah because it sounds like human eyes on this stuff"
+ },
+ {
+  "start": 2260.88,
+  "end": 2269.06,
+  "text": "is like really important yeah i'm thinking just more like we've been doing a lot of works work"
+ },
+ {
+  "start": 2269.06,
+  "end": 2272.84,
+  "text": "to get into different departments and so like we're really trying to like i'm trying to not"
+ },
+ {
+  "start": 2272.84,
+  "end": 2278.66,
+  "text": "touch any planning things and just communicate to philip what needs to be done but like that is"
+ },
+ {
+  "start": 2278.66,
+  "end": 2283.14,
+  "text": "how I'm respecting you is like, I'm not going to touch your software. I'm not going to touch"
+ },
+ {
+  "start": 2283.14,
+  "end": 2289.12,
+  "text": "your slides for the client materials or whatever, you know? And so what I'm trying to think about"
+ },
+ {
+  "start": 2289.12,
+  "end": 2295.26,
+  "text": "is like, I have to pan off a lot of planning items to fill up. And so, and how do you do that"
+ },
+ {
+  "start": 2295.26,
+  "end": 2302.71,
+  "text": "right now? Um, like assign him a task and then just brain dump in the task basically. And he"
+ },
+ {
+  "start": 2302.71,
+  "end": 2311.82,
+  "text": "gets to choose how to put it all into a plan and like the advisor can pipe in too but the thing is"
+ },
+ {
+  "start": 2311.82,
+  "end": 2315.94,
+  "text": "the tricky thing is like coming out of meeting notes it's like the human that was there needs"
+ },
+ {
+  "start": 2315.94,
+  "end": 2322.65,
+  "text": "to look at it and so for us the human that was there was the advisor but like the advisor like"
+ },
+ {
+  "start": 2322.65,
+  "end": 2327.69,
+  "text": "we're trying to get them to do less in terms of like servicing and in terms of planning and in"
+ },
+ {
+  "start": 2327.69,
+  "end": 2333.12,
+  "text": "terms of all these things so it's almost like andy let's say andy's the advisor in the meeting"
+ },
+ {
+  "start": 2333.12,
+  "end": 2339.78,
+  "text": "and the client said like oh i have a new salary you know like andy could like green light that"
+ },
+ {
+  "start": 2339.78,
+  "end": 2347.35,
+  "text": "and send it to philip after the meeting and then philip i guess would just like push it on"
+ },
+ {
+  "start": 2347.35,
+  "end": 2353.99,
+  "text": "to right capital is that what happens right now and note it what he does right now he gets a task"
+ },
+ {
+  "start": 2353.99,
+  "end": 2358.77,
+  "text": "in wealth box anytime he needs to change anything about a client plan and that's sort of just a way"
+ },
+ {
+  "start": 2358.77,
+  "end": 2363.63,
+  "text": "that we can like keep track of what's changing in a client plan so i'm a little confused so maybe"
+ },
+ {
+  "start": 2363.63,
+  "end": 2368.25,
+  "text": "you could go over like with me so the the advisors are with um a client in a meeting and they talk"
+ },
+ {
+  "start": 2368.25,
+  "end": 2373.33,
+  "text": "about a bunch of stuff yeah they generate this simple template of notes and there is a raw"
+ },
+ {
+  "start": 2373.33,
+  "end": 2377.25,
+  "text": "transcript somewhere but that's just kind of on the side a little bit and so this template of notes"
+ },
+ {
+  "start": 2377.25,
+  "end": 2383.53,
+  "text": "so if if they said they changed their income and it's not on the notes what's the process of how"
+ },
+ {
+  "start": 2383.53,
+  "end": 2388.77,
+  "text": "does that ever it has to get on the notes oh okay so otherwise like we don't know the notes are kind"
+ },
+ {
+  "start": 2388.77,
+  "end": 2395.36,
+  "text": "of a final source of truth for the meeting but they are simple and so and so you know if it's"
+ },
+ {
+  "start": 2395.36,
+  "end": 2398.9,
+  "text": "on those notes that the advisor has signed off on it and you can then make that change"
+ },
+ {
+  "start": 2398.9,
+  "end": 2406.3,
+  "text": "yeah okay and if there's then i take the notes and i i turn them all the notes into tasks and"
+ },
+ {
+  "start": 2406.3,
+  "end": 2410.14,
+  "text": "i'll assign a task to philip that's like hey they changed their salary it was noted he'll"
+ },
+ {
+  "start": 2410.14,
+  "end": 2416.42,
+  "text": "actually make the change so it goes from advisor notes to the template to you to philip to the"
+ },
+ {
+  "start": 2416.42,
+  "end": 2424.35,
+  "text": "thing got it it's a lot of hands got it that is a lot of hands yeah yeah um one thing that i'll say"
+ },
+ {
+  "start": 2424.35,
+  "end": 2430.05,
+  "text": "about the notes too is so like the notes are quote-unquote public right like we're sending"
+ },
+ {
+  "start": 2430.05,
+  "end": 2434.17,
+  "text": "those out to the client so if we pick up on something and this happens all the time if we"
+ },
+ {
+  "start": 2434.17,
+  "end": 2439.87,
+  "text": "pick up on something that's like oh wife feels this way husband feels this way about an issue"
+ },
+ {
+  "start": 2439.87,
+  "end": 2444.01,
+  "text": "yeah what happens you don't want to like broadcast that no it's like you have to either do that"
+ },
+ {
+  "start": 2444.01,
+  "end": 2448.27,
+  "text": "really tastefully in the notes like you know she brought up this point which was a great point and"
+ },
+ {
+  "start": 2448.27,
+  "end": 2451.93,
+  "text": "he also brought up this point which is a great point you have to kind of like really massage"
+ },
+ {
+  "start": 2451.93,
+  "end": 2456.45,
+  "text": "that into the notables but like what would be awesome is just kind of like the inside scoop"
+ },
+ {
+  "start": 2456.45,
+  "end": 2463.53,
+  "text": "right um and that is never part of the jump template and so that like a human has to like"
+ },
+ {
+  "start": 2463.53,
+  "end": 2470.31,
+  "text": "add that in like add that color in um or like you know that's andy after a meeting like oh my gosh i"
+ },
+ {
+  "start": 2470.31,
+  "end": 2475.79,
+  "text": "was just almost in a fight with so-and-so and so-and-so like sending us on teams he's calling"
+ },
+ {
+  "start": 2475.79,
+  "end": 2480.67,
+  "text": "me and telling me that or like i mean we're really trying to get that into wealth box like just make"
+ },
+ {
+  "start": 2480.67,
+  "end": 2485.57,
+  "text": "a note in wealth box or like tell me and i'll add it in or something like that because like we want"
+ },
+ {
+  "start": 2485.57,
+  "end": 2490.33,
+  "text": "to be able to find that again because sometimes it's like we'll get beyond the meeting and we're"
+ },
+ {
+  "start": 2490.33,
+  "end": 2495.73,
+  "text": "like okay i remember there was a i remember they felt really differently but who had what side or"
+ },
+ {
+  "start": 2495.73,
+  "end": 2501.37,
+  "text": "like you know the human story like we need the inside scope scoop too yeah so it would be awesome"
+ },
+ {
+  "start": 2501.37,
+  "end": 2506.87,
+  "text": "if jump could have that almost like the external notes the internal stuff that we want to add if"
+ },
+ {
+  "start": 2506.87,
+  "end": 2514.37,
+  "text": "you guys found tomorrow that jump could do this if it could do the normal note templates and then"
+ },
+ {
+  "start": 2514.37,
+  "end": 2524.25,
+  "text": "also produce an internal summary that that this advisor scans and says is good that that is based"
+ },
+ {
+  "start": 2524.25,
+  "end": 2529.03,
+  "text": "on the transcript it's not based right it's based on would would would you guys start using that"
+ },
+ {
+  "start": 2529.03,
+  "end": 2535.03,
+  "text": "like if if it if jump tomorrow says hey we can we can send out another thing to not send out but"
+ },
+ {
+  "start": 2535.03,
+  "end": 2540.46,
+  "text": "save it or send it to the team or like have it as a sub part of your template or something oh i don't"
+ },
+ {
+  "start": 2540.46,
+  "end": 2550.08,
+  "text": "think it would be on it i don't know if we'd send it to the team it would just be saved like i want"
+ },
+ {
+  "start": 2550.08,
+  "end": 2558.33,
+  "text": "that in wealth box so that we can then okay like search that for later because i want to find that"
+ },
+ {
+  "start": 2558.33,
+  "end": 2563.69,
+  "text": "as part of meeting prep inside scoop in wealth box okay right you know right but because that's"
+ },
+ {
+  "start": 2563.69,
+  "end": 2570.28,
+  "text": "where you go for meeting prep yeah but does that alert the whole team not really you know"
+ },
+ {
+  "start": 2570.92,
+  "end": 2574.44,
+  "text": "so does that solve that problem yeah i guess i'm asking yeah because it seems like there's"
+ },
+ {
+  "start": 2574.44,
+  "end": 2578.54,
+  "text": "a social component here if people are getting on teams to communicate important things"
+ },
+ {
+  "start": 2578.54,
+  "end": 2583.71,
+  "text": "from a technical point of view that just it's kind of a disaster in terms of"
+ },
+ {
+  "start": 2584.27,
+  "end": 2591.34,
+  "text": "accurate reporting and memory and history for the humans you're taking care of you know it's"
+ },
+ {
+  "start": 2591.34,
+  "end": 2595.38,
+  "text": "kind of like things are pretty scattered so because it didn't get recorded in the crm so"
+ },
+ {
+  "start": 2595.38,
+  "end": 2601.52,
+  "text": "you're saying it it it it got recorded in the transcript but then it has to go through"
+ },
+ {
+  "start": 2601.52,
+  "end": 2607.76,
+  "text": "a lot of different things that can fizzle human error yes to get to the place where it needs to"
+ },
+ {
+  "start": 2607.76,
+  "end": 2611.38,
+  "text": "go and that's why we all are living in this horrible fear that we are going to be the one"
+ },
+ {
+  "start": 2611.38,
+  "end": 2615.8,
+  "text": "that drops the ball that gets it wrong or makes it wrong or doesn't do something yeah doesn't"
+ },
+ {
+  "start": 2615.8,
+  "end": 2621.06,
+  "text": "or doesn't communicate something with like you know it's a lot it's heavy that's very heavy"
+ },
+ {
+  "start": 2621.06,
+  "end": 2629.36,
+  "text": "it's like i'll have i'll have a client call with somebody and they'll like i mean like yeah kind"
+ },
+ {
+  "start": 2629.36,
+  "end": 2633.1,
+  "text": "of these like phone calls too you know that you'll get these random phone calls and then it's like"
+ },
+ {
+  "start": 2633.1,
+  "end": 2638.9,
+  "text": "well i'll let andy know that's happening or whatever and then yeah i mean you're just trying"
+ },
+ {
+  "start": 2638.9,
+  "end": 2643.6,
+  "text": "to like you don't want to overburden anybody with like giving them too much information but also we"
+ },
+ {
+  "start": 2643.6,
+  "end": 2648.18,
+  "text": "promise that we work really well as a team like we talk to each other we communicate well like"
+ },
+ {
+  "start": 2648.18,
+  "end": 2654.38,
+  "text": "yeah just get it yeah sorry have you guys looked at like no no that's this is amazing feedback so"
+ },
+ {
+  "start": 2654.38,
+  "end": 2660.72,
+  "text": "have you guys looked at things like digital numbers that automatically record and take"
+ },
+ {
+  "start": 2660.72,
+  "end": 2668.58,
+  "text": "transcripts for calls so jump does that advisors are supposed to do that but they don't sometimes"
+ },
+ {
+  "start": 2668.58,
+  "end": 2677.48,
+  "text": "sometimes they don't most of the time um half and half maybe and is that because they they want to"
+ },
+ {
+  "start": 2677.48,
+  "end": 2681.7,
+  "text": "be personable and use their personal cell and just say hey you can call me anytime sort of thing and"
+ },
+ {
+  "start": 2681.7,
+  "end": 2685.94,
+  "text": "i don't want to get on the computer sort of thing or that could be for some advisors that's probably"
+ },
+ {
+  "start": 2685.94,
+  "end": 2691.34,
+  "text": "not ours like we've ours have really tried to like train clients to call them on their work lines"
+ },
+ {
+  "start": 2691.34,
+  "end": 2698.68,
+  "text": "um but not every incoming call is recorded on jump so like if it's an inbound call like then"
+ },
+ {
+  "start": 2698.68,
+  "end": 2704.08,
+  "text": "you kind of have to interrupt like hold on let me see if i can add my you know jump and then when"
+ },
+ {
+  "start": 2704.08,
+  "end": 2708.3,
+  "text": "jump gets on it's like your call is being recorded you know kind of a thing which is like not"
+ },
+ {
+  "start": 2708.3,
+  "end": 2716.01,
+  "text": "enjoyable but yeah yeah like they i i mean i'm impressed like for they do a pretty good job like"
+ },
+ {
+  "start": 2716.01,
+  "end": 2723.13,
+  "text": "trying to add it i never think to add it i'm i have a light seat so like technically i don't"
+ },
+ {
+  "start": 2723.13,
+  "end": 2729.57,
+  "text": "really like i don't have full access to jump like it's not recording everything that i do"
+ },
+ {
+  "start": 2729.57,
+  "end": 2736.96,
+  "text": "basically okay cool i'll check the time 807k we should have a few more minutes um"
+ },
+ {
+  "start": 2736.96,
+  "end": 2749.52,
+  "text": "so we've been talking a lot about note-taking the flow of information from client meetings"
+ },
+ {
+  "start": 2749.52,
+  "end": 2755.32,
+  "text": "all the way to updating important accounts and in your firm how that works and that's been so"
+ },
+ {
+  "start": 2755.32,
+  "end": 2760.46,
+  "text": "valuable because i think this software really like that's the core of what this is trying to"
+ },
+ {
+  "start": 2760.46,
+  "end": 2769.37,
+  "text": "do is make workflows easier more accurate more safe more private and more custom for what you"
+ },
+ {
+  "start": 2769.37,
+  "end": 2777.11,
+  "text": "guys want to do and do on a daily basis so um yeah just like looking at the feature list i don't think"
+ },
+ {
+  "start": 2777.11,
+  "end": 2790.45,
+  "text": "um it's it's almost so yeah our conversation has been much better than going over specific"
+ },
+ {
+  "start": 2790.45,
+  "end": 2794.59,
+  "text": "features because we've been talking about the things that these teachers are trying to help"
+ },
+ {
+  "start": 2794.59,
+  "end": 2806.91,
+  "text": "So basically what I'll do with the feedback from today is I will go and basically assess where we're, where we are currently technically with this software, because the software can do."
+ },
+ {
+  "start": 2807.15,
+  "end": 2816.6,
+  "text": "So if I switch to today tab, it basically shows what is planned, what is being built and what is current."
+ },
+ {
+  "start": 2817.06,
+  "end": 2824.26,
+  "text": "And so you basically gave me like the roadmap on how to guide kind of the progression from here."
+ },
+ {
+  "start": 2824.26,
+  "end": 2830.38,
+  "text": "and I think I think there's a lot built in technically that address a lot of the pains"
+ },
+ {
+  "start": 2830.38,
+  "end": 2837.97,
+  "text": "um but it's it's not ready yet to make like because you know I think ideally I talk to you"
+ },
+ {
+  "start": 2837.97,
+  "end": 2843.35,
+  "text": "enough and then like potentially the team enough to just get the value proposition so clean and so"
+ },
+ {
+  "start": 2843.35,
+  "end": 2847.97,
+  "text": "tight where it just becomes a no-brainer about like that's exactly what we need and I want to"
+ },
+ {
+  "start": 2847.97,
+  "end": 2854.57,
+  "text": "nail it at every part of the frustrating path so that's kind of my goal so I'll take this back and"
+ },
+ {
+  "start": 2854.57,
+  "end": 2860.42,
+  "text": "um, and, and, and, and, um, we'll, we'll keep going. I think this was like tons to work from."
+ },
+ {
+  "start": 2860.76,
+  "end": 2864.16,
+  "text": "Awesome. Thank you. Do you have any final thoughts? Like as you're thinking right now?"
+ },
+ {
+  "start": 2864.78,
+  "end": 2869.36,
+  "text": "Well, I think just what you've described as far as what the AI can do, not necessarily in this"
+ },
+ {
+  "start": 2869.36,
+  "end": 2873.82,
+  "text": "session, but like in some of our private conversations, like, like, I wonder if it"
+ },
+ {
+  "start": 2873.82,
+  "end": 2881.27,
+  "text": "should be framed that this is like an AI team member, you know, or something that like, um,"
+ },
+ {
+  "start": 2881.27,
+  "end": 2890.05,
+  "text": "um tell me more about that what do you just like almost like this is a person who's like a"
+ },
+ {
+  "start": 2890.05,
+  "end": 2897.14,
+  "text": "historian this is someone who can like you know essentially recall like crazy you know knows"
+ },
+ {
+  "start": 2897.14,
+  "end": 2908.14,
+  "text": "exactly um i don't know or even like just i think about like that this is meant to just bridge a lot"
+ },
+ {
+  "start": 2908.14,
+  "end": 2914.66,
+  "text": "of gaps that are currently out there you know i know you've had 15 names but bridge could be an"
+ },
+ {
+  "start": 2914.66,
+  "end": 2925.42,
+  "text": "interesting name too you know like um what are you thinking yeah i don't know i was just looking"
+ },
+ {
+  "start": 2925.42,
+  "end": 2932.08,
+  "text": "at like edit real world real word files and stuff like if they really can if it can really read and"
+ },
+ {
+  "start": 2932.08,
+  "end": 2937.68,
+  "text": "write things you know that's really interesting or what do you mean by read and write um i guess"
+ },
+ {
+  "start": 2937.68,
+  "end": 2944.6,
+  "text": "write in files yeah create files write in them yeah like change them change them like track"
+ },
+ {
+  "start": 2944.6,
+  "end": 2951.08,
+  "text": "change almost like a teammate would that be cool yeah i mean it scares me because like what if it"
+ },
+ {
+  "start": 2951.08,
+  "end": 2957.63,
+  "text": "gets it wrong or yeah accidentally delete something yeah yeah or override something or"
+ },
+ {
+  "start": 2957.63,
+  "end": 2962.25,
+  "text": "overwrite something that we wanted to keep or something like that you know yeah yeah yeah um"
+ },
+ {
+  "start": 2962.25,
+  "end": 2966.85,
+  "text": "humans can do that too yeah totally of course yeah i'm not stating off your a it's just"
+ },
+ {
+  "start": 2966.85,
+  "end": 2971.11,
+  "text": "interesting because like what if i was even more cautious right like what if it only did track"
+ },
+ {
+  "start": 2971.11,
+  "end": 2977.37,
+  "text": "changes um in my experience ai if you tell it can be a hundred times more cautious than a human"
+ },
+ {
+  "start": 2977.37,
+  "end": 2982.93,
+  "text": "so that's a possibility so in word track changes are just um people that suggest changes i don't"
+ },
+ {
+  "start": 2982.93,
+  "end": 2987.61,
+  "text": "know if you guys use that feature of word but basically like if you turn on track changes and"
+ },
+ {
+  "start": 2987.61,
+  "end": 2993.75,
+  "text": "then edit stuff it's different than comments because because it's like it's an edit that like"
+ },
+ {
+  "start": 2993.75,
+  "end": 2999.41,
+  "text": "goes red and had and then has the new text and then in order for anything to actually happen"
+ },
+ {
+  "start": 2999.41,
+  "end": 3004.11,
+  "text": "the document the other person has to accept a track change so this is used a lot in academia"
+ },
+ {
+  "start": 3004.11,
+  "end": 3009.21,
+  "text": "when things go back and forth um with complex word documents like research publications and"
+ },
+ {
+  "start": 3009.21,
+  "end": 3013.25,
+  "text": "papers and stuff so i don't know if it applies so much to you guys because you have a lot of like"
+ },
+ {
+  "start": 3013.25,
+  "end": 3018.31,
+  "text": "forms and templates for people to sign and like summaries and things when you when you're actually"
+ },
+ {
+  "start": 3018.31,
+  "end": 3023.91,
+  "text": "writing a book or like writing content that's kind of more with track changes but like ai told me"
+ },
+ {
+  "start": 3023.91,
+  "end": 3028.81,
+  "text": "that a lot of advisors use track changes because you can also just have just general edits or"
+ },
+ {
+  "start": 3028.81,
+  "end": 3033.29,
+  "text": "anything changed in something that you will pass back and forth to basically refine a document"
+ },
+ {
+  "start": 3033.29,
+  "end": 3039.29,
+  "text": "until it can go out that's the idea have you so do you guys use track changes really no i don't"
+ },
+ {
+  "start": 3039.29,
+  "end": 3045.15,
+  "text": "know how much we use word either i mean okay like probably like we have probably templates and stuff"
+ },
+ {
+  "start": 3045.15,
+  "end": 3052.33,
+  "text": "in word but not you know and we have like our agreements or things in word i mean that could"
+ },
+ {
+  "start": 3052.33,
+  "end": 3056.13,
+  "text": "be nice like if it knew a client's address it'd be like hey can you approve this track change for"
+ },
+ {
+  "start": 3056.13,
+  "end": 3062.8,
+  "text": "this person you know takes it from the template to being like filled in with their information"
+ },
+ {
+  "start": 3062.8,
+  "end": 3067.02,
+  "text": "well i see so like filling it i don't know if it would do that yeah right right right like"
+ },
+ {
+  "start": 3067.02,
+  "end": 3073.4,
+  "text": "giving you a draft of a filled template yeah for you to approve or review with with data so you"
+ },
+ {
+  "start": 3073.4,
+  "end": 3080.55,
+  "text": "don't have to go find it yourself that sounds like an amazing thing yeah and it sounds like a"
+ },
+ {
+  "start": 3080.55,
+  "end": 3085.39,
+  "text": "guarantee like it sounds like a guarantee of where the ai is moving and what it can do"
+ },
+ {
+  "start": 3085.39,
+  "end": 3090.81,
+  "text": "would be valuable so like for certain guardrails right yeah so guardrails about like this thing"
+ },
+ {
+  "start": 3090.81,
+  "end": 3096.68,
+  "text": "will never change something without asking for your approval for it changed or logging it somewhere"
+ },
+ {
+  "start": 3096.68,
+  "end": 3103.34,
+  "text": "you can exactly see yeah yeah yeah probably approval would be like approval i'd be more"
+ },
+ {
+  "start": 3103.34,
+  "end": 3111.62,
+  "text": "comfortable with that like can you prove this um versus just it's changing things and it's like"
+ },
+ {
+  "start": 3111.62,
+  "end": 3116.48,
+  "text": "hoping that i get like that i review its log you know of changes like i've got a lot to do then"
+ },
+ {
+  "start": 3116.48,
+  "end": 3121.73,
+  "text": "and that's maybe just one more thing to think about doing."
+ },
+ {
+  "start": 3121.97,
+  "end": 3122.37,
+  "text": "But I don't know."
+ },
+ {
+  "start": 3122.45,
+  "end": 3123.53,
+  "text": "I'm not really familiar with that,"
+ },
+ {
+  "start": 3123.63,
+  "end": 3125.69,
+  "text": "so I don't know what exactly that would look like."
+ },
+ {
+  "start": 3125.69,
+  "end": 3126.33,
+  "text": "That totally makes sense to me."
+ },
+ {
+  "start": 3126.59,
+  "end": 3128.61,
+  "text": "Reviewing a lot is probably something you guys would never get to."
+ },
+ {
+  "start": 3128.97,
+  "end": 3129.87,
+  "text": "You guys are such a small company."
+ },
+ {
+  "start": 3129.93,
+  "end": 3130.69,
+  "text": "You're so busy."
+ },
+ {
+  "start": 3131.33,
+  "end": 3133.73,
+  "text": "I can tell that there's just a lot of time pressure."
+ },
+ {
+  "start": 3134.25,
+  "end": 3135.79,
+  "text": "There's just a pressure around your time,"
+ },
+ {
+  "start": 3135.89,
+  "end": 3139.61,
+  "text": "and so I really want to respect that,"
+ },
+ {
+  "start": 3139.61,
+  "end": 3142.61,
+  "text": "and AI needs to respect that, in my opinion,"
+ },
+ {
+  "start": 3142.77,
+  "end": 3144.31,
+  "text": "and I think people building stuff with AI,"
+ },
+ {
+  "start": 3144.31,
+  "end": 3151.82,
+  "text": "um that's part of the problem right now is that like it's a lot of uh techie people that don't"
+ },
+ {
+  "start": 3151.82,
+  "end": 3159.22,
+  "text": "understand real world practical flows of like especially fields like yours that are so"
+ },
+ {
+  "start": 3159.22,
+  "end": 3165.46,
+  "text": "luckily approval like ai understands approval you know and i've been working enough with this now"
+ },
+ {
+  "start": 3165.46,
+  "end": 3173.22,
+  "text": "that it has a lot of like not only guardrails but like fundamental principles about things"
+ },
+ {
+  "start": 3173.22,
+  "end": 3178.52,
+  "text": "never leave the computer and like things never do this and things never do this and it's built"
+ },
+ {
+  "start": 3178.52,
+  "end": 3182.28,
+  "text": "on like these founding principles and it's still in all the details will say according to the"
+ },
+ {
+  "start": 3182.28,
+  "end": 3187.72,
+  "text": "principle we can't and we have to create this and like it's very it's very strict and so yeah like"
+ },
+ {
+  "start": 3187.72,
+  "end": 3192.2,
+  "text": "if we if we told it that everything had to be approved which actually that's already probably"
+ },
+ {
+  "start": 3192.2,
+  "end": 3196.7,
+  "text": "in there honestly but it may not just be surfing sitting in every time so we just tell it hey pop"
+ },
+ {
+  "start": 3196.7,
+  "end": 3201.8,
+  "text": "this up and we need this actually has to get a human check off sign off your day might be more"
+ },
+ {
+  "start": 3201.8,
+  "end": 3205.82,
+  "text": "filled instead of going to find things and can talking to people on teams and people aren't"
+ },
+ {
+  "start": 3205.82,
+  "end": 3211.12,
+  "text": "available and stuff to like, what if it was just like an approval list, you know, what do you think"
+ },
+ {
+  "start": 3211.12,
+  "end": 3215.0,
+  "text": "of something like that? I understand your concerns about the accuracy, right? And that's totally,"
+ },
+ {
+  "start": 3215.0,
+  "end": 3220.1,
+  "text": "and, and, and I'm sure there's more we can do there to, to increase the confidence in that"
+ },
+ {
+  "start": 3220.1,
+  "end": 3226.58,
+  "text": "review. You know, one thing that's built in right now is that like in the ask, there's no, there's"
+ },
+ {
+  "start": 3226.58,
+  "end": 3233.62,
+  "text": "no response or part of a response that isn't cited so cited from an actual source and if it does give"
+ },
+ {
+  "start": 3233.62,
+  "end": 3239.62,
+  "text": "you general information that it has summarized from some sources it will say general information"
+ },
+ {
+  "start": 3239.62,
+  "end": 3243.22,
+  "text": "or like general support and so one thing i'm trying to do is and this is new like"
+ },
+ {
+  "start": 3244.02,
+  "end": 3249.54,
+  "text": "no one's done this yet is cited ai sources basically where you click the source and it"
+ },
+ {
+  "start": 3249.54,
+  "end": 3252.5,
+  "text": "pops out you click on it and you're in the actual document in like less than a second"
+ },
+ {
+  "start": 3252.5,
+  "end": 3259.82,
+  "text": "um so you can like verify and stuff and so we work on this in wheel basically you know trust with ai"
+ },
+ {
+  "start": 3259.82,
+  "end": 3266.14,
+  "text": "um and it does it builds it builds and actually relatively quickly too like and i think like"
+ },
+ {
+  "start": 3266.14,
+  "end": 3270.48,
+  "text": "but but it has to be real it had like the accuracy has to be there like you can't make mistakes but"
+ },
+ {
+  "start": 3270.48,
+  "end": 3277.93,
+  "text": "once it doesn't then people are usually um it ends up helping a lot so like and and i say the"
+ },
+ {
+  "start": 3277.93,
+  "end": 3282.53,
+  "text": "thing about approval too like because that's what's starting to happen in my job i i i haven't"
+ },
+ {
+  "start": 3282.53,
+  "end": 3288.12,
+  "text": "been in Figma for months and um that's insane and really I'm just approving either what people tell"
+ },
+ {
+  "start": 3288.12,
+  "end": 3293.68,
+  "text": "me or what AI tells me I kind of pass over and I just feel so much better about my life I just feel"
+ },
+ {
+  "start": 3293.68,
+  "end": 3299.38,
+  "text": "like I feel less grunt work I feel like less like I'm a little slave I feel more in control of my"
+ },
+ {
+  "start": 3299.38,
+  "end": 3304.34,
+  "text": "life I feel like I have more time on my hands like it's doing all these amazing things like so I don't"
+ },
+ {
+  "start": 3304.34,
+  "end": 3308.34,
+  "text": "know if you resonate with any of that but yeah it's kind of what this program is trying to like"
+ },
+ {
+  "start": 3308.34,
+  "end": 3313.38,
+  "text": "help with and and all ai is trying to help with right now so i don't know if you have any thoughts"
+ },
+ {
+  "start": 3313.38,
+  "end": 3322.35,
+  "text": "yeah i mean i just i i think about like just some of the minutiae being able to be addressed"
+ },
+ {
+  "start": 3322.35,
+  "end": 3328.56,
+  "text": "i don't know it yeah it just gets me excited about like what would we do with our time back"
+ },
+ {
+  "start": 3328.56,
+  "end": 3334.94,
+  "text": "you know or like maybe would would more of us attend the meeting like is the you know because"
+ },
+ {
+  "start": 3334.94,
+  "end": 3342.02,
+  "text": "like it starts to really feel like those meetings are then turn into the gold you know or like would"
+ },
+ {
+  "start": 3342.02,
+  "end": 3346.92,
+  "text": "i watch the recordings of the meeting you know if i had more time so that i'm even more like you"
+ },
+ {
+  "start": 3346.92,
+  "end": 3352.62,
+  "text": "know see their expressions see their whatever you know so i don't know that's a cool idea i think"
+ },
+ {
+  "start": 3352.62,
+  "end": 3358.34,
+  "text": "about that or just being more available for conversations right or calling someone up out"
+ },
+ {
+  "start": 3358.34,
+  "end": 3363.43,
+  "text": "of the blue and just be like hey i'm just calling to just check on you you know yeah i know you were"
+ },
+ {
+  "start": 3363.43,
+  "end": 3368.43,
+  "text": "concerned about this and this and this year last meeting you know right like yeah not too stressed"
+ },
+ {
+  "start": 3368.43,
+  "end": 3373.31,
+  "text": "to call people yeah like exactly because i think sometimes i get stressed to call people because i"
+ },
+ {
+  "start": 3373.31,
+  "end": 3377.93,
+  "text": "feel like i'll leave with homework i'm like i'm already busy enough so then i would also have to"
+ },
+ {
+  "start": 3377.93,
+  "end": 3382.65,
+  "text": "have a 30-minute conversation with them and then there's a very good likelihood that they'll need"
+ },
+ {
+  "start": 3382.65,
+  "end": 3389.25,
+  "text": "something and then i need to like communicate what they need to the team send out tasks you"
+ },
+ {
+  "start": 3389.25,
+  "end": 3395.59,
+  "text": "know like yeah almost like there's no rest for the or like there's no reward for doing something good"
+ },
+ {
+  "start": 3395.59,
+  "end": 3402.05,
+  "text": "yeah you're just like your reward is like more work you know in a way yeah exactly so yeah and"
+ },
+ {
+  "start": 3402.05,
+  "end": 3406.69,
+  "text": "i think that's cool too because i think that preserves really the human element of advising"
+ },
+ {
+  "start": 3406.69,
+  "end": 3411.79,
+  "text": "because we're gonna have and we already do have a lot of robo advising out there and so like we"
+ },
+ {
+  "start": 3411.79,
+  "end": 3416.05,
+  "text": "need to compete with that and be like hey it's way better to meet with a huge or like to have"
+ },
+ {
+  "start": 3416.05,
+  "end": 3422.37,
+  "text": "relationship with a human so if we can leverage ai to do the grunt work then like we can show"
+ },
+ {
+  "start": 3422.37,
+  "end": 3426.27,
+  "text": "people that it's worth their time like we're sending you this meaningful gift we're calling"
+ },
+ {
+  "start": 3426.27,
+  "end": 3430.59,
+  "text": "you out of the blue just to say hi we're doing you know like some more of the human touches"
+ },
+ {
+  "start": 3430.59,
+  "end": 3440.46,
+  "text": "touch things that maybe could make more sticky business that's amazing so yeah well thanks for"
+ },
+ {
+  "start": 3440.46,
+  "end": 3450.85,
+  "text": "building something really cool for us oh i was going to ask you yeah with um like sometimes let's"
+ },
+ {
+  "start": 3450.85,
+  "end": 3458.17,
+  "text": "say someone will have like this is a good example an umbrella insurance policy and so um let's say"
+ },
+ {
+  "start": 3458.17,
+  "end": 3463.84,
+  "text": "they have a one million dollar umbrella insurance policy on the network like within their file"
+ },
+ {
+  "start": 3463.84,
+  "end": 3470.22,
+  "text": "like they've sent us the policy itself so it's saved it within one drive yeah and then we have"
+ },
+ {
+  "start": 3470.22,
+  "end": 3473.46,
+  "text": "a meeting with them and we make a recommendation that they should really be getting like a two"
+ },
+ {
+  "start": 3473.46,
+  "end": 3479.36,
+  "text": "million dollar policy and then we have a task to like then ask them or whatever if they got a two"
+ },
+ {
+  "start": 3479.36,
+  "end": 3485.02,
+  "text": "million dollar policy ideally clients are sending us new files like when it's like oh i got a new"
+ },
+ {
+  "start": 3485.02,
+  "end": 3490.24,
+  "text": "insurance policy here's my new policy that now shows two million dollars um but a lot of times"
+ },
+ {
+  "start": 3490.24,
+  "end": 3499.14,
+  "text": "they don't because it's just a pain so can this tool help know that it's like if if we ask like"
+ },
+ {
+  "start": 3499.14,
+  "end": 3504.38,
+  "text": "do they have an umbrella policy and if so like what amount is it like is it smart enough to like"
+ },
+ {
+  "start": 3504.38,
+  "end": 3509.56,
+  "text": "be able to see that yes they have a umbrella policy like we have the actual file that shows"
+ },
+ {
+  "start": 3509.56,
+  "end": 3514.48,
+  "text": "they have a one million dollar umbrella policy but then the latest was like an email exchange"
+ },
+ {
+  "start": 3514.48,
+  "end": 3519.32,
+  "text": "that said yes they updated it to a two million dollar policy i see does that make sense yeah"
+ },
+ {
+  "start": 3519.32,
+  "end": 3524.92,
+  "text": "can it do that what what why uh why are you asking why do you ask like why do you like is it smart"
+ },
+ {
+  "start": 3524.92,
+  "end": 3531.81,
+  "text": "enough to know that. So I'm just curious where, where the question comes from. Like, are you,"
+ },
+ {
+  "start": 3531.91,
+  "end": 3537.7,
+  "text": "do you, um, is that a problem right now? Um, or is that just a pure concern you have about the"
+ },
+ {
+  "start": 3537.7,
+  "end": 3543.87,
+  "text": "technology or, um, yeah, it's a problem that we have right now. Like, well, there's just the"
+ },
+ {
+  "start": 3543.87,
+  "end": 3548.79,
+  "text": "question of like, what is the latest and greatest, you know, on something. So what would you want it"
+ },
+ {
+  "start": 3548.79,
+  "end": 3553.15,
+  "text": "to do? Would you want it to, if you, yeah. How would you want it to respond basically? What"
+ },
+ {
+  "start": 3553.15,
+  "end": 3561.4,
+  "text": "would be the the ideal response to that question probably like giving me a summary of anything"
+ },
+ {
+  "start": 3561.4,
+  "end": 3566.38,
+  "text": "umbrella related for their world like like i can see that they have this file like we have this"
+ },
+ {
+  "start": 3566.38,
+  "end": 3574.1,
+  "text": "file that was dated at this point that shows a one million dollar but i also can see that there's"
+ },
+ {
+  "start": 3574.1,
+  "end": 3578.1,
+  "text": "been emails or like it was mentioned in this meeting or there was a recommended like that"
+ },
+ {
+  "start": 3578.1,
+  "end": 3581.9,
+  "text": "they'd get a two million dollar i don't know that it wouldn't have to do like the whole history"
+ },
+ {
+  "start": 3581.9,
+  "end": 3589.54,
+  "text": "because like some questions there could be a long history you know but i mean ideally like i'm"
+ },
+ {
+  "start": 3589.54,
+  "end": 3594.68,
+  "text": "wanting it to say like while the file shows that they have one million dollar we've received like"
+ },
+ {
+  "start": 3594.68,
+  "end": 3599.78,
+  "text": "email updates that say they have a two million dollar and these are the dates these are the"
+ },
+ {
+  "start": 3599.78,
+  "end": 3604.58,
+  "text": "dates yeah cool so it sounds like you wouldn't want just they're on a two million dollar it"
+ },
+ {
+  "start": 3604.58,
+  "end": 3608.42,
+  "text": "sounds like you want a little bit of a timeline but not too long of a time yeah some things are"
+ },
+ {
+  "start": 3608.42,
+  "end": 3615.28,
+  "text": "huge timelines yeah they're kind of like yeah let me read the latest on that yeah yeah yeah nice"
+ },
+ {
+  "start": 3615.28,
+  "end": 3621.76,
+  "text": "well the answer is usually uh yes it can but it just doesn't know what to do so you just describe"
+ },
+ {
+  "start": 3621.76,
+  "end": 3626.18,
+  "text": "what and that's the perfect thing the ideal response right so this timeline this going over"
+ },
+ {
+  "start": 3626.18,
+  "end": 3631.03,
+  "text": "the but then there's some concern that'll be too long what's how big is the concern that it'll be"
+ },
+ {
+  "start": 3631.03,
+  "end": 3637.87,
+  "text": "too long i mean obviously yeah anyways it it'll be smart enough not to dump stuff on you where"
+ },
+ {
+  "start": 3637.87,
+  "end": 3643.79,
+  "text": "like it's unreasonable you can't go back and stuff so interesting it's hard to answer a timeline"
+ },
+ {
+  "start": 3643.79,
+  "end": 3650.28,
+  "text": "question because um some things happen frequently and some things happen slow like in some clients"
+ },
+ {
+  "start": 3650.28,
+  "end": 3654.96,
+  "text": "lives something will happen annually let's say they annually will gift something so it's hard"
+ },
+ {
+  "start": 3654.96,
+  "end": 3659.52,
+  "text": "if you were to say like oh don't give me more history than further than a year because sometimes"
+ },
+ {
+  "start": 3659.52,
+  "end": 3665.48,
+  "text": "the pattern actually is a yearly cadence in which case you'd be looking for like kind of like what's"
+ },
+ {
+  "start": 3665.48,
+  "end": 3669.18,
+  "text": "happened over the last like three years for instance right and if we were to cap it and be"
+ },
+ {
+  "start": 3669.18,
+  "end": 3676.0,
+  "text": "like oh don't you know overwhelm them with three like they only gift their grandchildren every"
+ },
+ {
+  "start": 3676.0,
+  "end": 3681.28,
+  "text": "january you know like that only happens once a year you know and so to be able to like spot the"
+ },
+ {
+  "start": 3681.28,
+  "end": 3685.24,
+  "text": "pattern as the advisor you should probably want to see back three years or whatever does that make"
+ },
+ {
+  "start": 3685.24,
+  "end": 3691.3,
+  "text": "sense yeah totally why that's tricky yeah yeah versus something else who's like oh that's like"
+ },
+ {
+  "start": 3691.3,
+  "end": 3695.52,
+  "text": "an umbrella policy like someone's not going to update that like 24 like all the time you know"
+ },
+ {
+  "start": 3695.52,
+  "end": 3700.44,
+  "text": "That's going to be like, there's going to be some life event and it's going to be like, oh, okay, we need more coverage."
+ },
+ {
+  "start": 3700.7,
+  "end": 3713.98,
+  "text": "And so you would maybe update your umbrella policy once every, I mean, most frequently every four years or something, you know, but more likely you just get a policy and stick with it, you know."
+ },
+ {
+  "start": 3714.24,
+  "end": 3714.72,
+  "text": "That's really cool."
+ },
+ {
+  "start": 3714.72,
+  "end": 3719.26,
+  "text": "So like if we could, if, if, if we made like a demo video, um, demonstrating that basically"
+ },
+ {
+  "start": 3719.26,
+  "end": 3724.18,
+  "text": "that exact question and it was successfully able to like navigate this complex history"
+ },
+ {
+  "start": 3724.18,
+  "end": 3733.42,
+  "text": "and present an answer that was cited and represented the complex nature of the whole"
+ },
+ {
+  "start": 3733.42,
+  "end": 3735.7,
+  "text": "thing and, and potentially questions that I had."
+ },
+ {
+  "start": 3735.8,
+  "end": 3739.7,
+  "text": "So I'm not sure about this, but this is what happened here and here, that sort of things"
+ },
+ {
+  "start": 3739.7,
+  "end": 3740.4,
+  "text": "that we were talking about."
+ },
+ {
+  "start": 3740.4,
+  "end": 3745.18,
+  "text": "Yep. So a couple of really good examples would probably be umbrella. Cause that would be,"
+ },
+ {
+  "start": 3745.3,
+  "end": 3750.16,
+  "text": "that would have like a scope to it. Like it would have like a window. Right. I would say. And then"
+ },
+ {
+  "start": 3750.16,
+  "end": 3755.46,
+  "text": "I think another one that would be good, it would be, and I don't know if every advisory firm does"
+ },
+ {
+  "start": 3755.46,
+  "end": 3761.83,
+  "text": "this, but like asking about someone's company benefits. Okay. Um, I think that would be"
+ },
+ {
+  "start": 3761.83,
+  "end": 3766.59,
+  "text": "interesting. Like, do we know if they are currently have an HSA? Cause sometimes clients move jobs a"
+ },
+ {
+  "start": 3766.59,
+  "end": 3770.79,
+  "text": "lot. And so then their company benefits changes a lot. And so it's like trying to kind of keep"
+ },
+ {
+  "start": 3770.79,
+  "end": 3780.85,
+  "text": "up with that like yeah do we know if yeah if they have current hsa or i don't know something else are"
+ },
+ {
+  "start": 3780.85,
+  "end": 3787.88,
+  "text": "they using his benefits or her benefits or like something like that um does that deserve its own"
+ },
+ {
+  "start": 3787.88,
+  "end": 3794.19,
+  "text": "map do you think like you know it's always possible to pull something out and have ai creates"
+ },
+ {
+  "start": 3794.19,
+  "end": 3801.07,
+  "text": "we call them artifacts but basically like some sort of graphic timeline for one specific thing"
+ },
+ {
+  "start": 3801.07,
+  "end": 3804.55,
+  "text": "in your job like when you think of something that like it could help you with specifically"
+ },
+ {
+  "start": 3804.55,
+  "end": 3813.56,
+  "text": "like what an insurance timeline or map or just like a map of like what they're on so that you"
+ },
+ {
+  "start": 3813.56,
+  "end": 3820.92,
+  "text": "could go to um or is there anything else in your job that you would like specific help with"
+ },
+ {
+  "start": 3820.92,
+  "end": 3828.05,
+  "text": "i would love specific help with cash needs probably for a lot of people and what does that"
+ },
+ {
+  "start": 3828.05,
+  "end": 3839.3,
+  "text": "mean so like if they so some cash needs stories are going to be boring like it'll be like someone's"
+ },
+ {
+  "start": 3839.3,
+  "end": 3843.76,
+  "text": "like an accumulator so they're putting money in to their account I mean even then that would be"
+ },
+ {
+  "start": 3843.76,
+  "end": 3849.4,
+  "text": "helpful to know like sort of like I don't know if they're saving this much to Schwab every month"
+ },
+ {
+  "start": 3849.4,
+  "end": 3853.98,
+  "text": "or something like that like kind of the cash story because that could be another thing is like"
+ },
+ {
+  "start": 3853.98,
+  "end": 3858.7,
+  "text": "sometimes in prep for a meeting you might have to go to Schwab and look at like how much are"
+ },
+ {
+  "start": 3858.7,
+  "end": 3864.86,
+  "text": "they saving something or are they doing whatever yeah um but like some people have really complicated"
+ },
+ {
+  "start": 3864.86,
+  "end": 3869.2,
+  "text": "especially when they start to decumulate their assets so take things out yeah they have like"
+ },
+ {
+  "start": 3869.2,
+  "end": 3875.72,
+  "text": "kind of just a complicated flow of i'm sure it's very complicated where money goes where it needs"
+ },
+ {
+  "start": 3875.72,
+  "end": 3881.5,
+  "text": "to go how much cash you need to have available and that kind of touches the investment world"
+ },
+ {
+  "start": 3881.5,
+  "end": 3888.75,
+  "text": "because they have to like liquidate cash on a certain schedule or whatever right um how are"
+ },
+ {
+  "start": 3888.75,
+  "end": 3896.46,
+  "text": "these things tracked right now well the investment team has some sort of thing like a way that they"
+ },
+ {
+  "start": 3896.46,
+  "end": 3901.82,
+  "text": "can mark like let's say they have something in money market fund they know that in three months"
+ },
+ {
+  "start": 3901.82,
+  "end": 3905.52,
+  "text": "i don't know if they're gonna need or in five months they're gonna need to like"
+ },
+ {
+  "start": 3905.52,
+  "end": 3911.76,
+  "text": "have cash for something so like they may feel like oh it's good to liquidate cash now and then"
+ },
+ {
+  "start": 3911.76,
+  "end": 3916.68,
+  "text": "they'll put it in a money market account to hold it and so they can kind of label things a little"
+ },
+ {
+  "start": 3916.68,
+  "end": 3922.26,
+  "text": "bit on their end like this is we're kind of like earmarking this as cash for this thing or like"
+ },
+ {
+  "start": 3922.26,
+  "end": 3927.62,
+  "text": "this client is doing a home like here's a good example like they are um doing a home remodel"
+ },
+ {
+  "start": 3927.62,
+  "end": 3932.55,
+  "text": "so they're going to need three hundred thousand dollars but they're going to need it in different"
+ },
+ {
+  "start": 3932.55,
+  "end": 3936.19,
+  "text": "pieces they don't know when they're going to need it but they're going to need it over the next two"
+ },
+ {
+  "start": 3936.19,
+  "end": 3943.2,
+  "text": "years so they can kind of like earmark okay we're taking 300 grand we're earmarking it for this and"
+ },
+ {
+  "start": 3943.2,
+  "end": 3948.28,
+  "text": "then as they request it for different things like assuming i communicate like oh this is for their"
+ },
+ {
+  "start": 3948.28,
+  "end": 3952.64,
+  "text": "house then they wanted 70 000 okay so now they're gonna go adjust their little thing and be like"
+ },
+ {
+  "start": 3952.64,
+  "end": 3957.52,
+  "text": "okay so now it's 230 and that's for their house or whatever so they have like some sort of way to do"
+ },
+ {
+  "start": 3957.52,
+  "end": 3965.24,
+  "text": "it but like sometimes it's confusing for me you know just like trying to keep track of yeah what"
+ },
+ {
+  "start": 3965.24,
+  "end": 3973.8,
+  "text": "money is going out for what yeah and yeah i don't know but i feel like a lot of the features that"
+ },
+ {
+  "start": 3973.8,
+  "end": 3978.32,
+  "text": "you've talked about maybe before this like i feel like that would be a really awesome"
+ },
+ {
+  "start": 3978.32,
+  "end": 3986.11,
+  "text": "thing sort of after the fact but i almost feel like that would be hard to keep up to date i guess"
+ },
+ {
+  "start": 3986.11,
+  "end": 3992.64,
+  "text": "okay you know you'd be concerned about it going out of date yeah so it'd need to be it'd need to"
+ },
+ {
+  "start": 3992.64,
+  "end": 3997.24,
+  "text": "be up to date i think yeah like if you were to go visit it and i was out of date it'd probably"
+ },
+ {
+  "start": 3997.24,
+  "end": 4003.7,
+  "text": "decrease trust a lot like you'd be like oh i can't trust this system yeah yeah and that and it might"
+ },
+ {
+  "start": 4003.7,
+  "end": 4010.95,
+  "text": "be just fairly connected to like a Schwab too. Yeah. I was trying to decide if this is like"
+ },
+ {
+  "start": 4010.95,
+  "end": 4017.2,
+  "text": "worth building. Cause in some ways it'd be really nice to have, or it'd be really nice. Okay. It'd"
+ },
+ {
+  "start": 4017.2,
+  "end": 4020.58,
+  "text": "be nice to have, I don't know if it like makes sense for your thing right now, but I'll just go,"
+ },
+ {
+  "start": 4020.76,
+  "end": 4030.49,
+  "text": "go down the path. Like everybody has their own way that they think about their money and the way that"
+ },
+ {
+  "start": 4030.49,
+  "end": 4034.85,
+  "text": "even they think about their bank or their this or their that, you know? And so sometimes like"
+ },
+ {
+  "start": 4034.85,
+  "end": 4039.57,
+  "text": "they'll tell you a story like you can have like i'll have three bank accounts linked for that"
+ },
+ {
+  "start": 4039.57,
+  "end": 4044.19,
+  "text": "person to an account and they're just like oh we'll send it to my account that i use for my"
+ },
+ {
+  "start": 4044.19,
+  "end": 4050.05,
+  "text": "rental properties so like keeping track of like what bank is for their rental properties versus"
+ },
+ {
+  "start": 4050.05,
+  "end": 4054.37,
+  "text": "just their normal check because i all i see is their three checking accounts you know and so like"
+ },
+ {
+  "start": 4054.37,
+  "end": 4059.57,
+  "text": "kind of being able to like keep that internal notes of like right now i just have that like"
+ },
+ {
+  "start": 4059.57,
+  "end": 4064.87,
+  "text": "written in an internal note inside of wealth box and pinned to the top so it can't disappear and"
+ },
+ {
+  "start": 4064.87,
+  "end": 4069.07,
+  "text": "that's where i like add little things okay do not forget this is their rental account"
+ },
+ {
+  "start": 4069.07,
+  "end": 4075.19,
+  "text": "yeah but like it'd be cool to have a map of that you know like okay the wells fargo one is for the"
+ },
+ {
+  "start": 4075.19,
+  "end": 4081.15,
+  "text": "rental the jp morgan one is for their home and this one is for their business or whatever so"
+ },
+ {
+  "start": 4081.15,
+  "end": 4084.23,
+  "text": "like when they're like oh i need funds for my business i know exactly where to send it"
+ },
+ {
+  "start": 4084.23,
+  "end": 4090.5,
+  "text": "um like that would be nice it'd be nice to kind of like just map out like sometimes there's"
+ },
+ {
+  "start": 4090.5,
+  "end": 4096.24,
+  "text": "complicated things like this grandfather gifts his grandchildren money every year yeah but it"
+ },
+ {
+  "start": 4096.24,
+  "end": 4102.12,
+  "text": "needs to go like i don't know into their 529 account or it needs to go into like the child's"
+ },
+ {
+  "start": 4102.12,
+  "end": 4106.04,
+  "text": "individual account or it actually flows to the parent's account and the parent puts it in wherever"
+ },
+ {
+  "start": 4106.04,
+  "end": 4112.0,
+  "text": "you know so like kind of keeping track of all of those things yeah i don't know some like those"
+ },
+ {
+  "start": 4112.0,
+  "end": 4117.32,
+  "text": "like that kind of money movement stuff is usually kept in tasks so it's like right there with the"
+ },
+ {
+  "start": 4117.32,
+  "end": 4123.76,
+  "text": "tasks but it's not a task it's information right yeah sometimes tasks sound like sticky notes are"
+ },
+ {
+  "start": 4123.76,
+  "end": 4128.8,
+  "text": "they like sticky notes that sometimes have you do stuff kind of yeah yeah I mean you can check"
+ },
+ {
+  "start": 4128.8,
+  "end": 4135.92,
+  "text": "them off they can be recurring they can be um that kind of thing I've ran into the issue before"
+ },
+ {
+  "start": 4135.92,
+  "end": 4140.68,
+  "text": "where like a certain client had like two Roth IRAs so I got a task that was like change this"
+ },
+ {
+  "start": 4140.68,
+  "end": 4145.2,
+  "text": "thing in this guy's Roth IRA and it had the last four of the account number so I should have looked"
+ },
+ {
+  "start": 4145.2,
+  "end": 4150.64,
+  "text": "a little bit closer but generally people don't have like tons of multiple of the same like we're"
+ },
+ {
+  "start": 4150.64,
+  "end": 4154.02,
+  "text": "pretty good at like consolidating so like you wouldn't have like four Roth IRAs like that just"
+ },
+ {
+  "start": 4154.02,
+  "end": 4161.22,
+  "text": "doesn't make sense like we would just have the one um and so anyways it ended up like I did it on"
+ },
+ {
+  "start": 4161.22,
+  "end": 4166.34,
+  "text": "the wrong one of his Roth IRAs like the guy had like nine accounts so it's like it's hard to see"
+ },
+ {
+  "start": 4166.34,
+  "end": 4171.58,
+  "text": "them all at once and Schwab and I didn't realize he had multiple Roths and so like I don't know"
+ },
+ {
+  "start": 4171.58,
+  "end": 4175.6,
+  "text": "something like that where it's almost like a map of like their accounts and their cash"
+ },
+ {
+  "start": 4175.6,
+  "end": 4185.14,
+  "text": "like needs or just kind of how they think about their flows or being able to kind of note like oh"
+ },
+ {
+  "start": 4185.14,
+  "end": 4191.28,
+  "text": "we're not holding cash for them at Schwab because they've they typically hold about this much cash"
+ },
+ {
+  "start": 4191.28,
+  "end": 4196.04,
+  "text": "at their bank okay or something like that you know because that would be really cool if you"
+ },
+ {
+  "start": 4196.04,
+  "end": 4199.86,
+  "text": "Because, like, look at that before a meeting and just, like, now how are your cash reserves at Wells Fargo going?"
+ },
+ {
+  "start": 4200.06,
+  "end": 4203.01,
+  "text": "But that's hard to know where they bank."
+ },
+ {
+  "start": 4203.13,
+  "end": 4206.01,
+  "text": "Like, remind yourself where they're keeping, like, their cash reserves."
+ },
+ {
+  "start": 4206.25,
+  "end": 4206.59,
+  "text": "Yeah, okay."
+ },
+ {
+  "start": 4206.81,
+  "end": 4208.67,
+  "text": "So I don't know if that's worth building, but."
+ },
+ {
+  "start": 4209.34,
+  "end": 4210.6,
+  "text": "How would you know if it's in a well?"
+ },
+ {
+  "start": 4212.21,
+  "end": 4213.31,
+  "text": "Schwab shows their wells."
+ },
+ {
+  "start": 4216.09,
+  "end": 4216.45,
+  "text": "No."
+ },
+ {
+  "start": 4216.91,
+  "end": 4220.81,
+  "text": "I mean, Schwab will show what banks we have linked to their accounts."
+ },
+ {
+  "start": 4220.99,
+  "end": 4221.29,
+  "text": "Right."
+ },
+ {
+  "start": 4221.43,
+  "end": 4224.85,
+  "text": "So we could potentially have a link to, like, their wells, Fargo."
+ },
+ {
+  "start": 4224.85,
+  "end": 4230.91,
+  "text": "but people people squirrel away their money like interesting places they would have just told you"
+ },
+ {
+  "start": 4230.91,
+  "end": 4234.55,
+  "text": "at a meeting like if you were like do you guys have adequate cash reserves that's when they"
+ },
+ {
+  "start": 4234.55,
+  "end": 4237.59,
+  "text": "would tell you like where their cash reserves are under the mattress we've got sixty thousand"
+ },
+ {
+  "start": 4237.59,
+  "end": 4243.75,
+  "text": "dollars yeah i like to keep eighty thousand dollars cash in my bank account you know i see"
+ },
+ {
+  "start": 4243.75,
+  "end": 4250.93,
+  "text": "i see and and i want you to hold fifty thousand dollars of cash in my schwab account like i only"
+ },
+ {
+  "start": 4250.93,
+  "end": 4257.95,
+  "text": "feel comfortable when i'm at 130 000 of cash you know yeah like actually knowing that number is a"
+ },
+ {
+  "start": 4257.95,
+  "end": 4264.24,
+  "text": "big deal for some people yeah wow you know because then other people are like i are you kidding yeah"
+ },
+ {
+  "start": 4264.24,
+  "end": 4268.84,
+  "text": "i have enough money i've got a 10 in my wallet like they don't care yeah yeah yeah you know"
+ },
+ {
+  "start": 4268.84,
+  "end": 4273.34,
+  "text": "but other people are like i'm getting really stressed because i don't have a hundred thousand"
+ },
+ {
+  "start": 4273.34,
+  "end": 4278.7,
+  "text": "dollars of cash right you know and so it's like okay well we can all right and so they appreciate"
+ },
+ {
+  "start": 4278.7,
+  "end": 4283.82,
+  "text": "if you're like how's your cash reserves holding up you know right right yeah so that's messy that's"
+ },
+ {
+  "start": 4283.82,
+  "end": 4290.39,
+  "text": "complicated it is yeah as you think about other things you'd want mapped as part of your job like"
+ },
+ {
+  "start": 4290.39,
+  "end": 4295.17,
+  "text": "in total different categories or think about other ways that you interact with your team or the other"
+ },
+ {
+  "start": 4295.17,
+  "end": 4300.58,
+  "text": "types of things you have to do are there other is there other help you'd want in your job"
+ },
+ {
+  "start": 4300.58,
+  "end": 4307.69,
+  "text": "and don't think about it from a technical perspective just i wish someone could or i"
+ },
+ {
+  "start": 4307.69,
+  "end": 4313.47,
+  "text": "wish something good. That's all I'm looking for. That's the most valuable. Yeah. I wish like a"
+ },
+ {
+  "start": 4313.47,
+  "end": 4317.29,
+  "text": "client meetings could get booked on their own. And what does that mean? What do you mean"
+ },
+ {
+  "start": 4317.29,
+  "end": 4322.17,
+  "text": "specifically? Like I have to look at a client list. I have to determine like who has and has"
+ },
+ {
+  "start": 4322.17,
+  "end": 4328.45,
+  "text": "not scheduled for the year. And then like, I have to send an email out to every person."
+ },
+ {
+  "start": 4328.45,
+  "end": 4334.6,
+  "text": "How do they schedule? So ideally they schedule their next meeting kind of like at the dentist,"
+ },
+ {
+  "start": 4334.6,
+  "end": 4339.42,
+  "text": "like during their current meeting okay and is that verbal to the advisors or do they get on"
+ },
+ {
+  "start": 4339.42,
+  "end": 4345.74,
+  "text": "and actually put it verbal to the advisors got it and so sometimes the advisors will like do it"
+ },
+ {
+  "start": 4345.74,
+  "end": 4350.8,
+  "text": "actively on calendly like during the meeting but they don't really love doing that okay so oftentimes"
+ },
+ {
+  "start": 4350.8,
+  "end": 4354.74,
+  "text": "that just comes through to the notes to like the service team like i can just see like oh i'm"
+ },
+ {
+  "start": 4354.74,
+  "end": 4359.34,
+  "text": "supposed to book that meeting like if i don't see on the advisor calendar then i book it through"
+ },
+ {
+  "start": 4359.34,
+  "end": 4366.66,
+  "text": "through Calendly but sometimes Calendly like sometimes an advisor will book something back"
+ },
+ {
+  "start": 4366.66,
+  "end": 4370.82,
+  "text": "to back and Calendly has specific rules like it won't let you book like you need like 30 minute"
+ },
+ {
+  "start": 4370.82,
+  "end": 4376.54,
+  "text": "breaks or whatever and so I feel like do you just go to Outlook 40% of the time I have to do it by"
+ },
+ {
+  "start": 4376.54,
+  "end": 4383.5,
+  "text": "hand in Outlook in Outlook inviting the advisor and the client together yeah and then you send"
+ },
+ {
+  "start": 4383.5,
+  "end": 4390.04,
+  "text": "reminders manually as well uh-huh and like oh i see that you haven't yet done your like signed"
+ },
+ {
+  "start": 4390.04,
+  "end": 4394.9,
+  "text": "up for your fall meeting like now i'm following up again yeah yeah yeah a second follow-up yeah"
+ },
+ {
+  "start": 4394.9,
+  "end": 4399.82,
+  "text": "so we do two follow-ups and then if they still haven't responded then we tell the advisors who"
+ },
+ {
+  "start": 4399.82,
+  "end": 4406.46,
+  "text": "hasn't scheduled and the advisors will sometimes do a third follow-up or they'll tell us like we"
+ },
+ {
+  "start": 4406.46,
+  "end": 4411.58,
+  "text": "can let it go for the next time so like i wish there was something that just knew like how long"
+ },
+ {
+  "start": 4411.58,
+  "end": 4417.88,
+  "text": "has it been since that person last had a meeting like you know are they due like should we send"
+ },
+ {
+  "start": 4417.88,
+  "end": 4421.54,
+  "text": "them a reminder like i think it'd be nice if i could just check boxes if it would be like hey"
+ },
+ {
+  "start": 4421.54,
+  "end": 4424.82,
+  "text": "here's all the people who haven't yet scheduled for the fall like do you want me to just send them"
+ },
+ {
+  "start": 4424.82,
+  "end": 4431.32,
+  "text": "you know like here's the templates can say hi name here's your da da da um i wish it was smart"
+ },
+ {
+  "start": 4431.32,
+  "end": 4436.81,
+  "text": "enough to do that i wish it was smart enough to know whose calendly link to schedule to send"
+ },
+ {
+  "start": 4436.81,
+  "end": 4441.77,
+  "text": "the client because that's another thing i have to know yeah am i sending chris's calendar link"
+ },
+ {
+  "start": 4441.77,
+  "end": 4445.73,
+  "text": "am i sending andy's calendar link do they typically like to meet with that client together"
+ },
+ {
+  "start": 4445.73,
+  "end": 4450.57,
+  "text": "in which case i gotta send their combined calendar link and where do you get that information how do"
+ },
+ {
+  "start": 4450.57,
+  "end": 4456.5,
+  "text": "you know um you just like know from experience but you can also check wealth box like is that"
+ },
+ {
+  "start": 4456.5,
+  "end": 4461.88,
+  "text": "my client or is that seattle's client um you also have to know what service they're receiving"
+ },
+ {
+  "start": 4461.88,
+  "end": 4466.5,
+  "text": "because if they're research only receiving like investment management service and we only meet"
+ },
+ {
+  "start": 4466.5,
+  "end": 4473.36,
+  "text": "them once a year in the spring but we have three different services you know so there's that"
+ },
+ {
+  "start": 4473.36,
+  "end": 4477.6,
+  "text": "and what do you call that in terms of what services people are receiving and that would"
+ },
+ {
+  "start": 4477.6,
+  "end": 4483.46,
+  "text": "probably be valuable in their map or whatever right like which one of your so you guys have"
+ },
+ {
+  "start": 4483.46,
+  "end": 4490.08,
+  "text": "different service offerings okay that people can sign up for basically right and like pay for"
+ },
+ {
+  "start": 4490.08,
+  "end": 4495.46,
+  "text": "yep and and and what do those involve like at a high level like frequencies of meetings"
+ },
+ {
+  "start": 4495.46,
+  "end": 4496.46,
+  "text": "Mm-hmm."
+ },
+ {
+  "start": 4496.46,
+  "end": 4497.46,
+  "text": "Different types of help."
+ },
+ {
+  "start": 4497.46,
+  "end": 4498.46,
+  "text": "Services that they receive."
+ },
+ {
+  "start": 4498.46,
+  "end": 4500.8,
+  "text": "Yeah."
+ },
+ {
+  "start": 4500.8,
+  "end": 4502.0,
+  "text": "Yeah."
+ },
+ {
+  "start": 4502.0,
+  "end": 4503.0,
+  "text": "Yeah."
+ },
+ {
+  "start": 4503.0,
+  "end": 4504.0,
+  "text": "Okay."
+ },
+ {
+  "start": 4504.0,
+  "end": 4505.0,
+  "text": "And they're in different categories, kind of."
+ },
+ {
+  "start": 4505.0,
+  "end": 4507.08,
+  "text": "Mm-hmm."
+ },
+ {
+  "start": 4507.08,
+  "end": 4513.2,
+  "text": "So I think that would be really nice if it could just do that kind of on its own."
+ },
+ {
+  "start": 4513.2,
+  "end": 4516.39,
+  "text": "Scheduling meetings would be great."
+ },
+ {
+  "start": 4516.39,
+  "end": 4517.39,
+  "text": "Let's see here."
+ },
+ {
+  "start": 4517.39,
+  "end": 4521.6,
+  "text": "We've kind of talked about some of the onboarding circles."
+ },
+ {
+  "start": 4521.6,
+  "end": 4524.53,
+  "text": "What about form?"
+ },
+ {
+  "start": 4524.53,
+  "end": 4526.53,
+  "text": "You mentioned forms at one point."
+ },
+ {
+  "start": 4526.53,
+  "end": 4528.92,
+  "text": "Custom forms."
+ },
+ {
+  "start": 4528.92,
+  "end": 4530.92,
+  "text": "Like in job form and things?"
+ },
+ {
+  "start": 4530.92,
+  "end": 4537.58,
+  "text": "Like, like, um, jump having a potentially a new forms feature that would replace job"
+ },
+ {
+  "start": 4537.58,
+  "end": 4539.56,
+  "text": "form and be better and be more integrated."
+ },
+ {
+  "start": 4539.96,
+  "end": 4543.42,
+  "text": "And we use job form the most when someone's new."
+ },
+ {
+  "start": 4543.42,
+  "end": 4547.74,
+  "text": "So like they, we have like a new client job form where they send us information about"
+ },
+ {
+  "start": 4547.74,
+  "end": 4548.16,
+  "text": "themselves."
+ },
+ {
+  "start": 4548.74,
+  "end": 4552.24,
+  "text": "If we're doing their cashflow for the first time, we have them fill out a job form, which"
+ },
+ {
+  "start": 4552.24,
+  "end": 4553.52,
+  "text": "is like, yeah."
+ },
+ {
+  "start": 4554.69,
+  "end": 4557.97,
+  "text": "And I'm trying to think if we have any other job forms, but okay."
+ },
+ {
+  "start": 4557.97,
+  "end": 4563.31,
+  "text": "so we use that like you know kind of during their first year but then it would be rare beyond that"
+ },
+ {
+  "start": 4563.31,
+  "end": 4571.98,
+  "text": "point to use a jot form for them yeah anything else that you like you wish something or someone"
+ },
+ {
+  "start": 4571.98,
+  "end": 4578.52,
+  "text": "could help you with um yeah just knowing kind of where we are i've said this to you before like"
+ },
+ {
+  "start": 4578.52,
+  "end": 4584.39,
+  "text": "being able to search emails i think would be amazing okay you know i think it'd be really"
+ },
+ {
+  "start": 4584.39,
+  "end": 4589.67,
+  "text": "cool if some like it'd be really cool if things could look at your full client list and kind of"
+ },
+ {
+  "start": 4589.67,
+  "end": 4596.89,
+  "text": "give you a report. Like this client really hasn't had any, any interaction with JBW for such amount"
+ },
+ {
+  "start": 4596.89,
+  "end": 4602.07,
+  "text": "of time, whether that's a meeting emails, phone call, like anything like that, I think would be"
+ },
+ {
+  "start": 4602.07,
+  "end": 4615.75,
+  "text": "really, um, great. What else, like, do you hate doing it? Your job, basically you're like,"
+ },
+ {
+  "start": 4615.75,
+  "end": 4624.3,
+  "text": "um, is there anything else that just either stresses you out or drains your battery? Um,"
+ },
+ {
+  "start": 4624.3,
+  "end": 4632.27,
+  "text": "I don't really like like I feel like I'm bothering people when I have to reach out like hey can you"
+ },
+ {
+  "start": 4632.27,
+  "end": 4640.82,
+  "text": "get me this thing so I hate like asking people to upload items to like the portal or something"
+ },
+ {
+  "start": 4640.82,
+  "end": 4645.72,
+  "text": "I really don't like reaching out to like their accountant and asking for their tax return like"
+ },
+ {
+  "start": 4645.72,
+  "end": 4652.19,
+  "text": "I just I don't know I just wish that was a little bit more automated almost you know like if if they"
+ },
+ {
+  "start": 4652.19,
+  "end": 4658.82,
+  "text": "had a portal and they would just get a reminder like hey send jbw uh you know this person's tax"
+ },
+ {
+  "start": 4658.82,
+  "end": 4672.18,
+  "text": "return or whatever um what else don't i like about my job i think something and this might"
+ },
+ {
+  "start": 4672.18,
+  "end": 4680.23,
+  "text": "be something good to keep aware of with ai is like for some people that have a really complicated"
+ },
+ {
+  "start": 4680.23,
+  "end": 4687.09,
+  "text": "world like their notes become fairly complicated like and very populated so there will be a lot"
+ },
+ {
+  "start": 4687.09,
+  "end": 4693.83,
+  "text": "of to-dos and so one thing that i think is very human is just that i feel like i have to do a lot"
+ },
+ {
+  "start": 4693.83,
+  "end": 4700.47,
+  "text": "in my job is kind of think about like okay is that really worth me tracking down like is that a to-do"
+ },
+ {
+  "start": 4700.47,
+  "end": 4704.89,
+  "text": "like this person is trying to like live their best life you know they've got a lot of other"
+ },
+ {
+  "start": 4704.89,
+  "end": 4709.81,
+  "text": "things going versus like everything that their financial advisor needs so kind of smart and"
+ },
+ {
+  "start": 4709.81,
+  "end": 4715.15,
+  "text": "reasonable like can we consolidate that you know what i'm not gonna like reach out via email and"
+ },
+ {
+  "start": 4715.15,
+  "end": 4719.93,
+  "text": "ask about that like let's just like take care of that at the next meeting yeah so some of that like"
+ },
+ {
+  "start": 4719.93,
+  "end": 4727.26,
+  "text": "trying to just collapse like you know take it from like a robotic thing and like collapse it"
+ },
+ {
+  "start": 4727.26,
+  "end": 4743.78,
+  "text": "into like more of a human thing what's what's gonna work for them for that i think a big thing"
+ },
+ {
+  "start": 4743.78,
+  "end": 4752.31,
+  "text": "is like this is an internal issue but like trying to remember why we made certain decisions about"
+ },
+ {
+  "start": 4752.31,
+  "end": 4757.41,
+  "text": "like a system or a process or something like that also like answering questions about a system or a"
+ },
+ {
+  "start": 4757.41,
+  "end": 4765.95,
+  "text": "process like if um like if the advisors are like i don't really know what this looks like it'd be"
+ },
+ {
+  "start": 4765.95,
+  "end": 4770.85,
+  "text": "cool to maybe have like an ai help agent that they could ask you know it's almost like it knows a lot"
+ },
+ {
+  "start": 4770.85,
+  "end": 4775.94,
+  "text": "about our wealth box and our your ways of working basically what's an example of something they've"
+ },
+ {
+  "start": 4775.94,
+  "end": 4780.52,
+  "text": "asked about that they're not sure how you guys are like a process you do or something yeah like"
+ },
+ {
+  "start": 4780.52,
+  "end": 4788.87,
+  "text": "they will ask about like like so-and-so wants to join us they're an investment management client"
+ },
+ {
+  "start": 4788.87,
+  "end": 4795.01,
+  "text": "i told them they were going to work with you like basically like i set expectations of"
+ },
+ {
+  "start": 4795.01,
+  "end": 4803.16,
+  "text": "something is that right and it's not right like it doesn't match our process or like um how do i"
+ },
+ {
+  "start": 4803.16,
+  "end": 4807.16,
+  "text": "let you know within wealth box that i need you to open an account or how do i let you know within"
+ },
+ {
+  "start": 4807.16,
+  "end": 4814.18,
+  "text": "wealth box that i need you to move money for a client and this is an advisor asking you this"
+ },
+ {
+  "start": 4814.18,
+  "end": 4820.79,
+  "text": "basically yeah yeah like they don't they don't know what the template is named for like opening"
+ },
+ {
+  "start": 4820.79,
+  "end": 4825.67,
+  "text": "a new account or sending money somewhere and so like sometimes they'll just like kind of start"
+ },
+ {
+  "start": 4825.67,
+  "end": 4831.41,
+  "text": "it from scratch they'll just open a task that's blank like can you send money to this thing and"
+ },
+ {
+  "start": 4831.41,
+  "end": 4836.95,
+  "text": "so like oftentimes i do but like i need to add a specific tag i need to like there's like other"
+ },
+ {
+  "start": 4836.95,
+  "end": 4841.67,
+  "text": "things that i end up adding to their tasks because they didn't use like this template this process so"
+ },
+ {
+  "start": 4841.67,
+  "end": 4847.01,
+  "text": "that we can like yeah find it again easily and stuff like that or like seattle was just telling"
+ },
+ {
+  "start": 4847.01,
+  "end": 4853.29,
+  "text": "me today they'll send her a task that's like can you open this account for someone and she's like"
+ },
+ {
+  "start": 4853.29,
+  "end": 4857.33,
+  "text": "well that's really in a workflow like i need you to open the workflow for me that's like step one"
+ },
+ {
+  "start": 4857.33,
+  "end": 4863.1,
+  "text": "is you know here's information about what account i need opened or something and so she ends up"
+ },
+ {
+  "start": 4863.1,
+  "end": 4869.19,
+  "text": "having to like transfer the information that they had in the task put it in a workflow close out the"
+ },
+ {
+  "start": 4869.19,
+  "end": 4874.93,
+  "text": "task you know and start working it from the workflow it's just like kind of repeated like"
+ },
+ {
+  "start": 4874.93,
+  "end": 4883.03,
+  "text": "that makes sense stuff when you think of some of your some of the things that drain your"
+ },
+ {
+  "start": 4883.03,
+  "end": 4888.73,
+  "text": "teammates batteries if i you know if if i were to ask him this question if they were here"
+ },
+ {
+  "start": 4888.73,
+  "end": 4895.71,
+  "text": "what do you wish someone or something could do for you to to you know and what stresses you out and"
+ },
+ {
+  "start": 4895.71,
+  "end": 4901.81,
+  "text": "what do you have you know so from a from jessica's perspective or seattle philip or chris or andy"
+ },
+ {
+  "start": 4901.81,
+  "end": 4905.13,
+  "text": "what are some like the big ones that come to mind we don't have to like talk about them all i'm sure"
+ },
+ {
+  "start": 4905.13,
+  "end": 4911.07,
+  "text": "there's lots and lots like that aren't specifically for you but maybe the other teammates yeah one"
+ },
+ {
+  "start": 4911.07,
+  "end": 4918.41,
+  "text": "that i thought about that raises a lot of like fear is uh us sending tax documents to the wrong"
+ },
+ {
+  "start": 4918.41,
+  "end": 4923.55,
+  "text": "place like that's a really scary thing that's a human process that we have right now and tell"
+ },
+ {
+  "start": 4923.55,
+  "end": 4927.85,
+  "text": "me more about that what are the documents and where are they going so they'll usually be like"
+ },
+ {
+  "start": 4927.85,
+  "end": 4938.06,
+  "text": "1099 documents um and we have to download them like from schwab and then send them to like the"
+ },
+ {
+  "start": 4938.06,
+  "end": 4946.29,
+  "text": "client's accountant okay and that's an email so they could go in a secure email yeah and it's"
+ },
+ {
+  "start": 4946.29,
+  "end": 4951.55,
+  "text": "going to have like the client's full name address social security number schwab account number"
+ },
+ {
+  "start": 4951.55,
+  "end": 4957.75,
+  "text": "so it's just a lot of information that like sometimes you send it to the accountant and"
+ },
+ {
+  "start": 4957.75,
+  "end": 4961.35,
+  "text": "they're like oh we don't work with that accountant anymore and you're like great you know but like"
+ },
+ {
+  "start": 4961.35,
+  "end": 4967.27,
+  "text": "you run the risk of like sending it to the wrong accountant or we've been trying to pull that back"
+ },
+ {
+  "start": 4967.27,
+  "end": 4972.79,
+  "text": "by some we used to send all the 1099s out like even if someone didn't have an accountant we"
+ },
+ {
+  "start": 4972.79,
+  "end": 4976.47,
+  "text": "would like send it to the client but we're just like let's just cut it back to like just"
+ },
+ {
+  "start": 4976.47,
+  "end": 4980.95,
+  "text": "accountants that we have relationship with but that's that's a nail biter for Seattle and I"
+ },
+ {
+  "start": 4980.95,
+  "end": 4993.04,
+  "text": "to like get those to the right place okay um like it'd be cool if there was some sort of link"
+ },
+ {
+  "start": 4993.04,
+  "end": 4999.41,
+  "text": "almost of like almost like these accounts are linked to this client and this client is linked"
+ },
+ {
+  "start": 4999.41,
+  "end": 5006.54,
+  "text": "to this this accountant and there is some way to make sure they get where they're supposed to go"
+ },
+ {
+  "start": 5006.54,
+  "end": 5013.42,
+  "text": "yeah like programmatically so it couldn't mess up yeah another idea is there's ways to encrypt"
+ },
+ {
+  "start": 5013.42,
+  "end": 5019.55,
+  "text": "things where one person has the key you have the lock and only they can open it so technically"
+ },
+ {
+  "start": 5019.55,
+  "end": 5033.04,
+  "text": "there's a lot we can do there i think um yeah yeah um other people's stuff they don't love um"
+ },
+ {
+  "start": 5033.04,
+  "end": 5048.35,
+  "text": "probably keeping track of like maybe compliance like rules and things and like i think i call"
+ },
+ {
+  "start": 5048.35,
+  "end": 5054.55,
+  "text": "this like tentacles but like if one thing changes in your compliance like thinking through where"
+ },
+ {
+  "start": 5054.55,
+  "end": 5062.42,
+  "text": "else throughout all of our systems and files would that need to change does that make sense"
+ },
+ {
+  "start": 5062.42,
+  "end": 5066.98,
+  "text": "so if there's a compliance rule that changes it's it it seems like it could be very overwhelming"
+ },
+ {
+  "start": 5066.98,
+  "end": 5075.36,
+  "text": "to now audit everything you guys ever have against it is that the idea that's that seems crazy yeah"
+ },
+ {
+  "start": 5075.36,
+  "end": 5081.89,
+  "text": "so almost like a uh interesting so like if this could be if you had like an automated that even"
+ },
+ {
+  "start": 5081.89,
+  "end": 5087.99,
+  "text": "just did a first pass at like at raising things that possibly that you need to look at like that"
+ },
+ {
+  "start": 5087.99,
+  "end": 5098.9,
+  "text": "could be helpful yeah very helpful and the and your your compliance consultant they don't have"
+ },
+ {
+  "start": 5098.9,
+  "end": 5102.38,
+  "text": "anything like that they just get on calls and kind of tell you what to do or answer questions"
+ },
+ {
+  "start": 5102.38,
+  "end": 5112.8,
+  "text": "uh-huh yeah and it would be similar it would be nice if we could do like not just for compliance"
+ },
+ {
+  "start": 5112.8,
+  "end": 5129.96,
+  "text": "But if we decide like, oh, Seattle is now taking over the responsibility of doing X, Y, Z thing, like it'd be really nice if it could kind of parse through all of our workflow steps, all of our tasks templates, you know, and be like, hey, should we reassign this template to always go to Seattle?"
+ },
+ {
+  "start": 5130.14,
+  "end": 5136.28,
+  "text": "Should we reassign this step in this process now that you've said Seattle is going to be the designated this person?"
+ },
+ {
+  "start": 5137.06,
+  "end": 5138.8,
+  "text": "Like, should we change it here?"
+ },
+ {
+  "start": 5138.8,
+  "end": 5143.68,
+  "text": "and if so like this would this would be this is hard but this would be amazing like"
+ },
+ {
+  "start": 5143.68,
+  "end": 5150.41,
+  "text": "any workflow that you have currently open for a client if you change the template it doesn't"
+ },
+ {
+  "start": 5150.41,
+  "end": 5158.02,
+  "text": "change any of the open workflows oh in wealth box in wealth box so it's just easy for like"
+ },
+ {
+  "start": 5158.02,
+  "end": 5163.48,
+  "text": "kind of like your processes to be out of date you know if anything was open and then you made a"
+ },
+ {
+  "start": 5163.48,
+  "end": 5170.44,
+  "text": "change like for instance we all often have a ton of like meeting prep and follow-up workflows open"
+ },
+ {
+  "start": 5170.44,
+  "end": 5175.36,
+  "text": "and that's like one of the workflows that changes the most because people be like oh can you just"
+ },
+ {
+  "start": 5175.36,
+  "end": 5180.8,
+  "text": "throw that into the post-meeting process you know and so like you could have like 40 of those open"
+ },
+ {
+  "start": 5180.8,
+  "end": 5185.58,
+  "text": "and you make a change and it's like okay allison's yet from this moment forward you're accountable"
+ },
+ {
+  "start": 5185.58,
+  "end": 5190.32,
+  "text": "for making sure this thing happens in the post-meeting but you've got 40 open yeah that"
+ },
+ {
+  "start": 5190.32,
+  "end": 5195.62,
+  "text": "don't don't say you know remember to do this as part of the post-meeting step you know"
+ },
+ {
+  "start": 5195.62,
+  "end": 5202.8,
+  "text": "so that would be cool yeah it sounds like your lives are like really in this wealth box"
+ },
+ {
+  "start": 5202.8,
+  "end": 5210.07,
+  "text": "tasks workflows and where else or email email yeah"
+ },
+ {
+  "start": 5210.07,
+  "end": 5223.64,
+  "text": "and and the client slides themselves because what are those so those are every client has a"
+ },
+ {
+  "start": 5223.64,
+  "end": 5231.68,
+  "text": "powerpoint slide deck and it's divided into different sections but that is kind of like"
+ },
+ {
+  "start": 5231.68,
+  "end": 5237.16,
+  "text": "everything that would be client facing like it's any of their meeting materials that they would"
+ },
+ {
+  "start": 5237.16,
+  "end": 5243.76,
+  "text": "see so it's going to have like their cover slide their agenda um their investment report"
+ },
+ {
+  "start": 5243.76,
+  "end": 5252.27,
+  "text": "um which we like screenshot and snip in there um it will have their one page financial plan for us"
+ },
+ {
+  "start": 5252.27,
+  "end": 5255.99,
+  "text": "which is like a high level summary of kind of all the pieces of their financial world"
+ },
+ {
+  "start": 5255.99,
+  "end": 5262.02,
+  "text": "and then so like those slides are always like available to be seen and then there's a lot of"
+ },
+ {
+  "start": 5262.02,
+  "end": 5267.96,
+  "text": "hidden slides that are categorized so we'll have like everybody's cash flow like cash flow is in"
+ },
+ {
+  "start": 5267.96,
+  "end": 5272.64,
+  "text": "there um so if we ever want to talk about cash flow specifically we'd like pull those slides up"
+ },
+ {
+  "start": 5272.64,
+  "end": 5277.52,
+  "text": "unhide them and it becomes part of their meeting deck you know and then once they're done part of"
+ },
+ {
+  "start": 5277.52,
+  "end": 5281.72,
+  "text": "the post-meeting process is like putting those slides back into their little category and hiding"
+ },
+ {
+  "start": 5281.72,
+  "end": 5286.66,
+  "text": "them okay so that there's really only like about four you know or like you start to prep for the"
+ },
+ {
+  "start": 5286.66,
+  "end": 5289.6,
+  "text": "next meeting you're like oh next time we're doing estate okay so i'm going to pull up the estate"
+ },
+ {
+  "start": 5289.6,
+  "end": 5295.92,
+  "text": "slides into there and then i'm going to send philip a task to say hey you need to can you fill"
+ },
+ {
+  "start": 5295.92,
+  "end": 5299.24,
+  "text": "these in or can you make sure these are up to date because we're going to look at that in six"
+ },
+ {
+  "start": 5299.24,
+  "end": 5304.18,
+  "text": "months from now right yeah so that's like i mean it's like client meetings are like the heart of"
+ },
+ {
+  "start": 5304.18,
+  "end": 5311.57,
+  "text": "our business really wow yeah you know yeah it's like the human part right and of course like"
+ },
+ {
+  "start": 5311.57,
+  "end": 5315.83,
+  "text": "investment management matters too you know it all kind of matters but that's really the heart"
+ },
+ {
+  "start": 5315.83,
+  "end": 5319.63,
+  "text": "of our business so that's what the meeting slides are is that has like cash flow slides estate"
+ },
+ {
+  "start": 5319.63,
+  "end": 5329.1,
+  "text": "slides investment slides um insurance slides and tax planning slides it's like a gold mine for the"
+ },
+ {
+  "start": 5329.1,
+  "end": 5334.06,
+  "text": "ai to create this client map it's probably where it would start and like to fill out and then it"
+ },
+ {
+  "start": 5334.06,
+  "end": 5338.94,
+  "text": "would go to other sources and things that's cool and that would be cool for like specifically a"
+ },
+ {
+  "start": 5338.94,
+  "end": 5343.66,
+  "text": "planner like i'm trying not to update all the planning slides but i feel like ai could help"
+ },
+ {
+  "start": 5343.66,
+  "end": 5350.33,
+  "text": "a planner by saying like oh this person i don't know like they just emailed in and said i just"
+ },
+ {
+  "start": 5350.33,
+  "end": 5354.81,
+  "text": "sent my umbrella policy my new umbrella policy so like this is a reminder that we need to change it"
+ },
+ {
+  "start": 5354.81,
+  "end": 5358.83,
+  "text": "in the slides or like i can see that their new policy is two million dollars like i need to"
+ },
+ {
+  "start": 5358.83,
+  "end": 5365.48,
+  "text": "change that summary in the slide right so i don't know if this is becoming clear but we have so many"
+ },
+ {
+  "start": 5365.48,
+  "end": 5373.94,
+  "text": "places to keep updated yes of everything yeah you know yeah and that just is like a full-time job"
+ },
+ {
+  "start": 5373.94,
+  "end": 5379.18,
+  "text": "to do that and that's also why i'm asking this question a lot of like could it know the most"
+ },
+ {
+  "start": 5379.18,
+  "end": 5384.64,
+  "text": "updated thing you know because as we've hired philip one of his biggest things that he keeps"
+ },
+ {
+  "start": 5384.64,
+  "end": 5389.4,
+  "text": "bringing up is like i'm trying to figure out what the source of truth is on xyz thing right because"
+ },
+ {
+  "start": 5389.4,
+  "end": 5396.24,
+  "text": "it's like do i look at is it like what lives in the in one drive you know like we have to have"
+ },
+ {
+  "start": 5396.24,
+  "end": 5402.14,
+  "text": "proof of whatever so like i'm just i can go off of that is it like i have to go on a scavenger"
+ },
+ {
+  "start": 5402.14,
+  "end": 5408.16,
+  "text": "hunt and whelp box you know like is it you know like what is the source of truth so having an ai"
+ },
+ {
+  "start": 5408.16,
+  "end": 5412.1,
+  "text": "that could tell us what the source of truth is or like what's the latest on this the latest"
+ },
+ {
+  "start": 5412.1,
+  "end": 5420.22,
+  "text": "the latest and greatest spill the tea yeah exactly also i feel like it could be nice if"
+ },
+ {
+  "start": 5420.22,
+  "end": 5429.06,
+  "text": "like just from the sense of like that ai or that we want to be able to like know what's the latest"
+ },
+ {
+  "start": 5429.06,
+  "end": 5436.7,
+  "text": "and greatest like i almost feel like there could be an ai setting that's like chris gets off a call"
+ },
+ {
+  "start": 5436.7,
+  "end": 5443.52,
+  "text": "or Chris I don't know somebody has something happen or like I I don't know I don't even know"
+ },
+ {
+  "start": 5443.52,
+  "end": 5447.56,
+  "text": "if this is needed I'm just going to throw this out there as a brain as a brainstorm but like"
+ },
+ {
+  "start": 5447.56,
+  "end": 5454.29,
+  "text": "almost that it could keep notes for me like if I'm just like hey I just got an email from this"
+ },
+ {
+  "start": 5454.29,
+  "end": 5459.79,
+  "text": "person and they said this and this yeah like having it kind of just put that into wealth"
+ },
+ {
+  "start": 5459.79,
+  "end": 5465.79,
+  "text": "box for me in a format that is then searchable but then I'm like hey did this client ask us to"
+ },
+ {
+  "start": 5465.79,
+  "end": 5471.13,
+  "text": "change their email and it kind of knows how to ask wealth box to recall that information right"
+ },
+ {
+  "start": 5471.13,
+  "end": 5475.61,
+  "text": "does that make sense yeah 100 and maybe you would say like that's not needed because if it's just in"
+ },
+ {
+  "start": 5475.61,
+  "end": 5481.11,
+  "text": "an email like it could pull it there or something you know but you'd still want it in wealth box"
+ },
+ {
+  "start": 5481.11,
+  "end": 5484.63,
+  "text": "but almost like within your current workflow probably because that's where you guys work"
+ },
+ {
+  "start": 5484.63,
+  "end": 5492.27,
+  "text": "from or like if it could save andy from having to like call me or like if andy's like hey i want to"
+ },
+ {
+  "start": 5492.27,
+  "end": 5497.95,
+  "text": "add more of the human element i want to add what i read from this meeting yeah you know it's kind"
+ },
+ {
+  "start": 5497.95,
+  "end": 5503.94,
+  "text": "of like him being able to speak into it and then have it like capture it yeah and almost keyword"
+ },
+ {
+  "start": 5503.94,
+  "end": 5508.02,
+  "text": "it you know so that it could like find it again yeah pretty easily yeah i think that'd be kind"
+ },
+ {
+  "start": 5508.02,
+  "end": 5512.54,
+  "text": "of cool yeah because i just feel like we have a ton of inconsistencies we have like kind of six"
+ },
+ {
+  "start": 5512.54,
+  "end": 5521.41,
+  "text": "people adding things to wealth box in their own rhyme and reason and way and yeah you know here's"
+ },
+ {
+  "start": 5521.41,
+  "end": 5527.23,
+  "text": "my thing let me let me think of this yeah to me wealth box is a crm it's a customer relationship"
+ },
+ {
+  "start": 5527.23,
+  "end": 5534.1,
+  "text": "management software and it seems to me like you guys are using it for way more than that"
+ },
+ {
+  "start": 5534.1,
+  "end": 5546.46,
+  "text": "what would you say about that yeah i mean in some way like we're using it we're using features that"
+ },
+ {
+  "start": 5546.46,
+  "end": 5550.92,
+  "text": "it has so i feel like right it's kind of like meant to do a lot of the things that we are doing"
+ },
+ {
+  "start": 5550.92,
+  "end": 5555.38,
+  "text": "with it there's features that we don't yet use like it has like a calendar feature and things"
+ },
+ {
+  "start": 5555.38,
+  "end": 5567.33,
+  "text": "um but yeah i mean that's yeah it's just like such an integral part of our software sweet"
+ },
+ {
+  "start": 5567.33,
+  "end": 5578.82,
+  "text": "cool yeah i think one of the questions will be like with this software will be um and i know"
+ },
+ {
+  "start": 5578.82,
+  "end": 5582.8,
+  "text": "that you can't really answer this because you're not sure what the technology can do and to be"
+ },
+ {
+  "start": 5582.8,
+  "end": 5586.4,
+  "text": "honest i'm not exactly sure what the technology you know you have to build stuff to see if it can"
+ },
+ {
+  "start": 5586.4,
+  "end": 5591.74,
+  "text": "do it but like you know i don't think wealth box will really be replaceable in the near future i"
+ },
+ {
+  "start": 5591.74,
+  "end": 5596.42,
+  "text": "think jump could be potentially in you guys's workflow and this is just my early assessment"
+ },
+ {
+  "start": 5596.42,
+  "end": 5604.45,
+  "text": "this could totally let me know what you think because um um the question for a tool like this"
+ },
+ {
+  "start": 5604.45,
+  "end": 5610.45,
+  "text": "is like what do we replace from wealth box and what do we leave there because it does it a really"
+ },
+ {
+  "start": 5610.45,
+  "end": 5616.45,
+  "text": "really good job do you have any thoughts on that well honestly i've been kind of hoping that you"
+ },
+ {
+  "start": 5616.45,
+  "end": 5623.4,
+  "text": "would just replace web box and combine a lot of softwares into one you know like just like if we"
+ },
+ {
+  "start": 5623.4,
+  "end": 5630.91,
+  "text": "if this could replace wealth box and jump obviously that would be ideal right yeah do you but so and"
+ },
+ {
+  "start": 5630.91,
+  "end": 5635.49,
+  "text": "be like an assistant you know a source of truth like have this amazing searchability yeah right"
+ },
+ {
+  "start": 5635.49,
+  "end": 5640.33,
+  "text": "wealth box seems intimidating to me as a crm but do you do you think like"
+ },
+ {
+  "start": 5640.33,
+  "end": 5647.49,
+  "text": "there's no way for us to both know but like do you think potentially wealth box like it's a bit"
+ },
+ {
+  "start": 5647.49,
+  "end": 5654.72,
+  "text": "scary to me but um does it do anything particularly technically difficult i know it i know it"
+ },
+ {
+  "start": 5654.72,
+  "end": 5660.12,
+  "text": "basically is a way to display a database of people right i don't think it does anything"
+ },
+ {
+  "start": 5660.12,
+  "end": 5665.0,
+  "text": "technically i mean that's me not knowing how to code or anything but i think it's pretty basic"
+ },
+ {
+  "start": 5665.0,
+  "end": 5674.51,
+  "text": "yeah and you use it every day so yeah we can see um and that's that's perfect the the main"
+ },
+ {
+  "start": 5674.51,
+  "end": 5679.61,
+  "text": "real value here really more important than guessing if we can replace both blocks is all of"
+ },
+ {
+  "start": 5679.61,
+  "end": 5686.03,
+  "text": "the pains you share the frustrations the things you need help with like that is really this is a"
+ },
+ {
+  "start": 5686.03,
+  "end": 5690.87,
+  "text": "total gold mine because of that and and and we'll let honestly we'll let the technology decide what"
+ },
+ {
+  "start": 5690.87,
+  "end": 5695.15,
+  "text": "it can do like yeah and and that sounds weird but like that's actually what development teams"
+ },
+ {
+  "start": 5695.15,
+  "end": 5698.81,
+  "text": "already do they build stuff to see if it works and not and it doesn't you're gonna steal back"
+ },
+ {
+  "start": 5698.81,
+  "end": 5704.64,
+  "text": "and you know so it really is an exploration and a discovery process and um yeah to figure out"
+ },
+ {
+  "start": 5704.64,
+  "end": 5711.45,
+  "text": "what's possible well i've just been shocked like you know seattle went to a workshop with jump and"
+ },
+ {
+  "start": 5711.45,
+  "end": 5717.13,
+  "text": "wealth box and then she was saying like what jump could do and i'm just like i think it's so funny"
+ },
+ {
+  "start": 5717.13,
+  "end": 5722.81,
+  "text": "that jump and wealth box are like so buddy buddy i mean i can see why they are today but i'm like"
+ },
+ {
+  "start": 5722.81,
+  "end": 5727.63,
+  "text": "jump is coming for you wealth box like i don't know if you can see that but i can see that yeah"
+ },
+ {
+  "start": 5727.63,
+  "end": 5732.53,
+  "text": "like i just don't feel like it's i don't think it's yeah i don't think it's going to be that"
+ },
+ {
+  "start": 5732.53,
+  "end": 5737.43,
+  "text": "hard to do some of the basic features that wealth box has you know like having contacts pages yeah"
+ },
+ {
+  "start": 5737.43,
+  "end": 5743.73,
+  "text": "or even like i i assume it's like fairly simple to have like task templates and like workflows"
+ },
+ {
+  "start": 5743.73,
+  "end": 5748.99,
+  "text": "you know like i just don't think it's going to be that much harder like if they are really closing"
+ },
+ {
+  "start": 5748.99,
+  "end": 5754.33,
+  "text": "the gap in so many other areas like yeah like they're probably just working with wealth box"
+ },
+ {
+  "start": 5754.33,
+  "end": 5759.49,
+  "text": "because it's like brand recognition and like so many people use wealth box and stuff you know"
+ },
+ {
+  "start": 5759.49,
+  "end": 5764.35,
+  "text": "yeah but like i don't know i just i'm like i i can't imagine that within five years they're not"
+ },
+ {
+  "start": 5764.35,
+  "end": 5765.59,
+  "text": "a full CRM"
+ },
+ {
+  "start": 5765.59,
+  "end": 5765.95,
+  "text": "cool"
+ },
+ {
+  "start": 5765.95,
+  "end": 5767.63,
+  "text": "in my opinion"
+ },
+ {
+  "start": 5767.63,
+  "end": 5767.99,
+  "text": "yeah"
+ },
+ {
+  "start": 5767.99,
+  "end": 5768.73,
+  "text": "that's a great"
+ },
+ {
+  "start": 5768.73,
+  "end": 5769.17,
+  "text": "opinion"
+ },
+ {
+  "start": 5769.17,
+  "end": 5769.91,
+  "text": "that's a hot take"
+ },
+ {
+  "start": 5769.91,
+  "end": 5770.27,
+  "text": "that's a"
+ },
+ {
+  "start": 5770.27,
+  "end": 5771.13,
+  "text": "that's a hot take"
+ },
+ {
+  "start": 5771.13,
+  "end": 5772.93,
+  "text": "well thanks for listening"
+ },
+ {
+  "start": 5772.93,
+  "end": 5774.03,
+  "text": "oh thank you"
+ },
+ {
+  "start": 5774.03,
+  "end": 5775.95,
+  "text": "this is crazy"
+ },
+ {
+  "start": 5775.95,
+  "end": 5777.01,
+  "text": "I'm going right in"
+ },
+ {
+  "start": 5777.01,
+  "end": 5777.41,
+  "text": "to like"
+ },
+ {
+  "start": 5777.41,
+  "end": 5778.35,
+  "text": "create a report"
+ },
+ {
+  "start": 5778.35,
+  "end": 5778.87,
+  "text": "out of this"
+ },
+ {
+  "start": 5778.87,
+  "end": 5780.63,
+  "text": "and get themes"
+ },
+ {
+  "start": 5780.63,
+  "end": 5781.03,
+  "text": "and"
+ }
+]

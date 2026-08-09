@@ -63,6 +63,9 @@ yarn-error.log*
 # Advisor review packets (generated HTML for attorney/CPA review — regenerate via scripts/export-advisor-packet.ts)
 advisor-packet/
 
+# Demo/sandbox credentials (real secrets — never committed, see demo-creds/*/README.md)
+demo-creds/
+
 # Local screenshots/assets (not for public repo)
 Assets/
 
